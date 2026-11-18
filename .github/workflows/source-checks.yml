@@ -58,6 +58,17 @@ jobs:
       - name: Reject corrupted UCM files
         run: /tmp/cm-ucm-negative /tmp/cm-fixture.ucm
 
+  ucm-thousand-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate synthetic UCM fixture
+        run: python3 tests/make_ucm_fixture.py /tmp/cm-fixture.ucm
+      - name: Compile and run 1000 malformed UCM cases
+        run: |
+          swiftc ios/CMUCMModel.swift tests/UCMThousandSmoke.swift -o /tmp/cm-ucm-thousand
+          /tmp/cm-ucm-thousand /tmp/cm-fixture.ucm
+
   metal-uniform-layout:
     runs-on: ubuntu-latest
     steps:
