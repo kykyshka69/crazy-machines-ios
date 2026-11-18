@@ -85,7 +85,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify Swift side of Metal uniform ABI
         run: |
-          swiftc tests/UniformLayoutSmoke.swift -o /tmp/cm-uniform-smoke
+          swiftc -parse-as-library tests/UniformLayoutSmoke.swift -o /tmp/cm-uniform-smoke
           /tmp/cm-uniform-smoke
 
   material-candidate-runtime:
