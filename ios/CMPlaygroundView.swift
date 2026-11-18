@@ -92,7 +92,7 @@ struct CMPlaygroundView: View {
    simulationSteps+=1
    accumulator-=Self.fixedStep
    steps+=1
-   checkGoal()
+   checkGoal(previousPositions:before)
    if reachedGoal { break }
   }
  }
@@ -106,8 +106,20 @@ struct CMPlaygroundView: View {
    }
   }
  }
- private func checkGoal() {
-  if world.bodies.contains(where:{ squaredDistance($0.position,Self.goal)<pow(Self.goalRadius+$0.radius,2) }) {
+ private func checkGoal(previousPositions: [SIMD2<Double>] = []) {
+  let hit=world.bodies.enumerated().contains { index,ball in
+   let radius=Self.goalRadius+ball.radius
+   if squaredDistance(ball.position,Self.goal) <= radius*radius { return true }
+   guard previousPositions.indices.contains(index) else { return false }
+   let start=previousPositions[index]
+   let travel=ball.position-start
+   let length=travel.x*travel.x+travel.y*travel.y
+   guard length > 1e-12 else { return false }
+   let toGoal=Self.goal-start
+   let fraction=min(max((toGoal.x*travel.x+toGoal.y*travel.y)/length,0),1)
+   return squaredDistance(start+travel*fraction,Self.goal) <= radius*radius
+  }
+  if hit {
    reachedGoal=true
    running=false
    lastTick=nil
@@ -230,10 +242,11 @@ struct CMPlaygroundView: View {
  private func stepOnce() {
   guard !running else { return }
   if startingLayout == nil { startingLayout=world }
+  let before=world.bodies.map(\.position)
   world.step(dt:Self.fixedStep)
   recordTrails()
   simulationSteps+=1
-  checkGoal()
+  checkGoal(previousPositions:before)
  }
  private func beginDrag(_ point:SIMD2<Double>) {
   guard editMode && !running else { return }
