@@ -19,6 +19,25 @@ import Foundation
   corrupt=decoded
   corrupt.version=999
   do { _=try corrupt.makeWorld(); fatalError("Unknown version accepted") } catch CMLevelDocument.LevelError.invalid {}
+  // Reject non-finite and out-of-bounds data before loading user levels.
+  corrupt=decoded
+  corrupt.gravity = .infinity
+  do { _=try corrupt.makeWorld(); fatalError("Infinite gravity accepted") } catch CMLevelDocument.LevelError.invalid {}
+  corrupt=decoded
+  corrupt.balls[0].x = 7.01
+  do { _=try corrupt.makeWorld(); fatalError("Out-of-bounds ball accepted") } catch CMLevelDocument.LevelError.invalid {}
+  corrupt=decoded
+  corrupt.balls[0].mass = .nan
+  do { _=try corrupt.makeWorld(); fatalError("NaN mass accepted") } catch CMLevelDocument.LevelError.invalid {}
+  corrupt=decoded
+  corrupt.ramps[0].friction = -0.1
+  do { _=try corrupt.makeWorld(); fatalError("Negative ramp friction accepted") } catch CMLevelDocument.LevelError.invalid {}
+  corrupt=decoded
+  corrupt.balls=Array(repeating:decoded.balls[0],count:21)
+  do { _=try corrupt.makeWorld(); fatalError("Excessive ball count accepted") } catch CMLevelDocument.LevelError.invalid {}
+  corrupt=decoded
+  corrupt.ramps=Array(repeating:decoded.ramps[0],count:13)
+  do { _=try corrupt.makeWorld(); fatalError("Excessive ramp count accepted") } catch CMLevelDocument.LevelError.invalid {}
   print("Level document roundtrip and validation passed")
  }
 }
