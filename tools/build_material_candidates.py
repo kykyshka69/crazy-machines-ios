@@ -22,7 +22,7 @@ def build(archive):
      for st in p['children']:
       if st['name'].casefold()!='stage':continue
       tex=[v[0] for v in st['properties'].get('texture',[]) if v]
-      stages.append({'textures':[{'path':t,'exists':t.casefold() in paths} for t in tex]})
+      stages.append({'states':st['properties'],'textures':[{'path':t,'exists':t.casefold() in paths} for t in tex]})
      passes.append({'states':p['properties'],'stages':stages})
     candidates.append({'shader_ordinal':ordinal,'shader_name':shader['name'],'passes':passes})
    out.append({'model':model,'status':'name_match_candidate' if len(candidates)==1 else ('ambiguous' if candidates else 'unresolved'),'candidates':candidates})
