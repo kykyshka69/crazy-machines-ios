@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(Metal)
 import Metal
+#endif
 
 public enum CMTGAError: Error {
  case invalidHeader, unsupportedFormat, invalidDimensions, truncated, allocationFailed
@@ -32,6 +34,7 @@ public struct CMTGATexture {
   }
   width=w;height=h;rgba=Data(out)
  }
+#if canImport(Metal)
  public func makeMetalTexture(device:MTLDevice) throws -> MTLTexture {
   let d=MTLTextureDescriptor.texture2DDescriptor(pixelFormat:.rgba8Unorm,width:width,height:height,mipmapped:false)
   d.usage=[.shaderRead]
@@ -41,4 +44,5 @@ public struct CMTGATexture {
   }
   return t
  }
+#endif
 }
