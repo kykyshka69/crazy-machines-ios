@@ -9,7 +9,7 @@ struct TGAOrientationSmoke {
             [255, 0, 0], [0, 255, 0],
             [0, 0, 255], [255, 255, 0]
         ]
-        let expected = topLeft.flatMap { $0 + [255] }
+        let expected: [UInt8] = topLeft.flatMap { pixel in pixel + [UInt8(255)] }
         for topOrigin in [false, true] {
             for rightOrigin in [false, true] {
                 var header = [UInt8](repeating: 0, count: 18)
