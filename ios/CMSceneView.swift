@@ -17,9 +17,9 @@ public struct CMSceneView: UIViewRepresentable {
     let catalog=try CMAttachmentCatalog(data:Data(contentsOf:url))
     // sample.ucm may be a renamed original file; provide its original name in sample_model_name.txt.
     let originalName=Bundle.main.url(forResource:"sample_model_name",withExtension:"txt")
-      .flatMap { try? String(contentsOf:$0,encoding:.utf8) }?
-      .trimmingCharacters(in:.whitespacesAndNewlines)
-    let name=(originalName?.isEmpty == false ? originalName! : "sample.ucm").lowercased()
+      .flatMap { try? String(contentsOf:$0,encoding:.utf8) }
+    let trimmed=originalName?.trimmingCharacters(in:.whitespacesAndNewlines) ?? ""
+    let name=(trimmed.isEmpty ? "sample.ucm" : trimmed).lowercased()
     let slots=catalog.attachments.filter {
      $0.model.lowercased() == name || $0.model.lowercased().hasSuffix("/"+name)
     }
