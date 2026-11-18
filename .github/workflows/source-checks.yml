@@ -88,6 +88,15 @@ jobs:
           swiftc ios/CMMaterialCandidates.swift tests/MaterialCandidatesSmoke.swift -o /tmp/cm-material-smoke
           /tmp/cm-material-smoke
 
+  material-path-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Windows paths and ambiguous model bindings
+        run: |
+          swiftc ios/CMMaterialCandidates.swift tests/MaterialPathSmoke.swift -o /tmp/cm-material-path
+          /tmp/cm-material-path
+
   swift-syntax:
     runs-on: macos-latest
     steps:
