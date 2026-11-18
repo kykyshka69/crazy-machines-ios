@@ -15,6 +15,9 @@ struct CMPlaygroundView: View {
  @State private var startingLayout: CMPhysicsWorld2D?
  @State private var simulationSteps = 0
  @State private var showHelp = false
+ @State private var showGrid = true
+ @State private var snapToGrid = false
+ @State private var gravityStrength = 9.81
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
  private static let fixedStep = 1.0 / 120.0
  private static let goal = SIMD2<Double>(6.2,0.6)
@@ -40,6 +43,10 @@ struct CMPlaygroundView: View {
  private func location(_ point:CGPoint,_ size:CGSize) -> SIMD2<Double> {
   let s=scale(size)
   return SIMD2(Double(point.x)/s,(Double(size.height)-Double(point.y))/s)
+ }
+ private func snapped(_ p:SIMD2<Double>) -> SIMD2<Double> {
+  guard snapToGrid else { return p }
+  return SIMD2((p.x*4).rounded()/4,(p.y*4).rounded()/4)
  }
  private func bounded(_ p:SIMD2<Double>) -> SIMD2<Double> {
   SIMD2(min(max(p.x,0.2),Self.worldWidth-0.2),min(max(p.y,0.2),Self.worldHeight-0.2))
@@ -97,6 +104,7 @@ struct CMPlaygroundView: View {
   initialSegment=nil
   reachedGoal=false
   world=Self.makeWorld()
+  world.gravity.y = -gravityStrength
   startingLayout=nil
   simulationSteps=0
  }
@@ -144,7 +152,7 @@ struct CMPlaygroundView: View {
  }
  private func moveDrag(_ point:SIMD2<Double>) {
   guard editMode && !running,let selection else { return }
-  let p=bounded(point)
+  let p=bounded(snapped(point))
   switch selection {
   case .ball(let i):
    guard world.bodies.indices.contains(i) else { return }
@@ -203,6 +211,23 @@ struct CMPlaygroundView: View {
    GeometryReader { geometry in
     TimelineView(.animation(minimumInterval:1.0/60.0,paused:!running)) { timeline in
      Canvas { context,size in
+      if showGrid {
+       var grid=Path()
+       let unit=scale(size)*0.5
+       if unit > 0 {
+        for i in 0...Int(Double(size.width)/unit) {
+         let x=Double(i)*unit
+         grid.move(to:CGPoint(x:x,y:0))
+         grid.addLine(to:CGPoint(x:x,y:size.height))
+        }
+        for i in 0...Int(Double(size.height)/unit) {
+         let y=Double(i)*unit
+         grid.move(to:CGPoint(x:0,y:y))
+         grid.addLine(to:CGPoint(x:size.width,y:y))
+        }
+       }
+       context.stroke(grid,with:.color(.white.opacity(0.10)),lineWidth:0.5)
+      }
       let floor=screen(SIMD2(0,world.floorY),size)
       var floorPath=Path()
       floorPath.move(to:CGPoint(x:0,y:floor.y))
@@ -248,6 +273,11 @@ struct CMPlaygroundView: View {
     Text("Balls: \(world.bodies.count) · Ramps: \(world.segments.count)")
    }
    .font(.caption.monospacedDigit())
+   HStack {
+    Toggle("Grid",isOn:$showGrid)
+    Toggle("Snap",isOn:$snapToGrid).disabled(running)
+   }
+   .font(.caption)
    Toggle("Edit objects",isOn:$editMode).disabled(running)
    HStack {
     Button(running ? "Pause" : "Run") {
@@ -275,6 +305,16 @@ struct CMPlaygroundView: View {
    }
    .buttonStyle(.bordered)
    .disabled(running || { if case .ramp = selection { return false }; return true }())
+   HStack {
+    Text("Gravity").font(.caption)
+    Slider(value:$gravityStrength,in:0...20,step:0.5)
+     .disabled(running)
+     .onChange(of:gravityStrength) { _,newValue in
+      world.gravity.y = -newValue
+      startingLayout=nil
+     }
+    Text(String(format:"%.1f",gravityStrength)).font(.caption.monospacedDigit()).frame(width:35)
+   }
    HStack {
     Text("Speed").font(.caption)
     Slider(value:$speed,in:0.25...2.0,step:0.25)
