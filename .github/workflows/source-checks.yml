@@ -28,6 +28,17 @@ jobs:
           swiftc ios/CMTGATexture.swift ios/CMAttachmentCatalog.swift tests/PortableSmoke.swift -o /tmp/cm-portable-smoke
           /tmp/cm-portable-smoke
 
+  ucm-negative-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate synthetic UCM fixture
+        run: python3 tests/make_ucm_fixture.py /tmp/cm-fixture.ucm
+      - name: Compile malformed-input regression suite
+        run: swiftc ios/CMUCMModel.swift tests/UCMNegativeSmoke.swift -o /tmp/cm-ucm-negative
+      - name: Reject corrupted UCM files
+        run: /tmp/cm-ucm-negative /tmp/cm-fixture.ucm
+
   swift-syntax:
     runs-on: macos-latest
     steps:
