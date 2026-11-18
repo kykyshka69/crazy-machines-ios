@@ -111,6 +111,8 @@ jobs:
           /tmp/cm-slopes
           swiftc ios/CMPhysics2D.swift tests/CMFrictionSmoke.swift -o /tmp/cm-friction
           /tmp/cm-friction
+          swiftc ios/CMPhysics2D.swift tests/CMAngularSmoke.swift -o /tmp/cm-angular
+          /tmp/cm-angular
 
   swift-syntax:
     runs-on: macos-latest
