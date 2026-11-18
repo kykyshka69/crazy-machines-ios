@@ -21,6 +21,7 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
  private let depthState: MTLDepthStencilState
  private let transparentDepthState: MTLDepthStencilState
  private let sampler: MTLSamplerState
+ private var overrideSampler: MTLSamplerState?
  private let whiteTexture: MTLTexture
  private var modelTexture: MTLTexture?
  private var vertexBuffer: MTLBuffer?
@@ -131,6 +132,25 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   textureHasAlpha=stride(from:3,to:bytes.count,by:4).contains { bytes[$0] < 255 }
   modelTexture=uploaded
  }
+ public func setPreviewAddress(_ pair:CMMaterialCandidates.TextureAddressPair?) throws {
+  guard let pair else { overrideSampler=nil;return }
+  func metalMode(_ mode:CMMaterialCandidates.TextureAddress)->MTLSamplerAddressMode {
+   switch mode {
+   case .wrap: return .repeat
+   case .clamp: return .clampToEdge
+   case .mirror: return .mirrorRepeat
+   }
+  }
+  let descriptor=MTLSamplerDescriptor()
+  descriptor.minFilter = .linear
+  descriptor.magFilter = .linear
+  descriptor.sAddressMode=metalMode(pair.u)
+  descriptor.tAddressMode=metalMode(pair.v)
+  guard let state=device.makeSamplerState(descriptor:descriptor) else {
+   throw CMUCMError.invalidGeometry
+  }
+  overrideSampler=state
+ }
  public func setPreviewBlend(_ blend:CMMaterialCandidates.PreviewBlend?) {
   explicitBlend=blend
  }
@@ -177,7 +197,7 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   encoder.setVertexBuffer(vb,offset:0,index:0)
   encoder.setVertexBytes(&uniforms,length:MemoryLayout<Uniforms>.stride,index:1)
   encoder.setFragmentBytes(&uniforms,length:MemoryLayout<Uniforms>.stride,index:1)
-  encoder.setFragmentTexture(modelTexture ?? whiteTexture,index:0);encoder.setFragmentSamplerState(sampler,index:0)
+  encoder.setFragmentTexture(modelTexture ?? whiteTexture,index:0);encoder.setFragmentSamplerState(overrideSampler ?? sampler,index:0)
   encoder.drawIndexedPrimitives(type:.triangle,indexCount:indexCount,indexType:.uint16,indexBuffer:ib,indexBufferOffset:0)
   if showDebugMarkers,markerCount>0,let markers=markerBuffer {
    var markerUniforms=MarkerUniforms(modelViewProjection:uniforms.modelViewProjection)
