@@ -1,8 +1,11 @@
 import Foundation
+#if canImport(Metal)
 import Metal
+#endif
 
 public enum CMUCMError: Error {
     case invalidHeader, unsupportedVersion, truncated, invalidGeometry, invalidIndex, invalidLength
+#endif
 }
 
 /// Geometry-only UCM1 reader. The material and additional record semantics remain unresolved.
@@ -71,6 +74,7 @@ public struct CMUCMModel {
         self.triangleCount = faces
     }
 
+#if canImport(Metal)
     public func makeVertexBuffer(device: MTLDevice) throws -> MTLBuffer {
         guard let buffer = device.makeBuffer(bytes: [UInt8](vertexData), length: vertexData.count) else {
             throw CMUCMError.invalidGeometry
