@@ -95,7 +95,7 @@ public struct CMMaterialCandidates: Decodable {
   let textures=candidate.passes[0].stages[0].textures
   guard textures.count==1,textures[0].exists else { return nil }
   let path=textures[0].path
-  let normalized=path.replacingOccurrences(of:"\\\\",with:"/")
+  let normalized=path.replacingOccurrences(of:"\\",with:"/")
   let components=normalized.split(separator:"/",omittingEmptySubsequences:false)
   guard !normalized.isEmpty,!normalized.hasPrefix("/"),
         components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
