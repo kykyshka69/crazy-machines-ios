@@ -244,12 +244,14 @@ struct CMPlaygroundView: View {
   let a=midpoint-rotated,b=midpoint+rotated
   guard a.x >= 0.2,a.x <= Self.worldWidth-0.2,b.x >= 0.2,b.x <= Self.worldWidth-0.2,
         a.y >= 0.2,a.y <= Self.worldHeight-0.2,b.y >= 0.2,b.y <= Self.worldHeight-0.2 else { return }
+  guard squaredDistance(a,segment.start) > 1e-12 || squaredDistance(b,segment.end) > 1e-12 else { return }
   saveUndo()
   world.segments[index].start=a
   world.segments[index].end=b
   startingLayout=nil
   simulationSteps=0
   reachedGoal=false
+  trails=[]
  }
 
  private func stepOnce() {
