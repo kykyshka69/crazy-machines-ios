@@ -15,3 +15,8 @@ __pycache__/
 *.pyc
 outputs/
 private_assets/
+
+# Original game assets staged locally for preview only
+ios/sample.ucm
+ios/sample.tga
+ios/sample_model_name.txt
