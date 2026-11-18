@@ -12,6 +12,7 @@ struct CMPlaygroundView: View {
  @State private var speed = 1.0
  @State private var reachedGoal = false
  @State private var editMode = true
+ @State private var startingLayout: CMPhysicsWorld2D?
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
  private static let fixedStep = 1.0 / 120.0
  private static let goal = SIMD2<Double>(6.2,0.6)
@@ -74,10 +75,11 @@ struct CMPlaygroundView: View {
    accumulator-=Self.fixedStep
    steps+=1
    checkGoal()
+   if reachedGoal { break }
   }
  }
  private func checkGoal() {
-  if world.bodies.contains(where:{ squaredDistance($0.position,Self.goal)<Self.goalRadius*Self.goalRadius }) {
+  if world.bodies.contains(where:{ squaredDistance($0.position,Self.goal)<pow(Self.goalRadius+$0.radius,2) }) {
    reachedGoal=true
    running=false
    lastTick=nil
@@ -92,7 +94,31 @@ struct CMPlaygroundView: View {
   initialSegment=nil
   reachedGoal=false
   world=Self.makeWorld()
+  startingLayout=nil
  }
+ private func restartExperiment() {
+  guard let layout=startingLayout else { return }
+  running=false
+  lastTick=nil
+  accumulator=0
+  reachedGoal=false
+  selection=nil
+  world=layout
+ }
+ private func rotateSelectedRamp(by angle:Double) {
+  guard !running,case .ramp(let index)=selection,world.segments.indices.contains(index) else { return }
+  let segment=world.segments[index]
+  let midpoint=(segment.start+segment.end)*0.5
+  let half=(segment.end-segment.start)*0.5
+  let rotated=SIMD2(half.x*cos(angle)-half.y*sin(angle),half.x*sin(angle)+half.y*cos(angle))
+  let a=midpoint-rotated,b=midpoint+rotated
+  guard a.x >= 0.2,a.x <= Self.worldWidth-0.2,b.x >= 0.2,b.x <= Self.worldWidth-0.2,
+        a.y >= 0.2,a.y <= Self.worldHeight-0.2,b.y >= 0.2,b.y <= Self.worldHeight-0.2 else { return }
+  world.segments[index].start=a
+  world.segments[index].end=b
+  startingLayout=nil
+ }
+
  private func stepOnce() {
   guard !running else { return }
   world.step(dt:Self.fixedStep)
@@ -121,16 +147,19 @@ struct CMPlaygroundView: View {
    world.segments[i].end=bounded(original.end+delta)
   }
   reachedGoal=false
+  startingLayout=nil
  }
  private func addBall() {
   guard !running && world.bodies.count < 20 else { return }
   let x=1.0+Double(world.bodies.count%6)*0.7
   world.bodies.append(CMPhysicsBody2D(position:SIMD2(x,5.2),radius:0.25,restitution:0.45,surfaceFriction:0.4))
+  startingLayout=nil
  }
  private func addRamp() {
   guard !running && world.segments.count < 12 else { return }
   let y=1.4+Double(world.segments.count%4)*0.65
   world.segments.append(CMStaticSegment2D(start:SIMD2(2.2,y+0.5),end:SIMD2(4.2,y),friction:0.25))
+  startingLayout=nil
  }
  private func deleteSelected() {
   guard !running,let selection else { return }
@@ -141,6 +170,7 @@ struct CMPlaygroundView: View {
    if world.segments.indices.contains(i) { world.segments.remove(at:i) }
   }
   self.selection=nil
+  startingLayout=nil
  }
  var body: some View {
   VStack(spacing:10) {
@@ -193,6 +223,7 @@ struct CMPlaygroundView: View {
    Toggle("Edit objects",isOn:$editMode).disabled(running)
    HStack {
     Button(running ? "Pause" : "Run") {
+     if !running && startingLayout == nil { startingLayout=world }
      running.toggle()
      lastTick=nil
      dragStart=nil
@@ -200,6 +231,7 @@ struct CMPlaygroundView: View {
     .buttonStyle(.borderedProminent)
     Button("Step") { stepOnce() }.disabled(running)
     .buttonStyle(.bordered)
+    Button("Retry") { restartExperiment() }.disabled(startingLayout == nil).buttonStyle(.bordered)
     Button("Reset") { reset() }.buttonStyle(.bordered)
    }
    HStack {
@@ -208,6 +240,12 @@ struct CMPlaygroundView: View {
     Button("Delete") { deleteSelected() }.disabled(running || selection == nil)
    }
    .buttonStyle(.bordered)
+   HStack {
+    Button("Rotate ↶") { rotateSelectedRamp(by: .pi/12) }
+    Button("Rotate ↷") { rotateSelectedRamp(by: -.pi/12) }
+   }
+   .buttonStyle(.bordered)
+   .disabled(running || { if case .ramp = selection { return false }; return true }())
    HStack {
     Text("Speed").font(.caption)
     Slider(value:$speed,in:0.25...2.0,step:0.25)
