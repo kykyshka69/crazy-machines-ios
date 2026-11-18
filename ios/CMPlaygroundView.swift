@@ -203,6 +203,7 @@ struct CMPlaygroundView: View {
   simulationSteps=0
  }
  var body: some View {
+  ScrollView {
   VStack(spacing:10) {
    Text("Mechanics playground").font(.headline)
    Text(reachedGoal ? "Goal reached!" : "Guide a ball into the green target")
@@ -266,7 +267,7 @@ struct CMPlaygroundView: View {
      .onChange(of:timeline.date) { _,date in tick(date) }
     }
    }
-   .frame(height:330)
+   .frame(height:300)
    HStack {
     Text("Time: "+String(format:"%.2f",Double(simulationSteps)*Self.fixedStep)+" s")
     Spacer()
@@ -288,7 +289,7 @@ struct CMPlaygroundView: View {
      dragStart=nil
     }
     .buttonStyle(.borderedProminent)
-    Button("Step") { stepOnce() }.disabled(running)
+    Button("Step") { stepOnce() }.disabled(running || reachedGoal)
     .buttonStyle(.bordered)
     Button("Retry") { restartExperiment() }.disabled(startingLayout == nil).buttonStyle(.bordered)
     Button("Reset") { reset() }.buttonStyle(.bordered)
@@ -330,5 +331,6 @@ struct CMPlaygroundView: View {
     .font(.caption2).foregroundStyle(.secondary)
   }
   .padding()
- }
+  }
+ } 
 }
