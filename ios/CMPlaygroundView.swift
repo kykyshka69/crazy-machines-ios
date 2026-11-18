@@ -87,6 +87,7 @@ struct CMPlaygroundView: View {
   accumulator=min(accumulator+elapsed*speed,0.2)
   var steps=0
   while accumulator >= Self.fixedStep && steps < 24 {
+   let before=world.bodies.map(\.position)
    world.step(dt:Self.fixedStep)
    recordTrails()
    simulationSteps+=1
