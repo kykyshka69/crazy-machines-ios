@@ -246,7 +246,8 @@ struct CMPlaygroundView: View {
    guard world.bodies.indices.contains(i) else { return }
    let radius=world.bodies[i].radius
    let next=SIMD2(min(max(p.x,radius),Self.worldWidth-radius),min(max(p.y,radius),Self.worldHeight-radius))
-   if squaredDistance(next,world.bodies[i].position) > 1e-10 { dragChanged=true }
+   guard squaredDistance(next,world.bodies[i].position) > 1e-10 else { return }
+   dragChanged=true
    world.bodies[i].position=next
    world.bodies[i].velocity = .zero
    world.bodies[i].angularVelocity=0
@@ -257,8 +258,10 @@ struct CMPlaygroundView: View {
    let dx=min(max(requested.x,0.2-min(original.start.x,original.end.x)),Self.worldWidth-0.2-max(original.start.x,original.end.x))
    let dy=min(max(requested.y,0.2-min(original.start.y,original.end.y)),Self.worldHeight-0.2-max(original.start.y,original.end.y))
    let delta=SIMD2(dx,dy)
-   if squaredDistance(delta,.zero) > 1e-10 { dragChanged=true }
-   world.segments[i].start=original.start+delta
+   let targetStart=original.start+delta
+   guard squaredDistance(targetStart,world.segments[i].start) > 1e-10 else { return }
+   dragChanged=true
+   world.segments[i].start=targetStart
    world.segments[i].end=original.end+delta
   }
   reachedGoal=false
