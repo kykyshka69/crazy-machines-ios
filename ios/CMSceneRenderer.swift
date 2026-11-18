@@ -17,7 +17,7 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
  private let markerDepthState: MTLDepthStencilState
  private var markerBuffer: MTLBuffer?
  private var markerCount=0
- public var showDebugMarkers=true
+ public var showDebugMarkers=false
  private let depthState: MTLDepthStencilState
  private let transparentDepthState: MTLDepthStencilState
  private let sampler: MTLSamplerState
@@ -97,6 +97,7 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   // UCM vertices are 32-byte records with position at byte offset zero.
   // Compute bounds without assuming that every model is centered at origin.
   let raw=[UInt8](model.vertexData)
+  guard model.vertexCount>0,model.vertexCount<=raw.count/32 else { throw CMUCMError.invalidGeometry }
   func f32(_ offset:Int)->Float {
    let bits=UInt32(raw[offset]) | (UInt32(raw[offset+1]) << 8)
     | (UInt32(raw[offset+2]) << 16) | (UInt32(raw[offset+3]) << 24)
@@ -124,14 +125,18 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
  }
  public func loadDebugMarkers(_ slots:[CMAttachmentCatalog.Attachment]) throws {
   let positions=CMMarkerPoints.positions(slots)
-  markerCount=positions.count
-  if positions.isEmpty { markerBuffer=nil; return }
+  if positions.isEmpty {
+   markerBuffer=nil
+   markerCount=0
+   return
+  }
   // Metal packed_float3 has a 12-byte stride; SIMD3<Float> in Swift has a 16-byte stride.
   let floats=positions.flatMap { [$0.x,$0.y,$0.z] }
   guard let buffer=floats.withUnsafeBytes({ bytes in
    device.makeBuffer(bytes:bytes.baseAddress!,length:bytes.count,options:[])
   }) else { throw CMUCMError.invalidGeometry }
   markerBuffer=buffer
+  markerCount=positions.count
  }
  public func loadTexture(_ texture:CMTGATexture) throws {
   let uploaded=try texture.makeMetalTexture(device:device)
