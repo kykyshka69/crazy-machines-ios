@@ -318,12 +318,18 @@ struct CMPlaygroundView: View {
  }
  private func deleteSelected() {
   guard !running,let selection else { return }
+  switch selection {
+  case .ball(let i):
+   guard world.bodies.indices.contains(i) else { self.selection=nil; return }
+  case .ramp(let i):
+   guard world.segments.indices.contains(i) else { self.selection=nil; return }
+  }
   saveUndo()
   switch selection {
   case .ball(let i):
-   if world.bodies.indices.contains(i) { world.bodies.remove(at:i) }
+   world.bodies.remove(at:i)
   case .ramp(let i):
-   if world.segments.indices.contains(i) { world.segments.remove(at:i) }
+   world.segments.remove(at:i)
   }
   self.selection=nil
   trails=[]
