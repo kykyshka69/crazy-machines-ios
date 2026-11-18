@@ -8,12 +8,15 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
  private let device: MTLDevice
  private let queue: MTLCommandQueue
  private let pipeline: MTLRenderPipelineState
+ private let alphaPipeline: MTLRenderPipelineState
+ private var textureHasAlpha=false
  private let markerPipeline: MTLRenderPipelineState
  private let markerDepthState: MTLDepthStencilState
  private var markerBuffer: MTLBuffer?
  private var markerCount=0
  public var showDebugMarkers=true
  private let depthState: MTLDepthStencilState
+ private let transparentDepthState: MTLDepthStencilState
  private let sampler: MTLSamplerState
  private let whiteTexture: MTLTexture
  private var modelTexture: MTLTexture?
@@ -41,6 +44,8 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   view.clearColor=MTLClearColor(red:0.09,green:0.10,blue:0.13,alpha:1)
   pipeline=try CMMetalPipeline.make(device:dev,library:library,
     colorFormat:view.colorPixelFormat,depthFormat:view.depthStencilPixelFormat,blend:.opaque)
+  alphaPipeline=try CMMetalPipeline.make(device:dev,library:library,
+    colorFormat:view.colorPixelFormat,depthFormat:view.depthStencilPixelFormat,blend:.alpha)
   guard let markerVertex=library.makeFunction(name:"cmMarkerVertex"),
         let markerFragment=library.makeFunction(name:"cmMarkerFragment") else { throw CMUCMError.invalidGeometry }
   let markerDescriptor=MTLRenderPipelineDescriptor()
@@ -58,6 +63,13 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   ds.depthCompareFunction = .less;ds.isDepthWriteEnabled=true
   guard let depth=dev.makeDepthStencilState(descriptor:ds) else { throw CMUCMError.invalidGeometry }
   depthState=depth
+  let transparentDS=MTLDepthStencilDescriptor()
+  transparentDS.depthCompareFunction = .less
+  transparentDS.isDepthWriteEnabled=false
+  guard let transparentDepth=dev.makeDepthStencilState(descriptor:transparentDS) else {
+   throw CMUCMError.invalidGeometry
+  }
+  transparentDepthState=transparentDepth
   let sd=MTLSamplerDescriptor()
   sd.minFilter = .linear;sd.magFilter = .linear;sd.sAddressMode = .repeat;sd.tAddressMode = .repeat
   guard let sample=dev.makeSamplerState(descriptor:sd) else { throw CMUCMError.invalidGeometry }
@@ -107,7 +119,10 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   markerBuffer=buffer
  }
  public func loadTexture(_ texture:CMTGATexture) throws {
-  modelTexture=try texture.makeMetalTexture(device:device)
+  let uploaded=try texture.makeMetalTexture(device:device)
+  let bytes=[UInt8](texture.rgba)
+  textureHasAlpha=stride(from:3,to:bytes.count,by:4).contains { bytes[$0] < 255 }
+  modelTexture=uploaded
  }
  public func mtkView(_ view:MTKView,drawableSizeWillChange size:CGSize) {
   aspect=Float(size.width/max(size.height,1))
@@ -136,7 +151,8 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   let far=max(100,distance+framingRadius*5)
   var uniforms=Uniforms(modelViewProjection:perspective(.pi/3,aspect,0.01,far)*translation(SIMD3<Float>(0,0,-distance))*model,
                         model:model,lightDirectionAmbient:SIMD4<Float>(-0.4,-0.7,-0.6,0.35))
-  encoder.setRenderPipelineState(pipeline);encoder.setDepthStencilState(depthState)
+  encoder.setRenderPipelineState(textureHasAlpha ? alphaPipeline : pipeline)
+  encoder.setDepthStencilState(textureHasAlpha ? transparentDepthState : depthState)
   encoder.setVertexBuffer(vb,offset:0,index:0)
   encoder.setVertexBytes(&uniforms,length:MemoryLayout<Uniforms>.stride,index:1)
   encoder.setFragmentBytes(&uniforms,length:MemoryLayout<Uniforms>.stride,index:1)
