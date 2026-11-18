@@ -147,7 +147,7 @@ struct CMPlaygroundView: View {
    Text("Mechanics playground").font(.headline)
    Text(reachedGoal ? "Goal reached!" : "Guide a ball into the green target")
     .font(.subheadline)
-    .foregroundStyle(reachedGoal ? .green : .secondary)
+    .foregroundColor(reachedGoal ? .green : .secondary)
    GeometryReader { geometry in
     TimelineView(.animation(minimumInterval:1.0/60.0,paused:!running)) { timeline in
      Canvas { context,size in
