@@ -48,7 +48,7 @@ public struct CMSceneView: UIViewRepresentable {
    if let url=Bundle.main.url(forResource:"sample",withExtension:"tga") {
     try renderer.loadTexture(CMTGATexture(data:Data(contentsOf:url)))
    } else if let texturePath=candidates?.previewTexture(modelName:name) {
-    let normalized=texturePath.replacingOccurrences(of:"\\\\",with:"/")
+    let normalized=texturePath.replacingOccurrences(of:"\\",with:"/")
     let parts=normalized.split(separator:"/").map(String.init)
     if let filename=parts.last {
      let subdir=parts.dropLast().joined(separator:"/")
