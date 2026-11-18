@@ -13,10 +13,19 @@ public struct CMPhysicsBody2D {
   self.restitution=restitution;self.mass=mass
  }
 }
+/// One-sided static ramp: collides from the upper side only.
+public struct CMStaticSegment2D {
+ public var start: SIMD2<Double>
+ public var end: SIMD2<Double>
+ public init(start:SIMD2<Double>,end:SIMD2<Double>) {
+  self.start=start;self.end=end
+ }
+}
 public struct CMPhysicsWorld2D {
  public var gravity=SIMD2<Double>(0,-9.81)
  public var floorY: Double = 0
  public var bodies: [CMPhysicsBody2D] = []
+ public var segments: [CMStaticSegment2D] = []
  public init() {}
  /// Fixed-step semi-implicit Euler with a horizontal floor and bounce.
  public mutating func step(dt: Double) {
@@ -33,6 +42,42 @@ public struct CMPhysicsWorld2D {
     bodies[i].position.y=bottom
     if bodies[i].velocity.y < 0 {
      bodies[i].velocity.y = -bodies[i].velocity.y * min(max(bodies[i].restitution,0),1)
+    }
+   }
+  }
+  // Static ramps: closest-point contact, with an upward-facing one-sided normal.
+  // Endpoints are treated as rounded caps. Zero-length ramps are ignored.
+  for i in bodies.indices {
+   let body=bodies[i]
+   guard body.radius.isFinite,body.radius > 0,
+         body.position.x.isFinite,body.position.y.isFinite,
+         body.velocity.x.isFinite,body.velocity.y.isFinite,
+         body.restitution.isFinite else { continue }
+   for segment in segments {
+    let axis=segment.end-segment.start
+    let len2=axis.x*axis.x+axis.y*axis.y
+    guard len2.isFinite,len2 > 1e-12 else { continue }
+    var up=SIMD2<Double>(-axis.y,axis.x)/sqrt(len2)
+    if up.y < 0 { up = -up }
+    let offset=bodies[i].position-segment.start
+    let side=offset.x*up.x+offset.y*up.y
+    // Do not push objects approaching from below through a platform.
+    guard side >= -1e-9 else { continue }
+    let projection=(offset.x*axis.x+offset.y*axis.y)/len2
+    let t=min(max(projection,0),1)
+    let closest=segment.start+axis*t
+    let delta=bodies[i].position-closest
+    let d2=delta.x*delta.x+delta.y*delta.y
+    guard d2.isFinite,d2 < body.radius*body.radius else { continue }
+    let distance=sqrt(d2)
+    let normal=distance > 1e-12 ? delta/distance : up
+    // Reject backside contacts at rounded endpoints.
+    guard normal.x*up.x+normal.y*up.y >= 0 else { continue }
+    bodies[i].position += normal*(body.radius-distance)
+    let vn=bodies[i].velocity.x*normal.x+bodies[i].velocity.y*normal.y
+    if vn < 0 {
+     let e=min(max(body.restitution,0),1)
+     bodies[i].velocity -= normal*((1+e)*vn)
     }
    }
   }
