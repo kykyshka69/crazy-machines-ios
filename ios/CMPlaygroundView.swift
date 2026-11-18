@@ -305,9 +305,22 @@ struct CMPlaygroundView: View {
  }
  private func addBall() {
   guard !running && world.bodies.count < 20 else { return }
+  let radius=0.25
+  let candidates=(0..<6).flatMap { row in
+   (0..<12).map { col in SIMD2<Double>(0.5+Double(col)*0.5,5.5-Double(row)*0.75) }
+  }
+  guard let position=candidates.first(where: { candidate in
+   world.bodies.allSatisfy { other in
+    squaredDistance(candidate,other.position) >= pow(radius+other.radius+0.05,2)
+   } && world.segments.allSatisfy { segment in
+    segmentDistanceSquared(candidate,segment) >= pow(radius+0.05,2)
+   }
+  }) else {
+   storageMessage="No free space for another ball"
+   return
+  }
   saveUndo()
-  let x=1.0+Double(world.bodies.count%6)*0.7
-  world.bodies.append(CMPhysicsBody2D(position:SIMD2(x,5.2),radius:0.25,restitution:0.45,surfaceFriction:0.4))
+  world.bodies.append(CMPhysicsBody2D(position:position,radius:radius,restitution:0.45,surfaceFriction:0.4))
   startingLayout=nil
   reachedGoal=false
   simulationSteps=0
