@@ -21,6 +21,7 @@ import Foundation
   bad=valid;put32(&bad,72,UInt32.max);expectFailure("oversized-groups",bad)
   bad=valid;put32(&bad,76,UInt32.max);expectFailure("oversized-faces",bad)
   bad=valid;put32(&bad,80,UInt32.max);expectFailure("oversized-vertices",bad)
+  bad=valid;put32(&bad,80,65537);expectFailure("vertices-exceed-16bit-address-space",bad)
   bad=valid;put32(&bad,84,UInt32.max);expectFailure("oversized-records",bad)
   // Triangle indices are 32-bit on disk but must refer to an existing vertex
   // and fit the renderer's 16-bit index buffer.
