@@ -93,9 +93,7 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   mtkView(view,drawableSizeWillChange:view.drawableSize)
  }
  public func load(_ model:CMUCMModel) throws {
-  vertexBuffer=try model.makeVertexBuffer(device:device)
-  indexBuffer=try model.makeIndexBuffer(device:device)
-  indexCount=model.indices.count
+  // Validate geometry before replacing the currently displayed model.
   // UCM vertices are 32-byte records with position at byte offset zero.
   // Compute bounds without assuming that every model is centered at origin.
   let raw=[UInt8](model.vertexData)
@@ -112,8 +110,17 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
    guard p.x.isFinite && p.y.isFinite && p.z.isFinite else { throw CMUCMError.invalidGeometry }
    lo=simd_min(lo,p);hi=simd_max(hi,p)
   }
-  framingCenter=(lo+hi)*0.5
-  framingRadius=max(simd_length(hi-lo)*0.5,0.01)
+  let newCenter=(lo+hi)*0.5
+  let newRadius=max(simd_length(hi-lo)*0.5,0.01)
+  guard newCenter.x.isFinite,newCenter.y.isFinite,newCenter.z.isFinite,
+        newRadius.isFinite else { throw CMUCMError.invalidGeometry }
+  let newVertexBuffer=try model.makeVertexBuffer(device:device)
+  let newIndexBuffer=try model.makeIndexBuffer(device:device)
+  vertexBuffer=newVertexBuffer
+  indexBuffer=newIndexBuffer
+  indexCount=model.indices.count
+  framingCenter=newCenter
+  framingRadius=newRadius
  }
  public func loadDebugMarkers(_ slots:[CMAttachmentCatalog.Attachment]) throws {
   let positions=CMMarkerPoints.positions(slots)
