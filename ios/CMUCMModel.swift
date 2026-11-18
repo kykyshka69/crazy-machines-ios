@@ -79,16 +79,22 @@ public struct CMUCMModel {
 
 #if canImport(Metal)
     public func makeVertexBuffer(device: MTLDevice) throws -> MTLBuffer {
-        guard let buffer = device.makeBuffer(bytes: [UInt8](vertexData), length: vertexData.count) else {
-            throw CMUCMError.invalidGeometry
+        guard !vertexData.isEmpty else { throw CMUCMError.invalidGeometry }
+        let buffer = vertexData.withUnsafeBytes { bytes -> MTLBuffer? in
+            guard let base = bytes.baseAddress else { return nil }
+            return device.makeBuffer(bytes: base, length: bytes.count, options: [])
         }
+        guard let buffer else { throw CMUCMError.invalidGeometry }
         return buffer
     }
+
     public func makeIndexBuffer(device: MTLDevice) throws -> MTLBuffer {
-        let bytes = indices.withUnsafeBytes { Data($0) }
-        guard let buffer = device.makeBuffer(bytes: [UInt8](bytes), length: bytes.count) else {
-            throw CMUCMError.invalidGeometry
+        guard !indices.isEmpty else { throw CMUCMError.invalidGeometry }
+        let buffer = indices.withUnsafeBytes { bytes -> MTLBuffer? in
+            guard let base = bytes.baseAddress else { return nil }
+            return device.makeBuffer(bytes: base, length: bytes.count, options: [])
         }
+        guard let buffer else { throw CMUCMError.invalidGeometry }
         return buffer
     }
 #endif
