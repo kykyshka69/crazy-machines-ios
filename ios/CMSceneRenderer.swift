@@ -29,6 +29,7 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
  private var indexCount = 0
  private var angle: Float = 0
  private var isAutoRotating = true
+ private var zoomScale: Float = 1
  private var aspect: Float = 1
  private var framingCenter=SIMD3<Float>(repeating:0)
  private var framingRadius:Float=1
@@ -132,6 +133,7 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   markerBuffer=nil
   markerCount=0
   angle=0
+  zoomScale=1
  }
  public func loadDebugMarkers(_ slots:[CMAttachmentCatalog.Attachment]) throws {
   let positions=CMMarkerPoints.positions(slots)
@@ -193,6 +195,15 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   return simd_float4x4(columns:(SIMD4(x,0,0,0),SIMD4(0,y,0,0),SIMD4(0,0,z,-1),SIMD4(0,0,z*near,0)))
  }
  public func toggleAutoRotation() { isAutoRotating.toggle() }
+ public func zoom(by factor:Float) {
+  guard factor.isFinite, factor > 0 else { return }
+  zoomScale = min(max(zoomScale * factor,0.35),4)
+ }
+ public func resetCamera() {
+  zoomScale=1
+  angle=0
+  isAutoRotating=true
+ }
  public func rotate(by delta:Float) {
   guard delta.isFinite else { return }
   angle = (angle + delta).truncatingRemainder(dividingBy:2 * .pi)
@@ -206,7 +217,7 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   // Portrait screens have a narrower horizontal field of view.
   // Read drawable dimensions once for both camera framing and projection.
   let drawAspect=max(Float(view.drawableSize.width/max(view.drawableSize.height,1)),0.01)
-  let distance=max(0.3,framingRadius*3.2/max(min(drawAspect,1),0.1))
+  let distance=max(0.3,framingRadius*3.2/max(min(drawAspect,1),0.1)/zoomScale)
   let far=max(100,distance+framingRadius*5)
   var uniforms=Uniforms(modelViewProjection:perspective(.pi/3,drawAspect,0.01,far)*translation(SIMD3<Float>(0,0,-distance))*model,
                         model:model,lightDirectionAmbient:SIMD4<Float>(-0.4,-0.7,-0.6,0.35))
