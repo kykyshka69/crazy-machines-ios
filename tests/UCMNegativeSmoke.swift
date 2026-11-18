@@ -54,6 +54,14 @@ import Foundation
     expectFailure("\(name)-component-\(component)",bad)
    }
   }
+  // Validate every vertex, not just the first record.
+  for vertex in 1..<3 {
+   for component in 0..<8 {
+    bad=valid
+    put32(&bad,vertexStart+vertex*32+component*4,0x7fc00000)
+    expectFailure("nan-vertex-\(vertex)-component-\(component)",bad)
+   }
+  }
   bad=valid;bad.append(0);expectFailure("trailing-byte",bad)
   for cut in [1,2,4,8,16,32,64,128] where valid.count>cut {
    expectFailure("truncated-\(cut)",Data(valid.dropLast(cut)))
