@@ -11,6 +11,7 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
  private let depthState: MTLDepthStencilState
  private let sampler: MTLSamplerState
  private let whiteTexture: MTLTexture
+ private var modelTexture: MTLTexture?
  private var vertexBuffer: MTLBuffer?
  private var indexBuffer: MTLBuffer?
  private var indexCount = 0
@@ -56,6 +57,9 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   indexBuffer=try model.makeIndexBuffer(device:device)
   indexCount=model.indices.count
  }
+ public func loadTexture(_ texture:CMTGATexture) throws {
+  modelTexture=try texture.makeMetalTexture(device:device)
+ }
  public func mtkView(_ view:MTKView,drawableSizeWillChange size:CGSize) {
   aspect=Float(size.width/max(size.height,1))
  }
@@ -82,7 +86,7 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   encoder.setVertexBuffer(vb,offset:0,index:0)
   encoder.setVertexBytes(&uniforms,length:MemoryLayout<Uniforms>.stride,index:1)
   encoder.setFragmentBytes(&uniforms,length:MemoryLayout<Uniforms>.stride,index:1)
-  encoder.setFragmentTexture(whiteTexture,index:0);encoder.setFragmentSamplerState(sampler,index:0)
+  encoder.setFragmentTexture(modelTexture ?? whiteTexture,index:0);encoder.setFragmentSamplerState(sampler,index:0)
   encoder.drawIndexedPrimitives(type:.triangle,indexCount:indexCount,indexType:.uint16,indexBuffer:ib,indexBufferOffset:0)
   encoder.endEncoding();cb.present(drawable);cb.commit()
  }
