@@ -13,6 +13,9 @@ public struct CMSceneView: UIViewRepresentable {
    if let url=Bundle.main.url(forResource:"sample",withExtension:"ucm") {
     try renderer.load(CMUCMModel(data:Data(contentsOf:url)))
    }
+   if let url=Bundle.main.url(forResource:"sample",withExtension:"tga") {
+    try renderer.loadTexture(CMTGATexture(data:Data(contentsOf:url)))
+   }
   } catch { context.coordinator.error=error.localizedDescription }
   return view
  }
