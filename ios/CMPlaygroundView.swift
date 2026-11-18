@@ -468,10 +468,16 @@ struct CMPlaygroundView: View {
     Slider(value:$gravityStrength,in:0...20,step:0.5)
      .disabled(running)
      .onChange(of:gravityStrength) { _,newValue in
+      // Loading or retrying a level updates this slider programmatically.
+      // Do not invalidate the restored experiment unless gravity actually changes.
+      guard abs(world.gravity.y + newValue) > 1e-9 else { return }
       world.gravity.y = -newValue
       startingLayout=nil
       reachedGoal=false
       simulationSteps=0
+      trails=[]
+      lastTick=nil
+      accumulator=0
      }
     Text(String(format:"%.1f",gravityStrength)).font(.caption.monospacedDigit()).frame(width:35)
    }
