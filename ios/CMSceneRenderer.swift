@@ -22,6 +22,8 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
  private var indexCount = 0
  private var angle: Float = 0
  private var aspect: Float = 1
+ private var framingCenter=SIMD3<Float>(repeating:0)
+ private var framingRadius:Float=1
 
  private struct MarkerUniforms { var modelViewProjection:simd_float4x4 }
  private struct Uniforms {
@@ -74,6 +76,24 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   vertexBuffer=try model.makeVertexBuffer(device:device)
   indexBuffer=try model.makeIndexBuffer(device:device)
   indexCount=model.indices.count
+  // UCM vertices are 32-byte records with position at byte offset zero.
+  // Compute bounds without assuming that every model is centered at origin.
+  let raw=[UInt8](model.vertexData)
+  func f32(_ offset:Int)->Float {
+   let bits=UInt32(raw[offset]) | (UInt32(raw[offset+1]) << 8)
+    | (UInt32(raw[offset+2]) << 16) | (UInt32(raw[offset+3]) << 24)
+   return Float(bitPattern:bits)
+  }
+  var lo=SIMD3<Float>(repeating:Float.greatestFiniteMagnitude)
+  var hi=SIMD3<Float>(repeating:-Float.greatestFiniteMagnitude)
+  for i in 0..<model.vertexCount {
+   let o=i*32
+   let p=SIMD3<Float>(f32(o),f32(o+4),f32(o+8))
+   guard p.x.isFinite && p.y.isFinite && p.z.isFinite else { throw CMUCMError.invalidGeometry }
+   lo=simd_min(lo,p);hi=simd_max(hi,p)
+  }
+  framingCenter=(lo+hi)*0.5
+  framingRadius=max(simd_length(hi-lo)*0.5,0.01)
  }
  public func loadDebugMarkers(_ slots:[CMAttachmentCatalog.Attachment]) throws {
   let positions=CMMarkerPoints.positions(slots)
@@ -96,8 +116,10 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   let c=cos(a),s=sin(a)
   return simd_float4x4(columns:(SIMD4(c,0,-s,0),SIMD4(0,1,0,0),SIMD4(s,0,c,0),SIMD4(0,0,0,1)))
  }
- private func translation(_ z:Float)->simd_float4x4 {
-  var m=matrix_identity_float4x4;m.columns.3.z=z;return m
+ private func translation(_ p:SIMD3<Float>)->simd_float4x4 {
+  var m=matrix_identity_float4x4
+  m.columns.3=SIMD4<Float>(p,1)
+  return m
  }
  private func perspective(_ fov:Float,_ aspect:Float,_ near:Float,_ far:Float)->simd_float4x4 {
   let y:Float=1/tan(fov/2),x=y/aspect,z=far/(near-far)
@@ -108,8 +130,10 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
         let vb=vertexBuffer,let ib=indexBuffer,indexCount>0,
         let cb=queue.makeCommandBuffer(),let encoder=cb.makeRenderCommandEncoder(descriptor:pass) else{return}
   angle += 0.007
-  let model=rotation(angle)
-  var uniforms=Uniforms(modelViewProjection:perspective(.pi/3,aspect,0.1,100)*translation(-4)*model,
+  let model=rotation(angle)*translation(-framingCenter)
+  let distance=max(0.3,framingRadius*3.2)
+  let far=max(100,distance+framingRadius*5)
+  var uniforms=Uniforms(modelViewProjection:perspective(.pi/3,aspect,0.01,far)*translation(SIMD3<Float>(0,0,-distance))*model,
                         model:model,lightDirectionAmbient:SIMD4<Float>(-0.4,-0.7,-0.6,0.35))
   encoder.setRenderPipelineState(pipeline);encoder.setDepthStencilState(depthState)
   encoder.setVertexBuffer(vb,offset:0,index:0)
