@@ -30,6 +30,15 @@ import Foundation
   let badAddress=model("a.ucm","name_match_candidate","[{\"stages\":[{\"states\":{\"address\":[[\"invalid\",\"clamp\"]]},\"textures\":[{\"path\":\"a.tga\",\"exists\":true}]}]}]")
   let badAddressCatalog=try CMMaterialCandidates(data:manifest(badAddress))
   precondition(badAddressCatalog.previewAddress(modelName:"a.ucm")==nil)
+  let additiveCatalog=try CMMaterialCandidates(data:manifest(model("a.ucm","name_match_candidate","[{\"states\":{\"blend\":[[\"one\",\"one\"]]},\"stages\":[{\"states\":{\"address\":[[\"mirror\",\"clamp\"]]},\"textures\":[{\"path\":\"textures/metal.tga\",\"exists\":true}]}]}]")))
+  precondition(additiveCatalog.previewBlend(modelName:"a.ucm")==.additive)
+  precondition(additiveCatalog.previewAddress(modelName:"a.ucm")==CMMaterialCandidates.TextureAddressPair(u:.mirror,v:.clamp))
+  let alphaCatalog=try CMMaterialCandidates(data:manifest(model("a.ucm","name_match_candidate","[{\"states\":{\"blend\":[[\"srcalpha\",\"invsrcalpha\"]]},\"stages\":[{\"states\":{\"address\":[[\"mirror\",\"clamp\"]]},\"textures\":[{\"path\":\"textures/metal.tga\",\"exists\":true}]}]}]")))
+  precondition(alphaCatalog.previewBlend(modelName:"a.ucm")==.alpha)
+  precondition(alphaCatalog.previewAddress(modelName:"a.ucm")==CMMaterialCandidates.TextureAddressPair(u:.mirror,v:.clamp))
+  let multiplyCatalog=try CMMaterialCandidates(data:manifest(model("a.ucm","name_match_candidate","[{\"states\":{\"blend\":[[\"zero\",\"srccolor\"]]},\"stages\":[{\"states\":{\"address\":[[\"mirror\",\"clamp\"]]},\"textures\":[{\"path\":\"textures/metal.tga\",\"exists\":true}]}]}]")))
+  precondition(multiplyCatalog.previewBlend(modelName:"a.ucm")==.multiply)
+  precondition(multiplyCatalog.previewAddress(modelName:"a.ucm")==CMMaterialCandidates.TextureAddressPair(u:.mirror,v:.clamp))
   print("Material selection smoke tests passed")
  }
 }
