@@ -26,4 +26,4 @@ jobs:
       - name: Show toolchain
         run: swiftc --version
       - name: Parse iOS Swift source
-        run: swiftc -frontend -parse ios/CMUCMModel.swift
+        run: swiftc -frontend -parse ios/*.swift
