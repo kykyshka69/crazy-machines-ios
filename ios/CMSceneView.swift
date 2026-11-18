@@ -1,5 +1,6 @@
 import SwiftUI
 import MetalKit
+import UIKit
 
 /// Add a locally licensed UCM asset to the app bundle as sample.ucm to display it.
 public struct CMSceneView: UIViewRepresentable {
@@ -33,20 +34,28 @@ public struct CMSceneView: UIViewRepresentable {
    let trimmed=originalName?.trimmingCharacters(in:.whitespacesAndNewlines) ?? ""
    let name=(trimmed.isEmpty ? "sample.ucm" : trimmed).lowercased()
    if let url=Bundle.main.url(forResource:"attachment_catalog",withExtension:"json") {
-    let catalog=try CMAttachmentCatalog(data:Data(contentsOf:url))
-    // Debug attachment transforms are candidates, not confirmed gameplay bindings.
-    let slots=catalog.attachments.filter {
-     $0.model.lowercased() == name || $0.model.lowercased().hasSuffix("/"+name)
+    // Debug data is optional: a corrupt catalog must not hide valid geometry.
+    if let data=try? Data(contentsOf:url),
+       let catalog=try? CMAttachmentCatalog(data:data) {
+     let slots=catalog.attachments.filter {
+      $0.model.lowercased() == name || $0.model.lowercased().hasSuffix("/"+name)
+     }
+     try? renderer.loadDebugMarkers(slots)
     }
-    try renderer.loadDebugMarkers(slots)
    }
    // An explicit sample texture overrides the candidate texture, not its blend state.
    let manifest=Bundle.main.url(forResource:"material_candidates",withExtension:"json")
-   let candidates=try manifest.map { try CMMaterialCandidates(data:Data(contentsOf:$0)) }
+   let candidates:CMMaterialCandidates? = manifest.flatMap { url in
+    guard let data=try? Data(contentsOf:url) else { return nil }
+    return try? CMMaterialCandidates(data:data)
+   }
    renderer.setPreviewBlend(candidates?.previewBlend(modelName:name))
-   try renderer.setPreviewAddress(candidates?.previewAddress(modelName:name))
+   try? renderer.setPreviewAddress(candidates?.previewAddress(modelName:name))
    if let url=Bundle.main.url(forResource:"sample",withExtension:"tga") {
-    try renderer.loadTexture(CMTGATexture(data:Data(contentsOf:url)))
+    if let data=try? Data(contentsOf:url),
+       let texture=try? CMTGATexture(data:data) {
+     try? renderer.loadTexture(texture)
+    }
    } else if let texturePath=candidates?.previewTexture(modelName:name) {
     let normalized=texturePath.replacingOccurrences(of:"\\",with:"/")
     let parts=normalized.split(separator:"/").map(String.init)
@@ -55,7 +64,10 @@ public struct CMSceneView: UIViewRepresentable {
      let base=(filename as NSString).deletingPathExtension
      if let textureURL=Bundle.main.url(forResource:base,withExtension:"tga",
                                         subdirectory:subdir.isEmpty ? nil : subdir) {
-      try renderer.loadTexture(CMTGATexture(data:Data(contentsOf:textureURL)))
+      if let data=try? Data(contentsOf:textureURL),
+         let texture=try? CMTGATexture(data:data) {
+       try? renderer.loadTexture(texture)
+      }
      }
     }
    }
