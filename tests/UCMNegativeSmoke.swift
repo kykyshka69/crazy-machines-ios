@@ -44,6 +44,15 @@ import Foundation
     expectFailure("\(name)-axis-\(axis)",bad)
    }
   }
+  // Remaining five floats in each 32-byte vertex are normals and UVs.
+  for (name, bits) in [("nan-attribute", UInt32(0x7fc00000)),
+                       ("infinity-attribute", UInt32(0x7f800000))] {
+   for component in 3..<8 {
+    bad=valid
+    put32(&bad,vertexStart+component*4,bits)
+    expectFailure("\(name)-component-\(component)",bad)
+   }
+  }
   bad=valid;bad.append(0);expectFailure("trailing-byte",bad)
   for cut in [1,2,4,8,16,32,64,128] where valid.count>cut {
    expectFailure("truncated-\(cut)",Data(valid.dropLast(cut)))
