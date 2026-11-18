@@ -8,6 +8,11 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
  private let device: MTLDevice
  private let queue: MTLCommandQueue
  private let pipeline: MTLRenderPipelineState
+ private let markerPipeline: MTLRenderPipelineState
+ private let markerDepthState: MTLDepthStencilState
+ private var markerBuffer: MTLBuffer?
+ private var markerCount=0
+ public var showDebugMarkers=true
  private let depthState: MTLDepthStencilState
  private let sampler: MTLSamplerState
  private let whiteTexture: MTLTexture
@@ -18,6 +23,7 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
  private var angle: Float = 0
  private var aspect: Float = 1
 
+ private struct MarkerUniforms { var modelViewProjection:simd_float4x4 }
  private struct Uniforms {
   var modelViewProjection: simd_float4x4
   var model: simd_float4x4
@@ -34,6 +40,19 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   view.clearColor=MTLClearColor(red:0.09,green:0.10,blue:0.13,alpha:1)
   pipeline=try CMMetalPipeline.make(device:dev,library:library,
     colorFormat:view.colorPixelFormat,depthFormat:view.depthStencilPixelFormat,blend:.opaque)
+  guard let markerVertex=library.makeFunction(name:"cmMarkerVertex"),
+        let markerFragment=library.makeFunction(name:"cmMarkerFragment") else { throw CMUCMError.invalidGeometry }
+  let markerDescriptor=MTLRenderPipelineDescriptor()
+  markerDescriptor.vertexFunction=markerVertex
+  markerDescriptor.fragmentFunction=markerFragment
+  markerDescriptor.colorAttachments[0].pixelFormat=view.colorPixelFormat
+  markerDescriptor.depthAttachmentPixelFormat=view.depthStencilPixelFormat
+  markerPipeline=try dev.makeRenderPipelineState(descriptor:markerDescriptor)
+  let markerDepthDescriptor=MTLDepthStencilDescriptor()
+  markerDepthDescriptor.depthCompareFunction = .always
+  markerDepthDescriptor.isDepthWriteEnabled=false
+  guard let markerDepth=dev.makeDepthStencilState(descriptor:markerDepthDescriptor) else { throw CMUCMError.invalidGeometry }
+  markerDepthState=markerDepth
   let ds=MTLDepthStencilDescriptor()
   ds.depthCompareFunction = .less;ds.isDepthWriteEnabled=true
   guard let depth=dev.makeDepthStencilState(descriptor:ds) else { throw CMUCMError.invalidGeometry }
@@ -56,6 +75,17 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   vertexBuffer=try model.makeVertexBuffer(device:device)
   indexBuffer=try model.makeIndexBuffer(device:device)
   indexCount=model.indices.count
+ }
+ public func loadDebugMarkers(_ slots:[CMAttachmentCatalog.Attachment]) throws {
+  let positions=CMMarkerPoints.positions(slots)
+  markerCount=positions.count
+  if positions.isEmpty { markerBuffer=nil; return }
+  // Metal packed_float3 has a 12-byte stride; SIMD3<Float> in Swift has a 16-byte stride.
+  let floats=positions.flatMap { [$0.x,$0.y,$0.z] }
+  guard let buffer=floats.withUnsafeBytes({ bytes in
+   device.makeBuffer(bytes:bytes.baseAddress!,length:bytes.count,options:[])
+  }) else { throw CMUCMError.invalidGeometry }
+  markerBuffer=buffer
  }
  public func loadTexture(_ texture:CMTGATexture) throws {
   modelTexture=try texture.makeMetalTexture(device:device)
@@ -88,6 +118,14 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   encoder.setFragmentBytes(&uniforms,length:MemoryLayout<Uniforms>.stride,index:1)
   encoder.setFragmentTexture(modelTexture ?? whiteTexture,index:0);encoder.setFragmentSamplerState(sampler,index:0)
   encoder.drawIndexedPrimitives(type:.triangle,indexCount:indexCount,indexType:.uint16,indexBuffer:ib,indexBufferOffset:0)
+  if showDebugMarkers,markerCount>0,let markers=markerBuffer {
+   var markerUniforms=MarkerUniforms(modelViewProjection:uniforms.modelViewProjection)
+   encoder.setRenderPipelineState(markerPipeline)
+   encoder.setDepthStencilState(markerDepthState)
+   encoder.setVertexBuffer(markers,offset:0,index:0)
+   encoder.setVertexBytes(&markerUniforms,length:MemoryLayout<MarkerUniforms>.stride,index:1)
+   encoder.drawPrimitives(type:.point,vertexStart:0,vertexCount:markerCount)
+  }
   encoder.endEncoding();cb.present(drawable);cb.commit()
  }
 }
