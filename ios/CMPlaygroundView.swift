@@ -20,6 +20,9 @@ struct CMPlaygroundView: View {
  @State private var gravityStrength = 9.81
  @State private var trailsEnabled = true
  @State private var trails: [[SIMD2<Double>]] = []
+ @State private var undoStack: [CMPhysicsWorld2D] = []
+ @State private var redoStack: [CMPhysicsWorld2D] = []
+ @State private var dragSnapshot: CMPhysicsWorld2D?
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
  private static let fixedStep = 1.0 / 120.0
  private static let goal = SIMD2<Double>(6.2,0.6)
@@ -117,6 +120,9 @@ struct CMPlaygroundView: View {
   initialSegment=nil
   reachedGoal=false
   world=Self.makeWorld()
+  undoStack=[]
+  redoStack=[]
+  dragSnapshot=nil
   world.gravity.y = -gravityStrength
   startingLayout=nil
   simulationSteps=0
@@ -135,6 +141,33 @@ struct CMPlaygroundView: View {
   dragStart=nil
   initialSegment=nil
  }
+ private func saveUndo() {
+  guard !running else { return }
+  undoStack.append(world)
+  if undoStack.count > 30 { undoStack.removeFirst() }
+  redoStack=[]
+ }
+ private func undo() {
+  guard !running,let previous=undoStack.popLast() else { return }
+  redoStack.append(world)
+  world=previous
+  clearExperimentState()
+ }
+ private func redo() {
+  guard !running,let next=redoStack.popLast() else { return }
+  undoStack.append(world)
+  world=next
+  clearExperimentState()
+ }
+ private func clearExperimentState() {
+  startingLayout=nil
+  reachedGoal=false
+  simulationSteps=0
+  trails=[]
+  selection=nil
+  dragStart=nil
+  initialSegment=nil
+ }
  private func rotateSelectedRamp(by angle:Double) {
   guard !running,case .ramp(let index)=selection,world.segments.indices.contains(index) else { return }
   let segment=world.segments[index]
@@ -144,6 +177,7 @@ struct CMPlaygroundView: View {
   let a=midpoint-rotated,b=midpoint+rotated
   guard a.x >= 0.2,a.x <= Self.worldWidth-0.2,b.x >= 0.2,b.x <= Self.worldWidth-0.2,
         a.y >= 0.2,a.y <= Self.worldHeight-0.2,b.y >= 0.2,b.y <= Self.worldHeight-0.2 else { return }
+  saveUndo()
   world.segments[index].start=a
   world.segments[index].end=b
   startingLayout=nil
@@ -162,6 +196,7 @@ struct CMPlaygroundView: View {
  private func beginDrag(_ point:SIMD2<Double>) {
   guard editMode && !running else { return }
   selection=select(at:point)
+  dragSnapshot=selection == nil ? nil : world
   dragStart=point
   if case .ramp(let i)=selection { initialSegment=world.segments[i] }
   else { initialSegment=nil }
@@ -193,6 +228,7 @@ struct CMPlaygroundView: View {
  }
  private func addBall() {
   guard !running && world.bodies.count < 20 else { return }
+  saveUndo()
   let x=1.0+Double(world.bodies.count%6)*0.7
   world.bodies.append(CMPhysicsBody2D(position:SIMD2(x,5.2),radius:0.25,restitution:0.45,surfaceFriction:0.4))
   startingLayout=nil
@@ -202,6 +238,7 @@ struct CMPlaygroundView: View {
  }
  private func addRamp() {
   guard !running && world.segments.count < 12 else { return }
+  saveUndo()
   let y=1.4+Double(world.segments.count%4)*0.65
   world.segments.append(CMStaticSegment2D(start:SIMD2(2.2,y+0.5),end:SIMD2(4.2,y),friction:0.25))
   startingLayout=nil
@@ -211,6 +248,7 @@ struct CMPlaygroundView: View {
  }
  private func deleteSelected() {
   guard !running,let selection else { return }
+  saveUndo()
   switch selection {
   case .ball(let i):
    if world.bodies.indices.contains(i) { world.bodies.remove(at:i) }
@@ -292,7 +330,16 @@ struct CMPlaygroundView: View {
        if dragStart == nil { beginDrag(location(value.startLocation,geometry.size)) }
        moveDrag(location(value.location,geometry.size))
       }
-      .onEnded { _ in dragStart=nil;initialSegment=nil })
+      .onEnded { _ in
+       if let before=dragSnapshot {
+        undoStack.append(before)
+        if undoStack.count > 30 { undoStack.removeFirst() }
+        redoStack=[]
+       }
+       dragSnapshot=nil
+       dragStart=nil
+       initialSegment=nil
+      })
      .onChange(of:timeline.date) { _,date in tick(date) }
     }
    }
@@ -324,6 +371,10 @@ struct CMPlaygroundView: View {
     Button("Retry") { restartExperiment() }.disabled(startingLayout == nil).buttonStyle(.bordered)
     Button("Reset") { reset() }.buttonStyle(.bordered)
    }
+   HStack {
+    Button("Undo") { undo() }.disabled(running || undoStack.isEmpty)
+    Button("Redo") { redo() }.disabled(running || redoStack.isEmpty)
+   }.buttonStyle(.bordered)
    HStack {
     Button("Add ball") { addBall() }.disabled(running || world.bodies.count >= 20)
     Button("Add ramp") { addRamp() }.disabled(running || world.segments.count >= 12)
