@@ -14,10 +14,13 @@ public struct CMSceneView: UIViewRepresentable {
   view.addGestureRecognizer(tap)
   let pinch=UIPinchGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.didPinch(_:)))
   view.addGestureRecognizer(pinch)
+  pan.maximumNumberOfTouches=1
   let doubleTap=UITapGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.didDoubleTap(_:)))
   doubleTap.numberOfTapsRequired=2
   tap.require(toFail:doubleTap)
   view.addGestureRecognizer(doubleTap)
+  pinch.delegate=context.coordinator
+  pan.delegate=context.coordinator
   let status=UILabel()
   status.textColor=.white
   status.font=.systemFont(ofSize:14,weight:.medium)
@@ -92,9 +95,17 @@ public struct CMSceneView: UIViewRepresentable {
  }
  public func updateUIView(_ uiView:MTKView,context:Context) {}
  public func makeCoordinator()->Coordinator { Coordinator() }
- public final class Coordinator: NSObject {
+ public final class Coordinator: NSObject, UIGestureRecognizerDelegate {
   var renderer:CMSceneRenderer?
   var error:String?
+  // Allow pinch and pan to coexist without stealing touches from each other.
+  public func gestureRecognizer(_ gestureRecognizer:UIGestureRecognizer,
+                                shouldRecognizeSimultaneouslyWith otherGestureRecognizer:UIGestureRecognizer)->Bool {
+   return gestureRecognizer is UIPinchGestureRecognizer &&
+          otherGestureRecognizer is UIPanGestureRecognizer ||
+          gestureRecognizer is UIPanGestureRecognizer &&
+          otherGestureRecognizer is UIPinchGestureRecognizer
+  }
   @objc func didPan(_ gesture:UIPanGestureRecognizer) {
    guard let renderer else { return }
    let delta=gesture.translation(in:gesture.view)
