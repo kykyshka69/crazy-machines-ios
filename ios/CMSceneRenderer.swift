@@ -27,8 +27,7 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
  private struct Uniforms {
   var modelViewProjection: simd_float4x4
   var model: simd_float4x4
-  var lightDirection: SIMD3<Float>
-  var ambient: Float
+  var lightDirectionAmbient: SIMD4<Float>
  }
  public init(view: MTKView) throws {
   guard let dev=view.device ?? MTLCreateSystemDefaultDevice(),
@@ -111,7 +110,7 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   angle += 0.007
   let model=rotation(angle)
   var uniforms=Uniforms(modelViewProjection:perspective(.pi/3,aspect,0.1,100)*translation(-4)*model,
-                        model:model,lightDirection:SIMD3<Float>(-0.4,-0.7,-0.6),ambient:0.35)
+                        model:model,lightDirectionAmbient:SIMD4<Float>(-0.4,-0.7,-0.6,0.35))
   encoder.setRenderPipelineState(pipeline);encoder.setDepthStencilState(depthState)
   encoder.setVertexBuffer(vb,offset:0,index:0)
   encoder.setVertexBytes(&uniforms,length:MemoryLayout<Uniforms>.stride,index:1)
