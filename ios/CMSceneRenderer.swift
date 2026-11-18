@@ -122,6 +122,15 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   indexCount=model.indices.count
   framingCenter=newCenter
   framingRadius=newRadius
+  // A newly loaded model must not inherit the previous model's materials,
+  // attachment markers or sampler state while optional assets are loading.
+  modelTexture=nil
+  textureHasAlpha=false
+  explicitBlend=nil
+  overrideSampler=nil
+  markerBuffer=nil
+  markerCount=0
+  angle=0
  }
  public func loadDebugMarkers(_ slots:[CMAttachmentCatalog.Attachment]) throws {
   let positions=CMMarkerPoints.positions(slots)
