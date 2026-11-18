@@ -22,6 +22,19 @@ import Foundation
   bad=valid;put32(&bad,76,UInt32.max);expectFailure("oversized-faces",bad)
   bad=valid;put32(&bad,80,UInt32.max);expectFailure("oversized-vertices",bad)
   bad=valid;put32(&bad,84,UInt32.max);expectFailure("oversized-records",bad)
+  // Vertex positions begin after the 92-byte header and 32-bit triangle indices.
+  let faceCount = Int(UInt32(valid[76]) | (UInt32(valid[77]) << 8) |
+                      (UInt32(valid[78]) << 16) | (UInt32(valid[79]) << 24))
+  let vertexStart = 92 + faceCount * 3 * 4
+  for (name, bits) in [("nan-position", UInt32(0x7fc00000)),
+                       ("positive-infinity-position", UInt32(0x7f800000)),
+                       ("negative-infinity-position", UInt32(0xff800000))] {
+   for axis in 0..<3 {
+    bad=valid
+    put32(&bad,vertexStart+axis*4,bits)
+    expectFailure("\(name)-axis-\(axis)",bad)
+   }
+  }
   bad=valid;bad.append(0);expectFailure("trailing-byte",bad)
   for cut in [1,2,4,8,16,32,64,128] where valid.count>cut {
    expectFailure("truncated-\(cut)",Data(valid.dropLast(cut)))
