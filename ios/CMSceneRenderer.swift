@@ -28,6 +28,7 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
  private var indexBuffer: MTLBuffer?
  private var indexCount = 0
  private var angle: Float = 0
+ private var isAutoRotating = true
  private var aspect: Float = 1
  private var framingCenter=SIMD3<Float>(repeating:0)
  private var framingRadius:Float=1
@@ -191,11 +192,16 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   let y:Float=1/tan(fov/2),x=y/aspect,z=far/(near-far)
   return simd_float4x4(columns:(SIMD4(x,0,0,0),SIMD4(0,y,0,0),SIMD4(0,0,z,-1),SIMD4(0,0,z*near,0)))
  }
+ public func toggleAutoRotation() { isAutoRotating.toggle() }
+ public func rotate(by delta:Float) {
+  guard delta.isFinite else { return }
+  angle = (angle + delta).truncatingRemainder(dividingBy:2 * .pi)
+ }
  public func draw(in view:MTKView) {
   guard let pass=view.currentRenderPassDescriptor,let drawable=view.currentDrawable,
         let vb=vertexBuffer,let ib=indexBuffer,indexCount>0,
         let cb=queue.makeCommandBuffer(),let encoder=cb.makeRenderCommandEncoder(descriptor:pass) else{return}
-  angle += 0.007
+  if isAutoRotating { angle = (angle + 0.007).truncatingRemainder(dividingBy:2 * .pi) }
   let model=rotation(angle)*translation(-framingCenter)
   // Portrait screens have a narrower horizontal field of view.
   // Read drawable dimensions once for both camera framing and projection.
