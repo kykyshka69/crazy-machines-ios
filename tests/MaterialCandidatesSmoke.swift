@@ -22,7 +22,7 @@ import Foundation
   precondition(try CMMaterialCandidates(data:manifest(missing)).previewTexture(modelName:"a.ucm")==nil)
   let unsafe=model("a.ucm","name_match_candidate","[{\"stages\":[{\"textures\":[{\"path\":\"../escape.tga\",\"exists\":true}]}]}]")
   precondition(try CMMaterialCandidates(data:manifest(unsafe)).previewTexture(modelName:"a.ucm")==nil)
-  let windows=model("a.ucm","name_match_candidate","[{\"stages\":[{\"textures\":[{\"path\":\"textures\\\\metal.tga\",\"exists\":true}]}]}]")
+  let windows=model("a.ucm","name_match_candidate","[{\"stages\":[{\"textures\":[{\"path\":\"textures\\\\\\\\metal.tga\",\"exists\":true}]}]}]")
   precondition(try CMMaterialCandidates(data:manifest(windows)).previewTexture(modelName:"a.ucm")=="textures/metal.tga")
   let badAddress=model("a.ucm","name_match_candidate","[{\"stages\":[{\"states\":{\"address\":[[\"invalid\",\"clamp\"]]},\"textures\":[{\"path\":\"a.tga\",\"exists\":true}]}]}]")
   precondition(try CMMaterialCandidates(data:manifest(badAddress)).previewAddress(modelName:"a.ucm")==nil)
