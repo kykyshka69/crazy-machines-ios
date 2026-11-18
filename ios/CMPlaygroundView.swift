@@ -6,6 +6,7 @@ struct CMPlaygroundView: View {
  @State private var running = false
  @State private var lastTick: Date?
  @State private var accumulator = 0.0
+ @State private var draggingBall: Int?
  private static let fixedStep = 1.0 / 120.0
  private static func makeWorld() -> CMPhysicsWorld2D {
   var w=CMPhysicsWorld2D()
@@ -19,6 +20,7 @@ struct CMPlaygroundView: View {
   VStack(spacing:12) {
    Text("Mechanics playground").font(.headline)
    Text("Drop the ball onto the ramp").font(.caption).foregroundStyle(.secondary)
+   GeometryReader { geometry in
    TimelineView(.animation(minimumInterval:1.0/60.0,paused:!running)) { timeline in
     Canvas { context,size in
      let scale=min(size.width/7,size.height/6)
@@ -43,6 +45,26 @@ struct CMPlaygroundView: View {
      }
     }
     .background(Color.black.opacity(0.85),in:RoundedRectangle(cornerRadius:14))
+    .contentShape(Rectangle())
+    .gesture(DragGesture(minimumDistance:0)
+     .onChanged { gesture in
+      guard !running else { return }
+      let scale=min(geometry.size.width/7,geometry.size.height/6)
+      guard scale > 0 else { return }
+      let position=SIMD2<Double>(Double(gesture.location.x/scale),Double((geometry.size.height-gesture.location.y)/scale))
+      if draggingBall == nil {
+       draggingBall=world.bodies.indices.first { index in
+        let d=world.bodies[index].position-position
+        return d.x*d.x+d.y*d.y < 0.7*0.7
+       }
+      }
+      guard let index=draggingBall else { return }
+      let radius=world.bodies[index].radius
+      world.bodies[index].position=SIMD2(min(max(position.x,radius),6.8),max(position.y,radius))
+      world.bodies[index].velocity = .zero
+      world.bodies[index].angularVelocity=0
+     }
+     .onEnded { _ in draggingBall=nil })
     .onChange(of:timeline.date) { _,now in
      guard running else { return }
      guard let previous=lastTick else { lastTick=now;return }
@@ -57,6 +79,9 @@ struct CMPlaygroundView: View {
      }
     }
    }
+   }
+   .frame(height:350)
+   Text("Pause to drag balls into position").font(.caption2).foregroundStyle(.secondary)
    HStack {
     Button(running ? "Pause" : "Run") {
      running.toggle()
@@ -68,6 +93,7 @@ struct CMPlaygroundView: View {
      world=Self.makeWorld()
      lastTick=nil
      accumulator=0
+     draggingBall=nil
     }
     .buttonStyle(.bordered)
     Button("Add ball") {
