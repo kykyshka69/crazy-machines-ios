@@ -71,15 +71,16 @@ public struct CMUCMModel {
             cursor = try add(cursor, try mul(b, 60))
         }
         guard cursor == data.count else { throw CMUCMError.invalidLength }
-        // Reject non-finite positions before allocating Metal buffers. NaN and infinity
-        // can corrupt camera framing and produce undefined rasterization results.
+        // All eight 32-bit vertex attributes must be finite before reaching Metal.
+        // Non-finite positions, normals or UVs can corrupt camera framing,
+        // lighting and texture sampling.
         for vertex in 0..<count {
             let offset = vertexStart + vertex * 32
-            for component in 0..<3 {
-                let position = offset + component * 4
-                let bits = try u32(position)
-                let value = Float(bitPattern: bits)
-                guard value.isFinite else { throw CMUCMError.invalidGeometry }
+            for component in 0..<8 {
+                let bits = try u32(offset + component * 4)
+                guard Float(bitPattern: bits).isFinite else {
+                    throw CMUCMError.invalidGeometry
+                }
             }
         }
         self.vertexData = data.subdata(in: vertexStart..<(vertexStart + vertexBytes))
