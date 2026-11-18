@@ -12,6 +12,12 @@ public struct CMSceneView: UIViewRepresentable {
   view.addGestureRecognizer(pan)
   let tap=UITapGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.didTap(_:)))
   view.addGestureRecognizer(tap)
+  let pinch=UIPinchGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.didPinch(_:)))
+  view.addGestureRecognizer(pinch)
+  let doubleTap=UITapGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.didDoubleTap(_:)))
+  doubleTap.numberOfTapsRequired=2
+  tap.require(toFail:doubleTap)
+  view.addGestureRecognizer(doubleTap)
   let status=UILabel()
   status.textColor=.white
   status.font=.systemFont(ofSize:14,weight:.medium)
@@ -97,6 +103,13 @@ public struct CMSceneView: UIViewRepresentable {
   }
   @objc func didTap(_ gesture:UITapGestureRecognizer) {
    renderer?.toggleAutoRotation()
+  }
+  @objc func didPinch(_ gesture:UIPinchGestureRecognizer) {
+   renderer?.zoom(by:Float(gesture.scale))
+   gesture.scale=1
+  }
+  @objc func didDoubleTap(_ gesture:UITapGestureRecognizer) {
+   renderer?.resetCamera()
   }
  }
 }
