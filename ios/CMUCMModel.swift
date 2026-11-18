@@ -5,7 +5,6 @@ import Metal
 
 public enum CMUCMError: Error {
     case invalidHeader, unsupportedVersion, truncated, invalidGeometry, invalidIndex, invalidLength
-#endif
 }
 
 /// Geometry-only UCM1 reader. The material and additional record semantics remain unresolved.
@@ -92,4 +91,5 @@ public struct CMUCMModel {
         }
         return buffer
     }
+#endif
 }
