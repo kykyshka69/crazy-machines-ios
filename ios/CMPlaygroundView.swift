@@ -148,7 +148,9 @@ struct CMPlaygroundView: View {
  private func saveLevel() {
   do {
    let layout=startingLayout ?? world
-   let data=try JSONEncoder().encode(CMLevelDocument(world:layout))
+   let document=CMLevelDocument(world:layout)
+   _ = try document.makeWorld() // Do not overwrite a good save with an invalid layout.
+   let data=try JSONEncoder().encode(document)
    UserDefaults.standard.set(data,forKey:Self.savedLevelKey)
    storageMessage="Experiment saved on this device"
   } catch {
