@@ -26,17 +26,17 @@ class ShaderParserTests(unittest.TestCase):
         blocks = parse("""
         // fake { pass { stage { texture missing.tga } } }
         /* other { pass { } } */
-        real { pass { stage { texture good.tga } } }
+        real {\n pass {\n stage {\n texture good.tga\n }\n }\n }
         """)
         self.assertEqual([b["name"] for b in blocks], ["real"])
 
     def test_duplicate_declarations_preserved(self):
-        blocks = parse("weight { pass { } }\nweight { pass { } }")
+        blocks = parse("weight {\n pass {\n }\n}\nweight {\n pass {\n }\n}")
         self.assertEqual([b["name"] for b in blocks], ["weight", "weight"])
 
     def test_unbalanced_block_rejected(self):
         with self.assertRaises(ValueError):
-            parse("broken { pass { stage { texture x.tga } }")
+            parse("broken {\n pass {\n stage {\n texture x.tga\n }\n }")
 
 if __name__ == "__main__":
     unittest.main()
