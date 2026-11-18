@@ -3,15 +3,21 @@ import Foundation
 /// Original, synthetic 3D cube for first-launch rendering without game assets.
 public enum CMPreviewFixture {
  public static func makeModel() throws -> CMUCMModel {
-  let vertices:[SIMD3<Float>]=[
-   SIMD3(-1,-1,-1),SIMD3(1,-1,-1),SIMD3(1,1,-1),SIMD3(-1,1,-1),
-   SIMD3(-1,-1,1),SIMD3(1,-1,1),SIMD3(1,1,1),SIMD3(-1,1,1)
+  // Four independent vertices per face preserve flat lighting normals.
+  let faces:[(SIMD3<Float>,[SIMD3<Float>])]=[
+   (SIMD3(0,0,1),[SIMD3(-1,-1,1),SIMD3(1,-1,1),SIMD3(1,1,1),SIMD3(-1,1,1)]),
+   (SIMD3(0,0,-1),[SIMD3(1,-1,-1),SIMD3(-1,-1,-1),SIMD3(-1,1,-1),SIMD3(1,1,-1)]),
+   (SIMD3(0,1,0),[SIMD3(-1,1,1),SIMD3(1,1,1),SIMD3(1,1,-1),SIMD3(-1,1,-1)]),
+   (SIMD3(0,-1,0),[SIMD3(-1,-1,-1),SIMD3(1,-1,-1),SIMD3(1,-1,1),SIMD3(-1,-1,1)]),
+   (SIMD3(1,0,0),[SIMD3(1,-1,1),SIMD3(1,-1,-1),SIMD3(1,1,-1),SIMD3(1,1,1)]),
+   (SIMD3(-1,0,0),[SIMD3(-1,-1,-1),SIMD3(-1,-1,1),SIMD3(-1,1,1),SIMD3(-1,1,-1)])
   ]
-  let triangles:[UInt32]=[
-   0,2,1, 0,3,2, 4,5,6, 4,6,7,
-   0,1,5, 0,5,4, 3,7,6, 3,6,2,
-   0,4,7, 0,7,3, 1,2,6, 1,6,5
-  ]
+  let vertices=faces.flatMap { $0.1 }
+  let normals=faces.flatMap { face in Array(repeating:face.0,count:4) }
+  let triangles:[UInt32]=(0..<6).flatMap { face -> [UInt32] in
+   let i=UInt32(face*4)
+   return [i,i+1,i+2,i,i+2,i+3]
+  }
   var data=Data(repeating:0,count:92+triangles.count*4+vertices.count*32)
   func put32(_ offset:Int,_ value:UInt32) {
    for i in 0..<4 { data[offset+i]=UInt8(truncatingIfNeeded:value >> (i*8)) }
@@ -25,7 +31,8 @@ public enum CMPreviewFixture {
   let vertexStart=92+triangles.count*4
   for (i,p) in vertices.enumerated() {
    let base=vertexStart+i*32
-   let attributes:[Float]=[p.x,p.y,p.z,0,0,1,(p.x+1)/2,(p.y+1)/2]
+   let n=normals[i]
+   let attributes:[Float]=[p.x,p.y,p.z,n.x,n.y,n.z,(p.x+1)/2,(p.y+1)/2]
    for (j,value) in attributes.enumerated() { put32(base+j*4,value.bitPattern) }
   }
   return try CMUCMModel(data:data)
