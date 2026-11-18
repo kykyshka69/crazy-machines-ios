@@ -28,13 +28,13 @@ public struct CMSceneView: UIViewRepresentable {
     try renderer.load(CMUCMModel(data:Data(contentsOf:url)))
     modelLoaded=true
    }
+   let originalName=Bundle.main.url(forResource:"sample_model_name",withExtension:"txt")
+     .flatMap { try? String(contentsOf:$0,encoding:.utf8) }
+   let trimmed=originalName?.trimmingCharacters(in:.whitespacesAndNewlines) ?? ""
+   let name=(trimmed.isEmpty ? "sample.ucm" : trimmed).lowercased()
    if let url=Bundle.main.url(forResource:"attachment_catalog",withExtension:"json") {
     let catalog=try CMAttachmentCatalog(data:Data(contentsOf:url))
-    // sample.ucm may be a renamed original file; provide its original name in sample_model_name.txt.
-    let originalName=Bundle.main.url(forResource:"sample_model_name",withExtension:"txt")
-      .flatMap { try? String(contentsOf:$0,encoding:.utf8) }
-    let trimmed=originalName?.trimmingCharacters(in:.whitespacesAndNewlines) ?? ""
-    let name=(trimmed.isEmpty ? "sample.ucm" : trimmed).lowercased()
+    // Debug attachment transforms are candidates, not confirmed gameplay bindings.
     let slots=catalog.attachments.filter {
      $0.model.lowercased() == name || $0.model.lowercased().hasSuffix("/"+name)
     }
@@ -42,6 +42,21 @@ public struct CMSceneView: UIViewRepresentable {
    }
    if let url=Bundle.main.url(forResource:"sample",withExtension:"tga") {
     try renderer.loadTexture(CMTGATexture(data:Data(contentsOf:url)))
+   } else if let manifestURL=Bundle.main.url(forResource:"material_candidates",withExtension:"json") {
+    let candidates=try CMMaterialCandidates(data:Data(contentsOf:manifestURL))
+    if let texturePath=candidates.previewTexture(modelName:name) {
+     // Preserve relative folders from the original texture archive.
+     let resource=texturePath.replacingOccurrences(of:"\\",with:"/")
+     let parts=resource.split(separator:"/").map(String.init)
+     if let filename=parts.last {
+      let subdir=parts.dropLast().joined(separator:"/")
+      let base=(filename as NSString).deletingPathExtension
+      if let textureURL=Bundle.main.url(forResource:base,withExtension:"tga",
+                                         subdirectory:subdir.isEmpty ? nil : subdir) {
+       try renderer.loadTexture(CMTGATexture(data:Data(contentsOf:textureURL)))
+      }
+     }
+    }
    }
   } catch {
    context.coordinator.error=error.localizedDescription
