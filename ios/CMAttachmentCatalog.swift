@@ -28,7 +28,7 @@ public struct CMAttachmentCatalog: Decodable {
     item.matrix_row_major.count==4,
     item.matrix_row_major.allSatisfy({ $0.count==4 && $0.allSatisfy(\.isFinite) }),
     item.translation_candidate.count==3,item.translation_candidate.allSatisfy(\.isFinite),
-    zip(item.matrix_row_major[3].prefix(3),item.translation_candidate).allSatisfy({ abs($0-$1)<0.00001 })
+    zip(item.matrix_row_major[3].prefix(3),item.translation_candidate).allSatisfy({ pair in abs(pair.0-pair.1)<0.00001 })
    else { throw CatalogError.invalidMatrix }
   }
  }
