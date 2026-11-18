@@ -32,7 +32,11 @@ public enum CMPreviewFixture {
   for (i,p) in vertices.enumerated() {
    let base=vertexStart+i*32
    let n=normals[i]
-   let attributes:[Float]=[p.x,p.y,p.z,n.x,n.y,n.z,(p.x+1)/2,(p.y+1)/2]
+   // UVs are local to each face, avoiding collapsed texture coordinates
+   // on the cube's top, bottom and side faces.
+   let uv:[(Float,Float)]=[(0,0),(1,0),(1,1),(0,1)]
+   let tex=uv[i % 4]
+   let attributes:[Float]=[p.x,p.y,p.z,n.x,n.y,n.z,tex.0,tex.1]
    for (j,value) in attributes.enumerated() { put32(base+j*4,value.bitPattern) }
   }
   return try CMUCMModel(data:data)
