@@ -9,6 +9,9 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
  private let queue: MTLCommandQueue
  private let pipeline: MTLRenderPipelineState
  private let alphaPipeline: MTLRenderPipelineState
+ private let additivePipeline: MTLRenderPipelineState
+ private let multiplyPipeline: MTLRenderPipelineState
+ private var explicitBlend:CMMaterialCandidates.PreviewBlend?
  private var textureHasAlpha=false
  private let markerPipeline: MTLRenderPipelineState
  private let markerDepthState: MTLDepthStencilState
@@ -46,6 +49,10 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
     colorFormat:view.colorPixelFormat,depthFormat:view.depthStencilPixelFormat,blend:.opaque)
   alphaPipeline=try CMMetalPipeline.make(device:dev,library:library,
     colorFormat:view.colorPixelFormat,depthFormat:view.depthStencilPixelFormat,blend:.alpha)
+  additivePipeline=try CMMetalPipeline.make(device:dev,library:library,
+    colorFormat:view.colorPixelFormat,depthFormat:view.depthStencilPixelFormat,blend:.additive)
+  multiplyPipeline=try CMMetalPipeline.make(device:dev,library:library,
+    colorFormat:view.colorPixelFormat,depthFormat:view.depthStencilPixelFormat,blend:.multiply)
   guard let markerVertex=library.makeFunction(name:"cmMarkerVertex"),
         let markerFragment=library.makeFunction(name:"cmMarkerFragment") else { throw CMUCMError.invalidGeometry }
   let markerDescriptor=MTLRenderPipelineDescriptor()
@@ -124,6 +131,9 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   textureHasAlpha=stride(from:3,to:bytes.count,by:4).contains { bytes[$0] < 255 }
   modelTexture=uploaded
  }
+ public func setPreviewBlend(_ blend:CMMaterialCandidates.PreviewBlend?) {
+  explicitBlend=blend
+ }
  public func mtkView(_ view:MTKView,drawableSizeWillChange size:CGSize) {
   aspect=Float(size.width/max(size.height,1))
  }
@@ -151,8 +161,19 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   let far=max(100,distance+framingRadius*5)
   var uniforms=Uniforms(modelViewProjection:perspective(.pi/3,aspect,0.01,far)*translation(SIMD3<Float>(0,0,-distance))*model,
                         model:model,lightDirectionAmbient:SIMD4<Float>(-0.4,-0.7,-0.6,0.35))
-  encoder.setRenderPipelineState(textureHasAlpha ? alphaPipeline : pipeline)
-  encoder.setDepthStencilState(textureHasAlpha ? transparentDepthState : depthState)
+  let chosenPipeline:MTLRenderPipelineState
+  let transparent:Bool
+  switch explicitBlend {
+  case .additive: chosenPipeline=additivePipeline;transparent=true
+  case .alpha: chosenPipeline=alphaPipeline;transparent=true
+  case .multiply: chosenPipeline=multiplyPipeline;transparent=true
+  case .opaque: chosenPipeline=pipeline;transparent=false
+  case nil:
+   transparent=textureHasAlpha
+   chosenPipeline=transparent ? alphaPipeline : pipeline
+  }
+  encoder.setRenderPipelineState(chosenPipeline)
+  encoder.setDepthStencilState(transparent ? transparentDepthState : depthState)
   encoder.setVertexBuffer(vb,offset:0,index:0)
   encoder.setVertexBytes(&uniforms,length:MemoryLayout<Uniforms>.stride,index:1)
   encoder.setFragmentBytes(&uniforms,length:MemoryLayout<Uniforms>.stride,index:1)
