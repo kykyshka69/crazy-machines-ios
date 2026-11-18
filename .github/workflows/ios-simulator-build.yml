@@ -9,10 +9,18 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Print selected Xcode and SDKs
+        run: |
+          xcodebuild -version
+          xcodebuild -showsdks
+      - name: Parse Swift sources before generating project
+        run: swiftc -frontend -parse ios/*.swift
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate Xcode project
         run: xcodegen generate --spec project.yml
+      - name: Inspect generated schemes
+        run: xcodebuild -list -project CrazyMachinesIOS.xcodeproj
       - name: Build for iOS Simulator without signing
         run: |
           xcodebuild -project CrazyMachinesIOS.xcodeproj -scheme CrazyMachinesIOS -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
