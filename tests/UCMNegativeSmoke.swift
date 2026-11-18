@@ -22,6 +22,15 @@ import Foundation
   bad=valid;put32(&bad,76,UInt32.max);expectFailure("oversized-faces",bad)
   bad=valid;put32(&bad,80,UInt32.max);expectFailure("oversized-vertices",bad)
   bad=valid;put32(&bad,84,UInt32.max);expectFailure("oversized-records",bad)
+  // Triangle indices are 32-bit on disk but must refer to an existing vertex
+  // and fit the renderer's 16-bit index buffer.
+  for (name, index) in [("index-out-of-range", UInt32(3)),
+                        ("index-overflow-16bit", UInt32(65536)),
+                        ("index-max-32bit", UInt32.max)] {
+   bad=valid
+   put32(&bad,92,index)
+   expectFailure(name,bad)
+  }
   // Vertex positions begin after the 92-byte header and 32-bit triangle indices.
   let faceCount = Int(UInt32(valid[76]) | (UInt32(valid[77]) << 8) |
                       (UInt32(valid[78]) << 16) | (UInt32(valid[79]) << 24))
