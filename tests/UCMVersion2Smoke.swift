@@ -54,6 +54,15 @@ struct UCMVersion2Smoke {
         var oversized = fixture(first: 0, second: 0)
         put32(&oversized, 200, UInt32.max)
         rejects(oversized)
+        // Both trailer table lengths are attacker-controlled; neither may
+        // cause the decoder to read beyond the end of the input buffer.
+        oversized = fixture(first: 0, second: 0)
+        put32(&oversized, 204, UInt32.max)
+        rejects(oversized)
+        oversized = fixture(first: 0, second: 0)
+        put32(&oversized, 200, UInt32.max)
+        put32(&oversized, 204, UInt32.max)
+        rejects(oversized)
         print("PASS: UCM v2 trailer variants and malformed lengths")
     }
 }
