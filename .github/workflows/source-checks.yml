@@ -59,6 +59,15 @@ jobs:
       - name: Reject corrupted UCM files
         run: /tmp/cm-ucm-negative /tmp/cm-fixture.ucm
 
+  ucm-version2-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and test UCM version 2 trailer layouts
+        run: |
+          swiftc ios/CMUCMModel.swift tests/UCMVersion2Smoke.swift -o /tmp/cm-ucm-v2
+          /tmp/cm-ucm-v2
+
   ucm-thousand-runtime:
     runs-on: ubuntu-latest
     steps:
