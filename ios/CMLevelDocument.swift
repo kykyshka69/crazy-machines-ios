@@ -47,7 +47,8 @@ public struct CMLevelDocument: Codable {
    guard [ramp.x1,ramp.y1,ramp.x2,ramp.y2,ramp.friction].allSatisfy({$0.isFinite}),
     (0...7).contains(ramp.x1),(0...7).contains(ramp.x2),
     (0...6).contains(ramp.y1),(0...6).contains(ramp.y2),
-    (0...10).contains(ramp.friction) else { throw LevelError.invalid }
+    (0...10).contains(ramp.friction),
+    (ramp.x2-ramp.x1)*(ramp.x2-ramp.x1)+(ramp.y2-ramp.y1)*(ramp.y2-ramp.y1) >= 1e-8 else { throw LevelError.invalid }
    world.segments.append(CMStaticSegment2D(start:SIMD2(ramp.x1,ramp.y1),end:SIMD2(ramp.x2,ramp.y2),friction:ramp.friction))
   }
   return world
