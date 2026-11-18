@@ -39,6 +39,15 @@ jobs:
       - name: Reject corrupted UCM files
         run: /tmp/cm-ucm-negative /tmp/cm-fixture.ucm
 
+  metal-uniform-layout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Swift side of Metal uniform ABI
+        run: |
+          swiftc tests/UniformLayoutSmoke.swift -o /tmp/cm-uniform-smoke
+          /tmp/cm-uniform-smoke
+
   swift-syntax:
     runs-on: macos-latest
     steps:
