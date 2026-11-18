@@ -19,8 +19,12 @@ public struct CMUCMModel {
         func u32(_ offset: Int) throws -> UInt32 {
             guard offset >= 0, offset <= data.count - 4 else { throw CMUCMError.truncated }
             return data.withUnsafeBytes { raw in
-                UInt32(raw[offset]) | UInt32(raw[offset + 1]) << 8 |
-                UInt32(raw[offset + 2]) << 16 | UInt32(raw[offset + 3]) << 24
+                let bytes = raw.bindMemory(to: UInt8.self)
+                let a = UInt32(bytes[offset])
+                let b = UInt32(bytes[offset + 1]) << 8
+                let c = UInt32(bytes[offset + 2]) << 16
+                let d = UInt32(bytes[offset + 3]) << 24
+                return a | b | c | d
             }
         }
         guard data.count >= 92, data.prefix(4) == Data([85, 67, 77, 49]) else {
