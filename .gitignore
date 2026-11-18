@@ -1,0 +1,17 @@
+*.exe
+*.dll
+*.ucm
+*.tga
+*.ogg
+*.wav
+*.cml
+*.fsc
+*.vsc
+*.shd
+*.zip
+*.7z
+*.rar
+__pycache__/
+*.pyc
+outputs/
+private_assets/
