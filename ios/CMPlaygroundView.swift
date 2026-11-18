@@ -208,6 +208,7 @@ struct CMPlaygroundView: View {
   redoStack.append(world)
   if redoStack.count > 30 { redoStack.removeFirst() }
   world=previous
+  gravityStrength = -previous.gravity.y
   clearExperimentState()
  }
  private func redo() {
@@ -215,6 +216,7 @@ struct CMPlaygroundView: View {
   undoStack.append(world)
   if undoStack.count > 30 { undoStack.removeFirst() }
   world=next
+  gravityStrength = -next.gravity.y
   clearExperimentState()
  }
  private func clearExperimentState() {
