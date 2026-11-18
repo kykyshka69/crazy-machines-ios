@@ -33,7 +33,7 @@ public struct CMUCMModel {
         guard version == 1 || version == 2 else { throw CMUCMError.unsupportedVersion }
         let groups = Int(try u32(72)), faces = Int(try u32(76))
         let verticesPerGroup = Int(try u32(80)), records = Int(try u32(84))
-        guard groups > 0, verticesPerGroup > 0, groups <= 10000,
+        guard groups > 0, faces > 0, verticesPerGroup > 0, groups <= 10000,
               verticesPerGroup <= 100000, faces <= 1000000, records <= 1000000 else {
             throw CMUCMError.invalidGeometry
         }
