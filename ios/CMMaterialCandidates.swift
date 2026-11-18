@@ -3,7 +3,10 @@ import Foundation
 /// Conservative preview-only material selection. Never asserts original submesh bindings.
 public struct CMMaterialCandidates: Decodable {
  public struct Texture: Decodable { public let path:String; public let exists:Bool }
- public struct Stage: Decodable { public let textures:[Texture] }
+ public struct Stage: Decodable {
+  public let textures:[Texture]
+  public let states:[String:[[String]]]?
+ }
  public struct Pass: Decodable {
   public let stages:[Stage]
   public let states:[String:[[String]]]?
@@ -50,6 +53,33 @@ public struct CMMaterialCandidates: Decodable {
   case ["zero","srccolor"]: return .multiply
   default: return nil
   }
+ }
+ public enum TextureAddress:String { case wrap, clamp, mirror }
+ public struct TextureAddressPair:Equatable {
+  public let u:TextureAddress
+  public let v:TextureAddress
+ }
+ /// Returns nil for unknown or ambiguous shader stages. No address declaration
+ /// means the engine default (wrap) is used for this preview.
+ public func previewAddress(modelName:String)->TextureAddressPair? {
+  let name=modelName.lowercased()
+  let matches=models.filter {
+   let path=$0.model.lowercased()
+   return path==name || path.hasSuffix("/"+name)
+  }
+  guard matches.count==1,let entry=matches.first,
+        entry.status=="name_match_candidate",entry.candidates.count==1,
+        entry.candidates[0].passes.count==1,
+        entry.candidates[0].passes[0].stages.count==1 else { return nil }
+  let stage=entry.candidates[0].passes[0].stages[0]
+  guard stage.textures.count==1,stage.textures[0].exists else { return nil }
+  guard let values=stage.states?["address"] else {
+   return TextureAddressPair(u:.wrap,v:.wrap)
+  }
+  guard values.count==1,values[0].count==2,
+        let u=TextureAddress(rawValue:values[0][0].lowercased()),
+        let v=TextureAddress(rawValue:values[0][1].lowercased()) else { return nil }
+  return TextureAddressPair(u:u,v:v)
  }
  public func previewTexture(modelName:String)->String? {
   let name=modelName.lowercased()
