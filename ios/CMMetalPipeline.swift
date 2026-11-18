@@ -12,11 +12,17 @@ public enum CMMetalPipeline {
   switch blend {
   case .opaque: a.isBlendingEnabled=false
   case .additive:
-   a.isBlendingEnabled=true;a.sourceRGBBlendFactor = .one;a.destinationRGBBlendFactor = .one
+   a.isBlendingEnabled=true
+   a.sourceRGBBlendFactor = .one; a.destinationRGBBlendFactor = .one
+   a.sourceAlphaBlendFactor = .one; a.destinationAlphaBlendFactor = .one
   case .alpha:
-   a.isBlendingEnabled=true;a.sourceRGBBlendFactor = .sourceAlpha;a.destinationRGBBlendFactor = .oneMinusSourceAlpha
+   a.isBlendingEnabled=true
+   a.sourceRGBBlendFactor = .sourceAlpha; a.destinationRGBBlendFactor = .oneMinusSourceAlpha
+   a.sourceAlphaBlendFactor = .one; a.destinationAlphaBlendFactor = .oneMinusSourceAlpha
   case .multiply:
-   a.isBlendingEnabled=true;a.sourceRGBBlendFactor = .zero;a.destinationRGBBlendFactor = .sourceColor
+   a.isBlendingEnabled=true
+   a.sourceRGBBlendFactor = .zero; a.destinationRGBBlendFactor = .sourceColor
+   a.sourceAlphaBlendFactor = .zero; a.destinationAlphaBlendFactor = .one
   }
   return try device.makeRenderPipelineState(descriptor:d)
  }
