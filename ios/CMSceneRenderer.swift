@@ -189,11 +189,10 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   angle += 0.007
   let model=rotation(angle)*translation(-framingCenter)
   // Portrait screens have a narrower horizontal field of view.
-  let distance=max(0.3,framingRadius*3.2/max(min(aspect,1),0.1))
-  let far=max(100,distance+framingRadius*5)
-  // Use the actual drawable aspect; the first delegate size callback can
-  // precede final SwiftUI layout, especially during rotation.
+  // Read drawable dimensions once for both camera framing and projection.
   let drawAspect=max(Float(view.drawableSize.width/max(view.drawableSize.height,1)),0.01)
+  let distance=max(0.3,framingRadius*3.2/max(min(drawAspect,1),0.1))
+  let far=max(100,distance+framingRadius*5)
   var uniforms=Uniforms(modelViewProjection:perspective(.pi/3,drawAspect,0.01,far)*translation(SIMD3<Float>(0,0,-distance))*model,
                         model:model,lightDirectionAmbient:SIMD4<Float>(-0.4,-0.7,-0.6,0.35))
   let chosenPipeline:MTLRenderPipelineState
