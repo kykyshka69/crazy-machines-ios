@@ -125,6 +125,15 @@ jobs:
           swiftc ios/CMPhysics2D.swift ios/CMPinJoint2D.swift tests/CMPinSmoke.swift -o /tmp/cm-pins
           /tmp/cm-pins
 
+  preview-fixture-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and verify first-launch synthetic model
+        run: |
+          swiftc ios/CMUCMModel.swift ios/CMPreviewFixture.swift tests/PreviewFixtureSmoke.swift -o /tmp/cm-preview-smoke
+          /tmp/cm-preview-smoke
+
   swift-syntax:
     runs-on: macos-latest
     steps:
