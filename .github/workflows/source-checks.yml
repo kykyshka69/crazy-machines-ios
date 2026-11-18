@@ -38,6 +38,15 @@ jobs:
           swiftc ios/CMTGATexture.swift tests/TGAOrientationSmoke.swift -o /tmp/cm-tga-orientation
           /tmp/cm-tga-orientation
 
+  tga-thousand-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and run 1000 deterministic TGA cases
+        run: |
+          swiftc ios/CMTGATexture.swift tests/TGAThousandSmoke.swift -o /tmp/cm-tga-thousand
+          /tmp/cm-tga-thousand
+
   ucm-negative-runtime:
     runs-on: ubuntu-latest
     steps:
