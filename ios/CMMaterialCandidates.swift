@@ -36,7 +36,7 @@ public struct CMMaterialCandidates: Decodable {
   // Original resource paths may contain Windows separators. Match exact paths
   // first, then a unique basename only; never choose an ambiguous basename.
   func canonical(_ path:String)->String {
-   path.replacingOccurrences(of:"\\\\",with:"/").lowercased()
+   path.replacingOccurrences(of:"\\",with:"/").lowercased()
   }
   let query=canonical(modelName)
   let exact=models.filter { canonical($0.model)==query }
