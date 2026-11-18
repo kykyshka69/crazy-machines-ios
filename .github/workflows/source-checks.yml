@@ -29,6 +29,15 @@ jobs:
           swiftc ios/CMTGATexture.swift ios/CMAttachmentCatalog.swift tests/PortableSmoke.swift -o /tmp/cm-portable-smoke
           /tmp/cm-portable-smoke
 
+  tga-orientation-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and test all TGA image origins
+        run: |
+          swiftc ios/CMTGATexture.swift tests/TGAOrientationSmoke.swift -o /tmp/cm-tga-orientation
+          /tmp/cm-tga-orientation
+
   ucm-negative-runtime:
     runs-on: ubuntu-latest
     steps:
