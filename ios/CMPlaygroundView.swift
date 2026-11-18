@@ -24,6 +24,7 @@ struct CMPlaygroundView: View {
  @State private var redoStack: [CMPhysicsWorld2D] = []
  @State private var dragSnapshot: CMPhysicsWorld2D?
  @State private var dragChanged = false
+ @State private var gravityEditSnapshot: CMPhysicsWorld2D?
  @State private var storageMessage: String?
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
  private static let fixedStep = 1.0 / 120.0
@@ -143,6 +144,7 @@ struct CMPlaygroundView: View {
   redoStack=[]
   dragSnapshot=nil
   dragChanged=false
+  gravityEditSnapshot=nil
   world.gravity.y = -gravityStrength
   startingLayout=nil
   simulationSteps=0
@@ -229,6 +231,7 @@ struct CMPlaygroundView: View {
   initialSegment=nil
   dragSnapshot=nil
   dragChanged=false
+  gravityEditSnapshot=nil
   lastTick=nil
   accumulator=0
  }
@@ -473,7 +476,18 @@ struct CMPlaygroundView: View {
    .disabled(running || { if case .ramp = selection { return false }; return true }())
    HStack {
     Text("Gravity").font(.caption)
-    Slider(value:$gravityStrength,in:0...20,step:0.5)
+    Slider(value:$gravityStrength,in:0...20,step:0.5,onEditingChanged: { editing in
+      if editing {
+       gravityEditSnapshot=world
+      } else if let before=gravityEditSnapshot {
+       gravityEditSnapshot=nil
+       if abs(before.gravity.y-world.gravity.y) > 1e-9 {
+        undoStack.append(before)
+        if undoStack.count > 30 { undoStack.removeFirst() }
+        redoStack=[]
+       }
+      }
+     })
      .disabled(running)
      .onChange(of:gravityStrength) { _,newValue in
       // Loading or retrying a level updates this slider programmatically.
