@@ -105,6 +105,8 @@ jobs:
         run: |
           swiftc ios/CMPhysics2D.swift tests/CMPhysicsSmoke.swift -o /tmp/cm-physics
           /tmp/cm-physics
+          swiftc ios/CMPhysics2D.swift tests/CMCircleCollisionSmoke.swift -o /tmp/cm-circles
+          /tmp/cm-circles
 
   swift-syntax:
     runs-on: macos-latest
