@@ -1,0 +1,27 @@
+name: CrazyMachinesIOS
+options:
+  bundleIdPrefix: org.crazymachines
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    CODE_SIGNING_ALLOWED: "NO"
+targets:
+  CrazyMachinesIOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: ios
+        excludes:
+          - README.md
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.crazymachines.port
+        GENERATE_INFOPLIST_FILE: "YES"
+        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+        SUPPORTS_MACCATALYST: "NO"
+        ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: "NO"
+    scheme:
+      testTargets: []
