@@ -206,6 +206,7 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
  }
  public func rotate(by delta:Float) {
   guard delta.isFinite else { return }
+  isAutoRotating=false
   angle = (angle + delta).truncatingRemainder(dividingBy:2 * .pi)
  }
  public func draw(in view:MTKView) {
@@ -217,7 +218,8 @@ public final class CMSceneRenderer: NSObject, MTKViewDelegate {
   // Portrait screens have a narrower horizontal field of view.
   // Read drawable dimensions once for both camera framing and projection.
   let drawAspect=max(Float(view.drawableSize.width/max(view.drawableSize.height,1)),0.01)
-  let distance=max(0.3,framingRadius*3.2/max(min(drawAspect,1),0.1)/zoomScale)
+  // Keep the camera outside the bounding sphere even at maximum pinch zoom.
+  let distance=max(framingRadius*1.25,0.3,framingRadius*3.2/max(min(drawAspect,1),0.1)/zoomScale)
   let far=max(100,distance+framingRadius*5)
   var uniforms=Uniforms(modelViewProjection:perspective(.pi/3,drawAspect,0.01,far)*translation(SIMD3<Float>(0,0,-distance))*model,
                         model:model,lightDirectionAmbient:SIMD4<Float>(-0.4,-0.7,-0.6,0.35))
