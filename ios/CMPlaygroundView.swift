@@ -156,7 +156,8 @@ struct CMPlaygroundView: View {
   switch selection {
   case .ball(let i):
    guard world.bodies.indices.contains(i) else { return }
-   world.bodies[i].position=p
+   let radius=world.bodies[i].radius
+   world.bodies[i].position=SIMD2(min(max(p.x,radius),Self.worldWidth-radius),min(max(p.y,radius),Self.worldHeight-radius))
    world.bodies[i].velocity = .zero
    world.bodies[i].angularVelocity=0
   case .ramp(let i):
@@ -257,7 +258,7 @@ struct CMPlaygroundView: View {
      }
      .background(Color.black.opacity(0.85),in:RoundedRectangle(cornerRadius:14))
      .contentShape(Rectangle())
-     .gesture(DragGesture(minimumDistance:0)
+     .highPriorityGesture(DragGesture(minimumDistance:0)
       .onChanged { value in
        guard editMode && !running else { return }
        if dragStart == nil { beginDrag(location(value.startLocation,geometry.size)) }
@@ -313,6 +314,8 @@ struct CMPlaygroundView: View {
      .onChange(of:gravityStrength) { _,newValue in
       world.gravity.y = -newValue
       startingLayout=nil
+      reachedGoal=false
+      simulationSteps=0
      }
     Text(String(format:"%.1f",gravityStrength)).font(.caption.monospacedDigit()).frame(width:35)
    }
