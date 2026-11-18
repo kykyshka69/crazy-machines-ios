@@ -41,6 +41,12 @@ public struct CMSceneView: UIViewRepresentable {
    if let url=Bundle.main.url(forResource:"sample",withExtension:"ucm") {
     try renderer.load(CMUCMModel(data:Data(contentsOf:url)))
     modelLoaded=true
+   } else {
+    // A visible, original fallback verifies the Metal pipeline without
+    // distributing any copyrighted Crazy Machines assets.
+    try renderer.load(CMPreviewFixture.makeModel())
+    modelLoaded=true
+    status.text="Preview triangle — add sample.ucm to display a game model"
    }
    let originalName=Bundle.main.url(forResource:"sample_model_name",withExtension:"txt")
      .flatMap { try? String(contentsOf:$0,encoding:.utf8) }
