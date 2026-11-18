@@ -18,6 +18,7 @@ jobs:
         run: |
           cd tools
           python -m unittest -v test_material_bridge.py
+          python -m unittest -v test_stage_local_preview.py
 
   portable-swift-runtime:
     runs-on: ubuntu-latest
