@@ -153,9 +153,13 @@ struct CMPlaygroundView: View {
    world.bodies[i].angularVelocity=0
   case .ramp(let i):
    guard world.segments.indices.contains(i),let original=initialSegment,let start=dragStart else { return }
-   let delta=p-start
-   world.segments[i].start=bounded(original.start+delta)
-   world.segments[i].end=bounded(original.end+delta)
+   let requested=p-start
+   // Clamp the translation once for both endpoints, preserving ramp length and slope.
+   let dx=min(max(requested.x,0.2-min(original.start.x,original.end.x)),Self.worldWidth-0.2-max(original.start.x,original.end.x))
+   let dy=min(max(requested.y,0.2-min(original.start.y,original.end.y)),Self.worldHeight-0.2-max(original.start.y,original.end.y))
+   let delta=SIMD2(dx,dy)
+   world.segments[i].start=original.start+delta
+   world.segments[i].end=original.end+delta
   }
   reachedGoal=false
   startingLayout=nil
