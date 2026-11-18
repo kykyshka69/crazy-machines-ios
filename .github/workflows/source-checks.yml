@@ -17,6 +17,7 @@ jobs:
       - name: Test material bridge without copyrighted game assets
         run: |
           cd tools
+          python -m unittest -v test_shader_parser.py
           python -m unittest -v test_material_bridge.py
           python -m unittest -v test_stage_local_preview.py
 
