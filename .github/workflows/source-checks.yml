@@ -52,15 +52,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Compile and run conservative material selection tests
-        run: |
-          swiftc ios/CMMaterialCandidates.swift tests/MaterialCandidateSmoke.swift -o /tmp/cm-material-smoke
-          /tmp/cm-material-smoke
-
-  material-candidate-runtime:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
       - name: Compile and run conservative material binding tests
         run: |
           swiftc ios/CMMaterialCandidates.swift tests/MaterialCandidatesSmoke.swift -o /tmp/cm-material-smoke
