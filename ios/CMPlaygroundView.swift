@@ -13,6 +13,8 @@ struct CMPlaygroundView: View {
  @State private var reachedGoal = false
  @State private var editMode = true
  @State private var startingLayout: CMPhysicsWorld2D?
+ @State private var simulationSteps = 0
+ @State private var showHelp = false
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
  private static let fixedStep = 1.0 / 120.0
  private static let goal = SIMD2<Double>(6.2,0.6)
@@ -72,6 +74,7 @@ struct CMPlaygroundView: View {
   var steps=0
   while accumulator >= Self.fixedStep && steps < 24 {
    world.step(dt:Self.fixedStep)
+   simulationSteps+=1
    accumulator-=Self.fixedStep
    steps+=1
    checkGoal()
@@ -95,6 +98,7 @@ struct CMPlaygroundView: View {
   reachedGoal=false
   world=Self.makeWorld()
   startingLayout=nil
+  simulationSteps=0
  }
  private func restartExperiment() {
   guard let layout=startingLayout else { return }
@@ -104,6 +108,9 @@ struct CMPlaygroundView: View {
   reachedGoal=false
   selection=nil
   world=layout
+  simulationSteps=0
+  dragStart=nil
+  initialSegment=nil
  }
  private func rotateSelectedRamp(by angle:Double) {
   guard !running,case .ramp(let index)=selection,world.segments.indices.contains(index) else { return }
@@ -117,11 +124,15 @@ struct CMPlaygroundView: View {
   world.segments[index].start=a
   world.segments[index].end=b
   startingLayout=nil
+  simulationSteps=0
+  reachedGoal=false
  }
 
  private func stepOnce() {
   guard !running else { return }
+  if startingLayout == nil { startingLayout=world }
   world.step(dt:Self.fixedStep)
+  simulationSteps+=1
   checkGoal()
  }
  private func beginDrag(_ point:SIMD2<Double>) {
@@ -148,18 +159,23 @@ struct CMPlaygroundView: View {
   }
   reachedGoal=false
   startingLayout=nil
+  simulationSteps=0
  }
  private func addBall() {
   guard !running && world.bodies.count < 20 else { return }
   let x=1.0+Double(world.bodies.count%6)*0.7
   world.bodies.append(CMPhysicsBody2D(position:SIMD2(x,5.2),radius:0.25,restitution:0.45,surfaceFriction:0.4))
   startingLayout=nil
+  reachedGoal=false
+  simulationSteps=0
  }
  private func addRamp() {
   guard !running && world.segments.count < 12 else { return }
   let y=1.4+Double(world.segments.count%4)*0.65
   world.segments.append(CMStaticSegment2D(start:SIMD2(2.2,y+0.5),end:SIMD2(4.2,y),friction:0.25))
   startingLayout=nil
+  reachedGoal=false
+  simulationSteps=0
  }
  private func deleteSelected() {
   guard !running,let selection else { return }
@@ -171,6 +187,8 @@ struct CMPlaygroundView: View {
   }
   self.selection=nil
   startingLayout=nil
+  reachedGoal=false
+  simulationSteps=0
  }
  var body: some View {
   VStack(spacing:10) {
@@ -220,9 +238,16 @@ struct CMPlaygroundView: View {
     }
    }
    .frame(height:330)
+   HStack {
+    Text("Time: "+String(format:"%.2f",Double(simulationSteps)*Self.fixedStep)+" s")
+    Spacer()
+    Text("Balls: \(world.bodies.count) · Ramps: \(world.segments.count)")
+   }
+   .font(.caption.monospacedDigit())
    Toggle("Edit objects",isOn:$editMode).disabled(running)
    HStack {
     Button(running ? "Pause" : "Run") {
+     if !running && reachedGoal { restartExperiment() }
      if !running && startingLayout == nil { startingLayout=world }
      running.toggle()
      lastTick=nil
@@ -250,6 +275,12 @@ struct CMPlaygroundView: View {
     Text("Speed").font(.caption)
     Slider(value:$speed,in:0.25...2.0,step:0.25)
     Text(String(format:"%.2gx",speed)).font(.caption.monospacedDigit()).frame(width:40)
+   }
+   Button(showHelp ? "Hide instructions" : "Instructions") { showHelp.toggle() }
+    .font(.caption)
+   if showHelp {
+    Text("Pause the simulation to edit. Drag balls and ramps; tap to select. Rotate the selected ramp with the arrows. Run, pause, step frame by frame, or retry your setup. Reach the green circle to win.")
+     .font(.caption).foregroundStyle(.secondary)
    }
    Text("Pause and drag a ball or ramp. Tap an object to select it.")
     .font(.caption2).foregroundStyle(.secondary)
