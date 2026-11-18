@@ -8,6 +8,10 @@ public struct CMSceneView: UIViewRepresentable {
  public func makeUIView(context:Context)->MTKView {
   let view=MTKView(frame:.zero)
   view.preferredFramesPerSecond=60
+  let pan=UIPanGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.didPan(_:)))
+  view.addGestureRecognizer(pan)
+  let tap=UITapGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.didTap(_:)))
+  view.addGestureRecognizer(tap)
   let status=UILabel()
   status.textColor=.white
   status.font=.systemFont(ofSize:14,weight:.medium)
@@ -82,8 +86,17 @@ public struct CMSceneView: UIViewRepresentable {
  }
  public func updateUIView(_ uiView:MTKView,context:Context) {}
  public func makeCoordinator()->Coordinator { Coordinator() }
- public final class Coordinator {
+ public final class Coordinator: NSObject {
   var renderer:CMSceneRenderer?
   var error:String?
+  @objc func didPan(_ gesture:UIPanGestureRecognizer) {
+   guard let renderer else { return }
+   let delta=gesture.translation(in:gesture.view)
+   renderer.rotate(by:Float(delta.x)*0.008)
+   gesture.setTranslation(.zero,in:gesture.view)
+  }
+  @objc func didTap(_ gesture:UITapGestureRecognizer) {
+   renderer?.toggleAutoRotation()
+  }
  }
 }
