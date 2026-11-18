@@ -97,8 +97,8 @@ struct CMPlaygroundView: View {
   }
  }
  private func recordTrails() {
-  if trails.count != world.bodies.count { trails=world.bodies.map { [$0.position] } }
   guard trailsEnabled else { return }
+  if trails.count != world.bodies.count { trails=world.bodies.map { [$0.position] } }
   for i in world.bodies.indices {
    if simulationSteps % 3 == 0 {
     trails[i].append(world.bodies[i].position)
@@ -184,12 +184,14 @@ struct CMPlaygroundView: View {
  private func undo() {
   guard !running,let previous=undoStack.popLast() else { return }
   redoStack.append(world)
+  if redoStack.count > 30 { redoStack.removeFirst() }
   world=previous
   clearExperimentState()
  }
  private func redo() {
   guard !running,let next=redoStack.popLast() else { return }
   undoStack.append(world)
+  if undoStack.count > 30 { undoStack.removeFirst() }
   world=next
   clearExperimentState()
  }
@@ -203,6 +205,8 @@ struct CMPlaygroundView: View {
   initialSegment=nil
   dragSnapshot=nil
   dragChanged=false
+  lastTick=nil
+  accumulator=0
  }
  private func rotateSelectedRamp(by angle:Double) {
   guard !running,case .ramp(let index)=selection,world.segments.indices.contains(index) else { return }
