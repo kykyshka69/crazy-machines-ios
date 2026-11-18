@@ -13,6 +13,11 @@ public struct CMSceneView: UIViewRepresentable {
    if let url=Bundle.main.url(forResource:"sample",withExtension:"ucm") {
     try renderer.load(CMUCMModel(data:Data(contentsOf:url)))
    }
+   if let url=Bundle.main.url(forResource:"attachment_catalog",withExtension:"json") {
+    let catalog=try CMAttachmentCatalog(data:Data(contentsOf:url))
+    let slots=catalog.attachments.filter { $0.model.lowercased().hasSuffix("/sample.ucm") }
+    try renderer.loadDebugMarkers(slots)
+   }
    if let url=Bundle.main.url(forResource:"sample",withExtension:"tga") {
     try renderer.loadTexture(CMTGATexture(data:Data(contentsOf:url)))
    }
