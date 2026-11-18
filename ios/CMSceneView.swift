@@ -7,11 +7,26 @@ public struct CMSceneView: UIViewRepresentable {
  public func makeUIView(context:Context)->MTKView {
   let view=MTKView(frame:.zero)
   view.preferredFramesPerSecond=60
+  let status=UILabel()
+  status.textColor=.white
+  status.font=.systemFont(ofSize:14,weight:.medium)
+  status.numberOfLines=0
+  status.textAlignment=.center
+  status.translatesAutoresizingMaskIntoConstraints=false
+  view.addSubview(status)
+  NSLayoutConstraint.activate([
+   status.centerXAnchor.constraint(equalTo:view.centerXAnchor),
+   status.centerYAnchor.constraint(equalTo:view.centerYAnchor),
+   status.leadingAnchor.constraint(greaterThanOrEqualTo:view.leadingAnchor,constant:24),
+   status.trailingAnchor.constraint(lessThanOrEqualTo:view.trailingAnchor,constant:-24)
+  ])
+  var modelLoaded=false
   do {
    let renderer=try CMSceneRenderer(view:view)
    context.coordinator.renderer=renderer
    if let url=Bundle.main.url(forResource:"sample",withExtension:"ucm") {
     try renderer.load(CMUCMModel(data:Data(contentsOf:url)))
+    modelLoaded=true
    }
    if let url=Bundle.main.url(forResource:"attachment_catalog",withExtension:"json") {
     let catalog=try CMAttachmentCatalog(data:Data(contentsOf:url))
@@ -28,7 +43,13 @@ public struct CMSceneView: UIViewRepresentable {
    if let url=Bundle.main.url(forResource:"sample",withExtension:"tga") {
     try renderer.loadTexture(CMTGATexture(data:Data(contentsOf:url)))
    }
-  } catch { context.coordinator.error=error.localizedDescription }
+  } catch {
+   context.coordinator.error=error.localizedDescription
+   status.text="Cannot load 3D scene: \(error.localizedDescription)"
+  }
+  if context.coordinator.error == nil && !modelLoaded {
+   status.text="No sample.ucm in app bundle. Add a locally owned UCM model to preview it."
+  }
   return view
  }
  public func updateUIView(_ uiView:MTKView,context:Context) {}
