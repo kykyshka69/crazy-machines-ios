@@ -24,6 +24,7 @@ struct CMPlaygroundView: View {
  @State private var redoStack: [CMPhysicsWorld2D] = []
  @State private var dragSnapshot: CMPhysicsWorld2D?
  @State private var dragChanged = false
+ @State private var storageMessage: String?
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
  private static let fixedStep = 1.0 / 120.0
  private static let goal = SIMD2<Double>(6.2,0.6)
@@ -142,6 +143,37 @@ struct CMPlaygroundView: View {
   trails=[]
   dragStart=nil
   initialSegment=nil
+ }
+ private static let savedLevelKey = "cm.playground.savedLevel.v1"
+ private func saveLevel() {
+  do {
+   let layout=startingLayout ?? world
+   let data=try JSONEncoder().encode(CMLevelDocument(world:layout))
+   UserDefaults.standard.set(data,forKey:Self.savedLevelKey)
+   storageMessage="Experiment saved on this device"
+  } catch {
+   storageMessage="Save failed: \(error.localizedDescription)"
+  }
+ }
+ private func loadLevel() {
+  guard let data=UserDefaults.standard.data(forKey:Self.savedLevelKey) else {
+   storageMessage="No saved experiment yet"
+   return
+  }
+  do {
+   let loaded=try JSONDecoder().decode(CMLevelDocument.self,from:data).makeWorld()
+   running=false
+   lastTick=nil
+   accumulator=0
+   undoStack=[]
+   redoStack=[]
+   world=loaded
+   gravityStrength = -loaded.gravity.y
+   clearExperimentState()
+   storageMessage="Saved experiment loaded"
+  } catch {
+   storageMessage="Saved experiment is invalid"
+  }
  }
  private func saveUndo() {
   guard !running else { return }
@@ -380,6 +412,11 @@ struct CMPlaygroundView: View {
     Button("Retry") { restartExperiment() }.disabled(startingLayout == nil).buttonStyle(.bordered)
     Button("Reset") { reset() }.buttonStyle(.bordered)
    }
+   HStack {
+    Button("Save") { saveLevel() }
+    Button("Load") { loadLevel() }
+   }.buttonStyle(.bordered)
+   if let storageMessage { Text(storageMessage).font(.caption).foregroundStyle(.secondary) }
    HStack {
     Button("Undo") { undo() }.disabled(running || undoStack.isEmpty)
     Button("Redo") { redo() }.disabled(running || redoStack.isEmpty)
