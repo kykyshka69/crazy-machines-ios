@@ -32,16 +32,27 @@ public struct CMMaterialCandidates: Decodable {
  }
  /// Returns nil unless a model has exactly one filename-matched shader and one existing texture.
  /// Multiple passes/stages/textures cannot safely be flattened into one Metal texture.
+ private func matchingModel(_ modelName:String)->Model? {
+  // Original resource paths may contain Windows separators. Match exact paths
+  // first, then a unique basename only; never choose an ambiguous basename.
+  func canonical(_ path:String)->String {
+   path.replacingOccurrences(of:"\\\\",with:"/").lowercased()
+  }
+  let query=canonical(modelName)
+  let exact=models.filter { canonical($0.model)==query }
+  if exact.count==1 { return exact[0] }
+  if !exact.isEmpty { return nil }
+  let basename=query.split(separator:"/").last.map(String.init) ?? query
+  let matches=models.filter {
+   canonical($0.model).split(separator:"/").last.map(String.init)==basename
+  }
+  return matches.count==1 ? matches[0] : nil
+ }
  public enum PreviewBlend: String { case opaque, additive, alpha, multiply }
  /// The blend setting is used only for a uniquely identified one-pass preview.
  /// Missing or unrecognized original states are deliberately left unresolved.
  public func previewBlend(modelName:String)->PreviewBlend? {
-  let name=modelName.lowercased()
-  let matches=models.filter {
-   let path=$0.model.lowercased()
-   return path==name || path.hasSuffix("/"+name)
-  }
-  guard matches.count==1,let entry=matches.first,
+  guard let entry=matchingModel(modelName),
         entry.status=="name_match_candidate",entry.candidates.count==1,
         entry.candidates[0].passes.count==1 else { return nil }
   let state=entry.candidates[0].passes[0].states?["blend"]
@@ -62,12 +73,7 @@ public struct CMMaterialCandidates: Decodable {
  /// Returns nil for unknown or ambiguous shader stages. No address declaration
  /// means the engine default (wrap) is used for this preview.
  public func previewAddress(modelName:String)->TextureAddressPair? {
-  let name=modelName.lowercased()
-  let matches=models.filter {
-   let path=$0.model.lowercased()
-   return path==name || path.hasSuffix("/"+name)
-  }
-  guard matches.count==1,let entry=matches.first,
+  guard let entry=matchingModel(modelName),
         entry.status=="name_match_candidate",entry.candidates.count==1,
         entry.candidates[0].passes.count==1,
         entry.candidates[0].passes[0].stages.count==1 else { return nil }
@@ -82,12 +88,7 @@ public struct CMMaterialCandidates: Decodable {
   return TextureAddressPair(u:u,v:v)
  }
  public func previewTexture(modelName:String)->String? {
-  let name=modelName.lowercased()
-  let matches=models.filter {
-   let path=$0.model.lowercased()
-   return path==name || path.hasSuffix("/"+name)
-  }
-  guard matches.count==1,let entry=matches.first,
+  guard let entry=matchingModel(modelName),
         entry.status=="name_match_candidate",entry.candidates.count==1 else { return nil }
   let candidate=entry.candidates[0]
   guard candidate.passes.count==1,
