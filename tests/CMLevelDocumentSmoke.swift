@@ -30,6 +30,10 @@ import Foundation
   corrupt.balls[0].mass = .nan
   do { _=try corrupt.makeWorld(); fatalError("NaN mass accepted") } catch CMLevelDocument.LevelError.invalid {}
   corrupt=decoded
+  corrupt.ramps[0].x2=corrupt.ramps[0].x1
+  corrupt.ramps[0].y2=corrupt.ramps[0].y1
+  do { _=try corrupt.makeWorld(); fatalError("Zero-length ramp accepted") } catch CMLevelDocument.LevelError.invalid {}
+  corrupt=decoded
   corrupt.ramps[0].friction = -0.1
   do { _=try corrupt.makeWorld(); fatalError("Negative ramp friction accepted") } catch CMLevelDocument.LevelError.invalid {}
   corrupt=decoded
