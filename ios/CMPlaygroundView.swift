@@ -23,6 +23,7 @@ struct CMPlaygroundView: View {
  @State private var undoStack: [CMPhysicsWorld2D] = []
  @State private var redoStack: [CMPhysicsWorld2D] = []
  @State private var dragSnapshot: CMPhysicsWorld2D?
+ @State private var dragChanged = false
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
  private static let fixedStep = 1.0 / 120.0
  private static let goal = SIMD2<Double>(6.2,0.6)
@@ -123,6 +124,7 @@ struct CMPlaygroundView: View {
   undoStack=[]
   redoStack=[]
   dragSnapshot=nil
+  dragChanged=false
   world.gravity.y = -gravityStrength
   startingLayout=nil
   simulationSteps=0
@@ -167,6 +169,8 @@ struct CMPlaygroundView: View {
   selection=nil
   dragStart=nil
   initialSegment=nil
+  dragSnapshot=nil
+  dragChanged=false
  }
  private func rotateSelectedRamp(by angle:Double) {
   guard !running,case .ramp(let index)=selection,world.segments.indices.contains(index) else { return }
@@ -197,6 +201,7 @@ struct CMPlaygroundView: View {
   guard editMode && !running else { return }
   selection=select(at:point)
   dragSnapshot=selection == nil ? nil : world
+  dragChanged=false
   dragStart=point
   if case .ramp(let i)=selection { initialSegment=world.segments[i] }
   else { initialSegment=nil }
@@ -208,16 +213,19 @@ struct CMPlaygroundView: View {
   case .ball(let i):
    guard world.bodies.indices.contains(i) else { return }
    let radius=world.bodies[i].radius
-   world.bodies[i].position=SIMD2(min(max(p.x,radius),Self.worldWidth-radius),min(max(p.y,radius),Self.worldHeight-radius))
+   let next=SIMD2(min(max(p.x,radius),Self.worldWidth-radius),min(max(p.y,radius),Self.worldHeight-radius))
+   if squaredDistance(next,world.bodies[i].position) > 1e-10 { dragChanged=true }
+   world.bodies[i].position=next
    world.bodies[i].velocity = .zero
    world.bodies[i].angularVelocity=0
   case .ramp(let i):
    guard world.segments.indices.contains(i),let original=initialSegment,let start=dragStart else { return }
-   let requested=p-start
+   let requested=snapped(point)-start
    // Clamp the translation once for both endpoints, preserving ramp length and slope.
    let dx=min(max(requested.x,0.2-min(original.start.x,original.end.x)),Self.worldWidth-0.2-max(original.start.x,original.end.x))
    let dy=min(max(requested.y,0.2-min(original.start.y,original.end.y)),Self.worldHeight-0.2-max(original.start.y,original.end.y))
    let delta=SIMD2(dx,dy)
+   if squaredDistance(delta,.zero) > 1e-10 { dragChanged=true }
    world.segments[i].start=original.start+delta
    world.segments[i].end=original.end+delta
   }
@@ -331,12 +339,13 @@ struct CMPlaygroundView: View {
        moveDrag(location(value.location,geometry.size))
       }
       .onEnded { _ in
-       if let before=dragSnapshot {
+       if dragChanged,let before=dragSnapshot {
         undoStack.append(before)
         if undoStack.count > 30 { undoStack.removeFirst() }
         redoStack=[]
        }
        dragSnapshot=nil
+       dragChanged=false
        dragStart=nil
        initialSegment=nil
       })
