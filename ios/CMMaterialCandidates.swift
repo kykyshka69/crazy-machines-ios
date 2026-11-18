@@ -4,7 +4,10 @@ import Foundation
 public struct CMMaterialCandidates: Decodable {
  public struct Texture: Decodable { public let path:String; public let exists:Bool }
  public struct Stage: Decodable { public let textures:[Texture] }
- public struct Pass: Decodable { public let stages:[Stage] }
+ public struct Pass: Decodable {
+  public let stages:[Stage]
+  public let states:[String:[[String]]]?
+ }
  public struct Candidate: Decodable {
   public let shader_ordinal:Int
   public let shader_name:String
@@ -26,6 +29,28 @@ public struct CMMaterialCandidates: Decodable {
  }
  /// Returns nil unless a model has exactly one filename-matched shader and one existing texture.
  /// Multiple passes/stages/textures cannot safely be flattened into one Metal texture.
+ public enum PreviewBlend: String { case opaque, additive, alpha, multiply }
+ /// The blend setting is used only for a uniquely identified one-pass preview.
+ /// Missing or unrecognized original states are deliberately left unresolved.
+ public func previewBlend(modelName:String)->PreviewBlend? {
+  let name=modelName.lowercased()
+  let matches=models.filter {
+   let path=$0.model.lowercased()
+   return path==name || path.hasSuffix("/"+name)
+  }
+  guard matches.count==1,let entry=matches.first,
+        entry.status=="name_match_candidate",entry.candidates.count==1,
+        entry.candidates[0].passes.count==1 else { return nil }
+  let state=entry.candidates[0].passes[0].states?["blend"]
+  guard let state, state.count==1 else { return nil }
+  let tokens=state[0].map { $0.lowercased() }
+  switch tokens {
+  case ["one","one"]: return .additive
+  case ["srcalpha","invsrcalpha"]: return .alpha
+  case ["zero","srccolor"]: return .multiply
+  default: return nil
+  }
+ }
  public func previewTexture(modelName:String)->String? {
   let name=modelName.lowercased()
   let matches=models.filter {
