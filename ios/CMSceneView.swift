@@ -44,6 +44,7 @@ public struct CMSceneView: UIViewRepresentable {
    let manifest=Bundle.main.url(forResource:"material_candidates",withExtension:"json")
    let candidates=try manifest.map { try CMMaterialCandidates(data:Data(contentsOf:$0)) }
    renderer.setPreviewBlend(candidates?.previewBlend(modelName:name))
+   try renderer.setPreviewAddress(candidates?.previewAddress(modelName:name))
    if let url=Bundle.main.url(forResource:"sample",withExtension:"tga") {
     try renderer.loadTexture(CMTGATexture(data:Data(contentsOf:url)))
    } else if let texturePath=candidates?.previewTexture(modelName:name) {
