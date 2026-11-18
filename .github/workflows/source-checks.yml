@@ -48,6 +48,15 @@ jobs:
           swiftc tests/UniformLayoutSmoke.swift -o /tmp/cm-uniform-smoke
           /tmp/cm-uniform-smoke
 
+  material-candidate-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and run conservative material selection tests
+        run: |
+          swiftc ios/CMMaterialCandidates.swift tests/MaterialCandidateSmoke.swift -o /tmp/cm-material-smoke
+          /tmp/cm-material-smoke
+
   swift-syntax:
     runs-on: macos-latest
     steps:
