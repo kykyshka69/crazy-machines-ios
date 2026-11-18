@@ -7,23 +7,26 @@ public struct CMPhysicsBody2D {
  public var radius: Double
  public var restitution: Double
  public var mass: Double
+ public var surfaceFriction: Double
  public init(position: SIMD2<Double>, velocity: SIMD2<Double> = .zero,
-             radius: Double, restitution: Double = 0.4, mass: Double = 1) {
+             radius: Double, restitution: Double = 0.4, mass: Double = 1, surfaceFriction: Double = 0) {
   self.position=position;self.velocity=velocity;self.radius=radius
-  self.restitution=restitution;self.mass=mass
+  self.restitution=restitution;self.mass=mass;self.surfaceFriction=surfaceFriction
  }
 }
 /// One-sided static ramp: collides from the upper side only.
 public struct CMStaticSegment2D {
  public var start: SIMD2<Double>
  public var end: SIMD2<Double>
- public init(start:SIMD2<Double>,end:SIMD2<Double>) {
-  self.start=start;self.end=end
+ public var friction: Double
+ public init(start:SIMD2<Double>,end:SIMD2<Double>,friction:Double = 0) {
+  self.start=start;self.end=end;self.friction=friction
  }
 }
 public struct CMPhysicsWorld2D {
  public var gravity=SIMD2<Double>(0,-9.81)
  public var floorY: Double = 0
+ public var floorFriction: Double = 0
  public var bodies: [CMPhysicsBody2D] = []
  public var segments: [CMStaticSegment2D] = []
  public init() {}
@@ -42,6 +45,11 @@ public struct CMPhysicsWorld2D {
     bodies[i].position.y=bottom
     if bodies[i].velocity.y < 0 {
      bodies[i].velocity.y = -bodies[i].velocity.y * min(max(bodies[i].restitution,0),1)
+    }
+    if floorFriction.isFinite && bodies[i].surfaceFriction.isFinite {
+     let drag=max(0,floorFriction)*max(0,bodies[i].surfaceFriction)*max(0,-gravity.y)*dt
+     let vx=bodies[i].velocity.x
+     bodies[i].velocity.x = vx.sign == .minus ? min(0,vx+drag) : max(0,vx-drag)
     }
    }
   }
@@ -78,6 +86,17 @@ public struct CMPhysicsWorld2D {
     if vn < 0 {
      let e=min(max(body.restitution,0),1)
      bodies[i].velocity -= normal*((1+e)*vn)
+    }
+    // Simple kinetic friction approximation along the ramp tangent.
+    // This damps sliding; angular velocity and true rolling are not modeled.
+    if segment.friction.isFinite && body.surfaceFriction.isFinite {
+     let tangent=SIMD2<Double>(-normal.y,normal.x)
+     let vt=bodies[i].velocity.x*tangent.x+bodies[i].velocity.y*tangent.y
+     let normalGravity=max(0,-(gravity.x*normal.x+gravity.y*normal.y))
+     let drag=max(0,segment.friction)*max(0,body.surfaceFriction)*normalGravity*dt
+     let delta=min(abs(vt),drag)
+     if vt > 0 { bodies[i].velocity -= tangent*delta }
+     else if vt < 0 { bodies[i].velocity += tangent*delta }
     }
    }
   }
