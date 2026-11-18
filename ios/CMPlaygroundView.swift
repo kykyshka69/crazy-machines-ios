@@ -18,6 +18,8 @@ struct CMPlaygroundView: View {
  @State private var showGrid = true
  @State private var snapToGrid = false
  @State private var gravityStrength = 9.81
+ @State private var trailsEnabled = true
+ @State private var trails: [[SIMD2<Double>]] = []
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
  private static let fixedStep = 1.0 / 120.0
  private static let goal = SIMD2<Double>(6.2,0.6)
@@ -81,11 +83,22 @@ struct CMPlaygroundView: View {
   var steps=0
   while accumulator >= Self.fixedStep && steps < 24 {
    world.step(dt:Self.fixedStep)
+   recordTrails()
    simulationSteps+=1
    accumulator-=Self.fixedStep
    steps+=1
    checkGoal()
    if reachedGoal { break }
+  }
+ }
+ private func recordTrails() {
+  if trails.count != world.bodies.count { trails=world.bodies.map { [$0.position] } }
+  guard trailsEnabled else { return }
+  for i in world.bodies.indices {
+   if simulationSteps % 3 == 0 {
+    trails[i].append(world.bodies[i].position)
+    if trails[i].count > 90 { trails[i].removeFirst() }
+   }
   }
  }
  private func checkGoal() {
@@ -107,6 +120,7 @@ struct CMPlaygroundView: View {
   world.gravity.y = -gravityStrength
   startingLayout=nil
   simulationSteps=0
+  trails=[]
  }
  private func restartExperiment() {
   guard let layout=startingLayout else { return }
@@ -117,6 +131,7 @@ struct CMPlaygroundView: View {
   selection=nil
   world=layout
   simulationSteps=0
+  trails=[]
   dragStart=nil
   initialSegment=nil
  }
@@ -140,6 +155,7 @@ struct CMPlaygroundView: View {
   guard !running else { return }
   if startingLayout == nil { startingLayout=world }
   world.step(dt:Self.fixedStep)
+  recordTrails()
   simulationSteps+=1
   checkGoal()
  }
@@ -173,6 +189,7 @@ struct CMPlaygroundView: View {
   reachedGoal=false
   startingLayout=nil
   simulationSteps=0
+  trails=[]
  }
  private func addBall() {
   guard !running && world.bodies.count < 20 else { return }
@@ -181,6 +198,7 @@ struct CMPlaygroundView: View {
   startingLayout=nil
   reachedGoal=false
   simulationSteps=0
+  trails=[]
  }
  private func addRamp() {
   guard !running && world.segments.count < 12 else { return }
@@ -189,6 +207,7 @@ struct CMPlaygroundView: View {
   startingLayout=nil
   reachedGoal=false
   simulationSteps=0
+  trails=[]
  }
  private func deleteSelected() {
   guard !running,let selection else { return }
@@ -199,6 +218,7 @@ struct CMPlaygroundView: View {
    if world.segments.indices.contains(i) { world.segments.remove(at:i) }
   }
   self.selection=nil
+  trails=[]
   startingLayout=nil
   reachedGoal=false
   simulationSteps=0
@@ -244,6 +264,14 @@ struct CMPlaygroundView: View {
        path.addLine(to:screen(segment.end,size))
        context.stroke(path,with:.color(selection == .ramp(i) ? .yellow : .orange),style:StrokeStyle(lineWidth:8,lineCap:.round))
       }
+      if trailsEnabled {
+       for trail in trails where trail.count > 1 {
+        var path=Path()
+        path.move(to:screen(trail[0],size))
+        for position in trail.dropFirst() { path.addLine(to:screen(position,size)) }
+        context.stroke(path,with:.color(.cyan.opacity(0.35)),lineWidth:1.5)
+       }
+      }
       for (i,ball) in world.bodies.enumerated() {
        let center=screen(ball.position,size)
        let radius=ball.radius*scale(size)
@@ -278,6 +306,7 @@ struct CMPlaygroundView: View {
    HStack {
     Toggle("Grid",isOn:$showGrid)
     Toggle("Snap",isOn:$snapToGrid).disabled(running)
+    Toggle("Trails",isOn:$trailsEnabled)
    }
    .font(.caption)
    Toggle("Edit objects",isOn:$editMode).disabled(running)
