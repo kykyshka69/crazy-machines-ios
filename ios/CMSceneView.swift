@@ -30,7 +30,7 @@ public struct CMSceneView: UIViewRepresentable {
   view.addSubview(status)
   NSLayoutConstraint.activate([
    status.centerXAnchor.constraint(equalTo:view.centerXAnchor),
-   status.centerYAnchor.constraint(equalTo:view.centerYAnchor),
+   status.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:20),
    status.leadingAnchor.constraint(greaterThanOrEqualTo:view.leadingAnchor,constant:24),
    status.trailingAnchor.constraint(lessThanOrEqualTo:view.trailingAnchor,constant:-24)
   ])
