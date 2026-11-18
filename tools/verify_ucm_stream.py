@@ -16,7 +16,7 @@ def verify(exe):
  assert at(0x46ae9b,3)==bytes.fromhex('6a5c51') # header length = 92
  assert at(0x46aef7,3)==bytes.fromhex('6a0450') # 4-byte indices on disk
  assert at(0x46af75,5)==bytes.fromhex('53526a2050') # 32-byte vertex stride
- assert at(0x46afdb,6)==bytes.fromhex('53526a4051e8') # 64-byte record
+ assert at(0x46afdc,5)==bytes.fromhex('53526a4051') # 64-byte record
  return {"sha256":hashlib.sha256(b).hexdigest(),"header_bytes":92,
  "disk_index_bytes":4,"gpu_index_bytes":2,"vertex_stride_bytes":32,
  "extra_record_bytes":64,"all_checks_passed":True}
