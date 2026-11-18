@@ -156,10 +156,13 @@ struct CMPlaygroundView: View {
   reachedGoal=false
   selection=nil
   world=layout
+  gravityStrength = -layout.gravity.y
   simulationSteps=0
   trails=[]
   dragStart=nil
   initialSegment=nil
+  dragSnapshot=nil
+  dragChanged=false
  }
  private static let savedLevelKey = "cm.playground.savedLevel.v1"
  private func saveLevel() {
