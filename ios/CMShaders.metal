@@ -6,7 +6,8 @@ struct CMOut { float4 position [[position]]; float2 uv; float3 normal; };
 vertex CMOut cmVertex(uint vertexID [[vertex_id]], const device CMVertex *vertices [[buffer(0)]], constant CMUniforms &u [[buffer(1)]]) {
  CMVertex v=vertices[vertexID]; CMOut o;
  o.position=u.modelViewProjection*float4(float3(v.position),1);
- o.normal=normalize((u.model*float4(float3(v.normal),0)).xyz);
+ float3 n=(u.model*float4(float3(v.normal),0)).xyz;
+ o.normal=dot(n,n)>1e-12 ? normalize(n) : float3(0.0,1.0,0.0);
  o.uv=float2(v.uv); return o;
 }
 fragment float4 cmFragment(CMOut in [[stage_in]], texture2d<float> tex [[texture(0)]],
