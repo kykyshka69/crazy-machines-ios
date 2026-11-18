@@ -40,22 +40,21 @@ public struct CMSceneView: UIViewRepresentable {
     }
     try renderer.loadDebugMarkers(slots)
    }
+   // An explicit sample texture overrides the candidate texture, not its blend state.
+   let manifest=Bundle.main.url(forResource:"material_candidates",withExtension:"json")
+   let candidates=try manifest.map { try CMMaterialCandidates(data:Data(contentsOf:$0)) }
+   renderer.setPreviewBlend(candidates?.previewBlend(modelName:name))
    if let url=Bundle.main.url(forResource:"sample",withExtension:"tga") {
     try renderer.loadTexture(CMTGATexture(data:Data(contentsOf:url)))
-   } else if let manifestURL=Bundle.main.url(forResource:"material_candidates",withExtension:"json") {
-    let candidates=try CMMaterialCandidates(data:Data(contentsOf:manifestURL))
-    renderer.setPreviewBlend(candidates.previewBlend(modelName:name))
-    if let texturePath=candidates.previewTexture(modelName:name) {
-     // Preserve relative folders from the original texture archive.
-     let resource=texturePath.replacingOccurrences(of:"\\",with:"/")
-     let parts=resource.split(separator:"/").map(String.init)
-     if let filename=parts.last {
-      let subdir=parts.dropLast().joined(separator:"/")
-      let base=(filename as NSString).deletingPathExtension
-      if let textureURL=Bundle.main.url(forResource:base,withExtension:"tga",
-                                         subdirectory:subdir.isEmpty ? nil : subdir) {
-       try renderer.loadTexture(CMTGATexture(data:Data(contentsOf:textureURL)))
-      }
+   } else if let texturePath=candidates?.previewTexture(modelName:name) {
+    let normalized=texturePath.replacingOccurrences(of:"\\\\",with:"/")
+    let parts=normalized.split(separator:"/").map(String.init)
+    if let filename=parts.last {
+     let subdir=parts.dropLast().joined(separator:"/")
+     let base=(filename as NSString).deletingPathExtension
+     if let textureURL=Bundle.main.url(forResource:base,withExtension:"tga",
+                                        subdirectory:subdir.isEmpty ? nil : subdir) {
+      try renderer.loadTexture(CMTGATexture(data:Data(contentsOf:textureURL)))
      }
     }
    }
