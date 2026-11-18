@@ -15,7 +15,14 @@ public struct CMSceneView: UIViewRepresentable {
    }
    if let url=Bundle.main.url(forResource:"attachment_catalog",withExtension:"json") {
     let catalog=try CMAttachmentCatalog(data:Data(contentsOf:url))
-    let slots=catalog.attachments.filter { $0.model.lowercased().hasSuffix("/sample.ucm") }
+    // sample.ucm may be a renamed original file; provide its original name in sample_model_name.txt.
+    let originalName=Bundle.main.url(forResource:"sample_model_name",withExtension:"txt")
+      .flatMap { try? String(contentsOf:$0,encoding:.utf8) }?
+      .trimmingCharacters(in:.whitespacesAndNewlines)
+    let name=(originalName?.isEmpty == false ? originalName! : "sample.ucm").lowercased()
+    let slots=catalog.attachments.filter {
+     $0.model.lowercased() == name || $0.model.lowercased().hasSuffix("/"+name)
+    }
     try renderer.loadDebugMarkers(slots)
    }
    if let url=Bundle.main.url(forResource:"sample",withExtension:"tga") {
