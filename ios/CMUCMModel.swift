@@ -48,6 +48,9 @@ public struct CMUCMModel {
             return v
         }
         let count = try mul(groups, verticesPerGroup)
+        // Metal uses UInt16 indices for this model; a larger vertex table
+        // cannot be addressed and must be rejected before allocation.
+        guard count <= Int(UInt16.max) + 1 else { throw CMUCMError.invalidGeometry }
         let indexCount = try mul(faces, 3)
         let indexBytes = try mul(indexCount, 4)
         let vertexBytes = try mul(count, 32)
