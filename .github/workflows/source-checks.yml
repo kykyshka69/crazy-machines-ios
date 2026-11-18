@@ -19,6 +19,15 @@ jobs:
           cd tools
           python -m unittest -v test_material_bridge.py
 
+  portable-swift-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and run real Swift decoder/catalog tests
+        run: |
+          swiftc ios/CMTGATexture.swift ios/CMAttachmentCatalog.swift tests/PortableSmoke.swift -o /tmp/cm-portable-smoke
+          /tmp/cm-portable-smoke
+
   swift-syntax:
     runs-on: macos-latest
     steps:
