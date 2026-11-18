@@ -248,7 +248,7 @@ struct CMPlaygroundView: View {
  }
 
  private func stepOnce() {
-  guard !running else { return }
+  guard !running && !reachedGoal else { return }
   if startingLayout == nil { startingLayout=world }
   let before=world.bodies.map(\.position)
   world.step(dt:Self.fixedStep)
