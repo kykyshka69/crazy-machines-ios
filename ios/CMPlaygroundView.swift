@@ -94,7 +94,11 @@ struct CMPlaygroundView: View {
    accumulator-=Self.fixedStep
    steps+=1
    checkGoal(previousPositions:before)
-   if reachedGoal { break }
+   if reachedGoal {
+    // A finished attempt must not carry leftover simulation time into Retry.
+    accumulator=0
+    break
+   }
   }
  }
  private func recordTrails() {
