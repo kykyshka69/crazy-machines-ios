@@ -23,7 +23,7 @@ struct UCMThousandSmoke {
     corrupted = Data(original.prefix(1 + (i % (original.count - 1))))
    case 2:
     // Invalid magic while keeping the rest of the payload intact.
-    corrupted[i % 4] = UInt8((i % 251) + 1)
+    corrupted[i % 4] = 0
    default:
     // Unexpected extra trailing bytes must be rejected.
     corrupted.append(contentsOf: repeatElement(UInt8(i % 256), count: 1 + (i % 13)))
