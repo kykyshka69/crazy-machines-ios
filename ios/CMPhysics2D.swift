@@ -8,10 +8,13 @@ public struct CMPhysicsBody2D {
  public var restitution: Double
  public var mass: Double
  public var surfaceFriction: Double
+ public var angle: Double
+ public var angularVelocity: Double
  public init(position: SIMD2<Double>, velocity: SIMD2<Double> = .zero,
-             radius: Double, restitution: Double = 0.4, mass: Double = 1, surfaceFriction: Double = 0) {
+             radius: Double, restitution: Double = 0.4, mass: Double = 1, surfaceFriction: Double = 0, angle: Double = 0, angularVelocity: Double = 0) {
   self.position=position;self.velocity=velocity;self.radius=radius
   self.restitution=restitution;self.mass=mass;self.surfaceFriction=surfaceFriction
+  self.angle=angle;self.angularVelocity=angularVelocity
  }
 }
 /// One-sided static ramp: collides from the upper side only.
@@ -37,9 +40,11 @@ public struct CMPhysicsWorld2D {
    guard bodies[i].radius.isFinite && bodies[i].radius > 0,
          bodies[i].restitution.isFinite, bodies[i].mass.isFinite, bodies[i].mass > 0,
          bodies[i].position.x.isFinite,bodies[i].position.y.isFinite,
-         bodies[i].velocity.x.isFinite,bodies[i].velocity.y.isFinite else { continue }
+         bodies[i].velocity.x.isFinite,bodies[i].velocity.y.isFinite,
+         bodies[i].angle.isFinite,bodies[i].angularVelocity.isFinite else { continue }
    bodies[i].velocity += gravity*dt
    bodies[i].position += bodies[i].velocity*dt
+   bodies[i].angle += bodies[i].angularVelocity*dt
    let bottom=floorY+bodies[i].radius
    if bodies[i].position.y < bottom {
     bodies[i].position.y=bottom
@@ -129,6 +134,27 @@ public struct CMPhysicsWorld2D {
      let impulse=-(1+e)*speed/invSum
      bodies[i].velocity -= normal*(impulse*invA)
      bodies[j].velocity += normal*(impulse*invB)
+    }
+    // Tangential contact impulse transfers spin between two solid disks.
+    // I = m*r*r/2; both contacts have lever arm radius.
+    if a.angularVelocity.isFinite,b.angularVelocity.isFinite,
+       a.surfaceFriction.isFinite,b.surfaceFriction.isFinite {
+     let tangent=SIMD2<Double>(-normal.y,normal.x)
+     let rv=bodies[j].velocity-bodies[i].velocity
+     let slip=rv.x*tangent.x+rv.y*tangent.y
+       - b.angularVelocity*b.radius - a.angularVelocity*a.radius
+     let denominator=3*(invA+invB)
+     let freeImpulse = -slip/denominator
+     let mu=sqrt(max(0,a.surfaceFriction)*max(0,b.surfaceFriction))
+     // Coulomb limit based on impact normal impulse; resting contact is
+     // intentionally outside this prototype.
+     let normalImpulse=max(0,-(1+min(max(min(a.restitution,b.restitution),0),1))*speed/invSum)
+     let limit=mu*normalImpulse
+     let jt=min(max(freeImpulse,-limit),limit)
+     bodies[i].velocity -= tangent*(jt*invA)
+     bodies[j].velocity += tangent*(jt*invB)
+     bodies[i].angularVelocity -= 2*jt/(a.mass*a.radius)
+     bodies[j].angularVelocity -= 2*jt/(b.mass*b.radius)
     }
    }
   }
