@@ -1,0 +1,29 @@
+name: Source checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  python-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test material bridge without copyrighted game assets
+        run: |
+          cd tools
+          python -m unittest -v test_material_bridge.py
+
+  swift-syntax:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show toolchain
+        run: swiftc --version
+      - name: Parse iOS Swift source
+        run: swiftc -frontend -parse ios/CMUCMModel.swift
