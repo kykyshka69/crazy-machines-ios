@@ -142,3 +142,12 @@ jobs:
         run: swiftc --version
       - name: Parse iOS Swift source
         run: swiftc -frontend -parse ios/*.swift
+
+  level-document-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and test level document persistence
+        run: |
+          swiftc ios/CMPhysics2D.swift ios/CMLevelDocument.swift tests/CMLevelDocumentSmoke.swift -o /tmp/cm-level-document
+          /tmp/cm-level-document
