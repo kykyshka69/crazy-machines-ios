@@ -92,3 +92,19 @@ hypothesis. The 102 occurrences are **candidate record starts**, not confirmed
 level count or decoded object records. We must determine whether the first
 marker is a record header or a repeated data value and verify lengths against
 the original Windows reader.
+
+## Verified cross-file 24-byte token (new observation)
+
+The 24-byte token
+
+`eb09478ab292fc01783929385b726218690c082e7eaa3ec4`
+
+occurs in the **256-byte My Laboratory file at offsets 0, 124, 232**,
+and in the **330,971-byte Professor file at offsets 124, 232**.
+The Professor file starts with a different 24-byte sequence.
+
+This gives a **second independent structural anchor** in the 256-byte
+prologue. Importantly, the common token starts at offsets 124 and 232,
+not 116 and 232; a 116-byte block hypothesis would be incorrect.
+This token's meaning is unknown. It must not be labeled a level count,
+coordinate, or object identifier without decoding evidence.
