@@ -15,6 +15,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         view.antialiasingMode = .multisampling4X
         view.defaultCameraController.interactionMode = .orbitTurntable
         view.defaultCameraController.inertiaEnabled = true
+        let tap = UITapGestureRecognizer(target: context.coordinator,
+                                         action: #selector(Coordinator.selectObject(_:)))
+        tap.cancelsTouchesInView = false
+        view.addGestureRecognizer(tap)
         let scene = buildScene()
         view.scene = scene
         view.pointOfView = scene.rootNode.childNode(withName: "original-level-camera", recursively: false)
@@ -22,6 +26,35 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: SCNView, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    final class Coordinator: NSObject {
+        private weak var highlighted: SCNNode?
+        private var originalEmission: Any?
+
+        @objc func selectObject(_ gesture: UITapGestureRecognizer) {
+            guard let view = gesture.view as? SCNView else { return }
+            let point = gesture.location(in: view)
+            let node = view.hitTest(point, options: [.firstFoundOnly: true]).first?.node
+            if let previous = highlighted, let material = previous.geometry?.firstMaterial {
+                material.emission.contents = originalEmission
+            }
+            highlighted = nil
+            originalEmission = nil
+            guard let node, let geometry = node.geometry,
+                  let material = geometry.firstMaterial else { return }
+            // Geometries are shared by repeated original UCM instances.
+            // Copy the geometry and material so selecting one does not tint all.
+            let unique = geometry.copy() as! SCNGeometry
+            unique.materials = geometry.materials.map { $0.copy() as! SCNMaterial }
+            node.geometry = unique
+            guard let uniqueMaterial = unique.firstMaterial else { return }
+            originalEmission = uniqueMaterial.emission.contents
+            uniqueMaterial.emission.contents = UIColor.systemOrange
+            highlighted = node
+        }
+    }
 
     private func buildScene() -> SCNScene {
         let scene = SCNScene()
