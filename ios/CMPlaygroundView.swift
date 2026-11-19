@@ -582,6 +582,7 @@ struct CMPlaygroundView: View {
   simulationSteps=0
   reachedGoal=false
   trails=[]
+  saveDraft()
  }
 
  private func stepOnce() {
@@ -746,6 +747,7 @@ struct CMPlaygroundView: View {
   reachedGoal=false
   simulationSteps=0
   trails=[]
+  saveDraft()
  }
  private func adjustSelected(_ property: String, by delta: Double) {
   guard !running,let selection else { return }
@@ -1055,6 +1057,7 @@ struct CMPlaygroundView: View {
   reachedGoal=false
   simulationSteps=0
   trails=[]
+  saveDraft()
  }
  private func duplicateSelected() {
   guard !running,let selection else { return }
