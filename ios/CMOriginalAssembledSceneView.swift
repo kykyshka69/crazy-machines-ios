@@ -40,7 +40,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             if let p = item.position, p.count == 3 {
                 transform.position = SCNVector3(Float(p[0]), Float(p[1]), Float(p[2]))
             }
-            transform.eulerAngles = parseRotation(item.rotationRaw)
+            transform.eulerAngles = parseRotation(item.rotationRelativeRaw ?? item.rotationRaw)
             parent.addChildNode(transform)
 
             // A 3DO entry is a model reference, not an additional object transform.
@@ -59,6 +59,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             for child in item.children { walk(child, parent: transform) }
         }
         walk(document.root, parent: scene.rootNode)
+        // Force world transforms to be evaluated before framing nested meshes.
+        scene.rootNode.enumerateChildNodes { _, _ in }
 
         let camera = SCNNode()
         camera.camera = SCNCamera()
