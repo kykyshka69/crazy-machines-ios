@@ -125,3 +125,49 @@ Reproducible verification: run
 `python tools/decode_original_lab_header.py MY_LAB.cml PROFESSOR_LAB.cml`
 using the original extracted files. The tool checks both original file
 hashes and fails on an unexpected record count.
+
+## Full Professor Laboratory decoded — 102 authentic named records
+
+Following original Windows reader **0x47F9E0**, each record contains
+four separately keyed and encrypted fields:
+
+| Field | Decoded length |
+|---|---:|
+| Flag | 1 byte |
+| Payload size | 4 bytes, unsigned little-endian |
+| Name | 80 bytes, null-terminated CP1251 |
+| Opaque puzzle payload | Variable, from decoded size field |
+
+Each field has an additional 20-byte encoded key prefix. The resulting
+record consumes `1+20 + 4+20 + 80+20 + payload_length+20` bytes,
+or **165 + payload_length**.
+
+**Executed on the original 330,971-byte Professor file:** all 102
+records independently passed key validation and all boundaries matched
+exactly, with final offset **330,971** and no trailing bytes.
+
+Examples from the real original records:
+
+| Index | Original Russian puzzle name | Decoded opaque payload bytes |
+|---|---|---:|
+| 1 | Сначала наведем порядок | 2240 |
+| 2 | Эффект домино | 2893 |
+| 3 | Уборщик | 2361 |
+| 4 | Магнетизм | 2021 |
+| 5 | Все вместе взятое 1 | 2772 |
+| 6 | Паровой свисток | 3197 |
+| 7 | Жареная колбаса | 3129 |
+| 8 | Обед | 4481 |
+| 100 | Долой шар | 4416 |
+| 101 | Плотник | 6070 |
+| 102 | Завершение | 3380 |
+
+This **confirms the 102 records are named original laboratory
+challenges**, not invented placeholders. Their payloads have been
+decrypted to bytes but their internal object and coordinate structures
+remain to be parsed.
+
+Reproduce with
+`python tools/decode_professor_records.py PROFESSOR_LAB.cml`
+(or `--json` for lengths, offsets, hashes, names). No copyrighted
+puzzle bytes are committed.
