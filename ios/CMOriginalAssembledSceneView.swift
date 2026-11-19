@@ -183,7 +183,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var meshCache: [URL: SCNGeometry] = [:]
         // Avoid reparsing a corrupt UCM every time it is referenced.
         var invalidMeshes = Set<URL>()
-        let savedPositions = UserDefaults.standard.dictionary(forKey: "cm.original.positions.\(document.sceneSHA256)") as? [String: [Double]] ?? [:]
+        // Physics trials must always begin at the authentic imported positions,
+        // not at coordinates previously edited in the 3D inspection mode.
+        let savedPositions: [String: [Double]] = experimentalPhysics ? [:] :
+            (UserDefaults.standard.dictionary(forKey: "cm.original.positions.\(document.sceneSHA256)") as? [String: [Double]] ?? [:])
         var nodeOrdinal = 0
 
         func parseRotation(_ raw: String?) -> SCNVector3 {
