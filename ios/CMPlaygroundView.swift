@@ -75,10 +75,6 @@ struct CMPlaygroundView: View {
  @State private var pendingImportSprings: [CMSpringJoint2D] = []
  @State private var pendingImportName = ""
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
- @State private var completedChallenges: Set<Int> = Set(UserDefaults.standard.array(forKey:"cm.completed.challenges.v1") as? [Int] ?? [])
- @State private var activeChallenge: Int? = nil
- @State private var bestTargetSteps = UserDefaults.standard.integer(forKey:"cm.targetshot.beststeps.v1")
- private static let challengeKey = "cm.completed.challenges.v1"
  private static let fixedStep = 1.0 / 120.0
  private static let goal = SIMD2<Double>(6.2,0.6)
  private static let goalRadius = 0.55
@@ -184,15 +180,7 @@ struct CMPlaygroundView: View {
    reachedGoal=true
    running=false
    lastTick=nil
-   if let challenge=activeChallenge {
-    completedChallenges.insert(challenge)
-    UserDefaults.standard.set(completedChallenges.sorted(),forKey:Self.challengeKey)
-    if challenge == 10 && (bestTargetSteps == 0 || simulationSteps < bestTargetSteps) {
-     bestTargetSteps=simulationSteps
-     UserDefaults.standard.set(simulationSteps,forKey:"cm.targetshot.beststeps.v1")
-    }
-    storageMessage="Challenge completed! Result saved"
-   }
+
   }
  }
  private func clearScene() {
@@ -202,7 +190,6 @@ struct CMPlaygroundView: View {
    return
   }
   saveUndo()
-  activeChallenge=nil
   world.bodies=[]
   world.segments=[]
   pins=[]
@@ -280,7 +267,6 @@ struct CMPlaygroundView: View {
   dragStart=nil
   initialSegment=nil
   reachedGoal=false
-  activeChallenge=nil
   world=Self.makeWorld()
   pins=[]
   springs=[]
@@ -390,7 +376,6 @@ struct CMPlaygroundView: View {
    let loadedPins=try document.makePins()
    let loadedSprings=try document.makeSprings()
    let loadedPivots=try document.makePivots()
-   activeChallenge=nil
    world=loaded
    pins=loadedPins
    springs=loadedSprings
@@ -421,7 +406,6 @@ struct CMPlaygroundView: View {
   running=false
   undoStack=[]
   redoStack=[]
-  activeChallenge=nil
   world=imported
   pins=pendingImportPins
   springs=pendingImportSprings
@@ -545,7 +529,6 @@ struct CMPlaygroundView: View {
   pivots=pivotUndoStack.popLast() ?? []
   selectedSpringIndex=nil
   if redoStack.count > 30 { redoStack.removeFirst() }
-  activeChallenge=nil
   world=previous
   gravityStrength = -previous.gravity.y
   clearExperimentState()
@@ -565,7 +548,6 @@ struct CMPlaygroundView: View {
   pivots=pivotRedoStack.popLast() ?? []
   selectedSpringIndex=nil
   if undoStack.count > 30 { undoStack.removeFirst() }
-  activeChallenge=nil
   world=next
   gravityStrength = -next.gravity.y
   clearExperimentState()
@@ -672,125 +654,6 @@ struct CMPlaygroundView: View {
   startingLayout=nil
   simulationSteps=0
   trails=[]
- }
- private func loadMechanismPreset(_ preset:Int) {
-  guard !running else { return }
-  var scene=CMPhysicsWorld2D()
-  scene.gravity=SIMD2(0,-gravityStrength)
-  scene.floorFriction=world.floorFriction
-  var newPins:[CMPinJoint2D]=[]
-  var newSprings:[CMSpringJoint2D]=[]
-  var newPivots:[CMPivotJoint2D]=[]
-  let ballA=CMPhysicsBody2D(position:SIMD2(2,3.5),radius:0.25)
-  let ballB=CMPhysicsBody2D(position:SIMD2(4,3.5),radius:0.25)
-  switch preset {
-  case 0: // Pendulum already offset from vertical: gravity creates motion.
-   scene.bodies=[CMPhysicsBody2D(position:SIMD2(3.5,3.5),radius:0.25)]
-   newPivots=[CMPivotJoint2D(bodyIndex:0,anchor:SIMD2(2.5,4.5),length:sqrt(2))]
-  case 1: // Two coupled masses, connected by an elastic spring.
-   scene.bodies=[ballA,ballB]
-   newSprings=[CMSpringJoint2D(firstIndex:0,secondIndex:1,restLength:1.3,stiffness:35,damping:3)]
-  case 2: // Stationary support with a free mass attached by a spring.
-   scene.bodies=[ballA,ballB]
-   newPins=[CMPinJoint2D(bodyIndex:0,anchor:ballA.position)]
-   newSprings=[CMSpringJoint2D(firstIndex:0,secondIndex:1,restLength:1.2,stiffness:40,damping:4)]
-  case 3: // Two independent swinging arms.
-   scene.bodies=[
-    CMPhysicsBody2D(position:SIMD2(1.5,3.5),radius:0.25),
-    CMPhysicsBody2D(position:SIMD2(5.5,3.5),radius:0.25)
-   ]
-   newPivots=[
-    CMPivotJoint2D(bodyIndex:0,anchor:SIMD2(2.5,4.5),length:sqrt(2)),
-    CMPivotJoint2D(bodyIndex:1,anchor:SIMD2(4.5,4.5),length:sqrt(2))
-   ]
-  case 4: // Inclined ramp launches a rolling ball toward the target.
-   scene.bodies=[CMPhysicsBody2D(position:SIMD2(1.1,4.8),radius:0.25)]
-   scene.segments=[
-    CMStaticSegment2D(start:SIMD2(0.5,4.2),end:SIMD2(3.8,1.6),friction:0.15),
-    CMStaticSegment2D(start:SIMD2(3.9,1.4),end:SIMD2(6.5,0.7),friction:0.15)
-   ]
-  case 5: // Elastic coupling between a pendulum and a free ball.
-   scene.bodies=[
-    CMPhysicsBody2D(position:SIMD2(2.4,3.4),radius:0.25),
-    CMPhysicsBody2D(position:SIMD2(4.4,3.4),radius:0.25)
-   ]
-   newPivots=[CMPivotJoint2D(bodyIndex:0,anchor:SIMD2(1.5,4.5),length:sqrt(2.02))]
-   newSprings=[CMSpringJoint2D(firstIndex:0,secondIndex:1,restLength:1.4,stiffness:25,damping:2)]
-  case 6: // Three hanging masses transfer momentum through collisions.
-   scene.bodies=[
-    CMPhysicsBody2D(position:SIMD2(2.0,3.7),radius:0.25),
-    CMPhysicsBody2D(position:SIMD2(3.2,3.7),radius:0.25),
-    CMPhysicsBody2D(position:SIMD2(3.72,3.7),radius:0.25)
-   ]
-   newPivots=[
-    CMPivotJoint2D(bodyIndex:0,anchor:SIMD2(2.6,4.8),length:sqrt(1.57)),
-    CMPivotJoint2D(bodyIndex:1,anchor:SIMD2(3.2,4.8),length:1.1),
-    CMPivotJoint2D(bodyIndex:2,anchor:SIMD2(3.72,4.8),length:1.1)
-   ]
-  case 7: // A pinned support suspends two linked masses in series.
-   scene.bodies=[
-    CMPhysicsBody2D(position:SIMD2(2.5,4.6),radius:0.25),
-    CMPhysicsBody2D(position:SIMD2(3.2,3.2),radius:0.25),
-    CMPhysicsBody2D(position:SIMD2(4.3,2.6),radius:0.25)
-   ]
-   newPins=[CMPinJoint2D(bodyIndex:0,anchor:SIMD2(2.5,4.6))]
-   newSprings=[
-    CMSpringJoint2D(firstIndex:0,secondIndex:1,restLength:1.1,stiffness:32,damping:2),
-    CMSpringJoint2D(firstIndex:1,secondIndex:2,restLength:1.0,stiffness:24,damping:2)
-   ]
-  case 8: // Cascading ramps redirect a ball through three slopes.
-   scene.bodies=[CMPhysicsBody2D(position:SIMD2(0.8,5.3),radius:0.25)]
-   scene.segments=[
-    CMStaticSegment2D(start:SIMD2(0.4,4.7),end:SIMD2(2.6,3.7),friction:0.12),
-    CMStaticSegment2D(start:SIMD2(2.8,2.9),end:SIMD2(5.1,3.6),friction:0.12),
-    CMStaticSegment2D(start:SIMD2(4.5,1.7),end:SIMD2(6.6,0.9),friction:0.12)
-   ]
-  case 9: // A spring connects two independent pendulum arms.
-   scene.bodies=[
-    CMPhysicsBody2D(position:SIMD2(2.2,3.5),radius:0.25),
-    CMPhysicsBody2D(position:SIMD2(4.8,3.5),radius:0.25)
-   ]
-   newPivots=[
-    CMPivotJoint2D(bodyIndex:0,anchor:SIMD2(2.8,4.6),length:sqrt(1.57)),
-    CMPivotJoint2D(bodyIndex:1,anchor:SIMD2(4.2,4.6),length:sqrt(1.57))
-   ]
-   newSprings=[CMSpringJoint2D(firstIndex:0,secondIndex:1,restLength:1.8,stiffness:22,damping:2)]
-  case 10: // An elevated launch toward the fixed goal: tune the initial impulse.
-   scene.bodies=[
-    CMPhysicsBody2D(position:SIMD2(1.1,3.8),velocity:SIMD2(3.0,1.6),radius:0.25)
-   ]
-   scene.segments=[
-    CMStaticSegment2D(start:SIMD2(0.4,3.1),end:SIMD2(2.2,2.8),friction:0.18),
-    CMStaticSegment2D(start:SIMD2(4.3,1.1),end:SIMD2(6.5,0.45),friction:0.15)
-   ]
-  case 11: // Gravity-only downhill course.
-   scene.bodies=[CMPhysicsBody2D(position:SIMD2(0.85,5.0),radius:0.25)]
-   scene.segments=[
-    CMStaticSegment2D(start:SIMD2(0.3,4.4),end:SIMD2(3.5,2.5),friction:0.12),
-    CMStaticSegment2D(start:SIMD2(3.7,2.3),end:SIMD2(6.5,0.6),friction:0.12)
-   ]
-  case 12: // Swing a suspended mass toward the target.
-   scene.bodies=[CMPhysicsBody2D(position:SIMD2(4.7,2.5),radius:0.25)]
-   newPivots=[CMPivotJoint2D(bodyIndex:0,anchor:SIMD2(5.4,4.5),length:sqrt(4.49))]
-  default: return
-  }
-  let document=CMLevelDocument(world:scene,pins:newPins,springs:newSprings,pivots:newPivots)
-  guard (try? document.makeWorld()) != nil,
-   (try? document.makePins()) != nil,
-   (try? document.makeSprings()) != nil,
-   (try? document.makePivots()) != nil else {
-   storageMessage="Mechanism preset failed validation"
-   return
-  }
-  saveUndo()
-  activeChallenge = (10...12).contains(preset) ? preset : nil
-  world=scene
-  pins=newPins
-  springs=newSprings
-  pivots=newPivots
-  clearExperimentState()
-  saveDraft()
-  storageMessage=["Pendulum","Coupled spring","Spring and pin","Double pendulum","Ramp run","Spring pendulum","Collision pendulums","Spring chain","Ramp cascade","Linked pendulums","Target shot","Gravity course","Pendulum target"][preset]+" preset loaded (Undo to restore)"
  }
  private func addBall() {
   guard !running && world.bodies.count < 20 else { return }
@@ -1341,18 +1204,6 @@ struct CMPlaygroundView: View {
   ScrollView {
   VStack(spacing:10) {
    Text("Mechanics playground").font(.headline)
-   if let challenge=activeChallenge {
-    let challengeNames=[10:"Target Shot",11:"Gravity Course",12:"Pendulum Target"]
-    Text((challengeNames[challenge] ?? "Challenge") +
-     (completedChallenges.contains(challenge) ? " · Completed ✓" : " · Reach the green target"))
-     .font(.subheadline.bold())
-    if challenge == 10 && bestTargetSteps > 0 {
-     Text("Best: "+String(format:"%.2f",Double(bestTargetSteps)*Self.fixedStep)+" s")
-      .font(.caption.monospacedDigit())
-    }
-   }
-   Text("Challenges completed: \(completedChallenges.intersection([10,11,12]).count) / 3")
-    .font(.caption)
    Text(reachedGoal ? "Goal reached!" : "Guide a ball into the green target")
     .font(.subheadline)
     .foregroundColor(reachedGoal ? .green : .secondary)
@@ -1518,19 +1369,6 @@ struct CMPlaygroundView: View {
     Button("Redo") { redo() }.disabled(running || redoStack.isEmpty)
    }.buttonStyle(.bordered)
    HStack {
-    Button("Pendulum preset") { loadMechanismPreset(0) }.disabled(running)
-    Button("Spring preset") { loadMechanismPreset(1) }.disabled(running)
-    Button("Support preset") { loadMechanismPreset(2) }.disabled(running)
-    Button("Dual pivots") { loadMechanismPreset(3) }.disabled(running)
-    Button("Ramp run") { loadMechanismPreset(4) }.disabled(running)
-    Button("Spring pendulum") { loadMechanismPreset(5) }.disabled(running)
-    Button("Collision pendulums") { loadMechanismPreset(6) }.disabled(running)
-    Button("Spring chain") { loadMechanismPreset(7) }.disabled(running)
-    Button("Ramp cascade") { loadMechanismPreset(8) }.disabled(running)
-    Button("Linked pendulums") { loadMechanismPreset(9) }.disabled(running)
-    Button("Target shot") { loadMechanismPreset(10) }.disabled(running)
-    Button("Gravity course") { loadMechanismPreset(11) }.disabled(running)
-    Button("Pendulum target") { loadMechanismPreset(12) }.disabled(running)
     Button("Stop all balls") { stopAllBalls() }.disabled(running)
     Button("Add ball") { addBall() }.disabled(running || world.bodies.count >= 20)
     Button("Add ramp") { addRamp() }.disabled(running || world.segments.count >= 12)
