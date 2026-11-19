@@ -545,6 +545,67 @@ struct CMPlaygroundView: View {
     .accessibilityLabel("Increase "+name)
   }.buttonStyle(.bordered)
  }
+ private func duplicateSelected() {
+  guard !running,let selection else { return }
+  let offsets:[SIMD2<Double>]=[
+   SIMD2(0.5,0.5),SIMD2(-0.5,0.5),SIMD2(0.5,-0.5),
+   SIMD2(-0.5,-0.5),SIMD2(1,0),SIMD2(-1,0),SIMD2(0,1),SIMD2(0,-1)
+  ]
+  switch selection {
+  case .ball(let i):
+   guard world.bodies.indices.contains(i),world.bodies.count < 20 else { return }
+   let original=world.bodies[i]
+   guard let position=offsets.map({ original.position+$0 }).first(where: { p in
+    p.x>=original.radius,p.x<=Self.worldWidth-original.radius,
+    p.y>=original.radius,p.y<=Self.worldHeight-original.radius &&
+    world.bodies.allSatisfy({ other in
+     squaredDistance(p,other.position) >= pow(original.radius+other.radius+0.05,2)
+    }) && world.segments.allSatisfy({ segment in
+     segmentDistanceSquared(p,segment) >= pow(original.radius+0.05,2)
+    })
+   }) else {
+    storageMessage="No free space to duplicate ball"
+    return
+   }
+   saveUndo()
+   var copy=original
+   copy.position=position
+   copy.velocity = .zero
+   copy.angularVelocity=0
+   world.bodies.append(copy)
+   self.selection = .ball(world.bodies.count-1)
+  case .ramp(let i):
+   guard world.segments.indices.contains(i),world.segments.count < 12 else { return }
+   let original=world.segments[i]
+   guard let copy=offsets.map({ offset in
+    CMStaticSegment2D(start:original.start+offset,end:original.end+offset,friction:original.friction)
+   }).first(where: { candidate in
+    [candidate.start,candidate.end].allSatisfy({ p in
+     p.x>=0.2 && p.x<=Self.worldWidth-0.2 && p.y>=0.2 && p.y<=Self.worldHeight-0.2
+    }) &&
+    world.bodies.allSatisfy({ ball in
+     segmentDistanceSquared(ball.position,candidate)>=pow(ball.radius+0.12,2)
+    }) &&
+    world.segments.allSatisfy({ existing in
+     segmentDistanceSquared(candidate.start,existing)>0.12*0.12 &&
+     segmentDistanceSquared(candidate.end,existing)>0.12*0.12 &&
+     segmentDistanceSquared((candidate.start+candidate.end)*0.5,existing)>0.12*0.12 &&
+     segmentDistanceSquared(existing.start,candidate)>0.12*0.12 &&
+     segmentDistanceSquared(existing.end,candidate)>0.12*0.12
+    })
+   }) else {
+    storageMessage="No free space to duplicate ramp"
+    return
+   }
+   saveUndo()
+   world.segments.append(copy)
+   self.selection = .ramp(world.segments.count-1)
+  }
+  startingLayout=nil
+  reachedGoal=false
+  simulationSteps=0
+  trails=[]
+ }
  private func deleteSelected() {
   guard !running,let selection else { return }
   switch selection {
@@ -700,6 +761,7 @@ struct CMPlaygroundView: View {
    HStack {
     Button("Add ball") { addBall() }.disabled(running || world.bodies.count >= 20)
     Button("Add ramp") { addRamp() }.disabled(running || world.segments.count >= 12)
+    Button("Duplicate") { duplicateSelected() }.disabled(running || selection == nil)
     Button("Delete") { deleteSelected() }.disabled(running || selection == nil)
    }
    .buttonStyle(.bordered)
