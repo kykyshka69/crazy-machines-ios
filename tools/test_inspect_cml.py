@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from inspect_cml import inspect, compare
+from inspect_cml import inspect, compare, text_candidates
 
 
 class CMLInspectorTests(unittest.TestCase):
@@ -48,6 +48,18 @@ class CMLInspectorTests(unittest.TestCase):
             path = Path(directory) / "a.cml"
             path.write_bytes(b"1234")
             self.assertIsNone(compare([path])["shared_prefix_bytes"])
+
+    def test_text_clues_with_offsets_and_alignment(self):
+        payload = b"prefix\\x00" + "LEVELNAME".encode("utf-16le") + b"\\x00\\x00" + b"OBJFILE"
+        clues = text_candidates(payload)
+        self.assertTrue(any(c["offset"] == 7 and c["encoding"] == "utf-16le"
+                            and c["text"] == "LEVELNAME" for c in clues))
+        self.assertTrue(any(c["encoding"] == "ascii" and c["text"] == "OBJFILE"
+                            for c in clues))
+
+    def test_text_clue_limit(self):
+        data = b"FIRST\\x00SECOND\\x00THIRD"
+        self.assertEqual(len(text_candidates(data, limit=2)), 2)
 
     def test_cli_json_report(self):
         with tempfile.TemporaryDirectory() as directory:
