@@ -184,7 +184,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             return SCNVector3(x, y, z)
         }
 
-        func walk(_ item: CMOriginalSceneDocument.Node, parent: SCNNode) {
+        func walk(_ item: CMOriginalSceneDocument.Node, parent: SCNNode, goalAncestor: Bool = false) {
+            let isGoal = goalAncestor || item.goalRaw == "1"
             let transform = SCNNode()
             let identifier = "original-node-\(nodeOrdinal)"
             nodeOrdinal += 1
@@ -219,13 +220,24 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         if let geometry {
                             let mesh = SCNNode(geometry: geometry)
                             mesh.name = name
+                            // Highlight only authentic imported geometry belonging to
+                            // an original GOAL 1 node; never invent a goal marker.
+                            if isGoal {
+                                let goalGeometry = geometry.copy() as! SCNGeometry
+                                goalGeometry.materials = geometry.materials.map {
+                                    let material = $0.copy() as! SCNMaterial
+                                    material.emission.contents = UIColor.systemGreen.withAlphaComponent(0.45)
+                                    return material
+                                }
+                                mesh.geometry = goalGeometry
+                            }
                             transform.addChildNode(mesh)
                             loadedMeshNodes.append(mesh)
                         }
                     }
                 }
             }
-            for child in item.children { walk(child, parent: transform) }
+            for child in item.children { walk(child, parent: transform, goalAncestor: isGoal) }
         }
         walk(document.root, parent: scene.rootNode)
         // Frame actual transformed mesh bounds, not just object origins.
