@@ -493,6 +493,7 @@ struct CMPlaygroundView: View {
    levelName=UserDefaults.standard.string(forKey:levelNameKey(for:selectedSaveSlot)) ?? "Untitled experiment"
    gravityStrength = -loaded.gravity.y
    clearExperimentState()
+   saveDraft()
    storageMessage="Loaded experiment from slot \(selectedSaveSlot)"
   } catch {
    storageMessage="Saved experiment is invalid"
@@ -1026,10 +1027,14 @@ struct CMPlaygroundView: View {
    }
    let position=world.bodies[index].position
    // Put the pivot above the ball so gravity starts a hanging pendulum.
-   let anchor=SIMD2(position.x,min(Self.worldHeight,position.y+1))
+   let horizontal=position.x < Self.worldWidth*0.5 ? 0.6 : -0.6
+   let anchor=SIMD2(position.x+horizontal,min(Self.worldHeight,position.y+0.8))
    let delta=position-anchor
    let length=sqrt(delta.x*delta.x+delta.y*delta.y)
-   guard length >= 0.01 else { storageMessage="Not enough room for pivot"; return }
+   guard length >= 0.01,(0...Self.worldWidth).contains(anchor.x),
+    (0...Self.worldHeight).contains(anchor.y) else {
+    storageMessage="Not enough room for pivot"; return
+   }
    saveUndo()
    pivots.append(CMPivotJoint2D(bodyIndex:index,anchor:anchor,length:length))
    storageMessage="Pivot added"
