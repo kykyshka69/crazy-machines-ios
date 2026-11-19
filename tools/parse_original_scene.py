@@ -55,7 +55,10 @@ def parse_scene(text: str) -> SceneNode:
             pending = None
         elif line == "}":
             if pending is not None:
-                raise ValueError(f"line {line_number}: node name without opening brace")
+                if not stack:
+                    raise ValueError(f"line {line_number}: stray field outside root")
+                stack[-1].fields.append(pending[1])
+                pending = None
             if not stack:
                 raise ValueError(f"line {line_number}: unmatched closing brace")
             stack.pop()
