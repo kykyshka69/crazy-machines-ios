@@ -5,6 +5,8 @@ import UniformTypeIdentifiers
 /// This does not pretend that proprietary CML levels are decoded or playable.
 struct CMOriginalResourcesView: View {
     @State private var importing = false
+    @State private var selectedCML: ResourceEntry?
+    @State private var selectedProbe: CMOriginalCMLProbe?
     @State private var entries: [ResourceEntry] = []
     @State private var message = "Import extracted original .cml, .ucm or .tga files."
     private let allowed = Set(["cml", "ucm", "tga", "ogg", "wav", "vsc", "fsc"])
@@ -43,12 +45,37 @@ struct CMOriginalResourcesView: View {
                             Text(ByteCountFormatter.string(fromByteCount: Int64(entry.bytes), countStyle: .file))
                                 .font(.caption.monospacedDigit())
                         }
+                        .contentShape(Rectangle())
+                        .onTapGesture { inspectCML(entry) }
                     }
                 }
             }
             .navigationTitle("Original files")
+            .sheet(item: $selectedCML) { entry in
+                NavigationStack {
+                    List {
+                        Text(entry.name).font(.headline)
+                        if let probe = selectedProbe {
+                            LabeledContent("Bytes", value: String(probe.byteCount))
+                            LabeledContent("Zero bytes", value: String(probe.zeroByteCount))
+                            Section("First 32 bytes (hex)") {
+                                Text(probe.headerHex).font(.system(.caption, design: .monospaced))
+                                    .textSelection(.enabled)
+                            }
+                            Section("ASCII clues (not decoded levels)") {
+                                ForEach(probe.asciiClues, id: \.self) { clue in
+                                    Text(clue).font(.system(.caption, design: .monospaced))
+                                }
+                            }
+                        }
+                    }
+                    .navigationTitle("CML inspection")
+                    .toolbar { Button("Close") { selectedCML = nil } }
+                }
+            }
+
             .onAppear(perform: reload)
-            .fileImporter(isPresented: $importing, allowedContentTypes: [.data], allowsMultipleSelection: true) { result in
+            .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
                 switch result {
                 case .success(let urls):
                     importFiles(urls)
@@ -57,6 +84,17 @@ struct CMOriginalResourcesView: View {
                 }
             }
         }
+    }
+
+    private func inspectCML(_ entry: ResourceEntry) {
+        guard entry.kind == "cml" else { return }
+        let path = storage.appendingPathComponent(entry.name)
+        guard let data = try? Data(contentsOf: path) else {
+            message = "Cannot read original CML file"
+            return
+        }
+        selectedProbe = CMOriginalCMLProbe(data: data)
+        selectedCML = entry
     }
 
     private func reload() {
