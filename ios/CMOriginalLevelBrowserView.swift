@@ -10,6 +10,7 @@ struct CMOriginalLevelBrowserView: View {
     @State private var selected: Int?
     @State private var previewModel: ModelPreviewSelection?
     @State private var assembledScene: AssembledSelection?
+    @State private var confirmingResetEdits = false
 
     private struct AssembledSelection: Identifiable {
         let document: CMOriginalSceneDocument
@@ -136,6 +137,9 @@ struct CMOriginalLevelBrowserView: View {
                 Button("View original level in 3D") {
                     assembledScene = AssembledSelection(document: document)
                 }
+                Button("Reset all saved 3D positions", role: .destructive) {
+                    confirmingResetEdits = true
+                }
                 Text("Uses imported UCM meshes and original nested POS/ROT transforms. Missing models are omitted; original materials and physics are not yet supported.")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -182,6 +186,16 @@ struct CMOriginalLevelBrowserView: View {
             }
         }
         .navigationTitle("Level \(document.index)")
+        .confirmationDialog("Reset all edited object positions for this level?",
+                            isPresented: $confirmingResetEdits,
+                            titleVisibility: .visible) {
+            Button("Reset positions", role: .destructive) {
+                UserDefaults.standard.removeObject(forKey: "cm.original.positions.\(document.sceneSHA256)")
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("All objects will return to their original imported coordinates the next time you open the 3D scene.")
+        }
         .sheet(item: $assembledScene) { selection in
             NavigationStack {
                 CMOriginalAssembledSceneView(document: selection.document, assetDirectory: originalStorage)
