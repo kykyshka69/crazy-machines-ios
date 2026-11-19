@@ -208,8 +208,36 @@ jobs:
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath /tmp/cm-ios-derived \
             CODE_SIGNING_ALLOWED=NO build
-      - name: Upload built simulator application
+      - name: Boot iPhone simulator and launch actual application
+        run: |
+          DEVICE_ID=$(python3 - <<'PY'
+          import json, subprocess
+          devices = json.loads(subprocess.check_output(
+              ["xcrun", "simctl", "list", "devices", "available", "-j"]
+          ))["devices"]
+          for runtime, entries in devices.items():
+              for device in entries:
+                  if device["name"].startswith("iPhone") and device["state"] == "Shutdown":
+                      print(device["udid"])
+                      raise SystemExit(0)
+          raise SystemExit("No available iPhone simulator")
+          PY
+          )
+          xcrun simctl boot "$DEVICE_ID"
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          xcrun simctl install "$DEVICE_ID" /tmp/cm-ios-derived/Build/Products/Debug-iphonesimulator/CrazyMachinesIOS.app
+          xcrun simctl launch "$DEVICE_ID" org.crazymachines.port
+          xcrun simctl io "$DEVICE_ID" screenshot /tmp/cm-ios-launch.png
+      - name: Upload actual simulator launch screenshot
         if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CrazyMachinesIOS-launch-screenshot
+          path: /tmp/cm-ios-launch.png
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload built simulator application
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: CrazyMachinesIOS-simulator-app
