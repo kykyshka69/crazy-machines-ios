@@ -13,13 +13,18 @@ class OriginalByteTransformTests(unittest.TestCase):
                 encoded = offset_arithmetic(data, initial, True)
                 self.assertEqual(offset_arithmetic(encoded, initial, False), data)
 
-    def test_adjacent_prefix_uses_original_bytes(self):
+    def test_adjacent_prefix_uses_updated_previous_byte(self):
         self.assertEqual(adjacent_delta(bytes([1, 2, 3, 4]), True),
-                         bytes([1, 3, 5, 7]))
+                         bytes([1, 3, 6, 10]))
 
-    def test_adjacent_backward_uses_transformed_previous_byte(self):
+    def test_adjacent_backward_uses_original_previous_byte(self):
         self.assertEqual(adjacent_delta(bytes([1, 2, 3, 4]), False),
-                         bytes([1, 1, 2, 2]))
+                         bytes([1, 1, 1, 1]))
+
+    def test_adjacent_roundtrip(self):
+        for data in (b"", b"x", bytes(range(256)), bytes([255, 255, 1])):
+            self.assertEqual(adjacent_delta(adjacent_delta(data, True), False), data)
+            self.assertEqual(adjacent_delta(adjacent_delta(data, False), True), data)
 
     def test_adjacent_empty_and_single(self):
         for flag in (True, False):
