@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from inspect_cml import inspect
+from inspect_cml import inspect, compare
 
 
 class CMLInspectorTests(unittest.TestCase):
@@ -29,6 +29,25 @@ class CMLInspectorTests(unittest.TestCase):
             self.assertEqual(result["known_signature_offsets"][b"OggS".hex()], [4096])
             self.assertEqual([w["length"] for w in result["windows_4k"]], [4096, 20])
             self.assertEqual(result["aligned_u32_first_32"][0], 0x314D4355)
+
+    def test_cross_file_differences(self):
+        with tempfile.TemporaryDirectory() as directory:
+            a = Path(directory) / "a.cml"
+            b = Path(directory) / "b.cml"
+            a.write_bytes(b"HEAD" + b"123" + b"TAIL")
+            b.write_bytes(b"HEAD" + b"xyz" + b"TAIL")
+            result = compare([a, b])
+            self.assertEqual(result["shared_prefix_bytes"], 4)
+            self.assertEqual(result["shared_suffix_bytes"], 4)
+            self.assertTrue(result["equal_length"])
+            self.assertEqual(result["differing_byte_ranges"],
+                             [{"start": 4, "end_exclusive": 7}])
+
+    def test_single_file_comparison_is_undefined(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "a.cml"
+            path.write_bytes(b"1234")
+            self.assertIsNone(compare([path])["shared_prefix_bytes"])
 
     def test_cli_json_report(self):
         with tempfile.TemporaryDirectory() as directory:
