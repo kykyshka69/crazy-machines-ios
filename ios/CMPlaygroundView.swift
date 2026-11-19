@@ -763,6 +763,15 @@ struct CMPlaygroundView: View {
     CMStaticSegment2D(start:SIMD2(0.4,3.1),end:SIMD2(2.2,2.8),friction:0.18),
     CMStaticSegment2D(start:SIMD2(4.3,1.1),end:SIMD2(6.5,0.45),friction:0.15)
    ]
+  case 11: // Gravity-only downhill course.
+   scene.bodies=[CMPhysicsBody2D(position:SIMD2(0.85,5.0),radius:0.25)]
+   scene.segments=[
+    CMStaticSegment2D(start:SIMD2(0.3,4.4),end:SIMD2(3.5,2.5),friction:0.12),
+    CMStaticSegment2D(start:SIMD2(3.7,2.3),end:SIMD2(6.5,0.6),friction:0.12)
+   ]
+  case 12: // Swing a suspended mass toward the target.
+   scene.bodies=[CMPhysicsBody2D(position:SIMD2(4.7,2.5),radius:0.25)]
+   newPivots=[CMPivotJoint2D(bodyIndex:0,anchor:SIMD2(5.4,4.5),length:sqrt(4.49))]
   default: return
   }
   let document=CMLevelDocument(world:scene,pins:newPins,springs:newSprings,pivots:newPivots)
@@ -774,14 +783,14 @@ struct CMPlaygroundView: View {
    return
   }
   saveUndo()
-  activeChallenge = preset == 10 ? 10 : nil
+  activeChallenge = (10...12).contains(preset) ? preset : nil
   world=scene
   pins=newPins
   springs=newSprings
   pivots=newPivots
   clearExperimentState()
   saveDraft()
-  storageMessage=["Pendulum","Coupled spring","Spring and pin","Double pendulum","Ramp run","Spring pendulum","Collision pendulums","Spring chain","Ramp cascade","Linked pendulums","Target shot"][preset]+" preset loaded (Undo to restore)"
+  storageMessage=["Pendulum","Coupled spring","Spring and pin","Double pendulum","Ramp run","Spring pendulum","Collision pendulums","Spring chain","Ramp cascade","Linked pendulums","Target shot","Gravity course","Pendulum target"][preset]+" preset loaded (Undo to restore)"
  }
  private func addBall() {
   guard !running && world.bodies.count < 20 else { return }
@@ -1516,6 +1525,8 @@ struct CMPlaygroundView: View {
     Button("Ramp cascade") { loadMechanismPreset(8) }.disabled(running)
     Button("Linked pendulums") { loadMechanismPreset(9) }.disabled(running)
     Button("Target shot") { loadMechanismPreset(10) }.disabled(running)
+    Button("Gravity course") { loadMechanismPreset(11) }.disabled(running)
+    Button("Pendulum target") { loadMechanismPreset(12) }.disabled(running)
     Button("Stop all balls") { stopAllBalls() }.disabled(running)
     Button("Add ball") { addBall() }.disabled(running || world.bodies.count >= 20)
     Button("Add ramp") { addRamp() }.disabled(running || world.segments.count >= 12)
