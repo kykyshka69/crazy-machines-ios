@@ -223,12 +223,19 @@ struct CMOriginalLevelBrowserView: View {
         }
         var imported = 0
         var rejected = 0
+        var seenIndices = Set<Int>()
         for url in urls {
             let accessed = url.startAccessingSecurityScopedResource()
             defer { if accessed { url.stopAccessingSecurityScopedResource() } }
             do {
                 let data = try Data(contentsOf: url)
                 let document = try CMOriginalSceneDocument.read(data)
+                // Refuse conflicting duplicate level numbers in the same import.
+                // Otherwise the last file silently wins depending on file order.
+                guard seenIndices.insert(document.index).inserted else {
+                    rejected += 1
+                    continue
+                }
                 let filename = String(format: "level-%03d.json", document.index)
                 let destination = sceneStorage.appendingPathComponent(filename)
                 // Retain only user-imported data in the app sandbox, never the repo.
