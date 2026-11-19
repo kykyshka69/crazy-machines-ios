@@ -358,3 +358,38 @@ No original game assets or proprietary scene texts are committed.
 The next step is a **brace-aware scene graph parser**, followed by
 mapping `3DO` model identifiers to the original UCM models and
 recreating interactions.
+
+## Direct original-data validation (2026-11-19)
+
+Rechecked the user's **actual 330,971-byte** Professor Laboratory CML
+and its original resource archive (160 UCM files), not synthetic fixtures.
+
+**Critical decoder correction:** 44 of 102 authentic inner compressed
+sections have lengths not divisible by three. The LZW terminator
+(`4095`) can occur before the end of the last packed 12-bit pair.
+The decoder must zero-pad the final partial three-byte packing unit,
+stop at the terminator and ignore trailing padding bits. With this
+correction, all 102 scenes decode.
+
+**Important transform discovery:** the 102 decompressed scenes contain
+**3,777 `POSREL` lines** and **64 `ROTREL` lines**, in addition to
+2,263 `POS` lines and 793 `ROT` lines. The JSON exporter and
+iOS document now retain these relative fields, and the assembled
+scene viewer uses relative transforms where present. Exact precedence
+of simultaneous absolute and relative fields still needs comparison
+with the Windows loader.
+
+**Verified 3DO-to-UCM name mapping:** the 102 scenes contain
+**125 unique `3DO` identifiers** and 5,626 total `3DO` occurrences.
+None of the identifiers directly match a UCM basename; **100 of 125**
+match exactly after removing the literal `to_` prefix, e.g.
+`3DO to_board` → `board.ucm`,
+`3DO to_domino` → `domino.ucm`.
+The remaining **25 identifiers do not match** the 160-file UCM archive
+by that rule. The iOS resolver now applies only the verified prefix
+rule and leaves unresolved assets missing rather than substituting
+guessed meshes.
+
+These counts are from a direct local run on the original files.
+They are not a claim that a complete textured, playable scene has
+been validated on an iPhone.
