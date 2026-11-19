@@ -234,3 +234,26 @@ The read-only `tools/inventory_puzzle_binary.py` records offsets,
 lengths and SHA-256 digests of each opaque binary section without
 including any original copyrighted game data. Next: identify the
 object-table format **inside** those length-delimited sections.
+
+## All 102 original binary sections share an 85-byte prefix
+
+Re-ran the actual decryption on the hash-verified Professor CML,
+extracted the length-delimited binary section from each of the **102**
+decoded challenge payloads, and compared their bytes position by
+position. The **longest common prefix is exactly 85 bytes**.
+
+- Bytes **0–79** are identical in every binary section.
+- Bytes **80–84** are also identical in every section.
+- The 16-byte window starting at offset **80** has **8 distinct
+  values** across the 102 sections.
+- The 16-byte window at offset **0** has only **1 distinct value**.
+
+This is evidence of a common inner **binary header** preceding
+puzzle-dependent information. **It is not evidence that bytes 85 onward
+are object records**; they could contain a compressed or indexed stream.
+
+Reproducible, non-extracting command:
+`python tools/inventory_puzzle_binary.py PROFESSOR_LAB.cml --shared-structure`.
+
+The analysis uses `tools/analyze_puzzle_binary.py`, which reports
+counts and lengths without distributing original level bytes.
