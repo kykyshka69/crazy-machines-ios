@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// Imports user-owned original Windows game resources into the iOS app sandbox.
-/// This does not pretend that proprietary CML levels are decoded or playable.
+/// The separate Original levels tab displays locally exported original scenes; physics is not yet playable.
 struct CMOriginalResourcesView: View {
     @State private var importing = false
     @State private var selectedCML: ResourceEntry?
@@ -29,7 +29,7 @@ struct CMOriginalResourcesView: View {
                 Section {
                     Text("Original Crazy Machines resources")
                         .font(.headline)
-                    Text("These files remain private on this iPhone. The CML level format is not decoded yet.")
+                    Text("Original CML decoding and private scene export are available through the project tools. Import the exported JSON scenes in Original levels; original physics is not playable yet.")
                         .font(.caption)
                     Button("Import original game files") { importing = true }
                     Text(message).font(.caption).foregroundStyle(.secondary)
