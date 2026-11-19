@@ -15,7 +15,7 @@ from cml_byte_transforms import ORIGINAL_LAB_KEY, decode_original_lab_field
 PROFESSOR_SHA256 = "bd05d755d62a28abf7656d125fd6eec73c496ba6427d30341516da4f42124cc6"
 
 
-def read_professor_records(data: bytes, *, expected_count: int = 102) -> list[dict]:
+def read_professor_records(data: bytes, *, expected_count: int = 102, include_payload: bool = False) -> list[dict]:
     offset = 256
     records = []
 
@@ -35,7 +35,7 @@ def read_professor_records(data: bytes, *, expected_count: int = 102) -> list[di
         name_bytes = read_field(80)
         name = name_bytes.split(b"\0", 1)[0].decode("cp1251")
         payload = read_field(payload_length)
-        records.append({
+        record = {
             "index": index + 1,
             "name": name,
             "flag": flag,
@@ -43,7 +43,10 @@ def read_professor_records(data: bytes, *, expected_count: int = 102) -> list[di
             "end_exclusive": offset,
             "payload_length": payload_length,
             "payload_sha256": hashlib.sha256(payload).hexdigest(),
-        })
+        }
+        if include_payload:
+            record["payload"] = payload
+        records.append(record)
     if offset != len(data):
         raise ValueError(f"trailing bytes after {expected_count} records: {len(data)-offset}")
     return records
