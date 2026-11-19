@@ -60,6 +60,11 @@ struct CMOriginalLevelBrowserView: View {
                 LabeledContent("With positions", value: "\(document.root.positionedObjectCount)")
                 LabeledContent("Goal markers", value: "\(document.root.goalCount)")
             }
+            Section("Original object positions (X/Y)") {
+                CMOriginalLevelMapView(document: document)
+                Text("Read-only top-down coordinate plot. Orange markers are objects with GOAL 1; no original geometry or physics is simulated.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Scene hierarchy") {
                 OutlineGroup([document.root], children: \.children) { node in
                     VStack(alignment: .leading, spacing: 3) {
