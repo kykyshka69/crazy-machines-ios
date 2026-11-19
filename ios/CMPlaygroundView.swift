@@ -959,6 +959,31 @@ struct CMPlaygroundView: View {
   storageMessage="Removed selected ball's springs"
   saveDraft()
  }
+ private func launchSelectedBall(dx:Double,dy:Double) {
+  guard !running,case .ball(let index)=selection,
+   world.bodies.indices.contains(index),
+   !pins.contains(where:{$0.bodyIndex==index}),
+   !pivots.contains(where:{$0.bodyIndex==index}),
+   dx.isFinite,dy.isFinite,abs(dx)<=5,abs(dy)<=5 else { return }
+  let body=world.bodies[index]
+  let velocity=body.velocity+SIMD2<Double>(dx,dy)
+  guard velocity.x.isFinite,velocity.y.isFinite,
+   abs(velocity.x)<=20,abs(velocity.y)<=20 else {
+   storageMessage="Launch speed exceeds safe limit"
+   return
+  }
+  saveUndo()
+  world.bodies[index].velocity=velocity
+  startingLayout=nil
+  startingPins=nil
+  startingSprings=nil
+  startingPivots=nil
+  reachedGoal=false
+  simulationSteps=0
+  trails=[]
+  saveDraft()
+  storageMessage="Ball launch velocity adjusted (Undo to restore)"
+ }
  private func kickSelectedPivot(speed:Double) {
   guard !running,case .ball(let bodyIndex)=selection,
    let index=pivots.firstIndex(where:{$0.bodyIndex==bodyIndex}) else { return }
@@ -1451,6 +1476,15 @@ struct CMPlaygroundView: View {
      switch selection {
      case .ball(let i):
       if world.bodies.indices.contains(i) {
+       if !pins.contains(where:{$0.bodyIndex==i}) &&
+        !pivots.contains(where:{$0.bodyIndex==i}) {
+        HStack {
+         Button("Launch ←") { launchSelectedBall(dx:-1.5,dy:0) }
+         Button("Launch →") { launchSelectedBall(dx:1.5,dy:0) }
+         Button("Launch ↑") { launchSelectedBall(dx:0,dy:1.5) }
+         Button("Launch ↓") { launchSelectedBall(dx:0,dy:-1.5) }
+        }.buttonStyle(.bordered).disabled(running)
+       }
        propertyControl("Mass",value:world.bodies[i].mass,step:0.1,key:"mass")
        propertyControl("Radius",value:world.bodies[i].radius,step:0.05,key:"radius")
        propertyControl("Bounce",value:world.bodies[i].restitution,step:0.1,key:"bounce")
