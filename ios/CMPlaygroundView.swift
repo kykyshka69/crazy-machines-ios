@@ -196,6 +196,7 @@ struct CMPlaygroundView: View {
    }
    saveUndo()
    world.bodies[i].position=p
+   if let pinIndex=pins.firstIndex(where:{$0.bodyIndex == i}) { pins[pinIndex].anchor=p }
    world.bodies[i].velocity = .zero
    world.bodies[i].angularVelocity=0
   case .ramp(let i):
@@ -239,6 +240,7 @@ struct CMPlaygroundView: View {
   gravityEditSnapshot=nil
   world.gravity.y = -gravityStrength
   startingLayout=nil
+  startingPins=nil
   simulationSteps=0
   trails=[]
  }
@@ -502,6 +504,7 @@ struct CMPlaygroundView: View {
    guard squaredDistance(next,world.bodies[i].position) > 1e-10 else { return }
    dragChanged=true
    world.bodies[i].position=next
+   if let pinIndex=pins.firstIndex(where:{$0.bodyIndex == i}) { pins[pinIndex].anchor=next }
    world.bodies[i].velocity = .zero
    world.bodies[i].angularVelocity=0
   case .ramp(let i):
