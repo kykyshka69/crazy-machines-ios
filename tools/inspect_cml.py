@@ -16,9 +16,10 @@ from pathlib import Path
 def text_candidates(data: bytes, minimum: int = 5, limit: int = 200) -> list[dict]:
     """Find offset-bearing printable ASCII and UTF-16LE strings, bounded in output."""
     results = []
-    for stride, encoding in ((1, "ascii"), (2, "utf-16le")):
+    for stride, encoding, alignment in ((1, "ascii", 0), (2, "utf-16le", 0),
+                                        (2, "utf-16le", 1)):
         start = None
-        offset = 0
+        offset = alignment
         while offset + stride <= len(data):
             if stride == 1:
                 value = data[offset]
@@ -37,7 +38,8 @@ def text_candidates(data: bytes, minimum: int = 5, limit: int = 200) -> list[dic
         if start is not None and (offset - start) // stride >= minimum:
             results.append({"offset": start, "encoding": encoding,
                             "text": data[start:offset].decode(encoding)})
-    return sorted(results, key=lambda entry: (entry["offset"], entry["encoding"]))[:limit]
+    unique = {(entry["offset"], entry["encoding"], entry["text"]): entry for entry in results}
+    return sorted(unique.values(), key=lambda entry: (entry["offset"], entry["encoding"]))[:limit]
 
 
 def inspect(path: Path) -> dict:
