@@ -26,6 +26,7 @@ struct CMPlaygroundView: View {
  @State private var dragChanged = false
  @State private var gravityEditSnapshot: CMPhysicsWorld2D?
  @State private var storageMessage: String?
+ @State private var selectedSaveSlot = 1
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
  private static let fixedStep = 1.0 / 120.0
  private static let goal = SIMD2<Double>(6.2,0.6)
@@ -167,21 +168,33 @@ struct CMPlaygroundView: View {
   dragChanged=false
  }
  private static let savedLevelKey = "cm.playground.savedLevel.v1"
+ private func saveKey(for slot:Int) -> String {
+  slot == 1 ? Self.savedLevelKey : Self.savedLevelKey+".slot.\(slot)"
+ }
+ private func deleteSavedLevel() {
+  let key=saveKey(for:selectedSaveSlot)
+  guard UserDefaults.standard.data(forKey:key) != nil else {
+   storageMessage="Slot \(selectedSaveSlot) is already empty"
+   return
+  }
+  UserDefaults.standard.removeObject(forKey:key)
+  storageMessage="Deleted saved experiment in slot \(selectedSaveSlot)"
+ }
  private func saveLevel() {
   do {
    let layout=startingLayout ?? world
    let document=CMLevelDocument(world:layout)
    _ = try document.makeWorld() // Do not overwrite a good save with an invalid layout.
    let data=try JSONEncoder().encode(document)
-   UserDefaults.standard.set(data,forKey:Self.savedLevelKey)
-   storageMessage="Experiment saved on this device"
+   UserDefaults.standard.set(data,forKey:saveKey(for:selectedSaveSlot))
+   storageMessage="Experiment saved to slot \(selectedSaveSlot)"
   } catch {
    storageMessage="Save failed: \(error.localizedDescription)"
   }
  }
  private func loadLevel() {
-  guard let data=UserDefaults.standard.data(forKey:Self.savedLevelKey) else {
-   storageMessage="No saved experiment yet"
+  guard let data=UserDefaults.standard.data(forKey:saveKey(for:selectedSaveSlot)) else {
+   storageMessage="Slot \(selectedSaveSlot) is empty"
    return
   }
   do {
@@ -194,7 +207,7 @@ struct CMPlaygroundView: View {
    world=loaded
    gravityStrength = -loaded.gravity.y
    clearExperimentState()
-   storageMessage="Saved experiment loaded"
+   storageMessage="Loaded experiment from slot \(selectedSaveSlot)"
   } catch {
    storageMessage="Saved experiment is invalid"
   }
@@ -544,8 +557,13 @@ struct CMPlaygroundView: View {
     Button("Reset") { reset() }.buttonStyle(.bordered)
    }
    HStack {
+    Text("Save slot").font(.caption)
+    Picker("Save slot",selection:$selectedSaveSlot) {
+     ForEach(1...5,id:\.self) { slot in Text("Slot \(slot)").tag(slot) }
+    }.pickerStyle(.menu)
     Button("Save") { saveLevel() }
     Button("Load") { loadLevel() }
+    Button("Delete save") { deleteSavedLevel() }
    }.buttonStyle(.bordered)
    if let storageMessage { Text(storageMessage).font(.caption).foregroundStyle(.secondary) }
    HStack {
