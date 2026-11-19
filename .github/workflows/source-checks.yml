@@ -181,3 +181,28 @@ jobs:
         run: |
           swiftc ios/CMPhysics2D.swift ios/CMPinJoint2D.swift ios/CMSpringJoint2D.swift ios/CMPivotJoint2D.swift ios/CMLevelDocument.swift tests/CMLevelDocumentSmoke.swift -o /tmp/cm-level-document
           /tmp/cm-level-document
+
+  ios-simulator-build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate iOS Xcode project
+        run: xcodegen generate --spec project.yml
+      - name: Build unsigned iPhone Simulator app
+        run: |
+          xcodebuild -project CrazyMachinesIOS.xcodeproj \
+            -scheme CrazyMachinesIOS \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath /tmp/cm-ios-derived \
+            CODE_SIGNING_ALLOWED=NO build
+      - name: Archive simulator app and build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-diagnostics
+          path: /tmp/cm-ios-derived/Logs/Build
+          if-no-files-found: ignore
