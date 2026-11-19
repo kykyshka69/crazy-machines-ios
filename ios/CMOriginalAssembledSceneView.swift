@@ -12,6 +12,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         view.backgroundColor = UIColor(white: 0.09, alpha: 1)
         view.allowsCameraControl = true
         view.autoenablesDefaultLighting = true
+        view.antialiasingMode = .multisampling4X
+        view.defaultCameraController.interactionMode = .orbitTurntable
+        view.defaultCameraController.inertiaEnabled = true
         let scene = buildScene()
         view.scene = scene
         view.pointOfView = scene.rootNode.childNode(withName: "original-level-camera", recursively: false)
