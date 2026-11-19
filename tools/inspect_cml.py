@@ -12,6 +12,34 @@ import math
 from pathlib import Path
 
 
+
+def text_candidates(data: bytes, minimum: int = 5, limit: int = 200) -> list[dict]:
+    """Find offset-bearing printable ASCII and UTF-16LE strings, bounded in output."""
+    results = []
+    for stride, encoding in ((1, "ascii"), (2, "utf-16le")):
+        start = None
+        offset = 0
+        while offset + stride <= len(data):
+            if stride == 1:
+                value = data[offset]
+                printable = 32 <= value <= 126
+            else:
+                value = data[offset]
+                printable = 32 <= value <= 126 and data[offset + 1] == 0
+            if printable and start is None:
+                start = offset
+            if not printable and start is not None:
+                if (offset - start) // stride >= minimum:
+                    results.append({"offset": start, "encoding": encoding,
+                                    "text": data[start:offset].decode(encoding)})
+                start = None
+            offset += stride
+        if start is not None and (offset - start) // stride >= minimum:
+            results.append({"offset": start, "encoding": encoding,
+                            "text": data[start:offset].decode(encoding)})
+    return sorted(results, key=lambda entry: (entry["offset"], entry["encoding"]))[:limit]
+
+
 def inspect(path: Path) -> dict:
     data = path.read_bytes()
     counts = collections.Counter(data)
@@ -46,6 +74,7 @@ def inspect(path: Path) -> dict:
         "byte_entropy_bits": round(entropy, 4),
         "zero_bytes": counts[0],
         "windows_4k": windows,
+        "text_candidates": text_candidates(data),
         "known_signature_offsets": markers,
         "aligned_u32_first_32": [
             int.from_bytes(data[i:i + 4], "little")
