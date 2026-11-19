@@ -283,3 +283,30 @@ This experiment does not prove that 3 bytes are a logical field.
 
 Reproduce with `python tools/inventory_puzzle_binary.py PROFESSOR_LAB.cml --window-analysis`.
 No original asset bytes are included in the output.
+
+## Eight recurring signatures in original inner puzzle headers
+
+Inspected the original Professor CML directly, successfully decoded
+all 102 records, and grouped the eight bytes at **binary offsets 85–92**.
+Exactly **8 distinct signatures** occur, with the following verified
+frequencies:
+
+| Signature (hex) | Number of puzzles |
+|---|---:|
+| `405f06306f06e063` | 16 |
+| `405f06306f07206b` | 11 |
+| `411907206911c073` | 17 |
+| `405f06d065074061` | 14 |
+| `405f073063068069` | 14 |
+| `405f070061070065` | 12 |
+| `405f07706106c06c` | 15 |
+| `405f07006f06f104` | 3 |
+| **Total** | **102** |
+
+Signatures are **not** contiguous level ranges. For example, the first
+signature appears at levels 1, 7, 19, 27, 33, 38 and other positions;
+the rare eighth signature appears at levels **31, 39, 45**.
+
+These are byte-equality groups, not established item IDs or game
+categories. Reproduce with
+`python tools/inventory_puzzle_binary.py PROFESSOR_LAB.cml --prefix-groups`.
