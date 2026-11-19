@@ -116,7 +116,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                     (lower.z + upper.z) / 2)
             let span = max(upper.x - lower.x, upper.y - lower.y,
                            upper.z - lower.z, 0.1)
-            camera.position = SCNVector3(center.x, center.y, center.z + span * 2.5)
+            // Adapt clipping planes to the actual scene size. A fixed far
+            // plane clips large imported mechanisms, while an excessively
+            // small near plane reduces depth-buffer precision.
+            let distance = span * 2.5
+            camera.camera?.zNear = max(0.001, Double(span) * 0.001)
+            camera.camera?.zFar = max(10, Double(distance + span * 3))
+            camera.position = SCNVector3(center.x, center.y, center.z + distance)
             camera.look(at: center)
         } else {
             camera.position = SCNVector3(0, 0, 10)
