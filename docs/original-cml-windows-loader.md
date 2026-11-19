@@ -257,3 +257,29 @@ Reproducible, non-extracting command:
 
 The analysis uses `tools/analyze_puzzle_binary.py`, which reports
 counts and lengths without distributing original level bytes.
+
+## Verified first differing binary-section bytes (102 original puzzles)
+
+Direct comparison of all 102 decrypted original puzzle sections
+confirmed the exact **85-byte** shared prefix. A 3-byte sliding
+*non-overlapping* window experiment beginning at offset 85 yielded:
+
+| Relative binary offset | Distinct 3-byte windows | Highest frequency |
+|---|---:|---:|
+| 85 | 3 | 44 |
+| 88 | 8 | 17 |
+| 91 | 8 | 17 |
+| 94 | 7 | 28 |
+| 97 | 6 | 28 |
+| 100 | 5 | 28 |
+| 103 | 5 | 28 |
+| 106 | 5 | 28 |
+| 109 | 5 | 28 |
+| 112 | 5 | 28 |
+
+The repeated 3-byte patterns may represent a compact encoding or a
+repeated structure, but **no byte-to-object mapping is established**.
+This experiment does not prove that 3 bytes are a logical field.
+
+Reproduce with `python tools/inventory_puzzle_binary.py PROFESSOR_LAB.cml --window-analysis`.
+No original asset bytes are included in the output.
