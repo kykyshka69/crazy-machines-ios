@@ -792,6 +792,7 @@ struct CMPlaygroundView: View {
   reachedGoal=false
   simulationSteps=0
   trails=[]
+  saveDraft()
  }
  private func propertyControl(_ name:String,value:Double,step:Double,key:String) -> some View {
   HStack {
