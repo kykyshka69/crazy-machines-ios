@@ -41,3 +41,30 @@ def adjacent_delta(data: bytes, forward: bool) -> bytes:
         for index in range(1, len(data)):
             result[index] = (data[index] - data[index - 1]) & 0xFF
     return bytes(result)
+
+
+def apply_control_pairs(data: bytes, control: bytes, *, encode: bool) -> bytes:
+    """Dispatch original 0x47E610 operations by signed byte remainder mod 3.
+
+    The encoder reads each (parameter, selector) pair. The decoder reads
+    (selector, parameter) pairs, as shown at 0x47E790 and 0x47E691.
+    This is the primitive dispatch only; file framing is handled separately.
+    """
+    if len(control) % 2:
+        raise ValueError("control length must be even")
+    result = data
+    for index in range(0, len(control), 2):
+        first, second = control[index:index + 2]
+        parameter, selector = (first, second) if encode else (second, first)
+        signed_selector = selector if selector < 128 else selector - 256
+        quotient = abs(signed_selector) // 3
+        remainder = signed_selector - (-quotient if signed_selector < 0 else quotient) * 3
+        if remainder == 0:
+            result = reverse_bytes(result)
+        elif remainder == 1:
+            result = offset_arithmetic(result, parameter, add=encode)
+        elif remainder == 2:
+            result = adjacent_delta(result, forward=encode)
+        # Negative signed remainders -1 and -2 are intentionally no-ops:
+        # the original x86 switch handles only 0, 1, 2.
+    return result
