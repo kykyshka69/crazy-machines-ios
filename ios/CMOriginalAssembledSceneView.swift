@@ -19,6 +19,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         view.antialiasingMode = .multisampling4X
         view.defaultCameraController.interactionMode = .orbitTurntable
         view.defaultCameraController.inertiaEnabled = true
+        // SceneKit defaults to a paused scene in some configurations; make
+        // frame scheduling explicit for deterministic experiment startup.
+        view.rendersContinuously = experimentalPhysics
         let tap = UITapGestureRecognizer(target: context.coordinator,
                                          action: #selector(Coordinator.selectObject(_:)))
         tap.cancelsTouchesInView = false
@@ -44,6 +47,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
         view.scene = scene
         view.isPlaying = experimentalPhysics
+        // Experimental physics must not change the user's saved inspection
+        // coordinates. Physics mode never writes to that persistence store.
         context.coordinator.originalPositions = originalPositions
         view.pointOfView = scene.rootNode.childNode(withName: "original-level-camera", recursively: false)
         return view
