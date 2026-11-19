@@ -30,9 +30,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         reset.minimumPressDuration = 0.8
         view.addGestureRecognizer(reset)
         context.coordinator.storageKey = "cm.original.positions.\(document.sceneSHA256)"
-        let scene = buildScene()
+        var originalPositions: [String: SCNVector3] = [:]
+        let scene = buildScene(originalPositions: &originalPositions)
         view.scene = scene
-        context.coordinator.captureOriginalPositions(in: scene)
+        context.coordinator.originalPositions = originalPositions
         view.pointOfView = scene.rootNode.childNode(withName: "original-level-camera", recursively: false)
         return view
     }
@@ -48,16 +49,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var lastDragPoint: CGPoint?
         private var dragWasActive = false
         var storageKey = ""
-        private var originalPositions: [String: SCNVector3] = [:]
-
-        func captureOriginalPositions(in scene: SCNScene) {
-            originalPositions.removeAll()
-            scene.rootNode.enumerateChildNodes { node, _ in
-                if let name = node.name, name.hasPrefix("original-node-") {
-                    self.originalPositions[name] = node.position
-                }
-            }
-        }
+        var originalPositions: [String: SCNVector3] = [:]
 
         @objc func resetSelected(_ gesture: UILongPressGestureRecognizer) {
             guard gesture.state == .began,
@@ -164,7 +156,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
     }
 
-    private func buildScene() -> SCNScene {
+    private func buildScene(originalPositions: inout [String: SCNVector3]) -> SCNScene {
         let scene = SCNScene()
         var loadedMeshNodes: [SCNNode] = []
         var meshCache: [URL: SCNGeometry] = [:]
@@ -193,6 +185,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 transform.position = SCNVector3(Float(p[0]), Float(p[1]), Float(p[2]))
             }
             transform.eulerAngles = parseRotation(item.rotationRelativeRaw ?? item.rotationRaw)
+            originalPositions[identifier] = transform.position
             if let saved = savedPositions[identifier], saved.count == 3,
                saved.allSatisfy({ $0.isFinite && abs($0) <= Double(Float.greatestFiniteMagnitude) }) {
                 transform.position = SCNVector3(Float(saved[0]), Float(saved[1]), Float(saved[2]))
