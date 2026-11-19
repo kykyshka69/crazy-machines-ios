@@ -62,8 +62,9 @@ import Foundation
   do { _=try corrupt.makeWorld(); fatalError("Out-of-bounds ramp accepted") } catch CMLevelDocument.LevelError.invalid {} // 10
   let pinned=CMLevelDocument(world:world,pins:[CMPinJoint2D(bodyIndex:0,anchor:SIMD2(1.5,4))])
   let pinnedDecoded=try JSONDecoder().decode(CMLevelDocument.self,from:JSONEncoder().encode(pinned))
-  precondition(try pinnedDecoded.makePins().count == 1)
-  precondition(try pinnedDecoded.makePins()[0].anchor.x == 1.5)
+  let restoredPins=try pinnedDecoded.makePins()
+  precondition(restoredPins.count == 1)
+  precondition(restoredPins[0].anchor.x == 1.5)
   var invalidPin=pinnedDecoded
   invalidPin.pins?[0].bodyIndex=9
   do { _=try invalidPin.makeWorld(); fatalError("Invalid pin index accepted") } catch CMLevelDocument.LevelError.invalid {}
@@ -73,7 +74,8 @@ import Foundation
   invalidPin=pinnedDecoded
   invalidPin.pins?.append(pinnedDecoded.pins![0])
   do { _=try invalidPin.makeWorld(); fatalError("Duplicate pin accepted") } catch CMLevelDocument.LevelError.invalid {}
-  precondition(try decoded.makePins().isEmpty)
+  let legacyPins=try decoded.makePins()
+  precondition(legacyPins.isEmpty)
   print("Level document roundtrip and validation passed")
  }
 }
