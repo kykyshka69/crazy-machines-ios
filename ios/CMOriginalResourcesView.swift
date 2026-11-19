@@ -168,9 +168,13 @@ struct CMOriginalResourcesView: View {
                 }
                 let data = try Data(contentsOf: url)
                 guard data.count == size else { rejected += 1; continue }
-                if ext == "ucm" && data.prefix(4) != Data([85, 67, 77, 49]) {
-                    rejected += 1
-                    continue
+                if ext == "ucm" {
+                    // Reject truncated or malformed meshes before they reach
+                    // SceneKit. The parser validates indices and finite floats.
+                    guard (try? CMUCMModel(data: data)) != nil else {
+                        rejected += 1
+                        continue
+                    }
                 }
                 let destination = storage.appendingPathComponent(url.lastPathComponent)
                 // Never silently overwrite a different original file with the same name.
