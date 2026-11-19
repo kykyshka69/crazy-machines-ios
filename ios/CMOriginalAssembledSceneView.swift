@@ -251,7 +251,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             if experimentalPhysics {
                                 // Approximate collision volumes only; original CML
                                 // physical properties have not yet been decoded.
-                                let shape = SCNPhysicsShape(node: mesh, options: [
+                                // A shape attached to a mesh child must use
+                                // geometry-local coordinates. Building a shape
+                                // from the node can bake its parent transforms
+                                // into collision geometry a second time.
+                                let shape = SCNPhysicsShape(geometry: geometry, options: [
                                     .type: SCNPhysicsShape.ShapeType.boundingBox
                                 ])
                                 let body = SCNPhysicsBody(type: .dynamic,
