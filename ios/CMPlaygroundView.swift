@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Asset-free interactive physics sandbox. World coordinates are in metres, Y points up.
 struct CMPlaygroundView: View {
+ @Environment(\.scenePhase) private var scenePhase
  @State private var world = CMPlaygroundView.makeWorld()
  @State private var running = false
  @State private var lastTick: Date?
@@ -30,6 +31,7 @@ struct CMPlaygroundView: View {
  @State private var levelName = "Untitled experiment"
  @State private var confirmingOverwrite = false
  @State private var confirmingDelete = false
+ @State private var restoredDraft = false
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
  private static let fixedStep = 1.0 / 120.0
  private static let goal = SIMD2<Double>(6.2,0.6)
@@ -199,6 +201,34 @@ struct CMPlaygroundView: View {
    confirmingDelete=true
   } else {
    storageMessage="Slot \(selectedSaveSlot) is already empty"
+  }
+ }
+ private static let draftKey = "cm.playground.autosave.draft.v1"
+ private static let draftNameKey = "cm.playground.autosave.name.v1"
+ private func saveDraft() {
+  guard restoredDraft else { return }
+  do {
+   let document=CMLevelDocument(world:startingLayout ?? world)
+   _ = try document.makeWorld()
+   UserDefaults.standard.set(try JSONEncoder().encode(document),forKey:Self.draftKey)
+   UserDefaults.standard.set(levelName,forKey:Self.draftNameKey)
+  } catch {
+   storageMessage="Could not autosave draft"
+  }
+ }
+ private func restoreDraft() {
+  guard !restoredDraft else { return }
+  restoredDraft=true
+  guard let data=UserDefaults.standard.data(forKey:Self.draftKey) else { return }
+  do {
+   let loaded=try JSONDecoder().decode(CMLevelDocument.self,from:data).makeWorld()
+   world=loaded
+   gravityStrength = -loaded.gravity.y
+   levelName=UserDefaults.standard.string(forKey:Self.draftNameKey) ?? "Untitled experiment"
+   clearExperimentState()
+   storageMessage="Recovered your unfinished experiment"
+  } catch {
+   storageMessage="Autosaved draft is invalid; original layout retained"
   }
  }
  private func saveLevel() {
@@ -669,6 +699,11 @@ struct CMPlaygroundView: View {
     .font(.caption2).foregroundStyle(.secondary)
   }
   .padding()
+  }
+  .onAppear { restoreDraft() }
+  .onDisappear { saveDraft() }
+  .onChange(of:scenePhase) { _,phase in
+   if phase != .active { saveDraft() }
   }
   .confirmationDialog("Overwrite slot \(selectedSaveSlot)?",isPresented:$confirmingOverwrite,titleVisibility:.visible) {
    Button("Overwrite saved level",role:.destructive) { saveLevel() }
