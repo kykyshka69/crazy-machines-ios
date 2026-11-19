@@ -171,3 +171,34 @@ Reproduce with
 `python tools/decode_professor_records.py PROFESSOR_LAB.cml`
 (or `--json` for lengths, offsets, hashes, names). No copyrighted
 puzzle bytes are committed.
+
+## First original puzzle instructions decoded from inner payload
+
+After decrypting the *outer* laboratory record, the inner puzzle
+payload is **not** another encrypted CML record. Its first four bytes
+are a little-endian size for a binary section, followed by additional
+binary metadata and, in some puzzles, further variable-length sections.
+
+**Verified against the original file:** for challenges **1–5** the
+first section size plus eight bytes locates a 4-byte CP1251 instruction
+length. The following bytes decode to genuine Russian instructions.
+For example:
+
+- **1 — Сначала наведем порядок:** begins
+  `Добро пожаловать в мою лабораторию, дилетант!`
+- **2 — Эффект домино:** begins
+  `Итак, теперь можно по-настоящему взяться за дело.`
+- **3 — Уборщик:** begins
+  `Видишь эту пирамиду ящиков?`
+
+For challenge 1, the binary-section size is **1755 bytes**, the
+instruction text length is **469 bytes**, and the final 4-byte
+little-endian value is **200**. The bounds reconcile with the original
+**2240-byte** payload.
+
+**Important:** The same simple instruction offset does **not** work
+for all 102 challenges; from challenge 6 onward, some records contain
+additional binary sections. The conservative parser
+`tools/cml_puzzle_instructions.py` rejects unsupported layouts rather
+than mislabeling binary data as text. The binary object/coordinate
+structure is still under investigation.
