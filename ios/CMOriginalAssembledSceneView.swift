@@ -154,7 +154,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             highlighted = nil
             originalEmission = nil
             guard let node, let geometry = node.geometry,
-                  let material = geometry.firstMaterial else { return }
+                  geometry.firstMaterial != nil else { return }
+            // Avoid re-copying a selected geometry when the user taps it again.
+            // The selection tint must not leak to other instances of a shared UCM.
             // Geometries are shared by repeated original UCM instances.
             // Copy the geometry and material so selecting one does not tint all.
             let unique = geometry.copy() as! SCNGeometry
