@@ -934,7 +934,8 @@ struct CMPlaygroundView: View {
     return
    }
    let position=world.bodies[index].position
-   let anchor=SIMD2(position.x,max(0,position.y-1))
+   // Put the pivot above the ball so gravity starts a hanging pendulum.
+   let anchor=SIMD2(position.x,min(Self.worldHeight,position.y+1))
    let delta=position-anchor
    let length=sqrt(delta.x*delta.x+delta.y*delta.y)
    guard length >= 0.01 else { storageMessage="Not enough room for pivot"; return }
@@ -953,12 +954,15 @@ struct CMPlaygroundView: View {
  }
  private func togglePin() {
   guard !running,case .ball(let i)=selection,world.bodies.indices.contains(i) else { return }
+  if pins.firstIndex(where:{$0.bodyIndex == i}) == nil && pivots.contains(where:{$0.bodyIndex == i}) {
+   storageMessage="Remove pivot before pinning"
+   return
+  }
   saveUndo()
   if let index=pins.firstIndex(where:{$0.bodyIndex == i}) {
    pins.remove(at:index)
    storageMessage="Ball unpinned"
   } else {
-   guard !pivots.contains(where:{$0.bodyIndex == i}) else { storageMessage="Remove pivot before pinning"; return }
    pins.append(CMPinJoint2D(bodyIndex:i,anchor:world.bodies[i].position))
    storageMessage="Ball pinned in place"
   }
