@@ -141,7 +141,7 @@ struct CMOriginalLevelBrowserView: View {
                 Button("Try experimental gravity and collisions") {
                     assembledScene = AssembledSelection(document: document, experimentalPhysics: true)
                 }
-                Text("Experimental sandbox only: tap an imported mesh to apply a small impulse. Close and reopen the simulation to restart at original positions. Collisions use approximate bounding boxes, uniform mass and gravity; this is not original puzzle physics or completion logic.")
+                Text("Experimental sandbox: tap a mesh to push it; long-press a mesh to toggle fixed/movable. Restart restores the imported scene. These manual body types, approximate bounding-box collisions and uniform mass are not the original game physics or completion logic.")
                     .font(.caption).foregroundStyle(.secondary)
                 Button("Reset all saved 3D positions", role: .destructive) {
                     confirmingResetEdits = true
