@@ -44,3 +44,29 @@ to the CML loader's user-facing strings:
 
 This is a **lead**, not proof of a cipher key. Next inspect code references to
 these exact strings, including the file-loading and validation call chain.
+
+## Repeated 16-byte signature in Professor CML (verified on real file)
+
+A **16-byte identical sequence** occurs **102 times** in the 330,971-byte
+Professor laboratory file. The sequence in hexadecimal is:
+
+`73 ad 8f f2 aa 7e 34 d1 20 ed 11 70 f3 6e ba b8`
+
+First occurrence offsets (decimal):
+`256, 2661, 5719, 8245, 10431, 13368, 16730, 20024, 24670, 27727`.
+
+Last occurrence offsets:
+`289110, 293375, 296778, 302056, 304542, 307347, 312022, 316610, 321191, 327426`.
+
+Distances between consecutive occurrences range from **1,387** to **6,235**
+bytes. This is strong evidence of recurring record boundaries or a repeated
+serialized value. It **does not yet prove** that there are 102 playable levels:
+a signature could mark other recurring structures. The first occurrence
+at offset 256 is especially interesting because the separate empty
+My Laboratory file is exactly 256 bytes.
+
+The earlier inference that the Professor CML was uniformly random-looking
+needs qualification: 102 repetitions of an identical 16-byte value are
+inconsistent with an entirely random ciphertext stream. There is meaningful
+repeat structure that should be investigated before assuming compression or
+encryption of the whole file.
