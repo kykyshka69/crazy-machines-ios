@@ -136,7 +136,7 @@ struct CMOriginalLevelBrowserView: View {
         .sheet(item: $assembledScene) { selection in
             NavigationStack {
                 CMOriginalAssembledSceneView(document: selection.document, assetDirectory: originalStorage)
-                    .navigationTitle("Level \\(selection.document.index) · 3D")
+                    .navigationTitle("Level \(selection.document.index) · 3D")
                     .toolbar { Button("Close") { assembledScene = nil } }
             }
         }
