@@ -51,6 +51,8 @@ struct CMPlaygroundView: View {
  @State private var importingLevel = false
  @State private var exportFile: CMJSONLevelFile?
  @State private var confirmingImport = false
+ @State private var confirmingReset = false
+ @State private var confirmingClear = false
  @State private var pendingImport: CMPhysicsWorld2D?
  @State private var pendingImportName = ""
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
@@ -157,6 +159,59 @@ struct CMPlaygroundView: View {
    running=false
    lastTick=nil
   }
+ }
+ private func clearScene() {
+  guard !running else { return }
+  saveUndo()
+  world.bodies=[]
+  world.segments=[]
+  clearExperimentState()
+  storageMessage="Cleared scene (Undo to restore)"
+ }
+ private func nudgeSelected(dx:Double,dy:Double) {
+  guard !running,let selection else { return }
+  let delta=SIMD2<Double>(dx,dy)
+  switch selection {
+  case .ball(let i):
+   guard world.bodies.indices.contains(i) else { return }
+   let ball=world.bodies[i]
+   let p=ball.position+delta
+   guard p.x>=ball.radius,p.x<=Self.worldWidth-ball.radius,
+    p.y>=ball.radius,p.y<=Self.worldHeight-ball.radius,
+    world.bodies.enumerated().allSatisfy({ j,other in
+     j == i || squaredDistance(p,other.position)>=pow(ball.radius+other.radius+0.02,2)
+    }),
+    world.segments.allSatisfy({ segment in
+     segmentDistanceSquared(p,segment)>=pow(ball.radius+0.02,2)
+    }) else {
+    storageMessage="Move blocked by boundary or object"
+    return
+   }
+   saveUndo()
+   world.bodies[i].position=p
+   world.bodies[i].velocity = .zero
+   world.bodies[i].angularVelocity=0
+  case .ramp(let i):
+   guard world.segments.indices.contains(i) else { return }
+   let ramp=world.segments[i]
+   let a=ramp.start+delta,b=ramp.end+delta
+   guard [a,b].allSatisfy({ p in
+    p.x>=0.2 && p.x<=Self.worldWidth-0.2 && p.y>=0.2 && p.y<=Self.worldHeight-0.2
+   }),
+   world.bodies.allSatisfy({ ball in
+    segmentDistanceSquared(ball.position,CMStaticSegment2D(start:a,end:b))>=pow(ball.radius+0.02,2)
+   }) else {
+    storageMessage="Move blocked by boundary or ball"
+    return
+   }
+   saveUndo()
+   world.segments[i].start=a
+   world.segments[i].end=b
+  }
+  startingLayout=nil
+  reachedGoal=false
+  simulationSteps=0
+  trails=[]
  }
  private func reset() {
   running=false
@@ -737,8 +792,15 @@ struct CMPlaygroundView: View {
     Button("Step") { stepOnce() }.disabled(running || reachedGoal)
     .buttonStyle(.bordered)
     Button("Retry") { restartExperiment() }.disabled(startingLayout == nil).buttonStyle(.bordered)
-    Button("Reset") { reset() }.buttonStyle(.bordered)
+    Button("Reset") { confirmingReset=true }.buttonStyle(.bordered)
    }
+   HStack {
+    Button("New blank scene") { confirmingClear=true }
+    Button("←") { nudgeSelected(dx:-0.25,dy:0) }
+    Button("→") { nudgeSelected(dx:0.25,dy:0) }
+    Button("↑") { nudgeSelected(dx:0,dy:0.25) }
+    Button("↓") { nudgeSelected(dx:0,dy:-0.25) }
+   }.buttonStyle(.bordered).disabled(running)
    TextField("Level name",text:$levelName).textFieldStyle(.roundedBorder).disabled(running)
    HStack {
     Button("Export JSON") { exportLevel() }
@@ -863,6 +925,23 @@ struct CMPlaygroundView: View {
    Button("Cancel",role:.cancel) { pendingImport=nil }
   } message: {
    Text("The current unsaved editor layout will be replaced. Saved slots are not affected.")
+  }
+  .confirmationDialog("Reset experiment?",isPresented:$confirmingReset,titleVisibility:.visible) {
+   Button("Reset to starter scene",role:.destructive) {
+    let previous=world
+    reset()
+    undoStack.append(previous)
+    storageMessage="Reset scene (Undo to restore)"
+   }
+   Button("Cancel",role:.cancel) {}
+  } message: {
+   Text("The current scene will be replaced. Undo can restore it.")
+  }
+  .confirmationDialog("Start a blank scene?",isPresented:$confirmingClear,titleVisibility:.visible) {
+   Button("Clear all objects",role:.destructive) { clearScene() }
+   Button("Cancel",role:.cancel) {}
+  } message: {
+   Text("All balls and ramps will be removed. Undo can restore them.")
   }
   .confirmationDialog("Overwrite slot \(selectedSaveSlot)?",isPresented:$confirmingOverwrite,titleVisibility:.visible) {
    Button("Overwrite saved level",role:.destructive) { saveLevel() }
