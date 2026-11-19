@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from inspect_cml import inspect, compare, text_candidates
+from inspect_cml import inspect, compare, text_candidates, discover
 
 
 class CMLInspectorTests(unittest.TestCase):
@@ -60,6 +60,23 @@ class CMLInspectorTests(unittest.TestCase):
     def test_text_clue_limit(self):
         data = b"FIRST\x00SECOND\x00THIRD"
         self.assertEqual(len(text_candidates(data, limit=2)), 2)
+
+    def test_directory_discovery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            nested = root / "laboratories"
+            nested.mkdir()
+            first = nested / "Professor.CML"
+            second = root / "second.cml"
+            first.write_bytes(b"one")
+            second.write_bytes(b"two")
+            (root / "notes.txt").write_text("ignore")
+            self.assertEqual(discover([root, first]), sorted([first.resolve(), second.resolve()], key=str))
+
+    def test_directory_without_labs_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, "no CML"):
+                discover([Path(directory)])
 
     def test_cli_json_report(self):
         with tempfile.TemporaryDirectory() as directory:
