@@ -687,7 +687,10 @@ struct CMPlaygroundView: View {
   default: return
   }
   let document=CMLevelDocument(world:scene,pins:newPins,springs:newSprings,pivots:newPivots)
-  guard (try? document.makeWorld()) != nil else {
+  guard (try? document.makeWorld()) != nil,
+   (try? document.makePins()) != nil,
+   (try? document.makeSprings()) != nil,
+   (try? document.makePivots()) != nil else {
    storageMessage="Mechanism preset failed validation"
    return
   }
