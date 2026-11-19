@@ -90,3 +90,18 @@ def decode_framed_chunk(raw: bytes, key: bytes, *, skip: int = 0) -> bytes:
     if working[:len(key)] != key:
         raise ValueError("original CML frame key validation failed")
     return working[skip:]
+
+
+ORIGINAL_LAB_KEY = b"930%&g/2ANUBIS=!s?p$"
+
+
+def decode_original_lab_field(raw: bytes, *, payload_length: int) -> bytes:
+    """Decode a complete framed field read by the Windows laboratory loader.
+
+    0x47E880 reads payload_length + strlen(key) bytes from the stream.
+    0x47E610 checks the transformed key prefix and copies the payload.
+    """
+    expected = payload_length + len(ORIGINAL_LAB_KEY)
+    if len(raw) != expected:
+        raise ValueError(f"expected {expected} encoded bytes, got {len(raw)}")
+    return decode_framed_chunk(raw, ORIGINAL_LAB_KEY, skip=len(ORIGINAL_LAB_KEY))
