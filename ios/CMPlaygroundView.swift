@@ -197,6 +197,7 @@ struct CMPlaygroundView: View {
   selectedSpringIndex=nil
   springSourceIndex=nil
   clearExperimentState()
+  saveDraft()
   storageMessage="Cleared scene (Undo to restore)"
  }
  private func nudgeSelected(dx:Double,dy:Double) {
@@ -307,6 +308,8 @@ struct CMPlaygroundView: View {
   dragStart=nil
   initialSegment=nil
   dragSnapshot=nil
+  dragPinsSnapshot=nil
+  dragPivotsSnapshot=nil
   dragChanged=false
  }
  private static let savedLevelKey = "cm.playground.savedLevel.v1"
@@ -521,6 +524,7 @@ struct CMPlaygroundView: View {
   world=previous
   gravityStrength = -previous.gravity.y
   clearExperimentState()
+  saveDraft()
  }
  private func redo() {
   guard !running,let next=redoStack.popLast() else { return }
@@ -539,6 +543,7 @@ struct CMPlaygroundView: View {
   world=next
   gravityStrength = -next.gravity.y
   clearExperimentState()
+  saveDraft()
  }
  private func clearExperimentState() {
   startingLayout=nil
@@ -553,6 +558,8 @@ struct CMPlaygroundView: View {
   dragStart=nil
   initialSegment=nil
   dragSnapshot=nil
+  dragPinsSnapshot=nil
+  dragPivotsSnapshot=nil
   dragChanged=false
   gravityEditSnapshot=nil
   lastTick=nil
@@ -707,6 +714,7 @@ struct CMPlaygroundView: View {
   reachedGoal=false
   simulationSteps=0
   trails=[]
+  saveDraft()
  }
  private func addRamp() {
   guard !running && world.segments.count < 12 else { return }
