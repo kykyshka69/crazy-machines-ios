@@ -128,7 +128,7 @@ struct CMOriginalLevelBrowserView: View {
                 }
             }
             Section {
-                Text("Read-only original geometry metadata. Original models and physics are not rendered here yet.")
+                Text("Original model geometry can be previewed; original physics and materials are not yet implemented.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
