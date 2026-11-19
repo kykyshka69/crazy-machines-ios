@@ -25,6 +25,7 @@ jobs:
           python -m unittest -v test_cml_byte_transforms.py
           python -m unittest -v test_cml_puzzle_instructions.py
           python -m unittest -v test_analyze_puzzle_binary.py
+          python -m unittest -v test_original_cml_frames.py
 
   original-cml-metadata-runtime:
     runs-on: ubuntu-latest
