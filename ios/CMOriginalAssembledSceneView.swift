@@ -46,6 +46,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             scene.physicsWorld.gravity = SCNVector3(0, -9.8, 0)
         }
         view.scene = scene
+        // Assign a fixed simulation step to reduce device-dependent solver
+        // behavior and tunneling through thin imported mechanisms.
+        if experimentalPhysics {
+            scene.physicsWorld.timeStep = 1.0 / 120.0
+        }
         view.isPlaying = experimentalPhysics
         // Experimental physics must not change the user's saved inspection
         // coordinates. Physics mode never writes to that persistence store.
