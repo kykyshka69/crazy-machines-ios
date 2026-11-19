@@ -19,6 +19,7 @@ public struct CMOriginalSceneDocument: Decodable {
         public let fields: [String]
         public let children: [Node]
         public let position: [Double]?
+        public let positionRelative: [Double]?
         public let rotationRaw: String?
         public let rotationRelativeRaw: String?
         public let models: [String]?
