@@ -115,6 +115,33 @@ import Foundation
   invalidSpring=linkedDecoded
   invalidSpring.springs?.append(CMLevelDocument.Spring(firstIndex:1,secondIndex:0,restLength:1.5,stiffness:25,damping:3))
   do { _=try invalidSpring.makeWorld(); fatalError("Duplicate spring accepted") } catch CMLevelDocument.LevelError.invalid {}
+  // Pivot persistence: roundtrip, compatibility, and invalid constraints.
+  let pivotDocument=CMLevelDocument(world:twoBodies,pivots:[
+   CMPivotJoint2D(bodyIndex:0,anchor:SIMD2(1,5),length:1)
+  ])
+  let pivotDecoded=try JSONDecoder().decode(CMLevelDocument.self,from:JSONEncoder().encode(pivotDocument))
+  let pivotLoaded=try pivotDecoded.makePivots()
+  precondition(pivotLoaded.count==1)
+  precondition(pivotLoaded[0].bodyIndex==0)
+  precondition(pivotLoaded[0].anchor == SIMD2(1,5))
+  precondition(pivotLoaded[0].length==1)
+  let legacyPivots=try decoded.makePivots()
+  precondition(legacyPivots.isEmpty)
+  var invalidPivot=pivotDecoded
+  invalidPivot.pivots?[0].bodyIndex=20
+  do { _=try invalidPivot.makeWorld(); fatalError("Invalid pivot index accepted") } catch CMLevelDocument.LevelError.invalid {}
+  invalidPivot=pivotDecoded
+  invalidPivot.pivots?[0].length=0
+  do { _=try invalidPivot.makeWorld(); fatalError("Zero pivot length accepted") } catch CMLevelDocument.LevelError.invalid {}
+  invalidPivot=pivotDecoded
+  invalidPivot.pivots?[0].x = .infinity
+  do { _=try invalidPivot.makeWorld(); fatalError("Infinite pivot anchor accepted") } catch CMLevelDocument.LevelError.invalid {}
+  invalidPivot=pivotDecoded
+  invalidPivot.pivots?.append(pivotDecoded.pivots![0])
+  do { _=try invalidPivot.makeWorld(); fatalError("Duplicate pivot accepted") } catch CMLevelDocument.LevelError.invalid {}
+  invalidPivot=pivotDecoded
+  invalidPivot.pins=[CMLevelDocument.Pin(bodyIndex:0,x:1,y:4)]
+  do { _=try invalidPivot.makeWorld(); fatalError("Pin and pivot conflict accepted") } catch CMLevelDocument.LevelError.invalid {}
   print("Level document roundtrip and validation passed")
  }
 }
