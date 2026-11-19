@@ -30,11 +30,21 @@ def export_node(node: SceneNode) -> dict:
         rotation = node.first_field("ROT")
         if rotation is not None:
             result["rotation_raw"] = rotation
+        relative_rotation = node.first_field("ROTREL")
+        if relative_rotation is not None:
+            result["rotation_relative_raw"] = relative_rotation
         result["models"] = [child.name[4:] for child in node.children
                             if child.name.startswith("3DO ")]
         goal = node.first_field("GOAL")
         if goal is not None:
             result["goal_raw"] = goal
+    elif node.name == "level" or node.name.startswith("3DO ") or node.children:
+        relative_position = node.first_field("POSREL")
+        if relative_position is not None:
+            result["position_relative"] = parse_vector3(relative_position)
+        relative_rotation = node.first_field("ROTREL")
+        if relative_rotation is not None:
+            result["rotation_relative_raw"] = relative_rotation
     return result
 
 
