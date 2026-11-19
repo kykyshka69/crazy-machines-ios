@@ -15,7 +15,7 @@ struct CMOriginalLevelBrowserView: View {
     private struct AssembledSelection: Identifiable {
         let document: CMOriginalSceneDocument
         let experimentalPhysics: Bool
-        var id: String { "\(document.index)-\(experimentalPhysics)" }
+        let id = UUID()
     }
 
     private struct ModelPreviewSelection: Identifiable {
@@ -141,7 +141,7 @@ struct CMOriginalLevelBrowserView: View {
                 Button("Try experimental gravity and collisions") {
                     assembledScene = AssembledSelection(document: document, experimentalPhysics: true)
                 }
-                Text("Experimental sandbox only: imported meshes use approximate bounding-box collisions, uniform mass and gravity. This is not the original game physics or puzzle completion logic.")
+                Text("Experimental sandbox only: tap an imported mesh to apply a small impulse. Close and reopen the simulation to restart at original positions. Collisions use approximate bounding boxes, uniform mass and gravity; this is not original puzzle physics or completion logic.")
                     .font(.caption).foregroundStyle(.secondary)
                 Button("Reset all saved 3D positions", role: .destructive) {
                     confirmingResetEdits = true
@@ -206,7 +206,19 @@ struct CMOriginalLevelBrowserView: View {
             NavigationStack {
                 CMOriginalAssembledSceneView(document: selection.document, assetDirectory: originalStorage, experimentalPhysics: selection.experimentalPhysics)
                     .navigationTitle("Level \(selection.document.index) · 3D")
-                    .toolbar { Button("Close") { assembledScene = nil } }
+                    .toolbar {
+                        if selection.experimentalPhysics {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button("Restart") {
+                                    assembledScene = AssembledSelection(document: selection.document,
+                                                                        experimentalPhysics: true)
+                                }
+                            }
+                        }
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Close") { assembledScene = nil }
+                        }
+                    }
             }
         }
         .sheet(item: $previewModel) { selection in
