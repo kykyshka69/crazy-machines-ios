@@ -22,13 +22,22 @@ public struct CMLevelDocument: Codable {
   public var x: Double
   public var y: Double
  }
+ public struct Spring: Codable {
+  public var firstIndex: Int
+  public var secondIndex: Int
+  public var restLength: Double
+  public var stiffness: Double
+  public var damping: Double
+ }
+ public var springs: [Spring]?
  public var pins: [Pin]?
  public var version: Int
  public var gravity: Double
  public var floorFriction: Double
  public var balls: [Ball]
  public var ramps: [Ramp]
- public init(world: CMPhysicsWorld2D, pins: [CMPinJoint2D] = []) {
+ public init(world: CMPhysicsWorld2D, pins: [CMPinJoint2D] = [], springs: [CMSpringJoint2D] = []) {
+  self.springs=springs.map { Spring(firstIndex:$0.firstIndex,secondIndex:$0.secondIndex,restLength:$0.restLength,stiffness:$0.stiffness,damping:$0.damping) }
   self.pins=pins.map { Pin(bodyIndex:$0.bodyIndex,x:$0.anchor.x,y:$0.anchor.y) }
   version=1
   gravity = -world.gravity.y
@@ -40,7 +49,7 @@ public struct CMLevelDocument: Codable {
   guard version == 1, gravity.isFinite, (0...20).contains(gravity),
    floorFriction.isFinite, (0...10).contains(floorFriction),
    balls.count <= 20, ramps.count <= 12,
-   (pins ?? []).count <= 20 else { throw LevelError.invalid }
+   (pins ?? []).count <= 20, (springs ?? []).count <= 20 else { throw LevelError.invalid }
   var world=CMPhysicsWorld2D()
   world.gravity.y = -gravity
   world.floorFriction=floorFriction
@@ -66,7 +75,25 @@ public struct CMLevelDocument: Codable {
     pin.x.isFinite,pin.y.isFinite,(0...7).contains(pin.x),(0...6).contains(pin.y),
     occupied.insert(pin.bodyIndex).inserted else { throw LevelError.invalid }
   }
+  var pairs=Set<String>()
+  for spring in springs ?? [] {
+   guard world.bodies.indices.contains(spring.firstIndex),
+    world.bodies.indices.contains(spring.secondIndex),
+    spring.firstIndex != spring.secondIndex,
+    spring.restLength.isFinite,(0...10).contains(spring.restLength),
+    spring.stiffness.isFinite,(0...1000).contains(spring.stiffness),
+    spring.damping.isFinite,(0...100).contains(spring.damping) else { throw LevelError.invalid }
+   let pair="\(min(spring.firstIndex,spring.secondIndex))-\(max(spring.firstIndex,spring.secondIndex))"
+   guard pairs.insert(pair).inserted else { throw LevelError.invalid }
+  }
   return world
+ }
+ public func makeSprings() throws -> [CMSpringJoint2D] {
+  _ = try makeWorld()
+  return (springs ?? []).map {
+   CMSpringJoint2D(firstIndex:$0.firstIndex,secondIndex:$0.secondIndex,
+    restLength:$0.restLength,stiffness:$0.stiffness,damping:$0.damping)
+  }
  }
  public func makePins() throws -> [CMPinJoint2D] {
   _ = try makeWorld()
