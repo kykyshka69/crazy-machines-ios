@@ -20,11 +20,14 @@ public struct CMOriginalSceneDocument: Decodable {
         public let children: [Node]
         public let position: [Double]?
         public let rotationRaw: String?
+        public let rotationRelativeRaw: String?
         public let models: [String]?
         public let goalRaw: String?
 
         enum CodingKeys: String, CodingKey {
             case name, fields, children, position, models
+            case positionRelative = "position_relative"
+            case rotationRelativeRaw = "rotation_relative_raw"
             case rotationRaw = "rotation_raw"
             case goalRaw = "goal_raw"
         }
@@ -69,6 +72,9 @@ public struct CMOriginalSceneDocument: Decodable {
               node.children.count <= 2048,
               node.fields.allSatisfy({ $0.count <= 4096 }) else { throw SceneError.invalid }
         if let p = node.position {
+            guard p.count == 3 && p.allSatisfy({ $0.isFinite }) else { throw SceneError.invalid }
+        }
+        if let p = node.positionRelative {
             guard p.count == 3 && p.allSatisfy({ $0.isFinite }) else { throw SceneError.invalid }
         }
         for child in node.children { try validate(child, depth: depth + 1) }
