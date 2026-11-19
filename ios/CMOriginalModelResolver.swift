@@ -25,6 +25,10 @@ enum CMOriginalModelResolver {
             .split(separator: "/").last.map(String.init) ?? ""
         guard !name.isEmpty, name != ".", name != "..",
               !name.contains("/") else { return nil }
+        // A 3DO reference may omit its extension or explicitly use .ucm.
+        // Never turn a reference to another file type into a UCM match.
+        let ext = (name as NSString).pathExtension.lowercased()
+        guard ext.isEmpty || ext == "ucm" else { return nil }
         let base = (name as NSString).deletingPathExtension.lowercased()
         guard !base.isEmpty else { return nil }
         guard let files = try? FileManager.default.contentsOfDirectory(
