@@ -70,3 +70,25 @@ needs qualification: 102 repetitions of an identical 16-byte value are
 inconsistent with an entirely random ciphertext stream. There is meaningful
 repeat structure that should be investigated before assuming compression or
 encryption of the whole file.
+
+## Follow-up: boundary consistency across the two real CML files
+
+Direct comparison of the original extracted bytes confirms:
+
+- The last **24 bytes** of the 256-byte My Laboratory file are identical
+  to bytes **[232, 256)** of the Professor file.
+- All 102 occurrences of the repeated 16-byte signature share an identical
+  **21-byte prefix**, beginning with
+  `73 ad 8f f2 aa 7e 34 d1 20 ed 11 70 f3 6e ba b8 31 d0 90 36 b6`.
+  The next byte varies. Therefore the 16-byte marker is not merely an
+  accidental repeated fragment inside a random-looking stream.
+- The first such marker starts at byte **256**, exactly after the shared
+  256-byte file-sized prologue. Later markers occur at nonuniform offsets.
+- The final marker starts at offset **327426**, leaving **3545 bytes**.
+
+**Interpretation, not yet proven:** a fixed 256-byte prologue followed by
+variable-length records with a repeated header is a plausible structural
+hypothesis. The 102 occurrences are **candidate record starts**, not confirmed
+level count or decoded object records. We must determine whether the first
+marker is a record header or a repeated data value and verify lengths against
+the original Windows reader.
