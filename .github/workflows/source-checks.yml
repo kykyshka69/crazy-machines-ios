@@ -210,19 +210,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO build
       - name: Boot iPhone simulator and launch actual application
         run: |
-          DEVICE_ID=$(python3 - <<'PY'
-          import json, subprocess
-          devices = json.loads(subprocess.check_output(
-              ["xcrun", "simctl", "list", "devices", "available", "-j"]
-          ))["devices"]
-          for runtime, entries in devices.items():
-              for device in entries:
-                  if device["name"].startswith("iPhone") and device["state"] == "Shutdown":
-                      print(device["udid"])
-                      raise SystemExit(0)
-          raise SystemExit("No available iPhone simulator")
-          PY
-          )
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; ids=[v["udid"] for group in d.values() for v in group if v["name"].startswith("iPhone") and v["state"]=="Shutdown"]; print(ids[0] if ids else "")')
+          test -n "$DEVICE_ID" || { echo "No available iPhone simulator"; exit 1; }
           xcrun simctl boot "$DEVICE_ID"
           xcrun simctl bootstatus "$DEVICE_ID" -b
           xcrun simctl install "$DEVICE_ID" /tmp/cm-ios-derived/Build/Products/Debug-iphonesimulator/CrazyMachinesIOS.app
