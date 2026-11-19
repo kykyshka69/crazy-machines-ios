@@ -28,12 +28,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         drag.minimumNumberOfTouches = 1
         drag.maximumNumberOfTouches = 1
         drag.delegate = context.coordinator
+        drag.isEnabled = !experimentalPhysics
         view.addGestureRecognizer(drag)
         let reset = UILongPressGestureRecognizer(target: context.coordinator,
                                                   action: #selector(Coordinator.resetSelected(_:)))
         reset.minimumPressDuration = 0.8
+        reset.isEnabled = !experimentalPhysics
         view.addGestureRecognizer(reset)
         context.coordinator.storageKey = "cm.original.positions.\(document.sceneSHA256)"
+        context.coordinator.physicsEnabled = experimentalPhysics
         var originalPositions: [String: SCNVector3] = [:]
         let scene = buildScene(originalPositions: &originalPositions)
         if experimentalPhysics {
@@ -57,6 +60,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var lastDragPoint: CGPoint?
         private var dragWasActive = false
         var storageKey = ""
+        var physicsEnabled = false
         var originalPositions: [String: SCNVector3] = [:]
 
         @objc func resetSelected(_ gesture: UILongPressGestureRecognizer) {
@@ -148,7 +152,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
 
         @objc func selectObject(_ gesture: UITapGestureRecognizer) {
-            guard let view = gesture.view as? SCNView,
+            guard !physicsEnabled, let view = gesture.view as? SCNView,
                   gesture.state == .ended, !dragWasActive else { return }
             let point = gesture.location(in: view)
             let node = view.hitTest(point, options: [.firstFoundOnly: true]).first?.node
@@ -247,8 +251,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                 let shape = SCNPhysicsShape(node: mesh, options: [
                                     .type: SCNPhysicsShape.ShapeType.boundingBox
                                 ])
-                                let body = SCNPhysicsBody(type: isGoal ? .static : .dynamic,
+                                let body = SCNPhysicsBody(type: .dynamic,
                                                           shape: shape)
+                                // GOAL is a puzzle objective, not a static-body flag.
                                 body.mass = 1
                                 body.friction = 0.6
                                 body.restitution = 0.15
