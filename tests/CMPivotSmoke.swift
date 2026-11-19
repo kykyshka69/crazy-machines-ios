@@ -99,6 +99,28 @@ import Foundation
    precondition(abs(radialSpeed)<1e-10)
    precondition(trial.bodies[0].velocity.x.isFinite && trial.bodies[0].velocity.y.isFinite)
   }
-  print("PASS: 50 pivot and pendulum regression scenarios")
+  // 51–70. Twenty independently stepped pendulums under gravity.
+  // Vary initial angle, gravity, and velocity, then check every constrained step.
+  for caseIndex in 0..<20 {
+   var trial=world()
+   trial.gravity=SIMD2(0,-2-Double(caseIndex%5)*2)
+   let angle=Double(caseIndex+1)*Double.pi/25
+   let anchor=SIMD2(3.5,4)
+   let radius=1.0+Double(caseIndex%4)*0.2
+   let direction=SIMD2(sin(angle),-cos(angle))
+   trial.bodies[0].position=anchor+direction*radius
+   trial.bodies[0].velocity=SIMD2(Double(caseIndex%3)*0.25,0)
+   let joint=CMPivotJoint2D(bodyIndex:0,anchor:anchor,length:radius)
+   for _ in 0..<60 {
+    trial.step(dt:1.0/120)
+    precondition(trial.applyPivots([joint])==1,"Gravity case \\(caseIndex)")
+    let radial=trial.bodies[0].position-anchor
+    let distance=sqrt(radial.x*radial.x+radial.y*radial.y)
+    let speed=trial.bodies[0].velocity.x*radial.x+trial.bodies[0].velocity.y*radial.y
+    precondition(abs(distance-radius)<1e-8)
+    precondition(abs(speed)<1e-8)
+   }
+  }
+  print("PASS: 70 pivot and pendulum regression scenarios")
  }
 }
