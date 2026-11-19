@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from decode_professor_records import PROFESSOR_SHA256, read_professor_records
+from analyze_puzzle_binary import shared_binary_structure
 
 
 def inventory(data: bytes) -> list[dict]:
@@ -33,11 +34,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("professor_cml", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--shared-structure", action="store_true", help="report common binary section structure only")
     args = parser.parse_args()
     data = args.professor_cml.read_bytes()
     if hashlib.sha256(data).hexdigest() != PROFESSOR_SHA256:
         parser.error("not the verified original Professor Laboratory file")
-    result = inventory(data)
+    result = (shared_binary_structure([r["payload"] for r in read_professor_records(data, include_payload=True)])
+              if args.shared_structure else inventory(data))
     output = json.dumps(result, ensure_ascii=False, indent=2)
     if args.output:
         args.output.write_text(output + "\n", encoding="utf-8")
