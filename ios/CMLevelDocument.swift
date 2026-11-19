@@ -17,12 +17,19 @@ public struct CMLevelDocument: Codable {
   public var y2: Double
   public var friction: Double
  }
+ public struct Pin: Codable {
+  public var bodyIndex: Int
+  public var x: Double
+  public var y: Double
+ }
+ public var pins: [Pin]?
  public var version: Int
  public var gravity: Double
  public var floorFriction: Double
  public var balls: [Ball]
  public var ramps: [Ramp]
- public init(world: CMPhysicsWorld2D) {
+ public init(world: CMPhysicsWorld2D, pins: [CMPinJoint2D] = []) {
+  self.pins=pins.map { Pin(bodyIndex:$0.bodyIndex,x:$0.anchor.x,y:$0.anchor.y) }
   version=1
   gravity = -world.gravity.y
   floorFriction=world.floorFriction
@@ -32,7 +39,8 @@ public struct CMLevelDocument: Codable {
  public func makeWorld() throws -> CMPhysicsWorld2D {
   guard version == 1, gravity.isFinite, (0...20).contains(gravity),
    floorFriction.isFinite, (0...10).contains(floorFriction),
-   balls.count <= 20, ramps.count <= 12 else { throw LevelError.invalid }
+   balls.count <= 20, ramps.count <= 12,
+   (pins ?? []).count <= 20 else { throw LevelError.invalid }
   var world=CMPhysicsWorld2D()
   world.gravity.y = -gravity
   world.floorFriction=floorFriction
@@ -51,7 +59,18 @@ public struct CMLevelDocument: Codable {
     (ramp.x2-ramp.x1)*(ramp.x2-ramp.x1)+(ramp.y2-ramp.y1)*(ramp.y2-ramp.y1) >= 1e-8 else { throw LevelError.invalid }
    world.segments.append(CMStaticSegment2D(start:SIMD2(ramp.x1,ramp.y1),end:SIMD2(ramp.x2,ramp.y2),friction:ramp.friction))
   }
+  let attached=pins ?? []
+  var occupied=Set<Int>()
+  for pin in attached {
+   guard world.bodies.indices.contains(pin.bodyIndex),
+    pin.x.isFinite,pin.y.isFinite,(0...7).contains(pin.x),(0...6).contains(pin.y),
+    occupied.insert(pin.bodyIndex).inserted else { throw LevelError.invalid }
+  }
   return world
+ }
+ public func makePins() throws -> [CMPinJoint2D] {
+  _ = try makeWorld()
+  return (pins ?? []).map { CMPinJoint2D(bodyIndex:$0.bodyIndex,anchor:SIMD2($0.x,$0.y)) }
  }
  public enum LevelError: Error { case invalid }
 }
