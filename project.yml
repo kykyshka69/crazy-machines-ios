@@ -24,4 +24,18 @@ targets:
         SUPPORTS_MACCATALYST: "NO"
         ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: "NO"
     scheme:
-      testTargets: []
+      testTargets:
+        - CrazyMachinesUITests
+
+  CrazyMachinesUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: tests/CrazyMachinesLaunchUITests.swift
+    dependencies:
+      - target: CrazyMachinesIOS
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: "YES"
+        PRODUCT_BUNDLE_IDENTIFIER: org.crazymachines.port.uitests
