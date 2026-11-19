@@ -66,3 +66,37 @@ with `0x4D42A7`.
 This is an important verified separation: **0x47E880 is a read-and-process
 wrapper, while 0x47E610 is the next concrete transform candidate.**
 The precise 0x47E610 algorithm has not been established.
+
+## Breakthrough: first genuine CML frame successfully decoded
+
+The original loader at 0x478FB8 passes the **20-byte** key
+`930%&g/2ANUBIS=!s?p$` and a **4-byte payload length** to
+0x47E880. The wrapper reads **24 bytes** (payload + key) and passes
+them to 0x47E610.
+
+The 0x47E610 read branch performs, in order:
+
+1. Reverse the 20-byte key to obtain operation control pairs.
+2. Apply the reverse adjacent-byte transform to the **entire encoded frame**.
+3. Dispatch operations from the reversed key to the frame.
+4. Compare the first 20 decoded bytes against the **original key**.
+5. Remove the 20-byte prefix and return the requested payload.
+
+**Executed against the original extracted 256-byte My Laboratory file:**
+the first 24-byte frame passes the full key comparison, and its 4-byte
+decoded payload is exactly `00 00 00 00`.
+
+The second field is an 80-byte payload within a 100-byte encoded frame
+at offsets [24,124), and the third is a 4-byte payload within [124,148).
+Both also pass the key comparison; the third decoded value is
+`00 00 00 00`. The 80-byte field begins `00 cd cd cd ...`,
+consistent with uninitialized/debug-filled storage but **not yet
+identified as a game-level structure**.
+
+This is **verified decryption of actual original CML header fields**,
+not yet decryption of the Professor laboratory's level records.
+The next encoded fields require following the loader's conditional
+branch at 0x47902E rather than assuming a fixed frame sequence.
+
+Read-only code: `tools/cml_byte_transforms.py` and
+`tools/decode_original_lab_header.py`.
