@@ -23,7 +23,7 @@ class CMLInspectorTests(unittest.TestCase):
     def test_signature_and_block_boundaries(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "test.cml"
-            path.write_bytes(b"UCM1" + b"\\x00" * 4092 + b"OggS" + b"\\xff" * 16)
+            path.write_bytes(b"UCM1" + b"\x00" * 4092 + b"OggS" + b"\xff" * 16)
             result = inspect(path)
             self.assertEqual(result["known_signature_offsets"][b"UCM1".hex()], [0])
             self.assertEqual(result["known_signature_offsets"][b"OggS".hex()], [4096])
@@ -50,7 +50,7 @@ class CMLInspectorTests(unittest.TestCase):
             self.assertIsNone(compare([path])["shared_prefix_bytes"])
 
     def test_text_clues_with_offsets_and_alignment(self):
-        payload = b"prefix\\x00" + "LEVELNAME".encode("utf-16le") + b"\\x00\\x00" + b"OBJFILE"
+        payload = b"prefix\x00" + "LEVELNAME".encode("utf-16le") + b"\x00\x00" + b"OBJFILE"
         clues = text_candidates(payload)
         self.assertTrue(any(c["offset"] == 7 and c["encoding"] == "utf-16le"
                             and c["text"] == "LEVELNAME" for c in clues))
@@ -58,14 +58,14 @@ class CMLInspectorTests(unittest.TestCase):
                             for c in clues))
 
     def test_text_clue_limit(self):
-        data = b"FIRST\\x00SECOND\\x00THIRD"
+        data = b"FIRST\x00SECOND\x00THIRD"
         self.assertEqual(len(text_candidates(data, limit=2)), 2)
 
     def test_cli_json_report(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "sample.cml"
             output = Path(directory) / "report.json"
-            source.write_bytes(b"\\x00" * 32)
+            source.write_bytes(b"\x00" * 32)
             subprocess.run(
                 [sys.executable, str(Path(__file__).with_name("inspect_cml.py")),
                  str(source), "--output", str(output)],
