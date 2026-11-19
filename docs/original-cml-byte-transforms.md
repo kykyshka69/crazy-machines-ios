@@ -66,3 +66,23 @@ a preserved temporary copy. Thus the verified pair is:
 
 Both directions now have regression round-trip tests. This correction
 is necessary before reconstructing the composite decoder.
+
+## Exact x86 control-pair dispatch (0x47E691–0x47E6F4 / 0x47E790–0x47E7EC)
+
+The original composite function uses two-byte control entries, with
+different byte order between encoding and decoding. The selector is
+**signed** before division by three; x86 `idiv` truncates toward zero
+and leaves a **signed remainder**. The dispatch handles only remainders
+0 (reverse), 1 (offset arithmetic), and 2 (adjacent delta). Negative
+remainders -1 and -2 do not match a case and are no-ops.
+
+The decoder path also checks a transformed key/header before copying
+the decoded payload. Thus a correct primitive dispatch alone is **not**
+a complete laboratory decoder: the framing, initial key transform,
+pair ordering, and payload offset must be reconstructed and verified
+against the two original CML files.
+
+A read-only implementation of the dispatch is now available as
+`tools/cml_byte_transforms.py:apply_control_pairs`, with synthetic
+tests. It is not wired into gameplay or advertised as a successful
+decode.
