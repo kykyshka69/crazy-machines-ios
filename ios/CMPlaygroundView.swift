@@ -294,18 +294,17 @@ struct CMPlaygroundView: View {
  private static let draftNameKey = "cm.playground.autosave.name.v1"
  private var draftData: Data? {
   let document=CMLevelDocument(world:startingLayout ?? world,pins:startingPins ?? pins)
-  guard (try? document.makeWorld()) != nil else { return nil }
+  guard (try? document.makePins()) != nil else { return nil }
   return try? JSONEncoder().encode(document)
  }
  private func saveDraft() {
   guard restoredDraft, dragSnapshot == nil, gravityEditSnapshot == nil else { return }
-  do {
-   guard let data=draftData else { return }
-   UserDefaults.standard.set(data,forKey:Self.draftKey)
-   UserDefaults.standard.set(levelName,forKey:Self.draftNameKey)
-  } catch {
-   storageMessage="Could not autosave draft"
+  guard let data=draftData else {
+   storageMessage="Could not autosave invalid draft"
+   return
   }
+  UserDefaults.standard.set(data,forKey:Self.draftKey)
+  UserDefaults.standard.set(levelName,forKey:Self.draftNameKey)
  }
  private func restoreDraft() {
   guard !restoredDraft else { return }
@@ -326,7 +325,7 @@ struct CMPlaygroundView: View {
  private func exportLevel() {
   do {
    let document=CMLevelDocument(world:startingLayout ?? world)
-   _ = try document.makeWorld()
+   _ = try document.makePins()
    let encoder=JSONEncoder()
    encoder.outputFormatting=[.prettyPrinted,.sortedKeys]
    exportFile=CMJSONLevelFile(data:try encoder.encode(document))
@@ -373,8 +372,8 @@ struct CMPlaygroundView: View {
  private func saveLevel() {
   do {
    let layout=startingLayout ?? world
-   let document=CMLevelDocument(world:layout)
-   _ = try document.makeWorld() // Do not overwrite a good save with an invalid layout.
+   let document=CMLevelDocument(world:layout,pins:startingPins ?? pins)
+   _ = try document.makePins() // Do not overwrite a good save with an invalid layout.
    let data=try JSONEncoder().encode(document)
    UserDefaults.standard.set(data,forKey:saveKey(for:selectedSaveSlot))
    let cleanName=String(levelName.trimmingCharacters(in:.whitespacesAndNewlines).prefix(60))
