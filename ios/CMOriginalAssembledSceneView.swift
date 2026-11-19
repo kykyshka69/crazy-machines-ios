@@ -52,6 +52,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             scene.physicsWorld.timeStep = 1.0 / 120.0
         }
         view.isPlaying = experimentalPhysics
+        if experimentalPhysics {
+            // Allow tapping a moving imported object to give it an impulse.
+            // This is a sandbox interaction, not an original puzzle mechanic.
+            context.coordinator.physicsEnabled = true
+        }
         // Experimental physics must not change the user's saved inspection
         // coordinates. Physics mode never writes to that persistence store.
         context.coordinator.originalPositions = originalPositions
@@ -163,10 +168,23 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
 
         @objc func selectObject(_ gesture: UITapGestureRecognizer) {
-            guard !physicsEnabled, let view = gesture.view as? SCNView,
+            guard let view = gesture.view as? SCNView,
                   gesture.state == .ended, !dragWasActive else { return }
             let point = gesture.location(in: view)
             let node = view.hitTest(point, options: [.firstFoundOnly: true]).first?.node
+            if physicsEnabled {
+                // SceneKit hit-tests return a mesh node with a physics body.
+                // Apply a small impulse along the camera's viewing direction
+                // to provide a repeatable, visible interaction test.
+                guard let body = node?.physicsBody, body.type == .dynamic,
+                      let camera = view.pointOfView else { return }
+                let forward = camera.presentation.convertVector(SCNVector3(0, 0, -1), to: nil)
+                let magnitude: Float = 2
+                body.applyForce(SCNVector3(forward.x * magnitude,
+                                           forward.y * magnitude,
+                                           forward.z * magnitude), asImpulse: true)
+                return
+            }
             if let previous = highlighted, let material = previous.geometry?.firstMaterial {
                 material.emission.contents = originalEmission
             }
