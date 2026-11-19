@@ -29,6 +29,13 @@ public struct CMLevelDocument: Codable {
   public var stiffness: Double
   public var damping: Double
  }
+ public struct Pivot: Codable {
+  public var bodyIndex: Int
+  public var x: Double
+  public var y: Double
+  public var length: Double
+ }
+ public var pivots: [Pivot]?
  public var springs: [Spring]?
  public var pins: [Pin]?
  public var version: Int
@@ -36,7 +43,8 @@ public struct CMLevelDocument: Codable {
  public var floorFriction: Double
  public var balls: [Ball]
  public var ramps: [Ramp]
- public init(world: CMPhysicsWorld2D, pins: [CMPinJoint2D] = [], springs: [CMSpringJoint2D] = []) {
+ public init(world: CMPhysicsWorld2D, pins: [CMPinJoint2D] = [], springs: [CMSpringJoint2D] = [], pivots: [CMPivotJoint2D] = []) {
+  self.pivots=pivots.map { Pivot(bodyIndex:$0.bodyIndex,x:$0.anchor.x,y:$0.anchor.y,length:$0.length) }
   self.springs=springs.map { Spring(firstIndex:$0.firstIndex,secondIndex:$0.secondIndex,restLength:$0.restLength,stiffness:$0.stiffness,damping:$0.damping) }
   self.pins=pins.map { Pin(bodyIndex:$0.bodyIndex,x:$0.anchor.x,y:$0.anchor.y) }
   version=1
@@ -49,7 +57,7 @@ public struct CMLevelDocument: Codable {
   guard version == 1, gravity.isFinite, (0...20).contains(gravity),
    floorFriction.isFinite, (0...10).contains(floorFriction),
    balls.count <= 20, ramps.count <= 12,
-   (pins ?? []).count <= 20, (springs ?? []).count <= 20 else { throw LevelError.invalid }
+   (pins ?? []).count <= 20, (springs ?? []).count <= 20, (pivots ?? []).count <= 20 else { throw LevelError.invalid }
   var world=CMPhysicsWorld2D()
   world.gravity.y = -gravity
   world.floorFriction=floorFriction
@@ -75,6 +83,13 @@ public struct CMLevelDocument: Codable {
     pin.x.isFinite,pin.y.isFinite,(0...7).contains(pin.x),(0...6).contains(pin.y),
     occupied.insert(pin.bodyIndex).inserted else { throw LevelError.invalid }
   }
+  for pivot in pivots ?? [] {
+   guard world.bodies.indices.contains(pivot.bodyIndex),
+    pivot.x.isFinite,pivot.y.isFinite,
+    (0...7).contains(pivot.x),(0...6).contains(pivot.y),
+    pivot.length.isFinite,(0.01...10).contains(pivot.length),
+    occupied.insert(pivot.bodyIndex).inserted else { throw LevelError.invalid }
+  }
   var pairs=Set<String>()
   for spring in springs ?? [] {
    guard world.bodies.indices.contains(spring.firstIndex),
@@ -87,6 +102,10 @@ public struct CMLevelDocument: Codable {
    guard pairs.insert(pair).inserted else { throw LevelError.invalid }
   }
   return world
+ }
+ public func makePivots() throws -> [CMPivotJoint2D] {
+  _ = try makeWorld()
+  return (pivots ?? []).map { CMPivotJoint2D(bodyIndex:$0.bodyIndex,anchor:SIMD2($0.x,$0.y),length:$0.length) }
  }
  public func makeSprings() throws -> [CMSpringJoint2D] {
   _ = try makeWorld()
