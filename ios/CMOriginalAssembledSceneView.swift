@@ -19,6 +19,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                          action: #selector(Coordinator.selectObject(_:)))
         tap.cancelsTouchesInView = false
         view.addGestureRecognizer(tap)
+        let drag = UIPanGestureRecognizer(target: context.coordinator,
+                                          action: #selector(Coordinator.dragSelected(_:)))
+        drag.minimumNumberOfTouches = 1
+        drag.maximumNumberOfTouches = 1
+        drag.delegate = context.coordinator
+        view.addGestureRecognizer(drag)
         let scene = buildScene()
         view.scene = scene
         view.pointOfView = scene.rootNode.childNode(withName: "original-level-camera", recursively: false)
@@ -29,9 +35,54 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    final class Coordinator: NSObject {
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         private weak var highlighted: SCNNode?
         private var originalEmission: Any?
+        private weak var dragging: SCNNode?
+        private var lastDragPoint: CGPoint?
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+            false
+        }
+
+        @objc func dragSelected(_ gesture: UIPanGestureRecognizer) {
+            guard let view = gesture.view as? SCNView else { return }
+            let point = gesture.location(in: view)
+            switch gesture.state {
+            case .began:
+                guard let selected = highlighted,
+                      let hit = view.hitTest(point, options: [.firstFoundOnly: true]).first,
+                      hit.node === selected else { return }
+                dragging = selected.parent ?? selected
+                lastDragPoint = point
+            case .changed:
+                guard let target = dragging, let previous = lastDragPoint,
+                      view.pointOfView != nil else { return }
+                // Move in the camera-facing plane, preserving the object's
+                // depth and original parent coordinate system.
+                let world = target.presentation.worldPosition
+                let projected = view.projectPoint(world)
+                let from = view.unprojectPoint(SCNVector3(Float(previous.x), Float(previous.y), projected.z))
+                let to = view.unprojectPoint(SCNVector3(Float(point.x), Float(point.y), projected.z))
+                let parent = target.parent
+                let fromLocal = parent?.convertPosition(from, from: nil) ?? from
+                let toLocal = parent?.convertPosition(to, from: nil) ?? to
+                let delta = SCNVector3(toLocal.x - fromLocal.x,
+                                       toLocal.y - fromLocal.y,
+                                       toLocal.z - fromLocal.z)
+                let next = SCNVector3(target.position.x + delta.x,
+                                      target.position.y + delta.y,
+                                      target.position.z + delta.z)
+                if next.x.isFinite && next.y.isFinite && next.z.isFinite {
+                    target.position = next
+                    lastDragPoint = point
+                }
+             default:
+                dragging = nil
+                lastDragPoint = nil
+            }
+        }
 
         @objc func selectObject(_ gesture: UITapGestureRecognizer) {
             guard let view = gesture.view as? SCNView else { return }
