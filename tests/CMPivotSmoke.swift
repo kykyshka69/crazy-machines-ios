@@ -121,6 +121,34 @@ import Foundation
     precondition(abs(speed)<1e-8)
    }
   }
-  print("PASS: 70 pivot and pendulum regression scenarios")
+  // 71–170. One hundred distinct tangential impulses and pendulum angles.
+  for caseIndex in 0..<100 {
+   let angle=Double(caseIndex)*2*Double.pi/100
+   let direction=SIMD2(cos(angle),sin(angle))
+   let anchor=SIMD2(3.5,3)
+   let radius=0.5+Double(caseIndex%5)*0.25
+   let impulse=Double(caseIndex-50)*0.2
+   var trial=world()
+   trial.bodies[0].position=anchor+direction*radius
+   trial.bodies[0].velocity=direction*0.75
+   let joint=CMPivotJoint2D(bodyIndex:0,anchor:anchor,length:radius)
+   precondition(trial.kickPivot(joint,speed:impulse))
+   let tangent=SIMD2(-direction.y,direction.x)
+   let radialSpeed=trial.bodies[0].velocity.x*direction.x+trial.bodies[0].velocity.y*direction.y
+   let tangentSpeed=trial.bodies[0].velocity.x*tangent.x+trial.bodies[0].velocity.y*tangent.y
+   precondition(abs(radialSpeed)<1e-9)
+   precondition(abs(tangentSpeed-impulse)<1e-9)
+   precondition(trial.applyPivots([joint])==1)
+   precondition(trial.bodies[0].velocity.x.isFinite && trial.bodies[0].velocity.y.isFinite)
+  }
+  // Invalid impulses and invalid body indices must not change velocities.
+  w=world()
+  let initialVelocity=w.bodies[0].velocity
+  precondition(!w.kickPivot(pivot,speed:.nan))
+  precondition(!w.kickPivot(pivot,speed:.infinity))
+  precondition(!w.kickPivot(pivot,speed:21))
+  precondition(!w.kickPivot(CMPivotJoint2D(bodyIndex:99,anchor:SIMD2(1,3),length:2),speed:1))
+  precondition(w.bodies[0].velocity==initialVelocity)
+  print("PASS: 170 pivot and pendulum regression scenarios")
  }
 }
