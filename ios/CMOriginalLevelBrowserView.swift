@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 /// Browse actual user-exported original levels without simulating invented physics.
 struct CMOriginalLevelBrowserView: View {
     @State private var importing = false
+    @State private var importingFolder = false
     @State private var documents: [CMOriginalSceneDocument] = []
     @State private var errorMessage: String?
     @State private var selected: Int?
@@ -42,6 +43,7 @@ struct CMOriginalLevelBrowserView: View {
                     Text("Import JSON files exported from your original Professor Laboratory CML.")
                         .font(.caption)
                     Button("Import original levels") { importing = true }
+                    Button("Import entire exported levels folder") { importingFolder = true }
                     if let errorMessage {
                         Text(errorMessage).foregroundStyle(.red).font(.caption)
                     }
@@ -64,6 +66,28 @@ struct CMOriginalLevelBrowserView: View {
             }
             .navigationTitle("Original levels")
             .onAppear(perform: reloadSavedScenes)
+            .fileImporter(isPresented: $importingFolder, allowedContentTypes: [.folder]) { result in
+                switch result {
+                case .failure(let error):
+                    errorMessage = error.localizedDescription
+                case .success(let folder):
+                    let access = folder.startAccessingSecurityScopedResource()
+                    defer { if access { folder.stopAccessingSecurityScopedResource() } }
+                    guard let files = try? FileManager.default.contentsOfDirectory(
+                        at: folder, includingPropertiesForKeys: [.isRegularFileKey],
+                        options: [.skipsHiddenFiles]
+                    ) else {
+                        errorMessage = "Cannot read exported level folder"
+                        return
+                    }
+                    let jsonFiles = files.filter { $0.pathExtension.lowercased() == "json" }
+                    guard jsonFiles.count <= 102 else {
+                        errorMessage = "Too many JSON files in selected folder"
+                        return
+                    }
+                    importDocuments(jsonFiles)
+                }
+            }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.json],
                           allowsMultipleSelection: true) { result in
                 switch result {
