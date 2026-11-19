@@ -54,6 +54,40 @@ def inspect(path: Path) -> dict:
     }
 
 
+
+def compare(files: list[Path]) -> dict:
+    """Locate byte-identical ranges shared by independent original CML files.
+
+    Offsets are evidence of common headers/sections, not decoded level records.
+    """
+    if len(files) < 2:
+        return {"shared_prefix_bytes": None, "shared_suffix_bytes": None,
+                "equal_length": None, "differing_byte_ranges": []}
+    blobs = [p.read_bytes() for p in files]
+    minimum = min(map(len, blobs))
+    prefix = 0
+    while prefix < minimum and all(blob[prefix] == blobs[0][prefix] for blob in blobs[1:]):
+        prefix += 1
+    suffix = 0
+    while suffix < minimum - prefix and all(
+        blob[-1 - suffix] == blobs[0][-1 - suffix] for blob in blobs[1:]
+    ):
+        suffix += 1
+    ranges = []
+    start = None
+    for offset in range(minimum):
+        different = any(blob[offset] != blobs[0][offset] for blob in blobs[1:])
+        if different and start is None:
+            start = offset
+        elif not different and start is not None:
+            ranges.append({"start": start, "end_exclusive": offset})
+            start = None
+    if start is not None:
+        ranges.append({"start": start, "end_exclusive": minimum})
+    return {"shared_prefix_bytes": prefix, "shared_suffix_bytes": suffix,
+            "equal_length": len(set(map(len, blobs))) == 1,
+            "differing_byte_ranges": ranges}
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("files", nargs="+", type=Path, help="Original .cml files")
@@ -62,7 +96,8 @@ def main() -> None:
     for path in args.files:
         if not path.is_file() or path.suffix.lower() != ".cml":
             parser.error(f"expected existing .cml file: {path}")
-    report = {"format": "unresolved", "files": [inspect(p) for p in args.files]}
+    report = {"format": "unresolved", "files": [inspect(p) for p in args.files],
+              "cross_file_comparison": compare(args.files)}
     result = json.dumps(report, ensure_ascii=False, indent=2)
     if args.output:
         args.output.write_text(result + "\n", encoding="utf-8")
