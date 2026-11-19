@@ -250,9 +250,13 @@ struct CMPlaygroundView: View {
    world.segments[i].end=b
   }
   startingLayout=nil
+  startingPins=nil
+  startingSprings=nil
+  startingPivots=nil
   reachedGoal=false
   simulationSteps=0
   trails=[]
+  saveDraft()
  }
  private func reset() {
   running=false
@@ -288,6 +292,7 @@ struct CMPlaygroundView: View {
   springSourceIndex=nil
   simulationSteps=0
   trails=[]
+  saveDraft()
  }
  private func restartExperiment() {
   guard let layout=startingLayout else { return }
@@ -1119,9 +1124,12 @@ struct CMPlaygroundView: View {
   }
   startingLayout=nil
   startingPins=nil
+  startingSprings=nil
+  startingPivots=nil
   reachedGoal=false
   simulationSteps=0
   trails=[]
+  saveDraft()
  }
  private func deleteSelected() {
   guard !running,let selection else { return }
