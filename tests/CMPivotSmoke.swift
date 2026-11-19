@@ -79,6 +79,26 @@ import Foundation
   let other=CMPivotJoint2D(bodyIndex:1,anchor:SIMD2(4,3),length:2)
   precondition(w.applyPivots([pivot,other])==2)
   precondition(abs(w.bodies[1].velocity.x)<1e-12)
-  print("PASS: 20 pivot and pendulum regression scenarios")
+  // 21–50. Thirty different pendulum angles and tangential velocities.
+  // Each case validates radius preservation, finite state, and zero radial speed.
+  for caseIndex in 0..<30 {
+   let angle=Double(caseIndex)*Double.pi/15
+   let direction=SIMD2(cos(angle),sin(angle))
+   let tangent=SIMD2(-direction.y,direction.x)
+   let anchor=SIMD2(3.5,3)
+   let radius=0.5+Double(caseIndex%5)*0.3
+   var trial=world()
+   trial.bodies[0].position=anchor+direction*radius
+   trial.bodies[0].velocity=tangent*(0.25+Double(caseIndex%7)*0.3)+direction*0.7
+   let joint=CMPivotJoint2D(bodyIndex:0,anchor:anchor,length:radius)
+   precondition(trial.applyPivots([joint])==1,"Angle case \\(caseIndex)")
+   let radial=trial.bodies[0].position-anchor
+   let distance=sqrt(radial.x*radial.x+radial.y*radial.y)
+   let radialSpeed=trial.bodies[0].velocity.x*radial.x+trial.bodies[0].velocity.y*radial.y
+   precondition(abs(distance-radius)<1e-10)
+   precondition(abs(radialSpeed)<1e-10)
+   precondition(trial.bodies[0].velocity.x.isFinite && trial.bodies[0].velocity.y.isFinite)
+  }
+  print("PASS: 50 pivot and pendulum regression scenarios")
  }
 }
