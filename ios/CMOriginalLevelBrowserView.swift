@@ -26,6 +26,11 @@ struct CMOriginalLevelBrowserView: View {
             .appendingPathComponent("OriginalGame", isDirectory: true)
     }
 
+    private var sceneStorage: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("OriginalScenes", isDirectory: true)
+    }
+
     private var sorted: [CMOriginalSceneDocument] {
         documents.sorted { $0.index < $1.index }
     }
@@ -58,6 +63,7 @@ struct CMOriginalLevelBrowserView: View {
                 }
             }
             .navigationTitle("Original levels")
+            .onAppear(perform: reloadSavedScenes)
             .fileImporter(isPresented: $importing, allowedContentTypes: [.json],
                           allowsMultipleSelection: true) { result in
                 switch result {
@@ -149,7 +155,29 @@ struct CMOriginalLevelBrowserView: View {
         }
     }
 
+    private func reloadSavedScenes() {
+        guard let urls = try? FileManager.default.contentsOfDirectory(
+            at: sceneStorage, includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else { return }
+        var loaded: [Int: CMOriginalSceneDocument] = [:]
+        for url in urls where url.pathExtension.lowercased() == "json" {
+            guard let data = try? Data(contentsOf: url),
+                  let document = try? CMOriginalSceneDocument.read(data) else { continue }
+            loaded[document.index] = document
+        }
+        documents = loaded.values.sorted { $0.index < $1.index }
+    }
+
     private func importDocuments(_ urls: [URL]) {
+        do {
+            try FileManager.default.createDirectory(
+                at: sceneStorage, withIntermediateDirectories: true
+            )
+        } catch {
+            errorMessage = "Cannot create private level storage: \\(error.localizedDescription)"
+            return
+        }
         var imported = 0
         var rejected = 0
         for url in urls {
@@ -158,18 +186,18 @@ struct CMOriginalLevelBrowserView: View {
             do {
                 let data = try Data(contentsOf: url)
                 let document = try CMOriginalSceneDocument.read(data)
-                if let old = documents.firstIndex(where: { $0.index == document.index }) {
-                    documents[old] = document
-                } else {
-                    documents.append(document)
-                }
+                let filename = String(format: "level-%03d.json", document.index)
+                let destination = sceneStorage.appendingPathComponent(filename)
+                // Retain only user-imported data in the app sandbox, never the repo.
+                try data.write(to: destination, options: .atomic)
                 imported += 1
             } catch {
                 rejected += 1
             }
         }
+        reloadSavedScenes()
         errorMessage = rejected == 0
-            ? "Imported \(imported) original scenes"
-            : "Imported \(imported); rejected \(rejected) invalid files"
+            ? "Saved \\(imported) original scenes on this iPhone"
+            : "Saved \\(imported); rejected \\(rejected) invalid files"
     }
 }
