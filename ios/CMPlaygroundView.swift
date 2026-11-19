@@ -129,8 +129,8 @@ struct CMPlaygroundView: View {
   var steps=0
   while accumulator >= Self.fixedStep && steps < 24 {
    let before=world.bodies.map(\.position)
-   world.step(dt:Self.fixedStep)
    world.applySprings(springs,dt:Self.fixedStep)
+   world.step(dt:Self.fixedStep)
    world.applyPins(pins)
    recordTrails()
    simulationSteps+=1
@@ -256,6 +256,7 @@ struct CMPlaygroundView: View {
   world.gravity.y = -gravityStrength
   startingLayout=nil
   startingPins=nil
+  startingSprings=nil
   simulationSteps=0
   trails=[]
  }
@@ -366,6 +367,8 @@ struct CMPlaygroundView: View {
   springs=pendingImportSprings
   pinUndoStack=[]
   pinRedoStack=[]
+  springUndoStack=[]
+  springRedoStack=[]
   gravityStrength = -imported.gravity.y
   levelName=pendingImportName
   clearExperimentState()
@@ -469,6 +472,8 @@ struct CMPlaygroundView: View {
   guard !running,let next=redoStack.popLast() else { return }
   undoStack.append(world)
   pinUndoStack.append(pins)
+  springUndoStack.append(springs)
+  if springUndoStack.count > 30 { springUndoStack.removeFirst() }
   if pinUndoStack.count > 30 { pinUndoStack.removeFirst() }
   pins=pinRedoStack.popLast() ?? []
   springs=springRedoStack.popLast() ?? []
@@ -917,10 +922,13 @@ struct CMPlaygroundView: View {
        if dragChanged,let before=dragSnapshot {
         undoStack.append(before)
         pinUndoStack.append(pins)
+        springUndoStack.append(springs)
+        if springUndoStack.count > 30 { springUndoStack.removeFirst() }
         if pinUndoStack.count > 30 { pinUndoStack.removeFirst() }
         if undoStack.count > 30 { undoStack.removeFirst() }
         redoStack=[]
         pinRedoStack=[]
+        springRedoStack=[]
        }
        dragSnapshot=nil
        if dragChanged { saveDraft() }
@@ -1099,9 +1107,11 @@ struct CMPlaygroundView: View {
    Button("Reset to starter scene",role:.destructive) {
     let previous=world
     let previousPins=pins
+    let previousSprings=springs
     reset()
     undoStack.append(previous)
     pinUndoStack.append(previousPins)
+    springUndoStack.append(previousSprings)
     storageMessage="Reset scene (Undo to restore)"
    }
    Button("Cancel",role:.cancel) {}
