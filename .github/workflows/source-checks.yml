@@ -128,6 +128,8 @@ jobs:
           /tmp/cm-springs
           swiftc ios/CMPhysics2D.swift ios/CMPinJoint2D.swift ios/CMSpringJoint2D.swift tests/CMCombinedMechanicsSmoke.swift -o /tmp/cm-combined-mechanics
           /tmp/cm-combined-mechanics
+          swiftc ios/CMPhysics2D.swift ios/CMSpringJoint2D.swift tests/CMSpringParametersSmoke.swift -o /tmp/cm-spring-parameters
+          /tmp/cm-spring-parameters
 
   preview-fixture-runtime:
     runs-on: ubuntu-latest
