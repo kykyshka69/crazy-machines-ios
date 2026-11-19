@@ -316,6 +316,7 @@ struct CMPlaygroundView: View {
   dragPinsSnapshot=nil
   dragPivotsSnapshot=nil
   dragChanged=false
+  saveDraft()
  }
  private static let savedLevelKey = "cm.playground.savedLevel.v1"
  private func saveKey(for slot:Int) -> String {
@@ -1173,6 +1174,7 @@ struct CMPlaygroundView: View {
   startingLayout=nil
   reachedGoal=false
   simulationSteps=0
+  saveDraft()
  }
  var body: some View {
   ScrollView {
