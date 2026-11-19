@@ -205,12 +205,16 @@ struct CMPlaygroundView: View {
  }
  private static let draftKey = "cm.playground.autosave.draft.v1"
  private static let draftNameKey = "cm.playground.autosave.name.v1"
+ private var draftData: Data? {
+  let document=CMLevelDocument(world:startingLayout ?? world)
+  guard (try? document.makeWorld()) != nil else { return nil }
+  return try? JSONEncoder().encode(document)
+ }
  private func saveDraft() {
   guard restoredDraft else { return }
   do {
-   let document=CMLevelDocument(world:startingLayout ?? world)
-   _ = try document.makeWorld()
-   UserDefaults.standard.set(try JSONEncoder().encode(document),forKey:Self.draftKey)
+   guard let data=draftData else { return }
+   UserDefaults.standard.set(data,forKey:Self.draftKey)
    UserDefaults.standard.set(levelName,forKey:Self.draftNameKey)
   } catch {
    storageMessage="Could not autosave draft"
@@ -701,6 +705,12 @@ struct CMPlaygroundView: View {
   .padding()
   }
   .onAppear { restoreDraft() }
+  .onChange(of:draftData) { _,_ in
+   if !running { saveDraft() }
+  }
+  .onChange(of:levelName) { _,_ in
+   saveDraft()
+  }
   .onDisappear { saveDraft() }
   .onChange(of:scenePhase) { _,phase in
    if phase != .active { saveDraft() }
