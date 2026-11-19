@@ -806,8 +806,11 @@ struct CMPlaygroundView: View {
       .onEnded { _ in
        if dragChanged,let before=dragSnapshot {
         undoStack.append(before)
+        pinUndoStack.append(pins)
+        if pinUndoStack.count > 30 { pinUndoStack.removeFirst() }
         if undoStack.count > 30 { undoStack.removeFirst() }
         redoStack=[]
+        pinRedoStack=[]
        }
        dragSnapshot=nil
        if dragChanged { saveDraft() }
@@ -915,6 +918,7 @@ struct CMPlaygroundView: View {
         undoStack.append(before)
         if undoStack.count > 30 { undoStack.removeFirst() }
         redoStack=[]
+        pinRedoStack=[]
         saveDraft()
        }
       }
@@ -982,8 +986,10 @@ struct CMPlaygroundView: View {
   .confirmationDialog("Reset experiment?",isPresented:$confirmingReset,titleVisibility:.visible) {
    Button("Reset to starter scene",role:.destructive) {
     let previous=world
+    let previousPins=pins
     reset()
     undoStack.append(previous)
+    pinUndoStack.append(previousPins)
     storageMessage="Reset scene (Undo to restore)"
    }
    Button("Cancel",role:.cancel) {}
