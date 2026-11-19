@@ -182,6 +182,15 @@ jobs:
           swiftc ios/CMPhysics2D.swift ios/CMPinJoint2D.swift ios/CMSpringJoint2D.swift ios/CMPivotJoint2D.swift ios/CMLevelDocument.swift tests/CMLevelDocumentSmoke.swift -o /tmp/cm-level-document
           /tmp/cm-level-document
 
+  original-scene-document-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and validate original scene JSON with Swift
+        run: |
+          swiftc ios/CMOriginalSceneDocument.swift tests/OriginalSceneDocumentSmoke.swift -o /tmp/cm-original-scene
+          /tmp/cm-original-scene
+
   ios-simulator-build:
     runs-on: macos-latest
     steps:
