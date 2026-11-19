@@ -976,6 +976,26 @@ struct CMPlaygroundView: View {
   storageMessage="Removed selected ball's springs"
   saveDraft()
  }
+ private func stopAllBalls() {
+  guard !running else { return }
+  guard world.bodies.contains(where: {
+   $0.velocity.x != 0 || $0.velocity.y != 0 || $0.angularVelocity != 0
+  }) else { return }
+  saveUndo()
+  for index in world.bodies.indices {
+   world.bodies[index].velocity=SIMD2<Double>(0,0)
+   world.bodies[index].angularVelocity=0
+  }
+  startingLayout=nil
+  startingPins=nil
+  startingSprings=nil
+  startingPivots=nil
+  reachedGoal=false
+  simulationSteps=0
+  trails=[]
+  saveDraft()
+  storageMessage="All balls stopped (Undo to restore)"
+ }
  private func stopSelectedBall() {
   guard !running,case .ball(let index)=selection,
    world.bodies.indices.contains(index) else { return }
@@ -1459,6 +1479,7 @@ struct CMPlaygroundView: View {
     Button("Spring chain") { loadMechanismPreset(7) }.disabled(running)
     Button("Ramp cascade") { loadMechanismPreset(8) }.disabled(running)
     Button("Linked pendulums") { loadMechanismPreset(9) }.disabled(running)
+    Button("Stop all balls") { stopAllBalls() }.disabled(running)
     Button("Add ball") { addBall() }.disabled(running || world.bodies.count >= 20)
     Button("Add ramp") { addRamp() }.disabled(running || world.segments.count >= 12)
     Button("Spring") { connectSpring() }.disabled(running)
