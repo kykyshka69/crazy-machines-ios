@@ -9,7 +9,7 @@ No original game data is bundled.
 
 def unpack_12bit_codes(data: bytes):
     if len(data) % 3:
-        raise ValueError("12-bit stream must contain complete 3-byte pairs")
+        data += bytes(3 - len(data) % 3)
     for offset in range(0, len(data), 3):
         a, b, c = data[offset:offset + 3]
         yield (a << 4) | (b >> 4)
@@ -24,7 +24,8 @@ def decompress_level_section(section: bytes) -> bytes:
     ended = False
     for code in unpack_12bit_codes(section):
         if ended:
-            # The original stream ends at the terminator; trailing bits are\n            # packing padding, not further compressed data.\n            continue
+            # Trailing bits after the terminator are padding, not LZW codes.
+            continue
         if code == 4095:
             ended = True
             continue
