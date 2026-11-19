@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 /// The separate Original levels tab displays locally exported original scenes; physics is not yet playable.
 struct CMOriginalResourcesView: View {
     @State private var importing = false
+    @State private var importingFolder = false
     @State private var selectedCML: ResourceEntry?
     @State private var selectedProbe: CMOriginalCMLProbe?
     @State private var entries: [ResourceEntry] = []
@@ -32,6 +33,7 @@ struct CMOriginalResourcesView: View {
                     Text("Original CML decoding and private scene export are available through the project tools. Import the exported JSON scenes in Original levels; original physics is not playable yet.")
                         .font(.caption)
                     Button("Import original game files") { importing = true }
+                    Button("Import entire extracted models folder") { importingFolder = true }
                     Text(message).font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Imported files (\(entries.count))") {
@@ -75,6 +77,14 @@ struct CMOriginalResourcesView: View {
             }
 
             .onAppear(perform: reload)
+            .fileImporter(isPresented: $importingFolder, allowedContentTypes: [.folder]) { result in
+                switch result {
+                case .success(let folder):
+                    importFolder(folder)
+                case .failure(let error):
+                    message = "Folder import failed: \(error.localizedDescription)"
+                }
+            }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
                 switch result {
                 case .success(let urls):
@@ -110,6 +120,29 @@ struct CMOriginalResourcesView: View {
                   let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize else { return nil }
             return ResourceEntry(name: url.lastPathComponent, kind: ext, bytes: size)
         }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    private func importFolder(_ folder: URL) {
+        let access = folder.startAccessingSecurityScopedResource()
+        defer { if access { folder.stopAccessingSecurityScopedResource() } }
+        guard let enumerator = FileManager.default.enumerator(
+            at: folder, includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) else {
+            message = "Unable to read the selected folder"
+            return
+        }
+        var files: [URL] = []
+        for case let url as URL in enumerator {
+            if allowed.contains(url.pathExtension.lowercased()) {
+                files.append(url)
+            }
+            if files.count > 10000 {
+                message = "Folder exceeds the 10,000 resource safety limit"
+                return
+            }
+        }
+        importFiles(files)
     }
 
     private func importFiles(_ urls: [URL]) {
