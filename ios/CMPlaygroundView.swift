@@ -187,6 +187,7 @@ struct CMPlaygroundView: View {
   pins=[]
   springs=[]
   selectedSpringIndex=nil
+  springSourceIndex=nil
   clearExperimentState()
   storageMessage="Cleared scene (Undo to restore)"
  }
@@ -261,6 +262,8 @@ struct CMPlaygroundView: View {
   startingLayout=nil
   startingPins=nil
   startingSprings=nil
+  selectedSpringIndex=nil
+  springSourceIndex=nil
   simulationSteps=0
   trails=[]
  }
@@ -274,6 +277,8 @@ struct CMPlaygroundView: View {
   world=layout
   pins=startingPins ?? pins
   springs=startingSprings ?? springs
+  selectedSpringIndex=nil
+  springSourceIndex=nil
   gravityStrength = -layout.gravity.y
   simulationSteps=0
   trails=[]
@@ -691,7 +696,23 @@ struct CMPlaygroundView: View {
   guard !running,!springs.isEmpty else { return }
   selectedSpringIndex=((selectedSpringIndex ?? -1)+1)%springs.count
   springSourceIndex=nil
-  storageMessage="Spring \\(selectedSpringIndex!+1) of \\(springs.count) selected"
+  storageMessage="Spring \(selectedSpringIndex!+1) of \(springs.count) selected"
+ }
+ private func selectPreviousSpring() {
+  guard !running,!springs.isEmpty else { return }
+  selectedSpringIndex=((selectedSpringIndex ?? 0)+springs.count-1)%springs.count
+  springSourceIndex=nil
+  storageMessage="Previous spring selected"
+ }
+ private func removeSelectedSpring() {
+  guard !running,let index=selectedSpringIndex,springs.indices.contains(index) else { return }
+  saveUndo()
+  springs.remove(at:index)
+  selectedSpringIndex=springs.isEmpty ? nil : min(index,springs.count-1)
+  springSourceIndex=nil
+  clearExperimentState()
+  saveDraft()
+  storageMessage="Spring removed (Undo to restore)"
  }
  private func adjustSpring(_ property: String, by delta: Double) {
   guard !running,let index=selectedSpringIndex,springs.indices.contains(index),
@@ -761,6 +782,7 @@ struct CMPlaygroundView: View {
   startingPins=nil
   startingSprings=nil
   storageMessage="Spring connected"
+  saveDraft()
  }
  private func removeSpringsForSelection() {
   guard !running,case .ball(let index)=selection else { return }
@@ -775,6 +797,7 @@ struct CMPlaygroundView: View {
   startingPins=nil
   startingSprings=nil
   storageMessage="Removed selected ball's springs"
+  saveDraft()
  }
  private func togglePin() {
   guard !running,case .ball(let i)=selection,world.bodies.indices.contains(i) else { return }
@@ -941,11 +964,11 @@ struct CMPlaygroundView: View {
         context.stroke(path,with:.color(.cyan.opacity(0.35)),lineWidth:1.5)
        }
       }
-      for spring in springs where world.bodies.indices.contains(spring.firstIndex) && world.bodies.indices.contains(spring.secondIndex) {
+      for (springIndex,spring) in springs.enumerated() where world.bodies.indices.contains(spring.firstIndex) && world.bodies.indices.contains(spring.secondIndex) {
        var connector=Path()
        connector.move(to:screen(world.bodies[spring.firstIndex].position,size))
        connector.addLine(to:screen(world.bodies[spring.secondIndex].position,size))
-       context.stroke(connector,with:.color(.mint),style:StrokeStyle(lineWidth:3,dash:[6,4]))
+       context.stroke(connector,with:.color(selectedSpringIndex == springIndex ? .yellow : .mint),style:StrokeStyle(lineWidth:selectedSpringIndex == springIndex ? 5 : 3,dash:[6,4]))
       }
       for pin in pins where world.bodies.indices.contains(pin.bodyIndex) {
        let center=screen(pin.anchor,size)
@@ -1053,6 +1076,8 @@ struct CMPlaygroundView: View {
     Button("Spring") { connectSpring() }.disabled(running)
     Button("Remove springs") { removeSpringsForSelection() }.disabled(running)
     Button("Select spring") { selectNextSpring() }.disabled(running || springs.isEmpty)
+    Button("Previous spring") { selectPreviousSpring() }.disabled(running || springs.isEmpty)
+    Button("Delete spring") { removeSelectedSpring() }.disabled(running || selectedSpringIndex == nil)
     Button("Pin / Unpin") { togglePin() }.disabled(running || { if case .ball = selection { return false }; return true }())
     Button("Duplicate") { duplicateSelected() }.disabled(running || selection == nil)
     Button("Delete") { deleteSelected() }.disabled(running || selection == nil)
@@ -1066,7 +1091,7 @@ struct CMPlaygroundView: View {
    .disabled(running || { if case .ramp = selection { return false }; return true }())
    if let springIndex=selectedSpringIndex,springs.indices.contains(springIndex) {
     VStack(alignment:.leading,spacing:6) {
-     Text("Spring \\(springIndex+1) properties").font(.subheadline.bold())
+     Text("Spring \(springIndex+1) properties").font(.subheadline.bold())
      springControl("Rest length",value:springs[springIndex].restLength,step:0.1,key:"length")
      springControl("Stiffness",value:springs[springIndex].stiffness,step:5,key:"stiffness")
      springControl("Damping",value:springs[springIndex].damping,step:0.5,key:"damping")
