@@ -639,6 +639,52 @@ struct CMPlaygroundView: View {
   simulationSteps=0
   trails=[]
  }
+ private func loadMechanismPreset(_ preset:Int) {
+  guard !running else { return }
+  var scene=CMPhysicsWorld2D()
+  scene.gravity=SIMD2(0,-gravityStrength)
+  scene.floorFriction=world.floorFriction
+  var newPins:[CMPinJoint2D]=[]
+  var newSprings:[CMSpringJoint2D]=[]
+  var newPivots:[CMPivotJoint2D]=[]
+  let ballA=CMPhysicsBody2D(position:SIMD2(2,3.5),radius:0.25)
+  let ballB=CMPhysicsBody2D(position:SIMD2(4,3.5),radius:0.25)
+  switch preset {
+  case 0: // Pendulum already offset from vertical: gravity creates motion.
+   scene.bodies=[CMPhysicsBody2D(position:SIMD2(3.5,3.5),radius:0.25)]
+   newPivots=[CMPivotJoint2D(bodyIndex:0,anchor:SIMD2(2.5,4.5),length:sqrt(2))]
+  case 1: // Two coupled masses, connected by an elastic spring.
+   scene.bodies=[ballA,ballB]
+   newSprings=[CMSpringJoint2D(firstIndex:0,secondIndex:1,restLength:1.3,stiffness:35,damping:3)]
+  case 2: // Stationary support with a free mass attached by a spring.
+   scene.bodies=[ballA,ballB]
+   newPins=[CMPinJoint2D(bodyIndex:0,anchor:ballA.position)]
+   newSprings=[CMSpringJoint2D(firstIndex:0,secondIndex:1,restLength:1.2,stiffness:40,damping:4)]
+  case 3: // Two independent swinging arms.
+   scene.bodies=[
+    CMPhysicsBody2D(position:SIMD2(1.5,3.5),radius:0.25),
+    CMPhysicsBody2D(position:SIMD2(5.5,3.5),radius:0.25)
+   ]
+   newPivots=[
+    CMPivotJoint2D(bodyIndex:0,anchor:SIMD2(2.5,4.5),length:sqrt(2)),
+    CMPivotJoint2D(bodyIndex:1,anchor:SIMD2(4.5,4.5),length:sqrt(2))
+   ]
+  default: return
+  }
+  let document=CMLevelDocument(world:scene,pins:newPins,springs:newSprings,pivots:newPivots)
+  guard (try? document.makeWorld()) != nil else {
+   storageMessage="Mechanism preset failed validation"
+   return
+  }
+  saveUndo()
+  world=scene
+  pins=newPins
+  springs=newSprings
+  pivots=newPivots
+  clearExperimentState()
+  saveDraft()
+  storageMessage=["Pendulum","Coupled spring","Spring and pin","Double pendulum"][preset]+" preset loaded (Undo to restore)"
+ }
  private func addBall() {
   guard !running && world.bodies.count < 20 else { return }
   let radius=0.25
@@ -1277,6 +1323,10 @@ struct CMPlaygroundView: View {
     Button("Redo") { redo() }.disabled(running || redoStack.isEmpty)
    }.buttonStyle(.bordered)
    HStack {
+    Button("Pendulum preset") { loadMechanismPreset(0) }.disabled(running)
+    Button("Spring preset") { loadMechanismPreset(1) }.disabled(running)
+    Button("Support preset") { loadMechanismPreset(2) }.disabled(running)
+    Button("Dual pivots") { loadMechanismPreset(3) }.disabled(running)
     Button("Add ball") { addBall() }.disabled(running || world.bodies.count >= 20)
     Button("Add ramp") { addRamp() }.disabled(running || world.segments.count >= 12)
     Button("Spring") { connectSpring() }.disabled(running)
