@@ -238,6 +238,14 @@ struct CMOriginalLevelBrowserView: View {
                 }
                 let filename = String(format: "level-%03d.json", document.index)
                 let destination = sceneStorage.appendingPathComponent(filename)
+                // Preserve an existing original level unless the imported bytes
+                // are identical. A different export with the same index must
+                // not silently replace the user's previously imported scene.
+                if FileManager.default.fileExists(atPath: destination.path) {
+                    if (try? Data(contentsOf: destination)) == data { continue }
+                    rejected += 1
+                    continue
+                }
                 // Retain only user-imported data in the app sandbox, never the repo.
                 try data.write(to: destination, options: .atomic)
                 imported += 1
