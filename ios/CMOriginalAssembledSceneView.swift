@@ -41,6 +41,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private weak var dragging: SCNNode?
         private var lastDragPoint: CGPoint?
 
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard gestureRecognizer is UIPanGestureRecognizer,
+                  let view = gestureRecognizer.view as? SCNView,
+                  let selected = highlighted else { return true }
+            let point = gestureRecognizer.location(in: view)
+            // Do not steal camera gestures unless the finger begins directly
+            // on the selected mesh.
+            return view.hitTest(point, options: [.firstFoundOnly: true]).first?.node === selected
+        }
+
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                                shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
             false
@@ -66,8 +76,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // depth and original parent coordinate system.
                 let world = target.presentation.worldPosition
                 let projected = view.projectPoint(world)
-                let from = view.unprojectPoint(SCNVector3(Float(previous.x), Float(previous.y), projected.z))
-                let to = view.unprojectPoint(SCNVector3(Float(point.x), Float(point.y), projected.z))
+                // UIKit gestures use top-left origin; SceneKit projection
+                // coordinates use bottom-left origin.
+                let from = view.unprojectPoint(SCNVector3(Float(previous.x), Float(view.bounds.height - previous.y), projected.z))
+                let to = view.unprojectPoint(SCNVector3(Float(point.x), Float(view.bounds.height - point.y), projected.z))
                 let parent = target.parent
                 let fromLocal = parent?.convertPosition(from, from: nil) ?? from
                 let toLocal = parent?.convertPosition(to, from: nil) ?? to
