@@ -8,6 +8,7 @@ from pathlib import Path
 from decode_professor_records import PROFESSOR_SHA256, read_professor_records
 from analyze_puzzle_binary import shared_binary_structure, extract_binary_section
 from inspect_puzzle_section_windows import analyze_sections
+from classify_puzzle_prefixes import classify_binary_prefixes
 
 
 def inventory(data: bytes) -> list[dict]:
@@ -37,11 +38,14 @@ def main() -> None:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--shared-structure", action="store_true", help="report common binary section structure only")
     parser.add_argument("--window-analysis", action="store_true", help="compare first varying binary bytes without exporting game assets")
+    parser.add_argument("--prefix-groups", action="store_true", help="group levels by eight bytes following shared header")
     args = parser.parse_args()
     data = args.professor_cml.read_bytes()
     if hashlib.sha256(data).hexdigest() != PROFESSOR_SHA256:
         parser.error("not the verified original Professor Laboratory file")
-    if args.window_analysis:
+    if args.prefix_groups:
+        result = classify_binary_prefixes([extract_binary_section(r["payload"]) for r in read_professor_records(data, include_payload=True)])
+    elif args.window_analysis:
         result = analyze_sections([extract_binary_section(r["payload"]) for r in read_professor_records(data, include_payload=True)])
     elif args.shared_structure:
         result = shared_binary_structure([r["payload"] for r in read_professor_records(data, include_payload=True)])
