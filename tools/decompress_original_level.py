@@ -24,10 +24,7 @@ def decompress_level_section(section: bytes) -> bytes:
     ended = False
     for code in unpack_12bit_codes(section):
         if ended:
-            # Original streams may have one padding code after end marker.
-            if code != 0:
-                raise ValueError("nonzero data after LZW end marker")
-            continue
+            # The original stream ends at the terminator; trailing bits are\n            # packing padding, not further compressed data.\n            continue
         if code == 4095:
             ended = True
             continue
