@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from inspect_cml import inspect, compare, text_candidates, discover
+from inspect_cml import inspect, compare, text_candidates, discover, repeated_signatures
 
 
 class CMLInspectorTests(unittest.TestCase):
@@ -77,6 +77,19 @@ class CMLInspectorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaisesRegex(ValueError, "no CML"):
                 discover([Path(directory)])
+
+    def test_repeated_structural_markers(self):
+        marker = b"0123456789ABCDEF"
+        payload = marker + b"x" * 23 + marker + b"y" * 31 + marker
+        found = repeated_signatures(payload)
+        match = next(item for item in found if item["signature_hex"] == marker.hex())
+        self.assertEqual(match["count"], 3)
+        self.assertEqual(match["offsets"], [0, 39, 86])
+        self.assertEqual(match["min_gap"], 39)
+        self.assertEqual(match["max_gap"], 47)
+
+    def test_repeated_marker_short_input(self):
+        self.assertEqual(repeated_signatures(b"short"), [])
 
     def test_cli_json_report(self):
         with tempfile.TemporaryDirectory() as directory:
