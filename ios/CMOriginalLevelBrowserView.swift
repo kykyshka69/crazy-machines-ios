@@ -89,6 +89,21 @@ struct CMOriginalLevelBrowserView: View {
                 Text("Read-only top-down coordinate plot. Orange markers are objects with GOAL 1; no original geometry or physics is simulated.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Section("3D asset readiness") {
+                let names = CMOriginalModelResolver.modelNames(in: document.root)
+                let available = names.filter {
+                    CMOriginalModelResolver.resolve($0, in: originalStorage) != nil
+                }
+                LabeledContent("Referenced meshes", value: "\(names.count)")
+                LabeledContent("Available UCM meshes", value: "\(available.count)")
+                if available.isEmpty {
+                    Text("Import the original .ucm model files in the Original files tab before opening 3D.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else if available.count < names.count {
+                    Text("Some original models are missing; the scene will omit them rather than substitute invented geometry.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
             Section("Assembled original 3D scene") {
                 Button("View original level in 3D") {
                     assembledScene = AssembledSelection(document: document)
@@ -175,7 +190,7 @@ struct CMOriginalLevelBrowserView: View {
                 at: sceneStorage, withIntermediateDirectories: true
             )
         } catch {
-            errorMessage = "Cannot create private level storage: \\(error.localizedDescription)"
+            errorMessage = "Cannot create private level storage: \(error.localizedDescription)"
             return
         }
         var imported = 0
@@ -197,7 +212,7 @@ struct CMOriginalLevelBrowserView: View {
         }
         reloadSavedScenes()
         errorMessage = rejected == 0
-            ? "Saved \\(imported) original scenes on this iPhone"
-            : "Saved \\(imported); rejected \\(rejected) invalid files"
+            ? "Saved \(imported) original scenes on this iPhone"
+            : "Saved \(imported); rejected \(rejected) invalid files"
     }
 }
