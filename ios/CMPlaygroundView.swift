@@ -317,9 +317,11 @@ struct CMPlaygroundView: View {
   restoredDraft=true
   guard let data=UserDefaults.standard.data(forKey:Self.draftKey) else { return }
   do {
-   let loaded=try JSONDecoder().decode(CMLevelDocument.self,from:data).makeWorld()
+   let document=try JSONDecoder().decode(CMLevelDocument.self,from:data)
+   let loaded=try document.makeWorld()
+   let loadedPins=try document.makePins()
    world=loaded
-   pins=try JSONDecoder().decode(CMLevelDocument.self,from:data).makePins()
+   pins=loadedPins
    gravityStrength = -loaded.gravity.y
    levelName=UserDefaults.standard.string(forKey:Self.draftNameKey) ?? "Untitled experiment"
    clearExperimentState()
@@ -366,9 +368,11 @@ struct CMPlaygroundView: View {
     storageMessage="Import failed: file is too large"
     return
    }
-   let imported=try JSONDecoder().decode(CMLevelDocument.self,from:data).makeWorld()
+   let document=try JSONDecoder().decode(CMLevelDocument.self,from:data)
+   let imported=try document.makeWorld()
+   let importedPins=try document.makePins()
    pendingImport=imported
-   pendingImportPins=try JSONDecoder().decode(CMLevelDocument.self,from:data).makePins()
+   pendingImportPins=importedPins
    pendingImportName=String(url.deletingPathExtension().lastPathComponent.prefix(60))
    confirmingImport=true
   } catch {
@@ -395,14 +399,16 @@ struct CMPlaygroundView: View {
    return
   }
   do {
-   let loaded=try JSONDecoder().decode(CMLevelDocument.self,from:data).makeWorld()
+   let document=try JSONDecoder().decode(CMLevelDocument.self,from:data)
+   let loaded=try document.makeWorld()
+   let loadedPins=try document.makePins()
    running=false
    lastTick=nil
    accumulator=0
    undoStack=[]
    redoStack=[]
    world=loaded
-   pins=try JSONDecoder().decode(CMLevelDocument.self,from:data).makePins()
+   pins=loadedPins
    pinUndoStack=[]
    pinRedoStack=[]
    levelName=UserDefaults.standard.string(forKey:levelNameKey(for:selectedSaveSlot)) ?? "Untitled experiment"
