@@ -23,6 +23,7 @@ jobs:
           python -m unittest -v test_inspect_cml.py
           python -m unittest -v test_cml_candidate_spans.py
           python -m unittest -v test_cml_byte_transforms.py
+          python -m unittest -v test_cml_puzzle_instructions.py
 
   original-cml-metadata-runtime:
     runs-on: ubuntu-latest
