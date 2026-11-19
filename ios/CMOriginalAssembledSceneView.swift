@@ -55,8 +55,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             guard gesture.state == .began,
                   let view = gesture.view as? SCNView,
                   let selected = highlighted,
-                  let point = gesture.location(in: view),
-                  view.hitTest(point, options: [.firstFoundOnly: true]).first?.node === selected,
+                  view.hitTest(gesture.location(in: view), options: [.firstFoundOnly: true]).first?.node === selected,
                   let owner = selected.parent?.parent,
                   let identifier = owner.name,
                   let original = originalPositions[identifier] else { return }
