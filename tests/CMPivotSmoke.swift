@@ -45,6 +45,40 @@ import Foundation
   let offset=w.bodies[0].position-pivot.anchor
   let dot=w.bodies[0].velocity.x*offset.x+w.bodies[0].velocity.y*offset.y
   precondition(abs(dot)<1e-9)
-  print("PASS: 10 pivot and pendulum regression scenarios")
+  // 11. Negative lengths are rejected.
+  w=world()
+  precondition(w.applyPivots([CMPivotJoint2D(bodyIndex:0,anchor:SIMD2(1,3),length:-1)])==0)
+  // 12. Infinite lengths are rejected.
+  precondition(w.applyPivots([CMPivotJoint2D(bodyIndex:0,anchor:SIMD2(1,3),length:.infinity)])==0)
+  // 13. NaN lengths are rejected.
+  precondition(w.applyPivots([CMPivotJoint2D(bodyIndex:0,anchor:SIMD2(1,3),length:.nan)])==0)
+  // 14. Excessively long rods are rejected.
+  precondition(w.applyPivots([CMPivotJoint2D(bodyIndex:0,anchor:SIMD2(1,3),length:21)])==0)
+  // 15. Negative indices are rejected.
+  precondition(w.applyPivots([CMPivotJoint2D(bodyIndex:-1,anchor:SIMD2(1,3),length:2)])==0)
+  // 16. Nonfinite disk coordinates are rejected.
+  w=world()
+  w.bodies[0].position.y = .nan
+  precondition(w.applyPivots([pivot])==0)
+  // 17. Nonfinite disk velocities are rejected.
+  w=world()
+  w.bodies[0].velocity.y = .infinity
+  precondition(w.applyPivots([pivot])==0)
+  // 18. Nonpositive mass is rejected.
+  w=world()
+  w.bodies[0].mass=0
+  precondition(w.applyPivots([pivot])==0)
+  // 19. Applying an empty pivot collection is a no-op.
+  w=world()
+  let original=w.bodies[0].position
+  precondition(w.applyPivots([])==0)
+  precondition(w.bodies[0].position==original)
+  // 20. Two independent pivots constrain two disks.
+  w=world()
+  w.bodies.append(CMPhysicsBody2D(position:SIMD2(6,3),velocity:SIMD2(1,2),radius:0.2))
+  let other=CMPivotJoint2D(bodyIndex:1,anchor:SIMD2(4,3),length:2)
+  precondition(w.applyPivots([pivot,other])==2)
+  precondition(abs(w.bodies[1].velocity.x)<1e-12)
+  print("PASS: 20 pivot and pendulum regression scenarios")
  }
 }
