@@ -197,6 +197,7 @@ struct CMPlaygroundView: View {
    return
   }
   saveUndo()
+  activeChallenge=nil
   world.bodies=[]
   world.segments=[]
   pins=[]
@@ -274,6 +275,7 @@ struct CMPlaygroundView: View {
   dragStart=nil
   initialSegment=nil
   reachedGoal=false
+  activeChallenge=nil
   world=Self.makeWorld()
   pins=[]
   springs=[]
@@ -383,6 +385,7 @@ struct CMPlaygroundView: View {
    let loadedPins=try document.makePins()
    let loadedSprings=try document.makeSprings()
    let loadedPivots=try document.makePivots()
+   activeChallenge=nil
    world=loaded
    pins=loadedPins
    springs=loadedSprings
@@ -413,6 +416,7 @@ struct CMPlaygroundView: View {
   running=false
   undoStack=[]
   redoStack=[]
+  activeChallenge=nil
   world=imported
   pins=pendingImportPins
   springs=pendingImportSprings
@@ -536,6 +540,7 @@ struct CMPlaygroundView: View {
   pivots=pivotUndoStack.popLast() ?? []
   selectedSpringIndex=nil
   if redoStack.count > 30 { redoStack.removeFirst() }
+  activeChallenge=nil
   world=previous
   gravityStrength = -previous.gravity.y
   clearExperimentState()
@@ -555,6 +560,7 @@ struct CMPlaygroundView: View {
   pivots=pivotRedoStack.popLast() ?? []
   selectedSpringIndex=nil
   if undoStack.count > 30 { undoStack.removeFirst() }
+  activeChallenge=nil
   world=next
   gravityStrength = -next.gravity.y
   clearExperimentState()
