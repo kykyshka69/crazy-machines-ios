@@ -29,3 +29,18 @@ Locate the original Windows code that reads CML files and determine whether it
 applies a transform before parsing. Validate the inferred transform against
 **both** original CML files before implementing any iOS level parser.
 No original copyrighted binary bytes are committed to this repository.
+
+## Executable cross-reference
+
+The same extracted archive includes `CrazyMachines.exe` (1,097,728 bytes).
+A byte-string scan found the original laboratory path and extension adjacent
+to the CML loader's user-facing strings:
+
+- File offset `0xE9F64`: `data/labs/` and `.cml`.
+- File offset `0xEBCD7`: `data/labs/*.cml`, followed nearby by an
+  unusual constant string containing `ANUBIS`.
+- File offset `0xEB71C`: another occurrence of that constant near the
+  `Laboratory %s has wrong format` diagnostic.
+
+This is a **lead**, not proof of a cipher key. Next inspect code references to
+these exact strings, including the file-loading and validation call chain.
