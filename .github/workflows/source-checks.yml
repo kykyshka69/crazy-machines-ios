@@ -126,6 +126,8 @@ jobs:
           /tmp/cm-pins
           swiftc ios/CMPhysics2D.swift ios/CMSpringJoint2D.swift tests/CMSpringSmoke.swift -o /tmp/cm-springs
           /tmp/cm-springs
+          swiftc ios/CMPhysics2D.swift ios/CMPinJoint2D.swift ios/CMSpringJoint2D.swift tests/CMCombinedMechanicsSmoke.swift -o /tmp/cm-combined-mechanics
+          /tmp/cm-combined-mechanics
 
   preview-fixture-runtime:
     runs-on: ubuntu-latest
