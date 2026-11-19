@@ -168,6 +168,10 @@ struct CMPlaygroundView: View {
  }
  private func clearScene() {
   guard !running else { return }
+  guard !world.bodies.isEmpty || !world.segments.isEmpty || !pins.isEmpty else {
+   storageMessage="Scene is already empty"
+   return
+  }
   saveUndo()
   world.bodies=[]
   world.segments=[]
@@ -645,6 +649,9 @@ struct CMPlaygroundView: View {
   }
   startingLayout=nil
   startingPins=nil
+  reachedGoal=false
+  simulationSteps=0
+  trails=[]
  }
  private func duplicateSelected() {
   guard !running,let selection else { return }
@@ -674,6 +681,7 @@ struct CMPlaygroundView: View {
    copy.velocity = .zero
    copy.angularVelocity=0
    world.bodies.append(copy)
+   // A duplicated disk starts free, even if its source was pinned.
    self.selection = .ball(world.bodies.count-1)
   case .ramp(let i):
    guard world.segments.indices.contains(i),world.segments.count < 12 else { return }
@@ -703,6 +711,7 @@ struct CMPlaygroundView: View {
    self.selection = .ramp(world.segments.count-1)
   }
   startingLayout=nil
+  startingPins=nil
   reachedGoal=false
   simulationSteps=0
   trails=[]
@@ -728,6 +737,7 @@ struct CMPlaygroundView: View {
   }
   self.selection=nil
   trails=[]
+  startingPins=nil
   startingLayout=nil
   reachedGoal=false
   simulationSteps=0
