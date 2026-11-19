@@ -22,6 +22,7 @@ jobs:
           python -m unittest -v test_stage_local_preview.py
           python -m unittest -v test_inspect_cml.py
           python -m unittest -v test_cml_candidate_spans.py
+          python -m unittest -v test_cml_byte_transforms.py
 
   original-cml-metadata-runtime:
     runs-on: ubuntu-latest
