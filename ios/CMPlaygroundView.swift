@@ -556,8 +556,8 @@ struct CMPlaygroundView: View {
    guard world.bodies.indices.contains(i),world.bodies.count < 20 else { return }
    let original=world.bodies[i]
    guard let position=offsets.map({ original.position+$0 }).first(where: { p in
-    p.x>=original.radius,p.x<=Self.worldWidth-original.radius,
-    p.y>=original.radius,p.y<=Self.worldHeight-original.radius &&
+    p.x>=original.radius && p.x<=Self.worldWidth-original.radius &&
+    p.y>=original.radius && p.y<=Self.worldHeight-original.radius &&
     world.bodies.allSatisfy({ other in
      squaredDistance(p,other.position) >= pow(original.radius+other.radius+0.05,2)
     }) && world.segments.allSatisfy({ segment in
