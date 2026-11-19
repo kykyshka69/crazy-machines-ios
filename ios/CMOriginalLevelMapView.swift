@@ -15,14 +15,41 @@ struct CMOriginalLevelMapView: View {
 
     private var markers: [Marker] {
         var result: [Marker] = []
-        func visit(_ node: CMOriginalSceneDocument.Node) {
-            if node.name.hasPrefix("tmo_"), let p = node.position, p.count == 3 {
-                result.append(Marker(id: result.count, name: node.name,
-                                     x: p[0], y: p[1], goal: node.goalRaw == "1"))
-            }
-            for child in node.children { visit(child) }
+        // Follow the original nested scene transforms rather than plotting
+        // local POS coordinates as though they were world coordinates.
+        // Rotation uses the same XYZ Euler convention as the SceneKit view.
+        struct Transform {
+            let x: Double
+            let y: Double
+            let angle: Double
         }
-        visit(document.root)
+        func visit(_ node: CMOriginalSceneDocument.Node, parent: Transform) {
+            let position = node.positionRelative ?? node.position ?? [0, 0, 0]
+            let rawRotation = node.rotationRelativeRaw ?? node.rotationRaw
+            let parts = rawRotation?.split(whereSeparator: { $0 == " " || $0 == "," }) ?? []
+            let angle: Double
+            if parts.count == 4, parts[0].lowercased() == "xyz",
+               let value = Double(parts[3]), value.isFinite {
+                angle = value
+            } else {
+                angle = 0
+            }
+            let c = cos(parent.angle)
+            let s = sin(parent.angle)
+            let world = Transform(
+                x: parent.x + position[0] * c - position[1] * s,
+                y: parent.y + position[0] * s + position[1] * c,
+                angle: parent.angle + angle
+            )
+            if node.name.hasPrefix("tmo_") &&
+               (node.position != nil || node.positionRelative != nil) {
+                result.append(Marker(id: result.count, name: node.name,
+                                     x: world.x, y: world.y,
+                                     goal: node.goalRaw == "1"))
+            }
+            for child in node.children { visit(child, parent: world) }
+        }
+        visit(document.root, parent: Transform(x: 0, y: 0, angle: 0))
         return result
     }
 
