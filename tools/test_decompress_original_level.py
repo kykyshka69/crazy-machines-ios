@@ -28,6 +28,7 @@ class OriginalLevelDecompressionTests(unittest.TestCase):
     def test_partial_pair_with_terminator(self):
         # A literal followed by an end marker encoded in only 3 bytes.
         self.assertEqual(decompress_level_section(bytes.fromhex("041fff")), b"A")
+        self.assertEqual(decompress_level_section(pack_codes([65, 66, 4095, 0])[:5]), b"AB")
 
     def test_original_scene_prefix(self):
         # First original scene codes begin with the literal bytes 'level'.
