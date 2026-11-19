@@ -124,7 +124,6 @@ struct CMPlaygroundView: View {
   while accumulator >= Self.fixedStep && steps < 24 {
    let before=world.bodies.map(\.position)
    world.step(dt:Self.fixedStep)
-  world.applyPins(pins)
    world.applyPins(pins)
    recordTrails()
    simulationSteps+=1
@@ -479,6 +478,7 @@ struct CMPlaygroundView: View {
   if startingLayout == nil { startingLayout=world; startingPins=pins }
   let before=world.bodies.map(\.position)
   world.step(dt:Self.fixedStep)
+  world.applyPins(pins)
   recordTrails()
   simulationSteps+=1
   checkGoal(previousPositions:before)
