@@ -27,6 +27,8 @@ struct CMPlaygroundView: View {
  @State private var gravityEditSnapshot: CMPhysicsWorld2D?
  @State private var storageMessage: String?
  @State private var selectedSaveSlot = 1
+ @State private var confirmingOverwrite = false
+ @State private var confirmingDelete = false
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
  private static let fixedStep = 1.0 / 120.0
  private static let goal = SIMD2<Double>(6.2,0.6)
@@ -179,6 +181,20 @@ struct CMPlaygroundView: View {
   }
   UserDefaults.standard.removeObject(forKey:key)
   storageMessage="Deleted saved experiment in slot \(selectedSaveSlot)"
+ }
+ private func requestSave() {
+  if UserDefaults.standard.data(forKey:saveKey(for:selectedSaveSlot)) != nil {
+   confirmingOverwrite=true
+  } else {
+   saveLevel()
+  }
+ }
+ private func requestDelete() {
+  if UserDefaults.standard.data(forKey:saveKey(for:selectedSaveSlot)) != nil {
+   confirmingDelete=true
+  } else {
+   storageMessage="Slot \(selectedSaveSlot) is already empty"
+  }
  }
  private func saveLevel() {
   do {
@@ -561,9 +577,9 @@ struct CMPlaygroundView: View {
     Picker("Save slot",selection:$selectedSaveSlot) {
      ForEach(1...5,id:\.self) { slot in Text("Slot \(slot)").tag(slot) }
     }.pickerStyle(.menu)
-    Button("Save") { saveLevel() }
+    Button("Save") { requestSave() }
     Button("Load") { loadLevel() }
-    Button("Delete save") { deleteSavedLevel() }
+    Button("Delete save") { requestDelete() }
    }.buttonStyle(.bordered)
    if let storageMessage { Text(storageMessage).font(.caption).foregroundStyle(.secondary) }
    HStack {
@@ -645,5 +661,17 @@ struct CMPlaygroundView: View {
   }
   .padding()
   }
- } 
+  .confirmationDialog("Overwrite slot \(selectedSaveSlot)?",isPresented:$confirmingOverwrite,titleVisibility:.visible) {
+   Button("Overwrite saved level",role:.destructive) { saveLevel() }
+   Button("Cancel",role:.cancel) {}
+  } message: {
+   Text("The existing experiment in this slot will be replaced.")
+  }
+  .confirmationDialog("Delete slot \(selectedSaveSlot)?",isPresented:$confirmingDelete,titleVisibility:.visible) {
+   Button("Delete saved level",role:.destructive) { deleteSavedLevel() }
+   Button("Cancel",role:.cancel) {}
+  } message: {
+   Text("This saved experiment cannot be recovered.")
+  }
+ }
 }
