@@ -6,13 +6,14 @@ import SceneKit
 struct CMOriginalAssembledSceneView: UIViewRepresentable {
     let document: CMOriginalSceneDocument
     let assetDirectory: URL
+    var experimentalPhysics = false
 
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
         view.backgroundColor = UIColor(white: 0.09, alpha: 1)
         view.accessibilityIdentifier = "cm.original.assembled-scene"
         view.accessibilityLabel = "Original level 3D scene"
-        view.accessibilityValue = "\(document.root.goalCount) original goal markers"
+        view.accessibilityValue = "\(document.root.goalCount) original goal markers; physics \(experimentalPhysics ? "experimental" : "off")"
         view.allowsCameraControl = true
         view.autoenablesDefaultLighting = true
         view.antialiasingMode = .multisampling4X
@@ -35,6 +36,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.storageKey = "cm.original.positions.\(document.sceneSHA256)"
         var originalPositions: [String: SCNVector3] = [:]
         let scene = buildScene(originalPositions: &originalPositions)
+        if experimentalPhysics {
+            scene.physicsWorld.gravity = SCNVector3(0, -9.8, 0)
+        }
         view.scene = scene
         context.coordinator.originalPositions = originalPositions
         view.pointOfView = scene.rootNode.childNode(withName: "original-level-camera", recursively: false)
@@ -237,6 +241,19 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                 mesh.geometry = goalGeometry
                             }
                             transform.addChildNode(mesh)
+                            if experimentalPhysics {
+                                // Approximate collision volumes only; original CML
+                                // physical properties have not yet been decoded.
+                                let shape = SCNPhysicsShape(node: mesh, options: [
+                                    .type: SCNPhysicsShape.ShapeType.boundingBox
+                                ])
+                                let body = SCNPhysicsBody(type: isGoal ? .static : .dynamic,
+                                                          shape: shape)
+                                body.mass = 1
+                                body.friction = 0.6
+                                body.restitution = 0.15
+                                mesh.physicsBody = body
+                            }
                             loadedMeshNodes.append(mesh)
                         }
                     }
