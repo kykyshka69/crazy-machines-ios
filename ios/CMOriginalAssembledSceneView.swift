@@ -40,6 +40,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var originalEmission: Any?
         private weak var dragging: SCNNode?
         private var lastDragPoint: CGPoint?
+        private var dragWasActive = false
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             guard gestureRecognizer is UIPanGestureRecognizer,
@@ -69,6 +70,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 guard let owner = selected.parent?.parent else { return }
                 dragging = owner
                 lastDragPoint = point
+                dragWasActive = true
             case .changed:
                 guard let target = dragging, let previous = lastDragPoint,
                       view.pointOfView != nil else { return }
@@ -96,11 +98,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
              default:
                 dragging = nil
                 lastDragPoint = nil
+                dragWasActive = false
             }
         }
 
         @objc func selectObject(_ gesture: UITapGestureRecognizer) {
-            guard let view = gesture.view as? SCNView else { return }
+            guard let view = gesture.view as? SCNView,
+                  gesture.state == .ended, !dragWasActive else { return }
             let point = gesture.location(in: view)
             let node = view.hitTest(point, options: [.firstFoundOnly: true]).first?.node
             if let previous = highlighted, let material = previous.geometry?.firstMaterial {
