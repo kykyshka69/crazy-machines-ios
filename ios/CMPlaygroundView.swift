@@ -19,6 +19,10 @@ struct CMJSONLevelFile: FileDocument {
 struct CMPlaygroundView: View {
  @Environment(\.scenePhase) private var scenePhase
  @State private var world = CMPlaygroundView.makeWorld()
+ @State private var pins: [CMPinJoint2D] = []
+ @State private var pinUndoStack: [[CMPinJoint2D]] = []
+ @State private var pinRedoStack: [[CMPinJoint2D]] = []
+ @State private var startingPins: [CMPinJoint2D]?
  @State private var running = false
  @State private var lastTick: Date?
  @State private var accumulator = 0.0
@@ -54,6 +58,7 @@ struct CMPlaygroundView: View {
  @State private var confirmingReset = false
  @State private var confirmingClear = false
  @State private var pendingImport: CMPhysicsWorld2D?
+ @State private var pendingImportPins: [CMPinJoint2D] = []
  @State private var pendingImportName = ""
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
  private static let fixedStep = 1.0 / 120.0
@@ -119,6 +124,8 @@ struct CMPlaygroundView: View {
   while accumulator >= Self.fixedStep && steps < 24 {
    let before=world.bodies.map(\.position)
    world.step(dt:Self.fixedStep)
+  world.applyPins(pins)
+   world.applyPins(pins)
    recordTrails()
    simulationSteps+=1
    accumulator-=Self.fixedStep
@@ -165,6 +172,7 @@ struct CMPlaygroundView: View {
   saveUndo()
   world.bodies=[]
   world.segments=[]
+  pins=[]
   clearExperimentState()
   storageMessage="Cleared scene (Undo to restore)"
  }
@@ -222,6 +230,9 @@ struct CMPlaygroundView: View {
   initialSegment=nil
   reachedGoal=false
   world=Self.makeWorld()
+  pins=[]
+  pinUndoStack=[]
+  pinRedoStack=[]
   undoStack=[]
   redoStack=[]
   dragSnapshot=nil
@@ -240,6 +251,7 @@ struct CMPlaygroundView: View {
   reachedGoal=false
   selection=nil
   world=layout
+  pins=startingPins ?? pins
   gravityStrength = -layout.gravity.y
   simulationSteps=0
   trails=[]
@@ -282,7 +294,7 @@ struct CMPlaygroundView: View {
  private static let draftKey = "cm.playground.autosave.draft.v1"
  private static let draftNameKey = "cm.playground.autosave.name.v1"
  private var draftData: Data? {
-  let document=CMLevelDocument(world:startingLayout ?? world)
+  let document=CMLevelDocument(world:startingLayout ?? world,pins:startingPins ?? pins)
   guard (try? document.makeWorld()) != nil else { return nil }
   return try? JSONEncoder().encode(document)
  }
@@ -303,6 +315,7 @@ struct CMPlaygroundView: View {
   do {
    let loaded=try JSONDecoder().decode(CMLevelDocument.self,from:data).makeWorld()
    world=loaded
+   pins=try JSONDecoder().decode(CMLevelDocument.self,from:data).makePins()
    gravityStrength = -loaded.gravity.y
    levelName=UserDefaults.standard.string(forKey:Self.draftNameKey) ?? "Untitled experiment"
    clearExperimentState()
@@ -329,10 +342,14 @@ struct CMPlaygroundView: View {
   undoStack=[]
   redoStack=[]
   world=imported
+  pins=pendingImportPins
+  pinUndoStack=[]
+  pinRedoStack=[]
   gravityStrength = -imported.gravity.y
   levelName=pendingImportName
   clearExperimentState()
   pendingImport=nil
+  pendingImportPins=[]
   saveDraft()
   storageMessage="Imported level successfully"
  }
@@ -347,6 +364,7 @@ struct CMPlaygroundView: View {
    }
    let imported=try JSONDecoder().decode(CMLevelDocument.self,from:data).makeWorld()
    pendingImport=imported
+   pendingImportPins=try JSONDecoder().decode(CMLevelDocument.self,from:data).makePins()
    pendingImportName=String(url.deletingPathExtension().lastPathComponent.prefix(60))
    confirmingImport=true
   } catch {
@@ -380,6 +398,9 @@ struct CMPlaygroundView: View {
    undoStack=[]
    redoStack=[]
    world=loaded
+   pins=try JSONDecoder().decode(CMLevelDocument.self,from:data).makePins()
+   pinUndoStack=[]
+   pinRedoStack=[]
    levelName=UserDefaults.standard.string(forKey:levelNameKey(for:selectedSaveSlot)) ?? "Untitled experiment"
    gravityStrength = -loaded.gravity.y
    clearExperimentState()
@@ -391,12 +412,18 @@ struct CMPlaygroundView: View {
  private func saveUndo() {
   guard !running else { return }
   undoStack.append(world)
+  pinUndoStack.append(pins)
+  if pinUndoStack.count > 30 { pinUndoStack.removeFirst() }
   if undoStack.count > 30 { undoStack.removeFirst() }
   redoStack=[]
+  pinRedoStack=[]
  }
  private func undo() {
   guard !running,let previous=undoStack.popLast() else { return }
   redoStack.append(world)
+  pinRedoStack.append(pins)
+  if pinRedoStack.count > 30 { pinRedoStack.removeFirst() }
+  pins=pinUndoStack.popLast() ?? []
   if redoStack.count > 30 { redoStack.removeFirst() }
   world=previous
   gravityStrength = -previous.gravity.y
@@ -405,6 +432,9 @@ struct CMPlaygroundView: View {
  private func redo() {
   guard !running,let next=redoStack.popLast() else { return }
   undoStack.append(world)
+  pinUndoStack.append(pins)
+  if pinUndoStack.count > 30 { pinUndoStack.removeFirst() }
+  pins=pinRedoStack.popLast() ?? []
   if undoStack.count > 30 { undoStack.removeFirst() }
   world=next
   gravityStrength = -next.gravity.y
@@ -412,6 +442,7 @@ struct CMPlaygroundView: View {
  }
  private func clearExperimentState() {
   startingLayout=nil
+  startingPins=nil
   reachedGoal=false
   simulationSteps=0
   trails=[]
@@ -445,7 +476,7 @@ struct CMPlaygroundView: View {
 
  private func stepOnce() {
   guard !running && !reachedGoal else { return }
-  if startingLayout == nil { startingLayout=world }
+  if startingLayout == nil { startingLayout=world; startingPins=pins }
   let before=world.bodies.map(\.position)
   world.step(dt:Self.fixedStep)
   recordTrails()
@@ -600,6 +631,19 @@ struct CMPlaygroundView: View {
     .accessibilityLabel("Increase "+name)
   }.buttonStyle(.bordered)
  }
+ private func togglePin() {
+  guard !running,case .ball(let i)=selection,world.bodies.indices.contains(i) else { return }
+  saveUndo()
+  if let index=pins.firstIndex(where:{$0.bodyIndex == i}) {
+   pins.remove(at:index)
+   storageMessage="Ball unpinned"
+  } else {
+   pins.append(CMPinJoint2D(bodyIndex:i,anchor:world.bodies[i].position))
+   storageMessage="Ball pinned in place"
+  }
+  startingLayout=nil
+  startingPins=nil
+ }
  private func duplicateSelected() {
   guard !running,let selection else { return }
   let offsets:[SIMD2<Double>]=[
@@ -673,6 +717,10 @@ struct CMPlaygroundView: View {
   switch selection {
   case .ball(let i):
    world.bodies.remove(at:i)
+   pins=pins.compactMap { pin in
+    if pin.bodyIndex == i { return nil }
+    return CMPinJoint2D(bodyIndex:pin.bodyIndex > i ? pin.bodyIndex-1 : pin.bodyIndex,anchor:pin.anchor)
+   }
   case .ramp(let i):
    world.segments.remove(at:i)
   }
@@ -731,6 +779,10 @@ struct CMPlaygroundView: View {
         context.stroke(path,with:.color(.cyan.opacity(0.35)),lineWidth:1.5)
        }
       }
+      for pin in pins where world.bodies.indices.contains(pin.bodyIndex) {
+       let center=screen(pin.anchor,size)
+       context.stroke(Path(ellipseIn:CGRect(x:center.x-7,y:center.y-7,width:14,height:14)),with:.color(.purple),lineWidth:3)
+      }
       for (i,ball) in world.bodies.enumerated() {
        let center=screen(ball.position,size)
        let radius=ball.radius*scale(size)
@@ -783,7 +835,7 @@ struct CMPlaygroundView: View {
    HStack {
     Button(running ? "Pause" : "Run") {
      if !running && reachedGoal { restartExperiment() }
-     if !running && startingLayout == nil { startingLayout=world }
+     if !running && startingLayout == nil { startingLayout=world; startingPins=pins }
      running.toggle()
      lastTick=nil
      dragStart=nil
@@ -823,6 +875,7 @@ struct CMPlaygroundView: View {
    HStack {
     Button("Add ball") { addBall() }.disabled(running || world.bodies.count >= 20)
     Button("Add ramp") { addRamp() }.disabled(running || world.segments.count >= 12)
+    Button("Pin / Unpin") { togglePin() }.disabled(running || { if case .ball = selection { return false }; return true }())
     Button("Duplicate") { duplicateSelected() }.disabled(running || selection == nil)
     Button("Delete") { deleteSelected() }.disabled(running || selection == nil)
    }
