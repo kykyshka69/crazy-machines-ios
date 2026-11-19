@@ -12,7 +12,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         view.backgroundColor = UIColor(white: 0.09, alpha: 1)
         view.allowsCameraControl = true
         view.autoenablesDefaultLighting = true
-        view.scene = buildScene()
+        let scene = buildScene()
+        view.scene = scene
+        view.pointOfView = scene.rootNode.childNode(withName: "original-level-camera", recursively: false)
         return view
     }
 
@@ -62,6 +64,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // Frame actual transformed mesh bounds, not just object origins.
         // A long board can extend far beyond its POS coordinate.
         let camera = SCNNode()
+        camera.name = "original-level-camera"
         camera.camera = SCNCamera()
         camera.camera?.zNear = 0.01
         camera.camera?.zFar = 10000
@@ -121,13 +124,22 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                         readFloat(offset + 8)))
         }
         let source = SCNGeometrySource(vertices: positions)
-        let indexData = model.indices.withUnsafeBufferPointer {
-            Data(buffer: $0)
-        }
+        // UCM vertex records: position at 0, normal at 12, UV at 24.
+        let normals = SCNGeometrySource(
+            data: model.vertexData, semantic: .normal,
+            vectorCount: model.vertexCount, usesFloatComponents: true,
+            componentsPerVector: 3, bytesPerComponent: 4,
+            dataOffset: 12, dataStride: 32)
+        let texcoords = SCNGeometrySource(
+            data: model.vertexData, semantic: .texcoord,
+            vectorCount: model.vertexCount, usesFloatComponents: true,
+            componentsPerVector: 2, bytesPerComponent: 4,
+            dataOffset: 24, dataStride: 32)
+        let indexData = model.indices.withUnsafeBytes { Data($0) }
         let element = SCNGeometryElement(data: indexData, primitiveType: .triangles,
                                          primitiveCount: model.triangleCount,
                                          bytesPerIndex: MemoryLayout<UInt16>.size)
-        let geometry = SCNGeometry(sources: [source], elements: [element])
+        let geometry = SCNGeometry(sources: [source, normals, texcoords], elements: [element])
         let material = SCNMaterial()
         material.diffuse.contents = UIColor(white: 0.78, alpha: 1)
         material.isDoubleSided = true
