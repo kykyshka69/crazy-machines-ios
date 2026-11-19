@@ -22,6 +22,15 @@ jobs:
           python -m unittest -v test_stage_local_preview.py
           python -m unittest -v test_inspect_cml.py
 
+  original-cml-metadata-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and run native original CML metadata probe
+        run: |
+          swiftc ios/CMOriginalCMLProbe.swift tests/CMOriginalCMLProbeSmoke.swift -o /tmp/cm-cml-probe
+          /tmp/cm-cml-probe
+
   portable-swift-runtime:
     runs-on: ubuntu-latest
     steps:
