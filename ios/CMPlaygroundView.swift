@@ -25,6 +25,7 @@ struct CMPlaygroundView: View {
  @State private var springRedoStack: [[CMSpringJoint2D]] = []
  @State private var startingSprings: [CMSpringJoint2D]?
  @State private var springSourceIndex: Int?
+ @State private var selectedSpringIndex: Int?
  @State private var dragPinsSnapshot: [CMPinJoint2D]?
  @State private var pinUndoStack: [[CMPinJoint2D]] = []
  @State private var pinRedoStack: [[CMPinJoint2D]] = []
@@ -185,6 +186,7 @@ struct CMPlaygroundView: View {
   world.segments=[]
   pins=[]
   springs=[]
+  selectedSpringIndex=nil
   clearExperimentState()
   storageMessage="Cleared scene (Undo to restore)"
  }
@@ -339,6 +341,7 @@ struct CMPlaygroundView: View {
    world=loaded
    pins=loadedPins
    springs=loadedSprings
+   selectedSpringIndex=nil
    gravityStrength = -loaded.gravity.y
    levelName=UserDefaults.standard.string(forKey:Self.draftNameKey) ?? "Untitled experiment"
    clearExperimentState()
@@ -367,6 +370,7 @@ struct CMPlaygroundView: View {
   world=imported
   pins=pendingImportPins
   springs=pendingImportSprings
+  selectedSpringIndex=nil
   pinUndoStack=[]
   pinRedoStack=[]
   springUndoStack=[]
@@ -465,6 +469,7 @@ struct CMPlaygroundView: View {
   if pinRedoStack.count > 30 { pinRedoStack.removeFirst() }
   pins=pinUndoStack.popLast() ?? []
   springs=springUndoStack.popLast() ?? []
+  selectedSpringIndex=nil
   if redoStack.count > 30 { redoStack.removeFirst() }
   world=previous
   gravityStrength = -previous.gravity.y
@@ -479,6 +484,7 @@ struct CMPlaygroundView: View {
   if pinUndoStack.count > 30 { pinUndoStack.removeFirst() }
   pins=pinRedoStack.popLast() ?? []
   springs=springRedoStack.popLast() ?? []
+  selectedSpringIndex=nil
   if undoStack.count > 30 { undoStack.removeFirst() }
   world=next
   gravityStrength = -next.gravity.y
@@ -681,6 +687,44 @@ struct CMPlaygroundView: View {
     .accessibilityLabel("Increase "+name)
   }.buttonStyle(.bordered)
  }
+ private func selectNextSpring() {
+  guard !running,!springs.isEmpty else { return }
+  selectedSpringIndex=((selectedSpringIndex ?? -1)+1)%springs.count
+  springSourceIndex=nil
+  storageMessage="Spring \\(selectedSpringIndex!+1) of \\(springs.count) selected"
+ }
+ private func adjustSpring(_ property: String, by delta: Double) {
+  guard !running,let index=selectedSpringIndex,springs.indices.contains(index),
+   delta.isFinite else { return }
+  var updated=springs[index]
+  switch property {
+  case "length": updated.restLength=min(10,max(0,updated.restLength+delta))
+  case "stiffness": updated.stiffness=min(1000,max(0,updated.stiffness+delta))
+  case "damping": updated.damping=min(100,max(0,updated.damping+delta))
+  default: return
+  }
+  guard updated.restLength != springs[index].restLength ||
+   updated.stiffness != springs[index].stiffness ||
+   updated.damping != springs[index].damping else { return }
+  saveUndo()
+  springs[index]=updated
+  startingLayout=nil
+  startingPins=nil
+  startingSprings=nil
+  reachedGoal=false
+  simulationSteps=0
+  trails=[]
+  saveDraft()
+ }
+ private func springControl(_ title: String, value: Double, step: Double, key: String) -> some View {
+  HStack {
+   Text(title).font(.caption)
+   Spacer()
+   Text(String(format:"%.2f",value)).font(.caption.monospacedDigit())
+   Button("−") { adjustSpring(key,by:-step) }
+   Button("+") { adjustSpring(key,by:step) }
+  }.buttonStyle(.bordered).disabled(running)
+ }
  private func connectSpring() {
   guard !running,case .ball(let index)=selection,world.bodies.indices.contains(index) else { return }
   guard let first=springSourceIndex else {
@@ -711,6 +755,7 @@ struct CMPlaygroundView: View {
   }
   saveUndo()
   springs.append(CMSpringJoint2D(firstIndex:first,secondIndex:index,restLength:distance))
+  selectedSpringIndex=springs.count-1
   springSourceIndex=nil
   startingLayout=nil
   startingPins=nil
@@ -725,6 +770,7 @@ struct CMPlaygroundView: View {
   }
   saveUndo()
   springs.removeAll(where:{$0.firstIndex == index || $0.secondIndex == index})
+  selectedSpringIndex=nil
   startingLayout=nil
   startingPins=nil
   startingSprings=nil
@@ -822,6 +868,7 @@ struct CMPlaygroundView: View {
   switch selection {
   case .ball(let i):
    world.bodies.remove(at:i)
+   selectedSpringIndex=nil
    springs=springs.compactMap { spring in
     if spring.firstIndex == i || spring.secondIndex == i { return nil }
     var next=spring
@@ -1005,6 +1052,7 @@ struct CMPlaygroundView: View {
     Button("Add ramp") { addRamp() }.disabled(running || world.segments.count >= 12)
     Button("Spring") { connectSpring() }.disabled(running)
     Button("Remove springs") { removeSpringsForSelection() }.disabled(running)
+    Button("Select spring") { selectNextSpring() }.disabled(running || springs.isEmpty)
     Button("Pin / Unpin") { togglePin() }.disabled(running || { if case .ball = selection { return false }; return true }())
     Button("Duplicate") { duplicateSelected() }.disabled(running || selection == nil)
     Button("Delete") { deleteSelected() }.disabled(running || selection == nil)
@@ -1016,6 +1064,14 @@ struct CMPlaygroundView: View {
    }
    .buttonStyle(.bordered)
    .disabled(running || { if case .ramp = selection { return false }; return true }())
+   if let springIndex=selectedSpringIndex,springs.indices.contains(springIndex) {
+    VStack(alignment:.leading,spacing:6) {
+     Text("Spring \\(springIndex+1) properties").font(.subheadline.bold())
+     springControl("Rest length",value:springs[springIndex].restLength,step:0.1,key:"length")
+     springControl("Stiffness",value:springs[springIndex].stiffness,step:5,key:"stiffness")
+     springControl("Damping",value:springs[springIndex].damping,step:0.5,key:"damping")
+    }
+   }
    if let selection {
     VStack(alignment:.leading,spacing:6) {
      Text("Selected object properties").font(.subheadline.bold())
