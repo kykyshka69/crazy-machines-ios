@@ -21,6 +21,11 @@ struct CMPlaygroundView: View {
  @State private var world = CMPlaygroundView.makeWorld()
  @State private var pins: [CMPinJoint2D] = []
  @State private var springs: [CMSpringJoint2D] = []
+ @State private var pivots: [CMPivotJoint2D] = []
+ @State private var pivotUndoStack: [[CMPivotJoint2D]] = []
+ @State private var pivotRedoStack: [[CMPivotJoint2D]] = []
+ @State private var startingPivots: [CMPivotJoint2D]?
+ @State private var pendingImportPivots: [CMPivotJoint2D] = []
  @State private var springUndoStack: [[CMSpringJoint2D]] = []
  @State private var springRedoStack: [[CMSpringJoint2D]] = []
  @State private var startingSprings: [CMSpringJoint2D]?
@@ -133,6 +138,7 @@ struct CMPlaygroundView: View {
    let before=world.bodies.map(\.position)
    world.applySprings(springs,dt:Self.fixedStep)
    world.step(dt:Self.fixedStep)
+   world.applyPivots(pivots)
    world.applyPins(pins)
    recordTrails()
    simulationSteps+=1
@@ -177,7 +183,7 @@ struct CMPlaygroundView: View {
  }
  private func clearScene() {
   guard !running else { return }
-  guard !world.bodies.isEmpty || !world.segments.isEmpty || !pins.isEmpty || !springs.isEmpty else {
+  guard !world.bodies.isEmpty || !world.segments.isEmpty || !pins.isEmpty || !springs.isEmpty || !pivots.isEmpty else {
    storageMessage="Scene is already empty"
    return
   }
@@ -186,6 +192,7 @@ struct CMPlaygroundView: View {
   world.segments=[]
   pins=[]
   springs=[]
+  pivots=[]
   selectedSpringIndex=nil
   springSourceIndex=nil
   clearExperimentState()
@@ -248,8 +255,11 @@ struct CMPlaygroundView: View {
   world=Self.makeWorld()
   pins=[]
   springs=[]
+  pivots=[]
   springUndoStack=[]
+  pivotUndoStack=[]
   springRedoStack=[]
+  pivotRedoStack=[]
   pinUndoStack=[]
   pinRedoStack=[]
   undoStack=[]
@@ -262,6 +272,7 @@ struct CMPlaygroundView: View {
   startingLayout=nil
   startingPins=nil
   startingSprings=nil
+  startingPivots=nil
   selectedSpringIndex=nil
   springSourceIndex=nil
   simulationSteps=0
@@ -277,6 +288,7 @@ struct CMPlaygroundView: View {
   world=layout
   pins=startingPins ?? pins
   springs=startingSprings ?? springs
+  pivots=startingPivots ?? pivots
   selectedSpringIndex=nil
   springSourceIndex=nil
   gravityStrength = -layout.gravity.y
@@ -321,7 +333,7 @@ struct CMPlaygroundView: View {
  private static let draftKey = "cm.playground.autosave.draft.v1"
  private static let draftNameKey = "cm.playground.autosave.name.v1"
  private var draftData: Data? {
-  let document=CMLevelDocument(world:startingLayout ?? world,pins:startingPins ?? pins,springs:startingSprings ?? springs)
+  let document=CMLevelDocument(world:startingLayout ?? world,pins:startingPins ?? pins,springs:startingSprings ?? springs,pivots:startingPivots ?? pivots)
   guard (try? document.makePins()) != nil else { return nil }
   return try? JSONEncoder().encode(document)
  }
@@ -343,9 +355,11 @@ struct CMPlaygroundView: View {
    let loaded=try document.makeWorld()
    let loadedPins=try document.makePins()
    let loadedSprings=try document.makeSprings()
+   let loadedPivots=try document.makePivots()
    world=loaded
    pins=loadedPins
    springs=loadedSprings
+   pivots=loadedPivots
    selectedSpringIndex=nil
    gravityStrength = -loaded.gravity.y
    levelName=UserDefaults.standard.string(forKey:Self.draftNameKey) ?? "Untitled experiment"
@@ -357,7 +371,7 @@ struct CMPlaygroundView: View {
  }
  private func exportLevel() {
   do {
-   let document=CMLevelDocument(world:startingLayout ?? world,pins:startingPins ?? pins,springs:startingSprings ?? springs)
+   let document=CMLevelDocument(world:startingLayout ?? world,pins:startingPins ?? pins,springs:startingSprings ?? springs,pivots:startingPivots ?? pivots)
    _ = try document.makePins()
    let encoder=JSONEncoder()
    encoder.outputFormatting=[.prettyPrinted,.sortedKeys]
@@ -375,17 +389,21 @@ struct CMPlaygroundView: View {
   world=imported
   pins=pendingImportPins
   springs=pendingImportSprings
+  pivots=pendingImportPivots
   selectedSpringIndex=nil
   pinUndoStack=[]
   pinRedoStack=[]
   springUndoStack=[]
+  pivotUndoStack=[]
   springRedoStack=[]
+  pivotRedoStack=[]
   gravityStrength = -imported.gravity.y
   levelName=pendingImportName
   clearExperimentState()
   pendingImport=nil
   pendingImportPins=[]
   pendingImportSprings=[]
+  pendingImportPivots=[]
   saveDraft()
   storageMessage="Imported level successfully"
  }
@@ -402,9 +420,11 @@ struct CMPlaygroundView: View {
    let imported=try document.makeWorld()
    let importedPins=try document.makePins()
    let importedSprings=try document.makeSprings()
+   let importedPivots=try document.makePivots()
    pendingImport=imported
    pendingImportPins=importedPins
    pendingImportSprings=importedSprings
+   pendingImportPivots=importedPivots
    pendingImportName=String(url.deletingPathExtension().lastPathComponent.prefix(60))
    confirmingImport=true
   } catch {
@@ -414,7 +434,7 @@ struct CMPlaygroundView: View {
  private func saveLevel() {
   do {
    let layout=startingLayout ?? world
-   let document=CMLevelDocument(world:layout,pins:startingPins ?? pins,springs:startingSprings ?? springs)
+   let document=CMLevelDocument(world:layout,pins:startingPins ?? pins,springs:startingSprings ?? springs,pivots:startingPivots ?? pivots)
    _ = try document.makePins() // Do not overwrite a good save with an invalid layout.
    let data=try JSONEncoder().encode(document)
    UserDefaults.standard.set(data,forKey:saveKey(for:selectedSaveSlot))
@@ -434,6 +454,8 @@ struct CMPlaygroundView: View {
    let document=try JSONDecoder().decode(CMLevelDocument.self,from:data)
    let loaded=try document.makeWorld()
    let loadedPins=try document.makePins()
+   let loadedSprings=try document.makeSprings()
+   let loadedPivots=try document.makePivots()
    running=false
    lastTick=nil
    accumulator=0
@@ -441,10 +463,14 @@ struct CMPlaygroundView: View {
    redoStack=[]
    world=loaded
    pins=loadedPins
+   springs=loadedSprings
+   pivots=loadedPivots
    pinUndoStack=[]
    pinRedoStack=[]
    springUndoStack=[]
+  pivotUndoStack=[]
    springRedoStack=[]
+  pivotRedoStack=[]
    levelName=UserDefaults.standard.string(forKey:levelNameKey(for:selectedSaveSlot)) ?? "Untitled experiment"
    gravityStrength = -loaded.gravity.y
    clearExperimentState()
@@ -458,22 +484,28 @@ struct CMPlaygroundView: View {
   undoStack.append(world)
   pinUndoStack.append(pins)
   springUndoStack.append(springs)
+  pivotUndoStack.append(pivots)
   if springUndoStack.count > 30 { springUndoStack.removeFirst() }
+  if pivotUndoStack.count > 30 { pivotUndoStack.removeFirst() }
   if pinUndoStack.count > 30 { pinUndoStack.removeFirst() }
   if undoStack.count > 30 { undoStack.removeFirst() }
   redoStack=[]
   pinRedoStack=[]
   springRedoStack=[]
+  pivotRedoStack=[]
  }
  private func undo() {
   guard !running,let previous=undoStack.popLast() else { return }
   redoStack.append(world)
   pinRedoStack.append(pins)
   springRedoStack.append(springs)
+  pivotRedoStack.append(pivots)
   if springRedoStack.count > 30 { springRedoStack.removeFirst() }
+  if pivotRedoStack.count > 30 { pivotRedoStack.removeFirst() }
   if pinRedoStack.count > 30 { pinRedoStack.removeFirst() }
   pins=pinUndoStack.popLast() ?? []
   springs=springUndoStack.popLast() ?? []
+  pivots=pivotUndoStack.popLast() ?? []
   selectedSpringIndex=nil
   if redoStack.count > 30 { redoStack.removeFirst() }
   world=previous
@@ -485,10 +517,13 @@ struct CMPlaygroundView: View {
   undoStack.append(world)
   pinUndoStack.append(pins)
   springUndoStack.append(springs)
+  pivotUndoStack.append(pivots)
   if springUndoStack.count > 30 { springUndoStack.removeFirst() }
+  if pivotUndoStack.count > 30 { pivotUndoStack.removeFirst() }
   if pinUndoStack.count > 30 { pinUndoStack.removeFirst() }
   pins=pinRedoStack.popLast() ?? []
   springs=springRedoStack.popLast() ?? []
+  pivots=pivotRedoStack.popLast() ?? []
   selectedSpringIndex=nil
   if undoStack.count > 30 { undoStack.removeFirst() }
   world=next
@@ -499,6 +534,7 @@ struct CMPlaygroundView: View {
   startingLayout=nil
   startingPins=nil
   startingSprings=nil
+  startingPivots=nil
   springSourceIndex=nil
   reachedGoal=false
   simulationSteps=0
@@ -533,11 +569,12 @@ struct CMPlaygroundView: View {
 
  private func stepOnce() {
   guard !running && !reachedGoal else { return }
-  if startingLayout == nil { startingLayout=world; startingPins=pins; startingSprings=springs }
+  if startingLayout == nil { startingLayout=world; startingPins=pins; startingSprings=springs; startingPivots=pivots }
   let before=world.bodies.map(\.position)
   world.applySprings(springs,dt:Self.fixedStep)
   world.step(dt:Self.fixedStep)
-  world.applyPins(pins)
+  world.applyPivots(pivots)
+   world.applyPins(pins)
   recordTrails()
   simulationSteps+=1
   checkGoal(previousPositions:before)
@@ -732,6 +769,7 @@ struct CMPlaygroundView: View {
   startingLayout=nil
   startingPins=nil
   startingSprings=nil
+  startingPivots=nil
   reachedGoal=false
   simulationSteps=0
   trails=[]
@@ -781,6 +819,7 @@ struct CMPlaygroundView: View {
   startingLayout=nil
   startingPins=nil
   startingSprings=nil
+  startingPivots=nil
   storageMessage="Spring connected"
   saveDraft()
  }
@@ -796,7 +835,37 @@ struct CMPlaygroundView: View {
   startingLayout=nil
   startingPins=nil
   startingSprings=nil
+  startingPivots=nil
   storageMessage="Removed selected ball's springs"
+  saveDraft()
+ }
+ private func togglePivot() {
+  guard !running,case .ball(let index)=selection,world.bodies.indices.contains(index) else { return }
+  if let existing=pivots.firstIndex(where:{$0.bodyIndex==index}) {
+   saveUndo()
+   pivots.remove(at:existing)
+   storageMessage="Pivot removed"
+  } else {
+   guard !pins.contains(where:{$0.bodyIndex==index}) else {
+    storageMessage="Unpin ball before adding a pivot"
+    return
+   }
+   let position=world.bodies[index].position
+   let anchor=SIMD2(position.x,max(0,position.y-1))
+   let delta=position-anchor
+   let length=sqrt(delta.x*delta.x+delta.y*delta.y)
+   guard length >= 0.01 else { storageMessage="Not enough room for pivot"; return }
+   saveUndo()
+   pivots.append(CMPivotJoint2D(bodyIndex:index,anchor:anchor,length:length))
+   storageMessage="Pivot added"
+  }
+  startingLayout=nil
+  startingPins=nil
+  startingSprings=nil
+  startingPivots=nil
+  reachedGoal=false
+  simulationSteps=0
+  trails=[]
   saveDraft()
  }
  private func togglePin() {
@@ -806,12 +875,14 @@ struct CMPlaygroundView: View {
    pins.remove(at:index)
    storageMessage="Ball unpinned"
   } else {
+   guard !pivots.contains(where:{$0.bodyIndex == i}) else { storageMessage="Remove pivot before pinning"; return }
    pins.append(CMPinJoint2D(bodyIndex:i,anchor:world.bodies[i].position))
    storageMessage="Ball pinned in place"
   }
   startingLayout=nil
   startingPins=nil
   startingSprings=nil
+  startingPivots=nil
   reachedGoal=false
   simulationSteps=0
   trails=[]
@@ -899,6 +970,12 @@ struct CMPlaygroundView: View {
     if next.secondIndex > i { next.secondIndex-=1 }
     return next
    }
+   pivots=pivots.compactMap { pivot in
+    if pivot.bodyIndex == i { return nil }
+    var next=pivot
+    if next.bodyIndex > i { next.bodyIndex-=1 }
+    return next
+   }
    pins=pins.compactMap { pin in
     if pin.bodyIndex == i { return nil }
     return CMPinJoint2D(bodyIndex:pin.bodyIndex > i ? pin.bodyIndex-1 : pin.bodyIndex,anchor:pin.anchor)
@@ -910,6 +987,7 @@ struct CMPlaygroundView: View {
   springSourceIndex=nil
   trails=[]
   startingSprings=nil
+  startingPivots=nil
   startingPins=nil
   startingLayout=nil
   reachedGoal=false
@@ -970,6 +1048,15 @@ struct CMPlaygroundView: View {
        connector.addLine(to:screen(world.bodies[spring.secondIndex].position,size))
        context.stroke(connector,with:.color(selectedSpringIndex == springIndex ? .yellow : .mint),style:StrokeStyle(lineWidth:selectedSpringIndex == springIndex ? 5 : 3,dash:[6,4]))
       }
+      for pivot in pivots where world.bodies.indices.contains(pivot.bodyIndex) {
+       let anchor=screen(pivot.anchor,size)
+       let body=screen(world.bodies[pivot.bodyIndex].position,size)
+       var rod=Path()
+       rod.move(to:anchor)
+       rod.addLine(to:body)
+       context.stroke(rod,with:.color(.orange),lineWidth:3)
+       context.fill(Path(ellipseIn:CGRect(x:anchor.x-5,y:anchor.y-5,width:10,height:10)),with:.color(.orange))
+      }
       for pin in pins where world.bodies.indices.contains(pin.bodyIndex) {
        let center=screen(pin.anchor,size)
        context.stroke(Path(ellipseIn:CGRect(x:center.x-7,y:center.y-7,width:14,height:14)),with:.color(.purple),lineWidth:3)
@@ -999,12 +1086,15 @@ struct CMPlaygroundView: View {
         undoStack.append(before)
         pinUndoStack.append(dragPinsSnapshot ?? pins)
         springUndoStack.append(springs)
+  pivotUndoStack.append(pivots)
         if springUndoStack.count > 30 { springUndoStack.removeFirst() }
+  if pivotUndoStack.count > 30 { pivotUndoStack.removeFirst() }
         if pinUndoStack.count > 30 { pinUndoStack.removeFirst() }
         if undoStack.count > 30 { undoStack.removeFirst() }
         redoStack=[]
         pinRedoStack=[]
         springRedoStack=[]
+  pivotRedoStack=[]
        }
        dragSnapshot=nil
        dragPinsSnapshot=nil
@@ -1078,6 +1168,7 @@ struct CMPlaygroundView: View {
     Button("Select spring") { selectNextSpring() }.disabled(running || springs.isEmpty)
     Button("Previous spring") { selectPreviousSpring() }.disabled(running || springs.isEmpty)
     Button("Delete spring") { removeSelectedSpring() }.disabled(running || selectedSpringIndex == nil)
+    Button("Pivot / Unpivot") { togglePivot() }.disabled(running || { if case .ball = selection { return false }; return true }())
     Button("Pin / Unpin") { togglePin() }.disabled(running || { if case .ball = selection { return false }; return true }())
     Button("Duplicate") { duplicateSelected() }.disabled(running || selection == nil)
     Button("Delete") { deleteSelected() }.disabled(running || selection == nil)
