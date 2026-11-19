@@ -25,6 +25,7 @@ struct CMPlaygroundView: View {
  @State private var springRedoStack: [[CMSpringJoint2D]] = []
  @State private var startingSprings: [CMSpringJoint2D]?
  @State private var springSourceIndex: Int?
+ @State private var dragPinsSnapshot: [CMPinJoint2D]?
  @State private var pinUndoStack: [[CMPinJoint2D]] = []
  @State private var pinRedoStack: [[CMPinJoint2D]] = []
  @State private var startingPins: [CMPinJoint2D]?
@@ -251,6 +252,7 @@ struct CMPlaygroundView: View {
   undoStack=[]
   redoStack=[]
   dragSnapshot=nil
+  dragPinsSnapshot=nil
   dragChanged=false
   gravityEditSnapshot=nil
   world.gravity.y = -gravityStrength
@@ -532,8 +534,8 @@ struct CMPlaygroundView: View {
  private func beginDrag(_ point:SIMD2<Double>) {
   guard editMode && !running else { return }
   selection=select(at:point)
-  springSourceIndex=nil
   dragSnapshot=selection == nil ? nil : world
+  dragPinsSnapshot=selection == nil ? nil : pins
   dragChanged=false
   dragStart=point
   if case .ramp(let i)=selection { initialSegment=world.segments[i] }
@@ -925,7 +927,7 @@ struct CMPlaygroundView: View {
       .onEnded { _ in
        if dragChanged,let before=dragSnapshot {
         undoStack.append(before)
-        pinUndoStack.append(pins)
+        pinUndoStack.append(dragPinsSnapshot ?? pins)
         springUndoStack.append(springs)
         if springUndoStack.count > 30 { springUndoStack.removeFirst() }
         if pinUndoStack.count > 30 { pinUndoStack.removeFirst() }
@@ -935,6 +937,7 @@ struct CMPlaygroundView: View {
         springRedoStack=[]
        }
        dragSnapshot=nil
+       dragPinsSnapshot=nil
        if dragChanged { saveDraft() }
        dragChanged=false
        dragStart=nil
