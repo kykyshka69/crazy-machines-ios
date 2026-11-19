@@ -13,6 +13,7 @@ from pathlib import Path
 
 from decode_professor_records import PROFESSOR_SHA256, read_professor_records
 from decompress_original_level import decode_level_scene
+from parse_original_scene import parse_scene, scene_summary
 
 OBJECT_RE = re.compile(r"^\s*(tmo_[A-Za-z0-9_]+)\s*$", re.MULTILINE)
 POSITION_RE = re.compile(
@@ -21,7 +22,7 @@ POSITION_RE = re.compile(
 )
 
 
-def inspect_levels(data: bytes) -> dict:
+def inspect_levels(data: bytes, *, structured: bool = False) -> dict:
     if hashlib.sha256(data).hexdigest() != PROFESSOR_SHA256:
         raise ValueError("not the verified original Professor Laboratory")
     records = read_professor_records(data, include_payload=True)
@@ -32,7 +33,7 @@ def inspect_levels(data: bytes) -> dict:
         objects = OBJECT_RE.findall(scene)
         positions = POSITION_RE.findall(scene)
         types.update(objects)
-        levels.append({
+        entry = {
             "index": record["index"],
             "name": record["name"],
             "scene_text_bytes": len(scene.encode("cp1251")),
@@ -40,7 +41,10 @@ def inspect_levels(data: bytes) -> dict:
             "position_entries": len(positions),
             "goal_markers": scene.count("GOAL 1"),
             "scene_sha256": hashlib.sha256(scene.encode("cp1251")).hexdigest(),
-        })
+        }
+        if structured:
+            entry["hierarchy"] = scene_summary(parse_scene(scene))
+        levels.append(entry)
     return {
         "level_count": len(levels),
         "total_object_nodes": sum(level["object_nodes"] for level in levels),
@@ -55,8 +59,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("professor_cml", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--structured", action="store_true", help="parse nested objects, transforms and goals")
     args = parser.parse_args()
-    result = inspect_levels(args.professor_cml.read_bytes())
+    result = inspect_levels(args.professor_cml.read_bytes(), structured=args.structured)
     output = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         args.output.write_text(output, encoding="utf-8")
