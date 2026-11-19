@@ -152,7 +152,7 @@ struct CMOriginalLevelBrowserView: View {
                 }
             }
             Section("Scene hierarchy") {
-                OutlineGroup([document.root], children: \.children) { node in
+                OutlineGroup([document.root], children: \.outlineChildren) { node in
                     VStack(alignment: .leading, spacing: 3) {
                         Text(node.name).font(.system(.subheadline, design: .monospaced))
                         if let position = node.position {
@@ -238,5 +238,12 @@ struct CMOriginalLevelBrowserView: View {
         errorMessage = rejected == 0
             ? "Saved \(imported) original scenes on this iPhone"
             : "Saved \(imported); rejected \(rejected) invalid files"
+    }
+}
+
+// OutlineGroup requires an optional collection for hierarchical children.
+private extension CMOriginalSceneDocument.Node {
+    var outlineChildren: [CMOriginalSceneDocument.Node]? {
+        children.isEmpty ? nil : children
     }
 }
