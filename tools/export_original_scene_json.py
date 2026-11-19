@@ -27,6 +27,9 @@ def export_node(node: SceneNode) -> dict:
         position = node.first_field("POS")
         if position is not None:
             result["position"] = parse_vector3(position)
+        relative_position = node.first_field("POSREL")
+        if relative_position is not None:
+            result["position_relative"] = parse_vector3(relative_position)
         rotation = node.first_field("ROT")
         if rotation is not None:
             result["rotation_raw"] = rotation
