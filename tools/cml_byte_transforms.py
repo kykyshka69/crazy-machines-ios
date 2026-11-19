@@ -68,3 +68,25 @@ def apply_control_pairs(data: bytes, control: bytes, *, encode: bool) -> bytes:
         # Negative signed remainders -1 and -2 are intentionally no-ops:
         # the original x86 switch handles only 0, 1, 2.
     return result
+
+
+def decode_framed_chunk(raw: bytes, key: bytes, *, skip: int = 0) -> bytes:
+    """Decode 0x47E610's original read-mode frame and validate its key.
+
+    The game reverses the key, runs its initial delta transform on the
+    whole input, applies operation pairs to the resulting bytes, checks
+    the leading key bytes, then discards the requested prefix.
+    The input is a *single framed read*, not necessarily a whole CML.
+    """
+    if len(key) > 256:
+        raise ValueError("original loader's local key buffer is 256 bytes")
+    if len(key) % 2:
+        raise ValueError("key length must be even")
+    if skip < len(key) or skip > len(raw):
+        raise ValueError("invalid decoded frame prefix length")
+    working = adjacent_delta(raw, forward=False)
+    reversed_key = reverse_bytes(key)
+    working = apply_control_pairs(working, reversed_key, encode=False)
+    if working[:len(key)] != key:
+        raise ValueError("original CML frame key validation failed")
+    return working[skip:]
