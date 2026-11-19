@@ -29,6 +29,7 @@ jobs:
           python -m unittest -v test_inspect_puzzle_section_windows.py
           python -m unittest -v test_classify_puzzle_prefixes.py
           python -m unittest -v test_decompress_original_level.py
+          python -m unittest -v test_parse_original_scene.py
 
   original-cml-metadata-runtime:
     runs-on: ubuntu-latest
