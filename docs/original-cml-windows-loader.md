@@ -310,3 +310,51 @@ the rare eighth signature appears at levels **31, 39, 45**.
 These are byte-equality groups, not established item IDs or game
 categories. Reproduce with
 `python tools/inventory_puzzle_binary.py PROFESSOR_LAB.cml --prefix-groups`.
+
+## BREAKTHROUGH: The inner binary section is 12-bit LZW, not opaque object data
+
+**Verified directly on the user's original Professor Laboratory CML.**
+The bytes after each inner 4-byte length are **big-endian packed,
+fixed-width 12-bit LZW codes**, two codes per three bytes. Dictionary
+codes **0–255** are literal bytes, new entries start at **256**, and
+**4095** terminates the stream. The final padding code is zero.
+
+For example, the original first three bytes `06 c0 65` unpack as
+codes `108, 101`, ASCII **`le`**. The first eight decoded literal
+codes spell `level\r\n{`. The complete decompressed text is a
+human-readable **scene graph**, with object nodes and their coordinates,
+rotations, IDs, values and goals.
+
+Ran the decoder on **all 102 authentic records** without an LZW
+dictionary error or missing terminator. Results:
+
+- **707,577** decompressed scene bytes in total.
+- **122** distinct `tmo_*` scene node names.
+- **5,313** `tmo_*` node occurrences, including nested attachments.
+- **2,263** explicit `POS x, y, z` lines (not counting `POSREL`).
+- **86** occurrences of the literal `GOAL 1` across scenes.
+
+Examples from the **actual original scene text** (not synthetic levels):
+
+- Level 1 `Сначала наведем порядок`: `tmo_board` at
+  `POS -1.41905, -1.08718, 0.03751`, rotation
+  `ROT xyz 0, 0, -1.57080`; the object has nested
+  `tmo_mount_bar` attachments.
+- Level 2 `Эффект домино`: includes `tmo_domino`,
+  `tmo_ball_basket`, `tmo_board`.
+- Level 6 `Паровой свисток`: includes `tmo_boiler`,
+  `tmo_pipe_corner`, `tmo_pipe`, `tmo_candle`.
+- Level 31 `Поймай меня`: `tmo_rope_cage` with `GOAL 1`,
+  plus `tmo_rope_hook`, `tmo_rope_scissors`, `tmo_ball_tennis`.
+
+The 85-byte common prefix and eight signatures previously reported
+are **compressed text artifacts**, not an object header or meaningful
+level categories. This supersedes those earlier hypotheses.
+
+New reproducible tools:
+`tools/decompress_original_level.py` (LZW decoder),
+`tools/inspect_original_scene_graphs.py` (scene object/position report).
+No original game assets or proprietary scene texts are committed.
+The next step is a **brace-aware scene graph parser**, followed by
+mapping `3DO` model identifiers to the original UCM models and
+recreating interactions.
