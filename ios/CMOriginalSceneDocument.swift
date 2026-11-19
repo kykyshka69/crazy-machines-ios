@@ -62,12 +62,14 @@ public struct CMOriginalSceneDocument: Decodable {
               document.sceneSHA256.count == 64,
               document.sceneSHA256.allSatisfy({ $0.isHexDigit }),
               document.root.name == "level" else { throw SceneError.invalid }
-        try validate(document.root, depth: 0)
+        var nodeCount = 0
+        try validate(document.root, depth: 0, nodeCount: &nodeCount)
         return document
     }
 
-    private static func validate(_ node: Node, depth: Int) throws {
-        guard depth <= 64,
+    private static func validate(_ node: Node, depth: Int, nodeCount: inout Int) throws {
+        nodeCount += 1
+        guard nodeCount <= 20_000, depth <= 64,
               node.name.count <= 256,
               node.fields.count <= 256,
               node.children.count <= 2048,
@@ -78,7 +80,9 @@ public struct CMOriginalSceneDocument: Decodable {
         if let p = node.positionRelative {
             guard p.count == 3 && p.allSatisfy({ $0.isFinite && abs($0) <= Double(Float.greatestFiniteMagnitude) }) else { throw SceneError.invalid }
         }
-        for child in node.children { try validate(child, depth: depth + 1) }
+        for child in node.children {
+            try validate(child, depth: depth + 1, nodeCount: &nodeCount)
+        }
     }
 
     public enum SceneError: Error { case invalid }
