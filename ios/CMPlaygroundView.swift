@@ -857,6 +857,22 @@ struct CMPlaygroundView: View {
   storageMessage="Removed selected ball's springs"
   saveDraft()
  }
+ private func kickSelectedPivot(speed:Double) {
+  guard !running,case .ball(let bodyIndex)=selection,
+   let index=pivots.firstIndex(where:{$0.bodyIndex==bodyIndex}) else { return }
+  if startingLayout == nil {
+   startingLayout=world
+   startingPins=pins
+   startingSprings=springs
+   startingPivots=pivots
+  }
+  if world.kickPivot(pivots[index],speed:speed) {
+   reachedGoal=false
+   simulationSteps=0
+   trails=[]
+   storageMessage=speed>0 ? "Pendulum pushed counterclockwise" : "Pendulum pushed clockwise"
+  }
+ }
  private func adjustPivotAnchor(dx:Double,dy:Double) {
   guard !running,case .ball(let bodyIndex)=selection,
    let index=pivots.firstIndex(where:{$0.bodyIndex==bodyIndex}) else { return }
@@ -1286,6 +1302,10 @@ struct CMPlaygroundView: View {
       Button("Anchor →") { adjustPivotAnchor(dx:0.1,dy:0) }
       Button("Anchor ↑") { adjustPivotAnchor(dx:0,dy:0.1) }
       Button("Anchor ↓") { adjustPivotAnchor(dx:0,dy:-0.1) }
+     }.buttonStyle(.bordered)
+     HStack {
+      Button("Swing ↶") { kickSelectedPivot(speed:1.5) }
+      Button("Swing ↷") { kickSelectedPivot(speed:-1.5) }
      }.buttonStyle(.bordered)
      HStack {
       Text("Length: "+String(format:"%.2f",pivots[pivotIndex].length)).font(.caption.monospacedDigit())
