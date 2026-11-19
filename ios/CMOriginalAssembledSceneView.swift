@@ -10,6 +10,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
         view.backgroundColor = UIColor(white: 0.09, alpha: 1)
+        view.accessibilityIdentifier = "cm.original.assembled-scene"
+        view.accessibilityLabel = "Original level 3D scene"
+        view.accessibilityValue = "\(document.root.goalCount) original goal markers"
         view.allowsCameraControl = true
         view.autoenablesDefaultLighting = true
         view.antialiasingMode = .multisampling4X
