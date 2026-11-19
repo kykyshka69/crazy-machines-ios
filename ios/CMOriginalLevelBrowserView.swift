@@ -8,6 +8,12 @@ struct CMOriginalLevelBrowserView: View {
     @State private var errorMessage: String?
     @State private var selected: Int?
     @State private var previewModel: ModelPreviewSelection?
+    @State private var assembledScene: AssembledSelection?
+
+    private struct AssembledSelection: Identifiable {
+        let document: CMOriginalSceneDocument
+        var id: Int { document.index }
+    }
 
     private struct ModelPreviewSelection: Identifiable {
         let id = UUID()
@@ -77,6 +83,13 @@ struct CMOriginalLevelBrowserView: View {
                 Text("Read-only top-down coordinate plot. Orange markers are objects with GOAL 1; no original geometry or physics is simulated.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Section("Assembled original 3D scene") {
+                Button("View original level in 3D") {
+                    assembledScene = AssembledSelection(document: document)
+                }
+                Text("Uses imported UCM meshes and original nested POS/ROT transforms. Missing models are omitted; original materials and physics are not yet supported.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Original 3D models") {
                 let names = CMOriginalModelResolver.modelNames(in: document.root)
                 if names.isEmpty {
@@ -120,6 +133,20 @@ struct CMOriginalLevelBrowserView: View {
             }
         }
         .navigationTitle("Level \(document.index)")
+        .sheet(item: $assembledScene) { selection in
+            NavigationStack {
+                CMOriginalAssembledSceneView(document: selection.document, assetDirectory: originalStorage)
+                    .navigationTitle("Level \\(selection.document.index) · 3D")
+                    .toolbar { Button("Close") { assembledScene = nil } }
+            }
+        }
+        .sheet(item: $previewModel) { selection in
+            NavigationStack {
+                CMOriginalModelPreview(modelURL: selection.url)
+                    .navigationTitle(selection.name)
+                    .toolbar { Button("Close") { previewModel = nil } }
+            }
+        }
     }
 
     private func importDocuments(_ urls: [URL]) {
