@@ -328,9 +328,30 @@ struct CMPlaygroundView: View {
  }
  private func addRamp() {
   guard !running && world.segments.count < 12 else { return }
+  let candidates=(0..<8).flatMap { row in
+   (0..<5).map { col -> CMStaticSegment2D in
+    let x=0.5+Double(col)*1.15
+    let y=0.9+Double(row)*0.65
+    return CMStaticSegment2D(start:SIMD2(x,y+0.35),end:SIMD2(x+0.9,y),friction:0.25)
+   }
+  }
+  guard let segment=candidates.first(where: { candidate in
+   let midpoint=(candidate.start+candidate.end)*0.5
+   return world.bodies.allSatisfy { ball in
+    segmentDistanceSquared(ball.position,candidate) >= pow(ball.radius+0.12,2)
+   } && world.segments.allSatisfy { existing in
+    segmentDistanceSquared(candidate.start,existing) > 0.12*0.12 &&
+    segmentDistanceSquared(candidate.end,existing) > 0.12*0.12 &&
+    segmentDistanceSquared(midpoint,existing) > 0.12*0.12 &&
+    segmentDistanceSquared(existing.start,candidate) > 0.12*0.12 &&
+    segmentDistanceSquared(existing.end,candidate) > 0.12*0.12
+   }
+  }) else {
+   storageMessage="No free space for another ramp"
+   return
+  }
   saveUndo()
-  let y=1.4+Double(world.segments.count%4)*0.65
-  world.segments.append(CMStaticSegment2D(start:SIMD2(2.2,y+0.5),end:SIMD2(4.2,y),friction:0.25))
+  world.segments.append(segment)
   startingLayout=nil
   reachedGoal=false
   simulationSteps=0
