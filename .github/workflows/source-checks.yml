@@ -244,3 +244,29 @@ jobs:
             /tmp/cm-ios-derived/Logs/Build
             /tmp/cm-ios-derived/Build/Intermediates.noindex
           if-no-files-found: warn
+
+  ios-ui-smoke:
+    runs-on: macos-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate --spec project.yml
+      - name: Run real iPhone UI navigation test
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; ids=[v["udid"] for group in d.values() for v in group if v["name"].startswith("iPhone")]; print(ids[0] if ids else "")')
+          test -n "$DEVICE_ID" || { echo "No available iPhone simulator"; exit 1; }
+          xcodebuild -project CrazyMachinesIOS.xcodeproj -scheme CrazyMachinesIOS \
+            -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE_ID" \
+            -derivedDataPath /tmp/cm-ui-derived CODE_SIGNING_ALLOWED=NO \
+            -resultBundlePath /tmp/cm-ui-tests.xcresult test
+      - name: Upload UI test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CrazyMachinesIOS-ui-test-results
+          path: /tmp/cm-ui-tests.xcresult
+          if-no-files-found: ignore
+          retention-days: 14
