@@ -20,6 +20,11 @@ struct CMPlaygroundView: View {
  @Environment(\.scenePhase) private var scenePhase
  @State private var world = CMPlaygroundView.makeWorld()
  @State private var pins: [CMPinJoint2D] = []
+ @State private var springs: [CMSpringJoint2D] = []
+ @State private var springUndoStack: [[CMSpringJoint2D]] = []
+ @State private var springRedoStack: [[CMSpringJoint2D]] = []
+ @State private var startingSprings: [CMSpringJoint2D]?
+ @State private var springSourceIndex: Int?
  @State private var pinUndoStack: [[CMPinJoint2D]] = []
  @State private var pinRedoStack: [[CMPinJoint2D]] = []
  @State private var startingPins: [CMPinJoint2D]?
@@ -59,6 +64,7 @@ struct CMPlaygroundView: View {
  @State private var confirmingClear = false
  @State private var pendingImport: CMPhysicsWorld2D?
  @State private var pendingImportPins: [CMPinJoint2D] = []
+ @State private var pendingImportSprings: [CMSpringJoint2D] = []
  @State private var pendingImportName = ""
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
  private static let fixedStep = 1.0 / 120.0
@@ -124,6 +130,7 @@ struct CMPlaygroundView: View {
   while accumulator >= Self.fixedStep && steps < 24 {
    let before=world.bodies.map(\.position)
    world.step(dt:Self.fixedStep)
+   world.applySprings(springs,dt:Self.fixedStep)
    world.applyPins(pins)
    recordTrails()
    simulationSteps+=1
@@ -176,6 +183,7 @@ struct CMPlaygroundView: View {
   world.bodies=[]
   world.segments=[]
   pins=[]
+  springs=[]
   clearExperimentState()
   storageMessage="Cleared scene (Undo to restore)"
  }
@@ -235,6 +243,9 @@ struct CMPlaygroundView: View {
   reachedGoal=false
   world=Self.makeWorld()
   pins=[]
+  springs=[]
+  springUndoStack=[]
+  springRedoStack=[]
   pinUndoStack=[]
   pinRedoStack=[]
   undoStack=[]
@@ -257,6 +268,7 @@ struct CMPlaygroundView: View {
   selection=nil
   world=layout
   pins=startingPins ?? pins
+  springs=startingSprings ?? springs
   gravityStrength = -layout.gravity.y
   simulationSteps=0
   trails=[]
@@ -299,7 +311,7 @@ struct CMPlaygroundView: View {
  private static let draftKey = "cm.playground.autosave.draft.v1"
  private static let draftNameKey = "cm.playground.autosave.name.v1"
  private var draftData: Data? {
-  let document=CMLevelDocument(world:startingLayout ?? world,pins:startingPins ?? pins)
+  let document=CMLevelDocument(world:startingLayout ?? world,pins:startingPins ?? pins,springs:startingSprings ?? springs)
   guard (try? document.makePins()) != nil else { return nil }
   return try? JSONEncoder().encode(document)
  }
@@ -320,8 +332,10 @@ struct CMPlaygroundView: View {
    let document=try JSONDecoder().decode(CMLevelDocument.self,from:data)
    let loaded=try document.makeWorld()
    let loadedPins=try document.makePins()
+   let loadedSprings=try document.makeSprings()
    world=loaded
    pins=loadedPins
+   springs=loadedSprings
    gravityStrength = -loaded.gravity.y
    levelName=UserDefaults.standard.string(forKey:Self.draftNameKey) ?? "Untitled experiment"
    clearExperimentState()
@@ -349,6 +363,7 @@ struct CMPlaygroundView: View {
   redoStack=[]
   world=imported
   pins=pendingImportPins
+  springs=pendingImportSprings
   pinUndoStack=[]
   pinRedoStack=[]
   gravityStrength = -imported.gravity.y
@@ -356,6 +371,7 @@ struct CMPlaygroundView: View {
   clearExperimentState()
   pendingImport=nil
   pendingImportPins=[]
+  pendingImportSprings=[]
   saveDraft()
   storageMessage="Imported level successfully"
  }
@@ -371,8 +387,10 @@ struct CMPlaygroundView: View {
    let document=try JSONDecoder().decode(CMLevelDocument.self,from:data)
    let imported=try document.makeWorld()
    let importedPins=try document.makePins()
+   let importedSprings=try document.makeSprings()
    pendingImport=imported
    pendingImportPins=importedPins
+   pendingImportSprings=importedSprings
    pendingImportName=String(url.deletingPathExtension().lastPathComponent.prefix(60))
    confirmingImport=true
   } catch {
@@ -411,6 +429,8 @@ struct CMPlaygroundView: View {
    pins=loadedPins
    pinUndoStack=[]
    pinRedoStack=[]
+   springUndoStack=[]
+   springRedoStack=[]
    levelName=UserDefaults.standard.string(forKey:levelNameKey(for:selectedSaveSlot)) ?? "Untitled experiment"
    gravityStrength = -loaded.gravity.y
    clearExperimentState()
@@ -423,17 +443,23 @@ struct CMPlaygroundView: View {
   guard !running else { return }
   undoStack.append(world)
   pinUndoStack.append(pins)
+  springUndoStack.append(springs)
+  if springUndoStack.count > 30 { springUndoStack.removeFirst() }
   if pinUndoStack.count > 30 { pinUndoStack.removeFirst() }
   if undoStack.count > 30 { undoStack.removeFirst() }
   redoStack=[]
   pinRedoStack=[]
+  springRedoStack=[]
  }
  private func undo() {
   guard !running,let previous=undoStack.popLast() else { return }
   redoStack.append(world)
   pinRedoStack.append(pins)
+  springRedoStack.append(springs)
+  if springRedoStack.count > 30 { springRedoStack.removeFirst() }
   if pinRedoStack.count > 30 { pinRedoStack.removeFirst() }
   pins=pinUndoStack.popLast() ?? []
+  springs=springUndoStack.popLast() ?? []
   if redoStack.count > 30 { redoStack.removeFirst() }
   world=previous
   gravityStrength = -previous.gravity.y
@@ -445,6 +471,7 @@ struct CMPlaygroundView: View {
   pinUndoStack.append(pins)
   if pinUndoStack.count > 30 { pinUndoStack.removeFirst() }
   pins=pinRedoStack.popLast() ?? []
+  springs=springRedoStack.popLast() ?? []
   if undoStack.count > 30 { undoStack.removeFirst() }
   world=next
   gravityStrength = -next.gravity.y
@@ -453,6 +480,8 @@ struct CMPlaygroundView: View {
  private func clearExperimentState() {
   startingLayout=nil
   startingPins=nil
+  startingSprings=nil
+  springSourceIndex=nil
   reachedGoal=false
   simulationSteps=0
   trails=[]
@@ -486,8 +515,9 @@ struct CMPlaygroundView: View {
 
  private func stepOnce() {
   guard !running && !reachedGoal else { return }
-  if startingLayout == nil { startingLayout=world; startingPins=pins }
+  if startingLayout == nil { startingLayout=world; startingPins=pins; startingSprings=springs }
   let before=world.bodies.map(\.position)
+  world.applySprings(springs,dt:Self.fixedStep)
   world.step(dt:Self.fixedStep)
   world.applyPins(pins)
   recordTrails()
@@ -643,6 +673,55 @@ struct CMPlaygroundView: View {
     .accessibilityLabel("Increase "+name)
   }.buttonStyle(.bordered)
  }
+ private func connectSpring() {
+  guard !running,case .ball(let index)=selection,world.bodies.indices.contains(index) else { return }
+  guard let first=springSourceIndex else {
+   springSourceIndex=index
+   storageMessage="Select another ball and tap Spring again"
+   return
+  }
+  guard first != index,world.bodies.indices.contains(first) else {
+   springSourceIndex=nil
+   storageMessage="Choose two different balls"
+   return
+  }
+  guard springs.count < 20 else { storageMessage="Spring limit reached";return }
+  guard !springs.contains(where: {
+   ($0.firstIndex == first && $0.secondIndex == index) ||
+   ($0.firstIndex == index && $0.secondIndex == first)
+  }) else {
+   springSourceIndex=nil
+   storageMessage="These balls are already connected"
+   return
+  }
+  let delta=world.bodies[index].position-world.bodies[first].position
+  let distance=sqrt(delta.x*delta.x+delta.y*delta.y)
+  guard distance.isFinite,distance > 0.01 else {
+   springSourceIndex=nil
+   storageMessage="Move balls apart before connecting"
+   return
+  }
+  saveUndo()
+  springs.append(CMSpringJoint2D(firstIndex:first,secondIndex:index,restLength:distance))
+  springSourceIndex=nil
+  startingLayout=nil
+  startingPins=nil
+  startingSprings=nil
+  storageMessage="Spring connected"
+ }
+ private func removeSpringsForSelection() {
+  guard !running,case .ball(let index)=selection else { return }
+  guard springs.contains(where:{$0.firstIndex == index || $0.secondIndex == index}) else {
+   storageMessage="No springs on selected ball"
+   return
+  }
+  saveUndo()
+  springs.removeAll(where:{$0.firstIndex == index || $0.secondIndex == index})
+  startingLayout=nil
+  startingPins=nil
+  startingSprings=nil
+  storageMessage="Removed selected ball's springs"
+ }
  private func togglePin() {
   guard !running,case .ball(let i)=selection,world.bodies.indices.contains(i) else { return }
   saveUndo()
@@ -734,6 +813,13 @@ struct CMPlaygroundView: View {
   switch selection {
   case .ball(let i):
    world.bodies.remove(at:i)
+   springs=springs.compactMap { spring in
+    if spring.firstIndex == i || spring.secondIndex == i { return nil }
+    var next=spring
+    if next.firstIndex > i { next.firstIndex-=1 }
+    if next.secondIndex > i { next.secondIndex-=1 }
+    return next
+   }
    pins=pins.compactMap { pin in
     if pin.bodyIndex == i { return nil }
     return CMPinJoint2D(bodyIndex:pin.bodyIndex > i ? pin.bodyIndex-1 : pin.bodyIndex,anchor:pin.anchor)
@@ -796,6 +882,12 @@ struct CMPlaygroundView: View {
         for position in trail.dropFirst() { path.addLine(to:screen(position,size)) }
         context.stroke(path,with:.color(.cyan.opacity(0.35)),lineWidth:1.5)
        }
+      }
+      for spring in springs where world.bodies.indices.contains(spring.firstIndex) && world.bodies.indices.contains(spring.secondIndex) {
+       var connector=Path()
+       connector.move(to:screen(world.bodies[spring.firstIndex].position,size))
+       connector.addLine(to:screen(world.bodies[spring.secondIndex].position,size))
+       context.stroke(connector,with:.color(.mint),style:StrokeStyle(lineWidth:3,dash:[6,4]))
       }
       for pin in pins where world.bodies.indices.contains(pin.bodyIndex) {
        let center=screen(pin.anchor,size)
@@ -896,6 +988,8 @@ struct CMPlaygroundView: View {
    HStack {
     Button("Add ball") { addBall() }.disabled(running || world.bodies.count >= 20)
     Button("Add ramp") { addRamp() }.disabled(running || world.segments.count >= 12)
+    Button("Spring") { connectSpring() }.disabled(running)
+    Button("Remove springs") { removeSpringsForSelection() }.disabled(running)
     Button("Pin / Unpin") { togglePin() }.disabled(running || { if case .ball = selection { return false }; return true }())
     Button("Duplicate") { duplicateSelected() }.disabled(running || selection == nil)
     Button("Delete") { deleteSelected() }.disabled(running || selection == nil)
