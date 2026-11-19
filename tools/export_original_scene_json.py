@@ -38,7 +38,7 @@ def export_node(node: SceneNode) -> dict:
         goal = node.first_field("GOAL")
         if goal is not None:
             result["goal_raw"] = goal
-    elif node.name == "level" or node.name.startswith("3DO ") or node.children:
+    else:
         relative_position = node.first_field("POSREL")
         if relative_position is not None:
             result["position_relative"] = parse_vector3(relative_position)
