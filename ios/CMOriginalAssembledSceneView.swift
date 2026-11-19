@@ -1,7 +1,7 @@
 import SwiftUI
 import SceneKit
 
-/// Read-only assembly of the user's authentic UCM meshes at scene POS coordinates.
+/// Interactive assembly of authentic UCM meshes at original scene POS coordinates.
 /// Missing meshes are omitted and reported, never replaced with invented shapes.
 struct CMOriginalAssembledSceneView: UIViewRepresentable {
     let document: CMOriginalSceneDocument
@@ -46,6 +46,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private weak var highlighted: SCNNode?
         private var originalEmission: Any?
         private weak var dragging: SCNNode?
+        private var dragInitialPosition: SCNVector3?
         private var lastDragPoint: CGPoint?
         private var dragWasActive = false
         var storageKey = ""
@@ -92,6 +93,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // reference wrapper. Keep nested model offsets intact.
                 guard let owner = selected.parent?.parent else { return }
                 dragging = owner
+                dragInitialPosition = owner.position
                 lastDragPoint = point
                 dragWasActive = true
             case .changed:
@@ -119,6 +121,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     lastDragPoint = point
                 }
              default:
+                if gesture.state == .cancelled || gesture.state == .failed,
+                   let target = dragging, let initial = dragInitialPosition {
+                    target.position = initial
+                }
                 if gesture.state == .ended, let target = dragging,
                    let identifier = target.name, identifier.hasPrefix("original-node-") {
                     var positions = UserDefaults.standard.dictionary(forKey: storageKey) as? [String: [Double]] ?? [:]
@@ -128,6 +134,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     UserDefaults.standard.set(positions, forKey: storageKey)
                 }
                 dragging = nil
+                dragInitialPosition = nil
                 lastDragPoint = nil
                 dragWasActive = false
             }
