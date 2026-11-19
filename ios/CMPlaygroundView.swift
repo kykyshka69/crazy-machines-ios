@@ -178,8 +178,8 @@ struct CMPlaygroundView: View {
    let p=ball.position+delta
    guard p.x>=ball.radius,p.x<=Self.worldWidth-ball.radius,
     p.y>=ball.radius,p.y<=Self.worldHeight-ball.radius,
-    world.bodies.enumerated().allSatisfy({ j,other in
-     j == i || squaredDistance(p,other.position)>=pow(ball.radius+other.radius+0.02,2)
+    world.bodies.enumerated().allSatisfy({ entry in
+     entry.offset == i || squaredDistance(p,entry.element.position)>=pow(ball.radius+entry.element.radius+0.02,2)
     }),
     world.segments.allSatisfy({ segment in
      segmentDistanceSquared(p,segment)>=pow(ball.radius+0.02,2)
