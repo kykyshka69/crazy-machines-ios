@@ -1341,14 +1341,18 @@ struct CMPlaygroundView: View {
   ScrollView {
   VStack(spacing:10) {
    Text("Mechanics playground").font(.headline)
-   if activeChallenge == 10 {
-    Text(completedChallenges.contains(10) ? "Target Shot · Completed ✓" : "Target Shot · Reach the green target")
+   if let challenge=activeChallenge {
+    let challengeNames=[10:"Target Shot",11:"Gravity Course",12:"Pendulum Target"]
+    Text((challengeNames[challenge] ?? "Challenge") +
+     (completedChallenges.contains(challenge) ? " · Completed ✓" : " · Reach the green target"))
      .font(.subheadline.bold())
-    if bestTargetSteps > 0 {
+    if challenge == 10 && bestTargetSteps > 0 {
      Text("Best: "+String(format:"%.2f",Double(bestTargetSteps)*Self.fixedStep)+" s")
       .font(.caption.monospacedDigit())
     }
    }
+   Text("Challenges completed: \(completedChallenges.intersection([10,11,12]).count) / 3")
+    .font(.caption)
    Text(reachedGoal ? "Goal reached!" : "Guide a ball into the green target")
     .font(.subheadline)
     .foregroundColor(reachedGoal ? .green : .secondary)
