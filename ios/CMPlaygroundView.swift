@@ -75,6 +75,9 @@ struct CMPlaygroundView: View {
  @State private var pendingImportSprings: [CMSpringJoint2D] = []
  @State private var pendingImportName = ""
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
+ @State private var completedChallenges: Set<Int> = Set(UserDefaults.standard.array(forKey:"cm.completed.challenges.v1") as? [Int] ?? [])
+ @State private var activeChallenge: Int? = nil
+ private static let challengeKey = "cm.completed.challenges.v1"
  private static let fixedStep = 1.0 / 120.0
  private static let goal = SIMD2<Double>(6.2,0.6)
  private static let goalRadius = 0.55
@@ -180,6 +183,11 @@ struct CMPlaygroundView: View {
    reachedGoal=true
    running=false
    lastTick=nil
+   if let challenge=activeChallenge {
+    completedChallenges.insert(challenge)
+    UserDefaults.standard.set(completedChallenges.sorted(),forKey:Self.challengeKey)
+    storageMessage="Challenge completed! Best effort saved"
+   }
   }
  }
  private func clearScene() {
@@ -755,6 +763,7 @@ struct CMPlaygroundView: View {
    return
   }
   saveUndo()
+  activeChallenge = preset == 10 ? 10 : nil
   world=scene
   pins=newPins
   springs=newSprings
@@ -1312,6 +1321,10 @@ struct CMPlaygroundView: View {
   ScrollView {
   VStack(spacing:10) {
    Text("Mechanics playground").font(.headline)
+   if activeChallenge == 10 {
+    Text(completedChallenges.contains(10) ? "Target Shot · Completed ✓" : "Target Shot · Reach the green target")
+     .font(.subheadline.bold())
+   }
    Text(reachedGoal ? "Goal reached!" : "Guide a ball into the green target")
     .font(.subheadline)
     .foregroundColor(reachedGoal ? .green : .secondary)
