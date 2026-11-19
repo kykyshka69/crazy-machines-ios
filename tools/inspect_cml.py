@@ -38,6 +38,21 @@ def text_candidates(data: bytes, minimum: int = 5, limit: int = 200) -> list[dic
         if start is not None and (offset - start) // stride >= minimum:
             results.append({"offset": start, "encoding": encoding,
                             "text": data[start:offset].decode(encoding)})
+    # ASCII followed by NUL can overlap a UTF-16LE string on the other parity.
+    # Keep the raw match and also expose the non-overlapping UTF-16LE suffix.
+    ascii_spans = [(item["offset"], item["offset"] + len(item["text"]))
+                   for item in results if item["encoding"] == "ascii"]
+    for item in list(results):
+        if item["encoding"] != "utf-16le":
+            continue
+        for start, end in ascii_spans:
+            if start <= item["offset"] < end:
+                skipped = (end - item["offset"] + 1) // 2
+                suffix = item["text"][skipped:]
+                if len(suffix) >= minimum:
+                    results.append({"offset": item["offset"] + 2 * skipped,
+                                    "encoding": "utf-16le", "text": suffix})
+                break
     unique = {(entry["offset"], entry["encoding"], entry["text"]): entry for entry in results}
     return sorted(unique.values(), key=lambda entry: (entry["offset"], entry["encoding"]))[:limit]
 
