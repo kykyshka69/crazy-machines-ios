@@ -208,10 +208,20 @@ jobs:
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath /tmp/cm-ios-derived \
             CODE_SIGNING_ALLOWED=NO build
-      - name: Archive simulator app and build log on failure
+      - name: Upload built simulator application
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CrazyMachinesIOS-simulator-app
+          path: /tmp/cm-ios-derived/Build/Products/Debug-iphonesimulator/CrazyMachinesIOS.app
+          if-no-files-found: error
+          retention-days: 14
+      - name: Archive simulator build diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: ios-build-diagnostics
-          path: /tmp/cm-ios-derived/Logs/Build
-          if-no-files-found: ignore
+          path: |
+            /tmp/cm-ios-derived/Logs/Build
+            /tmp/cm-ios-derived/Build/Intermediates.noindex
+          if-no-files-found: warn
