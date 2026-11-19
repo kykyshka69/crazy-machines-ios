@@ -18,6 +18,7 @@ class OriginalSceneJSONTests(unittest.TestCase):
         board = document["root"]["children"][0]
         self.assertEqual(board["position"], [-1.41905, -1.08718, 0.03751])
         self.assertEqual(board["models"], ["to_board"])
+        self.assertEqual(board["position_relative"], [0.25, -0.5, 0])
         self.assertEqual(board["goal_raw"], "1")
         self.assertEqual(board["children"][1]["position"], [0, 1, 2])
         self.assertIn("Оригинальный уровень", to_json(document))
