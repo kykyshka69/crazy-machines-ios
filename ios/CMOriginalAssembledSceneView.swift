@@ -37,7 +37,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         func walk(_ item: CMOriginalSceneDocument.Node, parent: SCNNode) {
             let transform = SCNNode()
             transform.name = item.name
-            if let p = item.position, p.count == 3 {
+            if let p = item.positionRelative ?? item.position, p.count == 3 {
                 transform.position = SCNVector3(Float(p[0]), Float(p[1]), Float(p[2]))
             }
             transform.eulerAngles = parseRotation(item.rotationRelativeRaw ?? item.rotationRaw)
