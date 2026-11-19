@@ -959,6 +959,25 @@ struct CMPlaygroundView: View {
   storageMessage="Removed selected ball's springs"
   saveDraft()
  }
+ private func stopSelectedBall() {
+  guard !running,case .ball(let index)=selection,
+   world.bodies.indices.contains(index) else { return }
+  let velocity=world.bodies[index].velocity
+  guard velocity.x != 0 || velocity.y != 0 ||
+   world.bodies[index].angularVelocity != 0 else { return }
+  saveUndo()
+  world.bodies[index].velocity=SIMD2<Double>(0,0)
+  world.bodies[index].angularVelocity=0
+  startingLayout=nil
+  startingPins=nil
+  startingSprings=nil
+  startingPivots=nil
+  reachedGoal=false
+  simulationSteps=0
+  trails=[]
+  saveDraft()
+  storageMessage="Ball motion cleared (Undo to restore)"
+ }
  private func launchSelectedBall(dx:Double,dy:Double) {
   guard !running,case .ball(let index)=selection,
    world.bodies.indices.contains(index),
@@ -1485,6 +1504,7 @@ struct CMPlaygroundView: View {
          Button("Launch ↓") { launchSelectedBall(dx:0,dy:-1.5) }
         }.buttonStyle(.bordered).disabled(running)
        }
+       Button("Stop ball") { stopSelectedBall() }.disabled(running)
        propertyControl("Mass",value:world.bodies[i].mass,step:0.1,key:"mass")
        propertyControl("Radius",value:world.bodies[i].radius,step:0.05,key:"radius")
        propertyControl("Bounce",value:world.bodies[i].restitution,step:0.1,key:"bounce")
