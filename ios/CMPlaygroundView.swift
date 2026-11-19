@@ -697,6 +697,28 @@ struct CMPlaygroundView: View {
    ]
    newPivots=[CMPivotJoint2D(bodyIndex:0,anchor:SIMD2(1.5,4.5),length:sqrt(2.02))]
    newSprings=[CMSpringJoint2D(firstIndex:0,secondIndex:1,restLength:1.4,stiffness:25,damping:2)]
+  case 6: // Three hanging masses transfer momentum through collisions.
+   scene.bodies=[
+    CMPhysicsBody2D(position:SIMD2(2.0,3.7),radius:0.25),
+    CMPhysicsBody2D(position:SIMD2(3.2,3.7),radius:0.25),
+    CMPhysicsBody2D(position:SIMD2(3.72,3.7),radius:0.25)
+   ]
+   newPivots=[
+    CMPivotJoint2D(bodyIndex:0,anchor:SIMD2(2.6,4.8),length:sqrt(1.57)),
+    CMPivotJoint2D(bodyIndex:1,anchor:SIMD2(3.2,4.8),length:1.1),
+    CMPivotJoint2D(bodyIndex:2,anchor:SIMD2(3.72,4.8),length:1.1)
+   ]
+  case 7: // A pinned support suspends two linked masses in series.
+   scene.bodies=[
+    CMPhysicsBody2D(position:SIMD2(2.5,4.6),radius:0.25),
+    CMPhysicsBody2D(position:SIMD2(3.2,3.2),radius:0.25),
+    CMPhysicsBody2D(position:SIMD2(4.3,2.6),radius:0.25)
+   ]
+   newPins=[CMPinJoint2D(bodyIndex:0,anchor:SIMD2(2.5,4.6))]
+   newSprings=[
+    CMSpringJoint2D(firstIndex:0,secondIndex:1,restLength:1.1,stiffness:32,damping:2),
+    CMSpringJoint2D(firstIndex:1,secondIndex:2,restLength:1.0,stiffness:24,damping:2)
+   ]
   default: return
   }
   let document=CMLevelDocument(world:scene,pins:newPins,springs:newSprings,pivots:newPivots)
@@ -714,7 +736,7 @@ struct CMPlaygroundView: View {
   pivots=newPivots
   clearExperimentState()
   saveDraft()
-  storageMessage=["Pendulum","Coupled spring","Spring and pin","Double pendulum","Ramp run","Spring pendulum"][preset]+" preset loaded (Undo to restore)"
+  storageMessage=["Pendulum","Coupled spring","Spring and pin","Double pendulum","Ramp run","Spring pendulum","Collision pendulums","Spring chain"][preset]+" preset loaded (Undo to restore)"
  }
  private func addBall() {
   guard !running && world.bodies.count < 20 else { return }
@@ -1372,6 +1394,8 @@ struct CMPlaygroundView: View {
     Button("Dual pivots") { loadMechanismPreset(3) }.disabled(running)
     Button("Ramp run") { loadMechanismPreset(4) }.disabled(running)
     Button("Spring pendulum") { loadMechanismPreset(5) }.disabled(running)
+    Button("Collision pendulums") { loadMechanismPreset(6) }.disabled(running)
+    Button("Spring chain") { loadMechanismPreset(7) }.disabled(running)
     Button("Add ball") { addBall() }.disabled(running || world.bodies.count >= 20)
     Button("Add ramp") { addRamp() }.disabled(running || world.segments.count >= 12)
     Button("Spring") { connectSpring() }.disabled(running)
