@@ -218,15 +218,15 @@ struct CMPlaygroundView: View {
     storageMessage="Move blocked by boundary or object"
     return
    }
-   saveUndo()
    if let pivotIndex=pivots.firstIndex(where:{$0.bodyIndex==i}) {
     let anchor=pivots[pivotIndex].anchor+delta
     guard (0...Self.worldWidth).contains(anchor.x),(0...Self.worldHeight).contains(anchor.y) else {
      storageMessage="Pivot anchor would leave the scene"
      return
     }
-    pivots[pivotIndex].anchor=anchor
    }
+   saveUndo()
+   if let pivotIndex=pivots.firstIndex(where:{$0.bodyIndex==i}) { pivots[pivotIndex].anchor+=delta }
    world.bodies[i].position=p
    if let pinIndex=pins.firstIndex(where:{$0.bodyIndex == i}) { pins[pinIndex].anchor=p }
    world.bodies[i].velocity = .zero
@@ -1317,9 +1317,17 @@ struct CMPlaygroundView: View {
        gravityEditSnapshot=nil
        if abs(before.gravity.y-world.gravity.y) > 1e-9 {
         undoStack.append(before)
+        pinUndoStack.append(pins)
+        springUndoStack.append(springs)
+        pivotUndoStack.append(pivots)
         if undoStack.count > 30 { undoStack.removeFirst() }
+        if pinUndoStack.count > 30 { pinUndoStack.removeFirst() }
+        if springUndoStack.count > 30 { springUndoStack.removeFirst() }
+        if pivotUndoStack.count > 30 { pivotUndoStack.removeFirst() }
         redoStack=[]
         pinRedoStack=[]
+        springRedoStack=[]
+        pivotRedoStack=[]
         saveDraft()
        }
       }
