@@ -55,6 +55,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             guard gesture.state == .began,
                   let view = gesture.view as? SCNView,
                   let selected = highlighted,
+                  let point = gesture.location(in: view),
+                  view.hitTest(point, options: [.firstFoundOnly: true]).first?.node === selected,
                   let owner = selected.parent?.parent,
                   let identifier = owner.name,
                   let original = originalPositions[identifier] else { return }
@@ -65,9 +67,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            guard gestureRecognizer is UIPanGestureRecognizer,
-                  let view = gestureRecognizer.view as? SCNView,
-                  let selected = highlighted else { return true }
+            guard gestureRecognizer is UIPanGestureRecognizer else { return true }
+            guard let view = gestureRecognizer.view as? SCNView,
+                  let selected = highlighted else { return false }
             let point = gestureRecognizer.location(in: view)
             // Do not steal camera gestures unless the finger begins directly
             // on the selected mesh.
