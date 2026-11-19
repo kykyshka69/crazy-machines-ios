@@ -73,10 +73,10 @@ public struct CMOriginalSceneDocument: Decodable {
               node.children.count <= 2048,
               node.fields.allSatisfy({ $0.count <= 4096 }) else { throw SceneError.invalid }
         if let p = node.position {
-            guard p.count == 3 && p.allSatisfy({ $0.isFinite }) else { throw SceneError.invalid }
+            guard p.count == 3 && p.allSatisfy({ $0.isFinite && abs($0) <= Double(Float.greatestFiniteMagnitude) }) else { throw SceneError.invalid }
         }
         if let p = node.positionRelative {
-            guard p.count == 3 && p.allSatisfy({ $0.isFinite }) else { throw SceneError.invalid }
+            guard p.count == 3 && p.allSatisfy({ $0.isFinite && abs($0) <= Double(Float.greatestFiniteMagnitude) }) else { throw SceneError.invalid }
         }
         for child in node.children { try validate(child, depth: depth + 1) }
     }
