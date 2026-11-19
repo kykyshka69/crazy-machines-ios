@@ -38,9 +38,8 @@ class OriginalLevelDecompressionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             decompress_level_section(pack_codes([65, 700, 4095, 0]))
 
-    def test_reject_nonzero_after_end(self):
-        with self.assertRaises(ValueError):
-            decompress_level_section(pack_codes([65, 4095, 1, 0]))
+    def test_ignores_padding_after_end(self):
+        self.assertEqual(decompress_level_section(pack_codes([65, 4095, 1, 0])), b"A")
 
 
 if __name__ == "__main__":
