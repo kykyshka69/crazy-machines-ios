@@ -32,6 +32,7 @@ struct CMPlaygroundView: View {
  @State private var springSourceIndex: Int?
  @State private var selectedSpringIndex: Int?
  @State private var dragPinsSnapshot: [CMPinJoint2D]?
+ @State private var dragPivotsSnapshot: [CMPivotJoint2D]?
  @State private var pinUndoStack: [[CMPinJoint2D]] = []
  @State private var pinRedoStack: [[CMPinJoint2D]] = []
  @State private var startingPins: [CMPinJoint2D]?
@@ -218,6 +219,14 @@ struct CMPlaygroundView: View {
     return
    }
    saveUndo()
+   if let pivotIndex=pivots.firstIndex(where:{$0.bodyIndex==i}) {
+    let anchor=pivots[pivotIndex].anchor+delta
+    guard (0...Self.worldWidth).contains(anchor.x),(0...Self.worldHeight).contains(anchor.y) else {
+     storageMessage="Pivot anchor would leave the scene"
+     return
+    }
+    pivots[pivotIndex].anchor=anchor
+   }
    world.bodies[i].position=p
    if let pinIndex=pins.firstIndex(where:{$0.bodyIndex == i}) { pins[pinIndex].anchor=p }
    world.bodies[i].velocity = .zero
@@ -266,6 +275,7 @@ struct CMPlaygroundView: View {
   redoStack=[]
   dragSnapshot=nil
   dragPinsSnapshot=nil
+  dragPivotsSnapshot=nil
   dragChanged=false
   gravityEditSnapshot=nil
   world.gravity.y = -gravityStrength
@@ -584,6 +594,7 @@ struct CMPlaygroundView: View {
   selection=select(at:point)
   dragSnapshot=selection == nil ? nil : world
   dragPinsSnapshot=selection == nil ? nil : pins
+  dragPivotsSnapshot=selection == nil ? nil : pivots
   dragChanged=false
   dragStart=point
   if case .ramp(let i)=selection { initialSegment=world.segments[i] }
@@ -599,7 +610,14 @@ struct CMPlaygroundView: View {
    let next=SIMD2(min(max(p.x,radius),Self.worldWidth-radius),min(max(p.y,radius),Self.worldHeight-radius))
    guard squaredDistance(next,world.bodies[i].position) > 1e-10 else { return }
    dragChanged=true
+   let delta=next-world.bodies[i].position
    world.bodies[i].position=next
+   if let pivotIndex=pivots.firstIndex(where:{$0.bodyIndex==i}) {
+    let anchor=pivots[pivotIndex].anchor+delta
+    if (0...Self.worldWidth).contains(anchor.x) && (0...Self.worldHeight).contains(anchor.y) {
+     pivots[pivotIndex].anchor=anchor
+    } else { world.bodies[i].position-=delta; return }
+   }
    if let pinIndex=pins.firstIndex(where:{$0.bodyIndex == i}) { pins[pinIndex].anchor=next }
    world.bodies[i].velocity = .zero
    world.bodies[i].angularVelocity=0
@@ -1086,7 +1104,7 @@ struct CMPlaygroundView: View {
         undoStack.append(before)
         pinUndoStack.append(dragPinsSnapshot ?? pins)
         springUndoStack.append(springs)
-  pivotUndoStack.append(pivots)
+        pivotUndoStack.append(dragPivotsSnapshot ?? pivots)
         if springUndoStack.count > 30 { springUndoStack.removeFirst() }
   if pivotUndoStack.count > 30 { pivotUndoStack.removeFirst() }
         if pinUndoStack.count > 30 { pinUndoStack.removeFirst() }
@@ -1098,6 +1116,7 @@ struct CMPlaygroundView: View {
        }
        dragSnapshot=nil
        dragPinsSnapshot=nil
+       dragPivotsSnapshot=nil
        if dragChanged { saveDraft() }
        dragChanged=false
        dragStart=nil
