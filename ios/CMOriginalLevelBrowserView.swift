@@ -14,7 +14,8 @@ struct CMOriginalLevelBrowserView: View {
 
     private struct AssembledSelection: Identifiable {
         let document: CMOriginalSceneDocument
-        var id: Int { document.index }
+        let experimentalPhysics: Bool
+        var id: String { "\(document.index)-\(experimentalPhysics)" }
     }
 
     private struct ModelPreviewSelection: Identifiable {
@@ -135,8 +136,13 @@ struct CMOriginalLevelBrowserView: View {
             }
             Section("Assembled original 3D scene") {
                 Button("View original level in 3D") {
-                    assembledScene = AssembledSelection(document: document)
+                    assembledScene = AssembledSelection(document: document, experimentalPhysics: false)
                 }
+                Button("Try experimental gravity and collisions") {
+                    assembledScene = AssembledSelection(document: document, experimentalPhysics: true)
+                }
+                Text("Experimental sandbox only: imported meshes use approximate bounding-box collisions, uniform mass and gravity. This is not the original game physics or puzzle completion logic.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Button("Reset all saved 3D positions", role: .destructive) {
                     confirmingResetEdits = true
                 }
@@ -198,7 +204,7 @@ struct CMOriginalLevelBrowserView: View {
         }
         .sheet(item: $assembledScene) { selection in
             NavigationStack {
-                CMOriginalAssembledSceneView(document: selection.document, assetDirectory: originalStorage)
+                CMOriginalAssembledSceneView(document: selection.document, assetDirectory: originalStorage, experimentalPhysics: selection.experimentalPhysics)
                     .navigationTitle("Level \(selection.document.index) · 3D")
                     .toolbar { Button("Close") { assembledScene = nil } }
             }
