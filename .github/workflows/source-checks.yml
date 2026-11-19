@@ -159,5 +159,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Compile and test level document persistence
         run: |
-          swiftc ios/CMPhysics2D.swift ios/CMPinJoint2D.swift ios/CMSpringJoint2D.swift ios/CMLevelDocument.swift tests/CMLevelDocumentSmoke.swift -o /tmp/cm-level-document
+          swiftc ios/CMPhysics2D.swift ios/CMPinJoint2D.swift ios/CMSpringJoint2D.swift ios/CMPivotJoint2D.swift ios/CMLevelDocument.swift tests/CMLevelDocumentSmoke.swift -o /tmp/cm-level-document
           /tmp/cm-level-document
