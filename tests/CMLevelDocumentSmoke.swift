@@ -76,6 +76,44 @@ import Foundation
   do { _=try invalidPin.makeWorld(); fatalError("Duplicate pin accepted") } catch CMLevelDocument.LevelError.invalid {}
   let legacyPins=try decoded.makePins()
   precondition(legacyPins.isEmpty)
+  // Ten spring-document regression scenarios.
+  var twoBodies=world
+  twoBodies.bodies.append(CMPhysicsBody2D(position:SIMD2(3,4),radius:0.4))
+  let linked=CMLevelDocument(world:twoBodies,springs:[
+   CMSpringJoint2D(firstIndex:0,secondIndex:1,restLength:1.5,stiffness:25,damping:3)
+  ])
+  let linkedDecoded=try JSONDecoder().decode(CMLevelDocument.self,from:JSONEncoder().encode(linked))
+  // 1. Spring survives a JSON roundtrip.
+  let loadedSprings=try linkedDecoded.makeSprings()
+  precondition(loadedSprings.count == 1)
+  // 2. Both endpoint indices survive.
+  precondition(loadedSprings[0].firstIndex == 0 && loadedSprings[0].secondIndex == 1)
+  // 3. Rest length survives.
+  precondition(loadedSprings[0].restLength == 1.5)
+  // 4. Stiffness and damping survive.
+  precondition(loadedSprings[0].stiffness == 25 && loadedSprings[0].damping == 3)
+  // 5. Legacy level without springs remains readable.
+  precondition(try decoded.makeSprings().isEmpty)
+  // 6. Out-of-range endpoint is rejected.
+  var invalidSpring=linkedDecoded
+  invalidSpring.springs?[0].secondIndex=2
+  do { _=try invalidSpring.makeWorld(); fatalError("Invalid spring endpoint accepted") } catch CMLevelDocument.LevelError.invalid {}
+  // 7. Self-connection is rejected.
+  invalidSpring=linkedDecoded
+  invalidSpring.springs?[0].secondIndex=0
+  do { _=try invalidSpring.makeWorld(); fatalError("Self spring accepted") } catch CMLevelDocument.LevelError.invalid {}
+  // 8. Negative rest length is rejected.
+  invalidSpring=linkedDecoded
+  invalidSpring.springs?[0].restLength = -1
+  do { _=try invalidSpring.makeWorld(); fatalError("Negative spring rest length accepted") } catch CMLevelDocument.LevelError.invalid {}
+  // 9. Nonfinite damping is rejected.
+  invalidSpring=linkedDecoded
+  invalidSpring.springs?[0].damping = .infinity
+  do { _=try invalidSpring.makeWorld(); fatalError("Infinite spring damping accepted") } catch CMLevelDocument.LevelError.invalid {}
+  // 10. Reversed duplicate connection is rejected.
+  invalidSpring=linkedDecoded
+  invalidSpring.springs?.append(CMLevelDocument.Spring(firstIndex:1,secondIndex:0,restLength:1.5,stiffness:25,damping:3))
+  do { _=try invalidSpring.makeWorld(); fatalError("Duplicate spring accepted") } catch CMLevelDocument.LevelError.invalid {}
   print("Level document roundtrip and validation passed")
  }
 }
