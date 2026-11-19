@@ -26,6 +26,7 @@ jobs:
           python -m unittest -v test_cml_puzzle_instructions.py
           python -m unittest -v test_analyze_puzzle_binary.py
           python -m unittest -v test_original_cml_frames.py
+          python -m unittest -v test_inspect_puzzle_section_windows.py
 
   original-cml-metadata-runtime:
     runs-on: ubuntu-latest
