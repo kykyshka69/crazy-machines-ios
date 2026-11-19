@@ -24,6 +24,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         let scene = SCNScene()
         var loadedMeshNodes: [SCNNode] = []
         var meshCache: [URL: SCNGeometry] = [:]
+        // Avoid reparsing a corrupt UCM every time it is referenced.
+        var invalidMeshes = Set<URL>()
 
         func parseRotation(_ raw: String?) -> SCNVector3 {
             guard let raw else { return SCNVector3Zero }
@@ -49,12 +51,24 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             if item.name.hasPrefix("3DO ") {
                 let name = String(item.name.dropFirst(4))
                 if let url = CMOriginalModelResolver.resolve(name, in: assetDirectory) {
-                    if let geometry = meshCache[url] ?? (try? Self.loadGeometry(url)) {
-                        meshCache[url] = geometry
-                        let mesh = SCNNode(geometry: geometry)
-                        mesh.name = name
-                        transform.addChildNode(mesh)
-                        loadedMeshNodes.append(mesh)
+                    if !invalidMeshes.contains(url) {
+                        let geometry: SCNGeometry?
+                        if let cached = meshCache[url] {
+                            geometry = cached
+                        } else {
+                            geometry = try? Self.loadGeometry(url)
+                            if let geometry {
+                                meshCache[url] = geometry
+                            } else {
+                                invalidMeshes.insert(url)
+                            }
+                        }
+                        if let geometry {
+                            let mesh = SCNNode(geometry: geometry)
+                            mesh.name = name
+                            transform.addChildNode(mesh)
+                            loadedMeshNodes.append(mesh)
+                        }
                     }
                 }
             }
