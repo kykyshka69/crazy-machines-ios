@@ -119,16 +119,35 @@ def compare(files: list[Path]) -> dict:
             "equal_length": len(set(map(len, blobs))) == 1,
             "differing_byte_ranges": ranges}
 
+
+def discover(inputs: list[Path]) -> list[Path]:
+    """Find original CML files in extracted installation trees, deterministically."""
+    found = set()
+    for item in inputs:
+        if item.is_dir():
+            for candidate in item.rglob("*"):
+                if candidate.is_file() and candidate.suffix.lower() == ".cml":
+                    found.add(candidate.resolve())
+        elif item.is_file() and item.suffix.lower() == ".cml":
+            found.add(item.resolve())
+        else:
+            raise ValueError(f"not a CML file or readable directory: {item}")
+    if not found:
+        raise ValueError("no CML files found in supplied paths")
+    return sorted(found, key=str)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("files", nargs="+", type=Path, help="Original .cml files")
+    parser.add_argument("files", nargs="+", type=Path, help="Original .cml files or extracted game directories")
     parser.add_argument("--output", type=Path, help="Optional JSON report path")
     args = parser.parse_args()
-    for path in args.files:
-        if not path.is_file() or path.suffix.lower() != ".cml":
-            parser.error(f"expected existing .cml file: {path}")
-    report = {"format": "unresolved", "files": [inspect(p) for p in args.files],
-              "cross_file_comparison": compare(args.files)}
+    try:
+        files = discover(args.files)
+    except ValueError as error:
+        parser.error(str(error))
+    report = {"format": "unresolved", "files": [inspect(p) for p in files],
+              "cross_file_comparison": compare(files)}
     result = json.dumps(report, ensure_ascii=False, indent=2)
     if args.output:
         args.output.write_text(result + "\n", encoding="utf-8")
