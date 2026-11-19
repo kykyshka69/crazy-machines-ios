@@ -20,7 +20,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
     private func buildScene() -> SCNScene {
         let scene = SCNScene()
-        var points: [SCNVector3] = []
+        var loadedMeshNodes: [SCNNode] = []
         var meshCache: [URL: SCNGeometry] = [:]
 
         func parseRotation(_ raw: String?) -> SCNVector3 {
@@ -52,27 +52,50 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         let mesh = SCNNode(geometry: geometry)
                         mesh.name = name
                         transform.addChildNode(mesh)
-                        points.append(transform.worldPosition)
+                        loadedMeshNodes.append(mesh)
                     }
                 }
             }
             for child in item.children { walk(child, parent: transform) }
         }
         walk(document.root, parent: scene.rootNode)
-        // Force world transforms to be evaluated before framing nested meshes.
-        scene.rootNode.enumerateChildNodes { _, _ in }
-
+        // Frame actual transformed mesh bounds, not just object origins.
+        // A long board can extend far beyond its POS coordinate.
         let camera = SCNNode()
         camera.camera = SCNCamera()
         camera.camera?.zNear = 0.01
         camera.camera?.zFar = 10000
-        if !points.isEmpty {
-            let xs = points.map { $0.x }, ys = points.map { $0.y }, zs = points.map { $0.z }
-            let center = SCNVector3((xs.min()! + xs.max()!) / 2,
-                                    (ys.min()! + ys.max()!) / 2,
-                                    (zs.min()! + zs.max()!) / 2)
-            let span = max(xs.max()! - xs.min()!, ys.max()! - ys.min()!,
-                           zs.max()! - zs.min()!, 1)
+        var lower = SCNVector3(Float.greatestFiniteMagnitude,
+                               Float.greatestFiniteMagnitude,
+                               Float.greatestFiniteMagnitude)
+        var upper = SCNVector3(-Float.greatestFiniteMagnitude,
+                               -Float.greatestFiniteMagnitude,
+                               -Float.greatestFiniteMagnitude)
+        var hasBounds = false
+        for mesh in loadedMeshNodes {
+            let (minLocal, maxLocal) = mesh.boundingBox
+            for x in [minLocal.x, maxLocal.x] {
+                for y in [minLocal.y, maxLocal.y] {
+                    for z in [minLocal.z, maxLocal.z] {
+                        let world = mesh.convertPosition(SCNVector3(x, y, z), to: nil)
+                        guard world.x.isFinite, world.y.isFinite, world.z.isFinite else { continue }
+                        lower.x = min(lower.x, world.x)
+                        lower.y = min(lower.y, world.y)
+                        lower.z = min(lower.z, world.z)
+                        upper.x = max(upper.x, world.x)
+                        upper.y = max(upper.y, world.y)
+                        upper.z = max(upper.z, world.z)
+                        hasBounds = true
+                    }
+                }
+            }
+        }
+        if hasBounds {
+            let center = SCNVector3((lower.x + upper.x) / 2,
+                                    (lower.y + upper.y) / 2,
+                                    (lower.z + upper.z) / 2)
+            let span = max(upper.x - lower.x, upper.y - lower.y,
+                           upper.z - lower.z, 0.1)
             camera.position = SCNVector3(center.x, center.y, center.z + span * 2.5)
             camera.look(at: center)
         } else {
