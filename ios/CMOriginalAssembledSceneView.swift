@@ -43,6 +43,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             scene.physicsWorld.gravity = SCNVector3(0, -9.8, 0)
         }
         view.scene = scene
+        view.isPlaying = experimentalPhysics
         context.coordinator.originalPositions = originalPositions
         view.pointOfView = scene.rootNode.childNode(withName: "original-level-camera", recursively: false)
         return view
@@ -265,6 +266,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                 body.friction = 0.6
                                 body.restitution = 0.15
                                 mesh.physicsBody = body
+                                // SceneKit's physics solver advances only when
+                                // the scene is playing, even if it is visible.
                             }
                             loadedMeshNodes.append(mesh)
                         }
