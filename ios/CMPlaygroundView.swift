@@ -684,6 +684,19 @@ struct CMPlaygroundView: View {
     CMPivotJoint2D(bodyIndex:0,anchor:SIMD2(2.5,4.5),length:sqrt(2)),
     CMPivotJoint2D(bodyIndex:1,anchor:SIMD2(4.5,4.5),length:sqrt(2))
    ]
+  case 4: // Inclined ramp launches a rolling ball toward the target.
+   scene.bodies=[CMPhysicsBody2D(position:SIMD2(1.1,4.8),radius:0.25)]
+   scene.segments=[
+    CMStaticSegment2D(start:SIMD2(0.5,4.2),end:SIMD2(3.8,1.6),friction:0.15),
+    CMStaticSegment2D(start:SIMD2(3.9,1.4),end:SIMD2(6.5,0.7),friction:0.15)
+   ]
+  case 5: // Elastic coupling between a pendulum and a free ball.
+   scene.bodies=[
+    CMPhysicsBody2D(position:SIMD2(2.4,3.4),radius:0.25),
+    CMPhysicsBody2D(position:SIMD2(4.4,3.4),radius:0.25)
+   ]
+   newPivots=[CMPivotJoint2D(bodyIndex:0,anchor:SIMD2(1.5,4.5),length:sqrt(2.02))]
+   newSprings=[CMSpringJoint2D(firstIndex:0,secondIndex:1,restLength:1.4,stiffness:25,damping:2)]
   default: return
   }
   let document=CMLevelDocument(world:scene,pins:newPins,springs:newSprings,pivots:newPivots)
@@ -701,7 +714,7 @@ struct CMPlaygroundView: View {
   pivots=newPivots
   clearExperimentState()
   saveDraft()
-  storageMessage=["Pendulum","Coupled spring","Spring and pin","Double pendulum"][preset]+" preset loaded (Undo to restore)"
+  storageMessage=["Pendulum","Coupled spring","Spring and pin","Double pendulum","Ramp run","Spring pendulum"][preset]+" preset loaded (Undo to restore)"
  }
  private func addBall() {
   guard !running && world.bodies.count < 20 else { return }
@@ -1357,6 +1370,8 @@ struct CMPlaygroundView: View {
     Button("Spring preset") { loadMechanismPreset(1) }.disabled(running)
     Button("Support preset") { loadMechanismPreset(2) }.disabled(running)
     Button("Dual pivots") { loadMechanismPreset(3) }.disabled(running)
+    Button("Ramp run") { loadMechanismPreset(4) }.disabled(running)
+    Button("Spring pendulum") { loadMechanismPreset(5) }.disabled(running)
     Button("Add ball") { addBall() }.disabled(running || world.bodies.count >= 20)
     Button("Add ramp") { addRamp() }.disabled(running || world.segments.count >= 12)
     Button("Spring") { connectSpring() }.disabled(running)
