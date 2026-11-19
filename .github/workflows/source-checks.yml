@@ -132,6 +132,8 @@ jobs:
           /tmp/cm-spring-parameters
           swiftc ios/CMPhysics2D.swift ios/CMSpringJoint2D.swift tests/CMSpringEdgeCasesSmoke.swift -o /tmp/cm-spring-edge-cases
           /tmp/cm-spring-edge-cases
+          swiftc ios/CMPhysics2D.swift ios/CMPivotJoint2D.swift tests/CMPivotSmoke.swift -o /tmp/cm-pivots
+          /tmp/cm-pivots
 
   preview-fixture-runtime:
     runs-on: ubuntu-latest
