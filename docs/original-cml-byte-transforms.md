@@ -52,3 +52,17 @@ reproducing the original call against both user-owned CML files.
 - `0x47E4D0–0x47E569` offset arithmetic
 - `0x47E570–0x47E5DF` adjacent delta
 - `0x47E610–0x47E85F` composite dispatch
+
+## Correction from instruction-level source tracing
+
+The initial description of 0x47E570 mistakenly reversed the
+source/destination dependency. Re-reading 0x47E5B7 and 0x47E5C6
+shows the **forward** path reads the previously modified destination,
+while the **reverse** path subtracts the previous original byte from
+a preserved temporary copy. Thus the verified pair is:
+
+- forward: `out[0]=in[0]; out[i]=(in[i]+out[i-1]) & 255`
+- reverse: `out[0]=in[0]; out[i]=(in[i]-in[i-1]) & 255`
+
+Both directions now have regression round-trip tests. This correction
+is necessary before reconstructing the composite decoder.
