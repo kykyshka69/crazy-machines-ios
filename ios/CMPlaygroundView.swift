@@ -175,7 +175,7 @@ struct CMPlaygroundView: View {
  }
  private func clearScene() {
   guard !running else { return }
-  guard !world.bodies.isEmpty || !world.segments.isEmpty || !pins.isEmpty else {
+  guard !world.bodies.isEmpty || !world.segments.isEmpty || !pins.isEmpty || !springs.isEmpty else {
    storageMessage="Scene is already empty"
    return
   }
@@ -347,7 +347,7 @@ struct CMPlaygroundView: View {
  }
  private func exportLevel() {
   do {
-   let document=CMLevelDocument(world:startingLayout ?? world)
+   let document=CMLevelDocument(world:startingLayout ?? world,pins:startingPins ?? pins,springs:startingSprings ?? springs)
    _ = try document.makePins()
    let encoder=JSONEncoder()
    encoder.outputFormatting=[.prettyPrinted,.sortedKeys]
@@ -403,7 +403,7 @@ struct CMPlaygroundView: View {
  private func saveLevel() {
   do {
    let layout=startingLayout ?? world
-   let document=CMLevelDocument(world:layout,pins:startingPins ?? pins)
+   let document=CMLevelDocument(world:layout,pins:startingPins ?? pins,springs:startingSprings ?? springs)
    _ = try document.makePins() // Do not overwrite a good save with an invalid layout.
    let data=try JSONEncoder().encode(document)
    UserDefaults.standard.set(data,forKey:saveKey(for:selectedSaveSlot))
@@ -532,6 +532,7 @@ struct CMPlaygroundView: View {
  private func beginDrag(_ point:SIMD2<Double>) {
   guard editMode && !running else { return }
   selection=select(at:point)
+  springSourceIndex=nil
   dragSnapshot=selection == nil ? nil : world
   dragChanged=false
   dragStart=point
@@ -739,6 +740,7 @@ struct CMPlaygroundView: View {
   }
   startingLayout=nil
   startingPins=nil
+  startingSprings=nil
   reachedGoal=false
   simulationSteps=0
   trails=[]
@@ -833,7 +835,9 @@ struct CMPlaygroundView: View {
    world.segments.remove(at:i)
   }
   self.selection=nil
+  springSourceIndex=nil
   trails=[]
+  startingSprings=nil
   startingPins=nil
   startingLayout=nil
   reachedGoal=false
