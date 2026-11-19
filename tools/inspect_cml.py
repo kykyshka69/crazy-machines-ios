@@ -42,6 +42,32 @@ def text_candidates(data: bytes, minimum: int = 5, limit: int = 200) -> list[dic
     return sorted(unique.values(), key=lambda entry: (entry["offset"], entry["encoding"]))[:limit]
 
 
+
+def repeated_signatures(data: bytes, width: int = 16, minimum_count: int = 3,
+                        limit: int = 12) -> list[dict]:
+    """Find frequent repeated fixed-width signatures with byte-exact offsets.
+
+    Adjacent overlapping windows from the same repeated run are grouped by
+    their offset tuples; only the earliest representative is reported.
+    """
+    from collections import defaultdict
+    positions = defaultdict(list)
+    for offset in range(max(0, len(data) - width + 1)):
+        positions[data[offset:offset + width]].append(offset)
+    groups = {}
+    for signature, offsets in positions.items():
+        if len(offsets) < minimum_count:
+            continue
+        key = tuple(offsets)
+        candidate = {"signature_hex": signature.hex(), "count": len(offsets),
+                     "offsets": offsets,
+                     "min_gap": min(b - a for a, b in zip(offsets, offsets[1:])),
+                     "max_gap": max(b - a for a, b in zip(offsets, offsets[1:]))}
+        if key not in groups or candidate["signature_hex"] < groups[key]["signature_hex"]:
+            groups[key] = candidate
+    return sorted(groups.values(), key=lambda item: (-item["count"], item["offsets"][0]))[:limit]
+
+
 def inspect(path: Path) -> dict:
     data = path.read_bytes()
     counts = collections.Counter(data)
@@ -77,6 +103,7 @@ def inspect(path: Path) -> dict:
         "zero_bytes": counts[0],
         "windows_4k": windows,
         "text_candidates": text_candidates(data),
+        "repeated_16_byte_signatures": repeated_signatures(data),
         "known_signature_offsets": markers,
         "aligned_u32_first_32": [
             int.from_bytes(data[i:i + 4], "little")
