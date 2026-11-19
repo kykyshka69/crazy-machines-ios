@@ -6,7 +6,8 @@ import json
 from pathlib import Path
 
 from decode_professor_records import PROFESSOR_SHA256, read_professor_records
-from analyze_puzzle_binary import shared_binary_structure
+from analyze_puzzle_binary import shared_binary_structure, extract_binary_section
+from inspect_puzzle_section_windows import analyze_sections
 
 
 def inventory(data: bytes) -> list[dict]:
@@ -35,12 +36,17 @@ def main() -> None:
     parser.add_argument("professor_cml", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--shared-structure", action="store_true", help="report common binary section structure only")
+    parser.add_argument("--window-analysis", action="store_true", help="compare first varying binary bytes without exporting game assets")
     args = parser.parse_args()
     data = args.professor_cml.read_bytes()
     if hashlib.sha256(data).hexdigest() != PROFESSOR_SHA256:
         parser.error("not the verified original Professor Laboratory file")
-    result = (shared_binary_structure([r["payload"] for r in read_professor_records(data, include_payload=True)])
-              if args.shared_structure else inventory(data))
+    if args.window_analysis:
+        result = analyze_sections([extract_binary_section(r["payload"]) for r in read_professor_records(data, include_payload=True)])
+    elif args.shared_structure:
+        result = shared_binary_structure([r["payload"] for r in read_professor_records(data, include_payload=True)])
+    else:
+        result = inventory(data)
     output = json.dumps(result, ensure_ascii=False, indent=2)
     if args.output:
         args.output.write_text(output + "\n", encoding="utf-8")
