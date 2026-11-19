@@ -202,3 +202,35 @@ additional binary sections. The conservative parser
 `tools/cml_puzzle_instructions.py` rejects unsupported layouts rather
 than mislabeling binary data as text. The binary object/coordinate
 structure is still under investigation.
+
+## Inner puzzle binary section identified across all 102 records
+
+Locally decrypted and inspected **all 102 original Professor puzzles**.
+Each decoded payload begins with a **4-byte little-endian length**,
+followed by exactly that many bytes of an opaque binary section.
+The claimed length is within the decoded payload for **every one of
+the 102 records**. The remaining bytes are not uniform across puzzles.
+
+Examples:
+
+| Puzzle | Binary section bytes | Remaining bytes after section |
+|---|---:|---:|
+| 1 — Сначала наведем порядок | 1755 | 481 |
+| 2 — Эффект домино | 2664 | 225 |
+| 3 — Уборщик | 2136 | 221 |
+| 4 — Магнетизм | 1863 | 154 |
+| 5 — Все вместе взятое 1 | 2647 | 121 |
+| 6 — Паровой свисток | 2304 | 889 |
+| 102 — Завершение | 3045 | 331 |
+
+The first five records' remaining bytes follow the simple
+instruction-text layout documented above. Puzzle 6 does **not**:
+the corresponding four-byte word at `binary_length + 8` is zero
+and **877 bytes** remain after the putative text position. This
+demonstrates the need for a structured parser, not a guessed universal
+text offset.
+
+The read-only `tools/inventory_puzzle_binary.py` records offsets,
+lengths and SHA-256 digests of each opaque binary section without
+including any original copyrighted game data. Next: identify the
+object-table format **inside** those length-delimited sections.
