@@ -860,18 +860,30 @@ struct CMPlaygroundView: View {
  private func kickSelectedPivot(speed:Double) {
   guard !running,case .ball(let bodyIndex)=selection,
    let index=pivots.firstIndex(where:{$0.bodyIndex==bodyIndex}) else { return }
-  if startingLayout == nil {
-   startingLayout=world
-   startingPins=pins
-   startingSprings=springs
-   startingPivots=pivots
-  }
-  if world.kickPivot(pivots[index],speed:speed) {
-   reachedGoal=false
-   simulationSteps=0
-   trails=[]
-   storageMessage=speed>0 ? "Pendulum pushed counterclockwise" : "Pendulum pushed clockwise"
-  }
+  let previous=world
+  guard world.kickPivot(pivots[index],speed:speed) else { return }
+  // A push is an editor action: keep it undoable and persist the new velocity.
+  undoStack.append(previous)
+  pinUndoStack.append(pins)
+  springUndoStack.append(springs)
+  pivotUndoStack.append(pivots)
+  if undoStack.count>30 { undoStack.removeFirst() }
+  if pinUndoStack.count>30 { pinUndoStack.removeFirst() }
+  if springUndoStack.count>30 { springUndoStack.removeFirst() }
+  if pivotUndoStack.count>30 { pivotUndoStack.removeFirst() }
+  redoStack=[]
+  pinRedoStack=[]
+  springRedoStack=[]
+  pivotRedoStack=[]
+  startingLayout=nil
+  startingPins=nil
+  startingSprings=nil
+  startingPivots=nil
+  reachedGoal=false
+  simulationSteps=0
+  trails=[]
+  saveDraft()
+  storageMessage=speed>0 ? "Pendulum pushed counterclockwise" : "Pendulum pushed clockwise"
  }
  private func adjustPivotAnchor(dx:Double,dy:Double) {
   guard !running,case .ball(let bodyIndex)=selection,
