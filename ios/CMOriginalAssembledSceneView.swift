@@ -293,6 +293,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                 body.mass = 1
                                 body.friction = 0.6
                                 body.restitution = 0.15
+                                // Fast-moving small parts need continuous
+                                // collision detection to reduce tunneling
+                                // through thin approximate collision boxes.
+                                body.continuousCollisionDetectionThreshold = 0.001
                                 mesh.physicsBody = body
                                 // SceneKit's physics solver advances only when
                                 // the scene is playing, even if it is visible.
