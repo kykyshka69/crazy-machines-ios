@@ -93,7 +93,8 @@ import Foundation
   // 4. Stiffness and damping survive.
   precondition(loadedSprings[0].stiffness == 25 && loadedSprings[0].damping == 3)
   // 5. Legacy level without springs remains readable.
-  precondition(try decoded.makeSprings().isEmpty)
+  let legacySprings=try decoded.makeSprings()
+  precondition(legacySprings.isEmpty)
   // 6. Out-of-range endpoint is rejected.
   var invalidSpring=linkedDecoded
   invalidSpring.springs?[0].secondIndex=2
