@@ -357,6 +357,60 @@ struct CMPlaygroundView: View {
   simulationSteps=0
   trails=[]
  }
+ private func adjustSelected(_ property: String, by delta: Double) {
+  guard !running,let selection else { return }
+  switch selection {
+  case .ball(let i):
+   guard world.bodies.indices.contains(i) else { return }
+   let ball=world.bodies[i]
+   switch property {
+   case "mass":
+    let next=min(max((ball.mass+delta)*10,1),1000).rounded()/10
+    guard abs(next-ball.mass)>1e-9 else { return }
+    saveUndo()
+    world.bodies[i].mass=next
+   case "radius":
+    let next=min(max((ball.radius+delta)*20,2),12).rounded()/20
+    guard abs(next-ball.radius)>1e-9,
+     ball.position.x>=next,ball.position.x<=Self.worldWidth-next,
+     ball.position.y>=next,ball.position.y<=Self.worldHeight-next else { return }
+    saveUndo()
+    world.bodies[i].radius=next
+   case "bounce":
+    let next=min(max((ball.restitution+delta)*10,0),10).rounded()/10
+    guard abs(next-ball.restitution)>1e-9 else { return }
+    saveUndo()
+    world.bodies[i].restitution=next
+   case "friction":
+    let next=min(max((ball.surfaceFriction+delta)*10,0),10).rounded()/10
+    guard abs(next-ball.surfaceFriction)>1e-9 else { return }
+    saveUndo()
+    world.bodies[i].surfaceFriction=next
+   default: return
+   }
+  case .ramp(let i):
+   guard property=="friction",world.segments.indices.contains(i) else { return }
+   let current=world.segments[i].friction
+   let next=min(max((current+delta)*10,0),10).rounded()/10
+   guard abs(next-current)>1e-9 else { return }
+   saveUndo()
+   world.segments[i].friction=next
+  }
+  startingLayout=nil
+  reachedGoal=false
+  simulationSteps=0
+  trails=[]
+ }
+ private func propertyControl(_ name:String,value:Double,step:Double,key:String) -> some View {
+  HStack {
+   Text(name).font(.caption).frame(width:75,alignment:.leading)
+   Button("−") { adjustSelected(key,by:-step) }
+    .accessibilityLabel("Decrease "+name)
+   Text(String(format:"%.2f",value)).font(.caption.monospacedDigit()).frame(minWidth:48)
+   Button("+") { adjustSelected(key,by:step) }
+    .accessibilityLabel("Increase "+name)
+  }.buttonStyle(.bordered)
+ }
  private func deleteSelected() {
   guard !running,let selection else { return }
   switch selection {
@@ -510,6 +564,24 @@ struct CMPlaygroundView: View {
    }
    .buttonStyle(.bordered)
    .disabled(running || { if case .ramp = selection { return false }; return true }())
+   if let selection {
+    VStack(alignment:.leading,spacing:6) {
+     Text("Selected object properties").font(.subheadline.bold())
+     switch selection {
+     case .ball(let i):
+      if world.bodies.indices.contains(i) {
+       propertyControl("Mass",value:world.bodies[i].mass,step:0.1,key:"mass")
+       propertyControl("Radius",value:world.bodies[i].radius,step:0.05,key:"radius")
+       propertyControl("Bounce",value:world.bodies[i].restitution,step:0.1,key:"bounce")
+       propertyControl("Friction",value:world.bodies[i].surfaceFriction,step:0.1,key:"friction")
+      }
+     case .ramp(let i):
+      if world.segments.indices.contains(i) {
+       propertyControl("Friction",value:world.segments[i].friction,step:0.1,key:"friction")
+      }
+     }
+    }.disabled(running)
+   }
    HStack {
     Text("Gravity").font(.caption)
     Slider(value:$gravityStrength,in:0...20,step:0.5,onEditingChanged: { editing in
