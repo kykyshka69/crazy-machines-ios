@@ -736,6 +736,14 @@ struct CMPlaygroundView: View {
     CMPivotJoint2D(bodyIndex:1,anchor:SIMD2(4.2,4.6),length:sqrt(1.57))
    ]
    newSprings=[CMSpringJoint2D(firstIndex:0,secondIndex:1,restLength:1.8,stiffness:22,damping:2)]
+  case 10: // An elevated launch toward the fixed goal: tune the initial impulse.
+   scene.bodies=[
+    CMPhysicsBody2D(position:SIMD2(1.1,3.8),velocity:SIMD2(3.0,1.6),radius:0.25)
+   ]
+   scene.segments=[
+    CMStaticSegment2D(start:SIMD2(0.4,3.1),end:SIMD2(2.2,2.8),friction:0.18),
+    CMStaticSegment2D(start:SIMD2(4.3,1.1),end:SIMD2(6.5,0.45),friction:0.15)
+   ]
   default: return
   }
   let document=CMLevelDocument(world:scene,pins:newPins,springs:newSprings,pivots:newPivots)
@@ -753,7 +761,7 @@ struct CMPlaygroundView: View {
   pivots=newPivots
   clearExperimentState()
   saveDraft()
-  storageMessage=["Pendulum","Coupled spring","Spring and pin","Double pendulum","Ramp run","Spring pendulum","Collision pendulums","Spring chain","Ramp cascade","Linked pendulums"][preset]+" preset loaded (Undo to restore)"
+  storageMessage=["Pendulum","Coupled spring","Spring and pin","Double pendulum","Ramp run","Spring pendulum","Collision pendulums","Spring chain","Ramp cascade","Linked pendulums","Target shot"][preset]+" preset loaded (Undo to restore)"
  }
  private func addBall() {
   guard !running && world.bodies.count < 20 else { return }
@@ -1479,6 +1487,7 @@ struct CMPlaygroundView: View {
     Button("Spring chain") { loadMechanismPreset(7) }.disabled(running)
     Button("Ramp cascade") { loadMechanismPreset(8) }.disabled(running)
     Button("Linked pendulums") { loadMechanismPreset(9) }.disabled(running)
+    Button("Target shot") { loadMechanismPreset(10) }.disabled(running)
     Button("Stop all balls") { stopAllBalls() }.disabled(running)
     Button("Add ball") { addBall() }.disabled(running || world.bodies.count >= 20)
     Button("Add ramp") { addRamp() }.disabled(running || world.segments.count >= 12)
