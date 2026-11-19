@@ -7,6 +7,18 @@ struct CMOriginalLevelBrowserView: View {
     @State private var documents: [CMOriginalSceneDocument] = []
     @State private var errorMessage: String?
     @State private var selected: Int?
+    @State private var previewModel: ModelPreviewSelection?
+
+    private struct ModelPreviewSelection: Identifiable {
+        let id = UUID()
+        let name: String
+        let url: URL
+    }
+
+    private var originalStorage: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("OriginalGame", isDirectory: true)
+    }
 
     private var sorted: [CMOriginalSceneDocument] {
         documents.sorted { $0.index < $1.index }
@@ -64,6 +76,22 @@ struct CMOriginalLevelBrowserView: View {
                 CMOriginalLevelMapView(document: document)
                 Text("Read-only top-down coordinate plot. Orange markers are objects with GOAL 1; no original geometry or physics is simulated.")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Original 3D models") {
+                let names = CMOriginalModelResolver.modelNames(in: document.root)
+                if names.isEmpty {
+                    Text("No 3DO references in this level")
+                }
+                ForEach(names, id: \.self) { name in
+                    if let url = CMOriginalModelResolver.resolve(name, in: originalStorage) {
+                        Button("Preview " + name) {
+                            previewModel = ModelPreviewSelection(name: name, url: url)
+                        }
+                    } else {
+                        Text(name + " — import matching .ucm file")
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             Section("Scene hierarchy") {
                 OutlineGroup([document.root], children: \.children) { node in
