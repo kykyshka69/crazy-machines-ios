@@ -211,7 +211,7 @@ struct CMPlaygroundView: View {
   return try? JSONEncoder().encode(document)
  }
  private func saveDraft() {
-  guard restoredDraft else { return }
+  guard restoredDraft, dragSnapshot == nil, gravityEditSnapshot == nil else { return }
   do {
    guard let data=draftData else { return }
    UserDefaults.standard.set(data,forKey:Self.draftKey)
@@ -579,6 +579,7 @@ struct CMPlaygroundView: View {
         redoStack=[]
        }
        dragSnapshot=nil
+       if dragChanged { saveDraft() }
        dragChanged=false
        dragStart=nil
        initialSegment=nil
@@ -670,6 +671,7 @@ struct CMPlaygroundView: View {
         undoStack.append(before)
         if undoStack.count > 30 { undoStack.removeFirst() }
         redoStack=[]
+        saveDraft()
        }
       }
      })
