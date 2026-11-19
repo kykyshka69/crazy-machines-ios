@@ -81,6 +81,10 @@ struct CMOriginalLevelBrowserView: View {
                         return
                     }
                     let jsonFiles = files.filter { $0.pathExtension.lowercased() == "json" }
+                    guard !jsonFiles.isEmpty else {
+                        errorMessage = "No exported JSON levels found in this folder"
+                        return
+                    }
                     guard jsonFiles.count <= 102 else {
                         errorMessage = "Too many JSON files in selected folder"
                         return
