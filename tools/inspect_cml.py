@@ -27,6 +27,17 @@ def inspect(path: Path) -> dict:
             found.append(i)
             offset = i + 1
         markers[magic.hex()] = found
+    windows = []
+    for offset in range(0, len(data), 4096):
+        chunk = data[offset:offset + 4096]
+        frequency = collections.Counter(chunk)
+        e = -sum((n / len(chunk)) * math.log2(n / len(chunk)) for n in frequency.values())
+        windows.append({
+            "offset": offset,
+            "length": len(chunk),
+            "entropy_bits": round(e, 4),
+            "zero_fraction": round(frequency[0] / len(chunk), 4),
+        })
     return {
         "name": path.name,
         "bytes": len(data),
@@ -34,6 +45,7 @@ def inspect(path: Path) -> dict:
         "first_64_bytes_hex": data[:64].hex(),
         "byte_entropy_bits": round(entropy, 4),
         "zero_bytes": counts[0],
+        "windows_4k": windows,
         "known_signature_offsets": markers,
         "aligned_u32_first_32": [
             int.from_bytes(data[i:i + 4], "little")
