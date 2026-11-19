@@ -7,6 +7,9 @@ public struct CMSceneView: UIViewRepresentable {
  public init() {}
  public func makeUIView(context:Context)->MTKView {
  let view = MTKView(frame:.zero)
+ view.isAccessibilityElement = true
+ view.accessibilityIdentifier = "cm.3d-preview.canvas"
+ view.accessibilityLabel = "3D model preview"
  view.preferredFramesPerSecond = 60
  let pan = UIPanGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.didPan(_:)))
  view.addGestureRecognizer(pan)
