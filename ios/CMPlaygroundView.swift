@@ -50,6 +50,9 @@ struct CMPlaygroundView: View {
  @State private var exportingLevel = false
  @State private var importingLevel = false
  @State private var exportFile: CMJSONLevelFile?
+ @State private var confirmingImport = false
+ @State private var pendingImport: CMPhysicsWorld2D?
+ @State private var pendingImportName = ""
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
  private static let fixedStep = 1.0 / 120.0
  private static let goal = SIMD2<Double>(6.2,0.6)
@@ -265,6 +268,19 @@ struct CMPlaygroundView: View {
    storageMessage="Export failed: \(error.localizedDescription)"
   }
  }
+ private func applyPendingImport() {
+  guard let imported=pendingImport else { return }
+  running=false
+  undoStack=[]
+  redoStack=[]
+  world=imported
+  gravityStrength = -imported.gravity.y
+  levelName=pendingImportName
+  clearExperimentState()
+  pendingImport=nil
+  saveDraft()
+  storageMessage="Imported level successfully"
+ }
  private func importLevel(from url:URL) {
   let accessed=url.startAccessingSecurityScopedResource()
   defer { if accessed { url.stopAccessingSecurityScopedResource() } }
@@ -275,15 +291,9 @@ struct CMPlaygroundView: View {
     return
    }
    let imported=try JSONDecoder().decode(CMLevelDocument.self,from:data).makeWorld()
-   running=false
-   undoStack=[]
-   redoStack=[]
-   world=imported
-   gravityStrength = -imported.gravity.y
-   levelName=String(url.deletingPathExtension().lastPathComponent.prefix(60))
-   clearExperimentState()
-   saveDraft()
-   storageMessage="Imported level successfully"
+   pendingImport=imported
+   pendingImportName=String(url.deletingPathExtension().lastPathComponent.prefix(60))
+   confirmingImport=true
   } catch {
    storageMessage="Import failed: invalid level JSON"
   }
@@ -785,6 +795,12 @@ struct CMPlaygroundView: View {
   .onDisappear { saveDraft() }
   .onChange(of:scenePhase) { _,phase in
    if phase != .active { saveDraft() }
+  }
+  .confirmationDialog("Replace current experiment?",isPresented:$confirmingImport,titleVisibility:.visible) {
+   Button("Import and replace",role:.destructive) { applyPendingImport() }
+   Button("Cancel",role:.cancel) { pendingImport=nil }
+  } message: {
+   Text("The current unsaved editor layout will be replaced. Saved slots are not affected.")
   }
   .confirmationDialog("Overwrite slot \(selectedSaveSlot)?",isPresented:$confirmingOverwrite,titleVisibility:.visible) {
    Button("Overwrite saved level",role:.destructive) { saveLevel() }
