@@ -25,6 +25,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         drag.maximumNumberOfTouches = 1
         drag.delegate = context.coordinator
         view.addGestureRecognizer(drag)
+        context.coordinator.storageKey = "cm.original.positions.\(document.sceneSHA256)"
         let scene = buildScene()
         view.scene = scene
         view.pointOfView = scene.rootNode.childNode(withName: "original-level-camera", recursively: false)
@@ -41,6 +42,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private weak var dragging: SCNNode?
         private var lastDragPoint: CGPoint?
         private var dragWasActive = false
+        var storageKey = ""
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             guard gestureRecognizer is UIPanGestureRecognizer,
@@ -96,6 +98,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     lastDragPoint = point
                 }
              default:
+                if gesture.state == .ended, let target = dragging,
+                   let identifier = target.name, identifier.hasPrefix("original-node-") {
+                    var positions = UserDefaults.standard.dictionary(forKey: storageKey) as? [String: [Double]] ?? [:]
+                    positions[identifier] = [Double(target.position.x),
+                                             Double(target.position.y),
+                                             Double(target.position.z)]
+                    UserDefaults.standard.set(positions, forKey: storageKey)
+                }
                 dragging = nil
                 lastDragPoint = nil
                 dragWasActive = false
@@ -132,6 +142,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var meshCache: [URL: SCNGeometry] = [:]
         // Avoid reparsing a corrupt UCM every time it is referenced.
         var invalidMeshes = Set<URL>()
+        let savedPositions = UserDefaults.standard.dictionary(forKey: "cm.original.positions.\(document.sceneSHA256)") as? [String: [Double]] ?? [:]
+        var nodeOrdinal = 0
 
         func parseRotation(_ raw: String?) -> SCNVector3 {
             guard let raw else { return SCNVector3Zero }
@@ -146,11 +158,17 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
         func walk(_ item: CMOriginalSceneDocument.Node, parent: SCNNode) {
             let transform = SCNNode()
-            transform.name = item.name
+            let identifier = "original-node-\(nodeOrdinal)"
+            nodeOrdinal += 1
+            transform.name = identifier
             if let p = item.positionRelative ?? item.position, p.count == 3 {
                 transform.position = SCNVector3(Float(p[0]), Float(p[1]), Float(p[2]))
             }
             transform.eulerAngles = parseRotation(item.rotationRelativeRaw ?? item.rotationRaw)
+            if let saved = savedPositions[identifier], saved.count == 3,
+               saved.allSatisfy({ $0.isFinite && abs($0) <= Double(Float.greatestFiniteMagnitude) }) {
+                transform.position = SCNVector3(Float(saved[0]), Float(saved[1]), Float(saved[2]))
+            }
             parent.addChildNode(transform)
 
             // A 3DO entry is a model reference, not an additional object transform.
