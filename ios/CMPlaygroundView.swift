@@ -1,4 +1,19 @@
 import SwiftUI
+import UniformTypeIdentifiers
+
+struct CMJSONLevelFile: FileDocument {
+ static var readableContentTypes: [UTType] { [.json] }
+ static var writableContentTypes: [UTType] { [.json] }
+ var data: Data
+ init(data:Data) { self.data=data }
+ init(configuration:ReadConfiguration) throws {
+  guard let data=configuration.file.regularFileContents else { throw CocoaError(.fileReadCorruptFile) }
+  self.data=data
+ }
+ func fileWrapper(configuration:WriteConfiguration) throws -> FileWrapper {
+  FileWrapper(regularFileWithContents:data)
+ }
+}
 
 /// Asset-free interactive physics sandbox. World coordinates are in metres, Y points up.
 struct CMPlaygroundView: View {
@@ -32,6 +47,9 @@ struct CMPlaygroundView: View {
  @State private var confirmingOverwrite = false
  @State private var confirmingDelete = false
  @State private var restoredDraft = false
+ @State private var exportingLevel = false
+ @State private var importingLevel = false
+ @State private var exportFile: CMJSONLevelFile?
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
  private static let fixedStep = 1.0 / 120.0
  private static let goal = SIMD2<Double>(6.2,0.6)
@@ -233,6 +251,41 @@ struct CMPlaygroundView: View {
    storageMessage="Recovered your unfinished experiment"
   } catch {
    storageMessage="Autosaved draft is invalid; original layout retained"
+  }
+ }
+ private func exportLevel() {
+  do {
+   let document=CMLevelDocument(world:startingLayout ?? world)
+   _ = try document.makeWorld()
+   let encoder=JSONEncoder()
+   encoder.outputFormatting=[.prettyPrinted,.sortedKeys]
+   exportFile=CMJSONLevelFile(data:try encoder.encode(document))
+   exportingLevel=true
+  } catch {
+   storageMessage="Export failed: \(error.localizedDescription)"
+  }
+ }
+ private func importLevel(from url:URL) {
+  let accessed=url.startAccessingSecurityScopedResource()
+  defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+  do {
+   let data=try Data(contentsOf:url)
+   guard data.count <= 1_000_000 else {
+    storageMessage="Import failed: file is too large"
+    return
+   }
+   let imported=try JSONDecoder().decode(CMLevelDocument.self,from:data).makeWorld()
+   running=false
+   undoStack=[]
+   redoStack=[]
+   world=imported
+   gravityStrength = -imported.gravity.y
+   levelName=String(url.deletingPathExtension().lastPathComponent.prefix(60))
+   clearExperimentState()
+   saveDraft()
+   storageMessage="Imported level successfully"
+  } catch {
+   storageMessage="Import failed: invalid level JSON"
   }
  }
  private func saveLevel() {
@@ -617,6 +670,10 @@ struct CMPlaygroundView: View {
    }
    TextField("Level name",text:$levelName).textFieldStyle(.roundedBorder).disabled(running)
    HStack {
+    Button("Export JSON") { exportLevel() }
+    Button("Import JSON") { importingLevel=true }
+   }.buttonStyle(.bordered).disabled(running)
+   HStack {
     Text("Save slot").font(.caption)
     Picker("Save slot",selection:$selectedSaveSlot) {
      ForEach(1...5,id:\.self) { slot in Text("Slot \(slot)").tag(slot) }
@@ -705,6 +762,18 @@ struct CMPlaygroundView: View {
     .font(.caption2).foregroundStyle(.secondary)
   }
   .padding()
+  }
+  .fileExporter(isPresented:$exportingLevel,document:exportFile,contentType:.json,defaultFilename:"crazy-machines-level") { result in
+   switch result {
+   case .success: storageMessage="Level exported"
+   case .failure(let error): storageMessage="Export failed: \(error.localizedDescription)"
+   }
+  }
+  .fileImporter(isPresented:$importingLevel,allowedContentTypes:[.json]) { result in
+   switch result {
+   case .success(let url): importLevel(from:url)
+   case .failure(let error): storageMessage="Import failed: \(error.localizedDescription)"
+   }
   }
   .onAppear { restoreDraft() }
   .onChange(of:draftData) { _,_ in
