@@ -100,3 +100,28 @@ branch at 0x47902E rather than assuming a fixed frame sequence.
 
 Read-only code: `tools/cml_byte_transforms.py` and
 `tools/decode_original_lab_header.py`.
+
+## Confirmed original record count from decoded field (local execution)
+
+Executed the recovered decoder against **both original CML files**,
+verifying their SHA-256 hashes and the **full 20-byte key prefix** in
+each of the first three frames.
+
+| File | First decoded 4-byte field (hex) | Little-endian integer |
+|---|---|---:|
+| My Laboratory (256 bytes) | `00000000` | **0** |
+| Professor Laboratory (330971 bytes) | `66000000` | **102** |
+
+The Professor count **102** independently agrees with the **102**
+observed 21-byte candidate markers. This is much stronger evidence
+that the first decoded field is a **record count** rather than an
+arbitrary value. It does **not** yet prove that every record is a
+separately selectable puzzle or that object geometry has been decoded.
+
+The other decoded 4-byte field at offsets [124,148) is zero in both
+files. The 80-byte middle field begins `00 cd cd cd ...` in both.
+
+Reproducible verification: run
+`python tools/decode_original_lab_header.py MY_LAB.cml PROFESSOR_LAB.cml`
+using the original extracted files. The tool checks both original file
+hashes and fails on an unexpected record count.
