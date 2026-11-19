@@ -7,6 +7,8 @@ struct CrazyMachinesApp: App {
    TabView {
     CMOriginalResourcesView()
      .tabItem { Label("Original files",systemImage:"archivebox") }
+    CMOriginalLevelBrowserView()
+     .tabItem { Label("Original levels",systemImage:"list.bullet.rectangle") }
     CMPlaygroundView()
      .tabItem { Label("Playground",systemImage:"circle.hexagongrid") }
     CMSceneView()
