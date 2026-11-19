@@ -25,9 +25,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         drag.maximumNumberOfTouches = 1
         drag.delegate = context.coordinator
         view.addGestureRecognizer(drag)
+        let reset = UILongPressGestureRecognizer(target: context.coordinator,
+                                                  action: #selector(Coordinator.resetSelected(_:)))
+        reset.minimumPressDuration = 0.8
+        view.addGestureRecognizer(reset)
         context.coordinator.storageKey = "cm.original.positions.\(document.sceneSHA256)"
         let scene = buildScene()
         view.scene = scene
+        context.coordinator.captureOriginalPositions(in: scene)
         view.pointOfView = scene.rootNode.childNode(withName: "original-level-camera", recursively: false)
         return view
     }
@@ -43,6 +48,29 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var lastDragPoint: CGPoint?
         private var dragWasActive = false
         var storageKey = ""
+        private var originalPositions: [String: SCNVector3] = [:]
+
+        func captureOriginalPositions(in scene: SCNScene) {
+            originalPositions.removeAll()
+            scene.rootNode.enumerateChildNodes { node, _ in
+                if let name = node.name, name.hasPrefix("original-node-") {
+                    self.originalPositions[name] = node.position
+                }
+            }
+        }
+
+        @objc func resetSelected(_ gesture: UILongPressGestureRecognizer) {
+            guard gesture.state == .began,
+                  let view = gesture.view as? SCNView,
+                  let selected = highlighted,
+                  let owner = selected.parent?.parent,
+                  let identifier = owner.name,
+                  let original = originalPositions[identifier] else { return }
+            owner.position = original
+            var positions = UserDefaults.standard.dictionary(forKey: storageKey) as? [String: [Double]] ?? [:]
+            positions.removeValue(forKey: identifier)
+            UserDefaults.standard.set(positions, forKey: storageKey)
+        }
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             guard gestureRecognizer is UIPanGestureRecognizer,
