@@ -54,7 +54,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 guard let selected = highlighted,
                       let hit = view.hitTest(point, options: [.firstFoundOnly: true]).first,
                       hit.node === selected else { return }
-                dragging = selected.parent ?? selected
+                // Move the owning original object transform, not the 3DO
+                // reference wrapper. Keep nested model offsets intact.
+                guard let owner = selected.parent?.parent else { return }
+                dragging = owner
                 lastDragPoint = point
             case .changed:
                 guard let target = dragging, let previous = lastDragPoint,
