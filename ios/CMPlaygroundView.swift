@@ -77,6 +77,7 @@ struct CMPlaygroundView: View {
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
  @State private var completedChallenges: Set<Int> = Set(UserDefaults.standard.array(forKey:"cm.completed.challenges.v1") as? [Int] ?? [])
  @State private var activeChallenge: Int? = nil
+ @State private var bestTargetSteps = UserDefaults.standard.integer(forKey:"cm.targetshot.beststeps.v1")
  private static let challengeKey = "cm.completed.challenges.v1"
  private static let fixedStep = 1.0 / 120.0
  private static let goal = SIMD2<Double>(6.2,0.6)
@@ -186,7 +187,11 @@ struct CMPlaygroundView: View {
    if let challenge=activeChallenge {
     completedChallenges.insert(challenge)
     UserDefaults.standard.set(completedChallenges.sorted(),forKey:Self.challengeKey)
-    storageMessage="Challenge completed! Best effort saved"
+    if challenge == 10 && (bestTargetSteps == 0 || simulationSteps < bestTargetSteps) {
+     bestTargetSteps=simulationSteps
+     UserDefaults.standard.set(simulationSteps,forKey:"cm.targetshot.beststeps.v1")
+    }
+    storageMessage="Challenge completed! Result saved"
    }
   }
  }
@@ -1330,6 +1335,10 @@ struct CMPlaygroundView: View {
    if activeChallenge == 10 {
     Text(completedChallenges.contains(10) ? "Target Shot · Completed ✓" : "Target Shot · Reach the green target")
      .font(.subheadline.bold())
+    if bestTargetSteps > 0 {
+     Text("Best: "+String(format:"%.2f",Double(bestTargetSteps)*Self.fixedStep)+" s")
+      .font(.caption.monospacedDigit())
+    }
    }
    Text(reachedGoal ? "Goal reached!" : "Guide a ball into the green target")
     .font(.subheadline)
