@@ -25,6 +25,49 @@ import Foundation
   invalid.bodies=[CMPhysicsBody2D(position:SIMD2(0,1),radius:0.5)]
   precondition(invalid.applyPins([CMPinJoint2D(bodyIndex:-1,anchor:SIMD2(1,2)),
     CMPinJoint2D(bodyIndex:1,anchor:SIMD2(1,2))])==0)
+
+  // Ten focused regression cases for the editor's fixed-pin mechanic.
+  // 1. Empty constraint list does not change a body.
+  var probe=CMPhysicsWorld2D()
+  probe.bodies=[CMPhysicsBody2D(position:SIMD2(2,3),velocity:SIMD2(4,5),radius:0.25)]
+  precondition(probe.applyPins([])==0)
+  precondition(probe.bodies[0].position==SIMD2(2,3))
+
+  // 2. Negative body index is ignored.
+  precondition(probe.applyPins([CMPinJoint2D(bodyIndex:-1,anchor:SIMD2(1,1))])==0)
+  // 3. Index equal to count is ignored.
+  precondition(probe.applyPins([CMPinJoint2D(bodyIndex:1,anchor:SIMD2(1,1))])==0)
+  // 4. NaN anchor X is rejected.
+  precondition(probe.applyPins([CMPinJoint2D(bodyIndex:0,anchor:SIMD2(.nan,1))])==0)
+  // 5. Infinite anchor Y is rejected.
+  precondition(probe.applyPins([CMPinJoint2D(bodyIndex:0,anchor:SIMD2(1,.infinity))])==0)
+  // 6. Nonpositive body mass is rejected.
+  probe.bodies[0].mass=0
+  precondition(probe.applyPins([CMPinJoint2D(bodyIndex:0,anchor:SIMD2(1,1))])==0)
+  probe.bodies[0].mass=1
+
+  // 7. Valid pin snaps position to its anchor.
+  precondition(probe.applyPins([CMPinJoint2D(bodyIndex:0,anchor:SIMD2(1,2))])==1)
+  precondition(probe.bodies[0].position==SIMD2(1,2))
+  // 8. Valid pin cancels translational velocity.
+  precondition(probe.bodies[0].velocity == .zero)
+
+  // 9. Multiple distinct pins constrain their corresponding bodies.
+  probe.bodies.append(CMPhysicsBody2D(position:SIMD2(3,4),radius:0.25))
+  precondition(probe.applyPins([
+   CMPinJoint2D(bodyIndex:0,anchor:SIMD2(2,4)),
+   CMPinJoint2D(bodyIndex:1,anchor:SIMD2(5,6))
+  ])==2)
+  precondition(probe.bodies[0].position==SIMD2(2,4))
+  precondition(probe.bodies[1].position==SIMD2(5,6))
+
+  // 10. Reapplying a fixed pin after gravity restores its position.
+  let anchor=SIMD2<Double>(2,4)
+  for _ in 0..<120 {
+   probe.step(dt:1.0/120.0)
+   precondition(probe.applyPins([CMPinJoint2D(bodyIndex:0,anchor:anchor)])==1)
+   precondition(probe.bodies[0].position==anchor)
+  }
   print("PASS: 1000 fixed-pin constraint scenarios")
  }
 }
