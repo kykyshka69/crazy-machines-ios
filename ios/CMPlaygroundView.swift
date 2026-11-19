@@ -609,7 +609,6 @@ struct CMPlaygroundView: View {
    let radius=world.bodies[i].radius
    let next=SIMD2(min(max(p.x,radius),Self.worldWidth-radius),min(max(p.y,radius),Self.worldHeight-radius))
    guard squaredDistance(next,world.bodies[i].position) > 1e-10 else { return }
-   dragChanged=true
    let delta=next-world.bodies[i].position
    world.bodies[i].position=next
    if let pivotIndex=pivots.firstIndex(where:{$0.bodyIndex==i}) {
@@ -618,6 +617,7 @@ struct CMPlaygroundView: View {
      pivots[pivotIndex].anchor=anchor
     } else { world.bodies[i].position-=delta; return }
    }
+   dragChanged=true
    if let pinIndex=pins.firstIndex(where:{$0.bodyIndex == i}) { pins[pinIndex].anchor=next }
    world.bodies[i].velocity = .zero
    world.bodies[i].angularVelocity=0
@@ -855,6 +855,71 @@ struct CMPlaygroundView: View {
   startingSprings=nil
   startingPivots=nil
   storageMessage="Removed selected ball's springs"
+  saveDraft()
+ }
+ private func adjustPivotAnchor(dx:Double,dy:Double) {
+  guard !running,case .ball(let bodyIndex)=selection,
+   let index=pivots.firstIndex(where:{$0.bodyIndex==bodyIndex}) else { return }
+  let proposed=pivots[index].anchor+SIMD2(dx,dy)
+  guard proposed.x.isFinite,proposed.y.isFinite,
+   (0...Self.worldWidth).contains(proposed.x),
+   (0...Self.worldHeight).contains(proposed.y) else {
+   storageMessage="Pivot anchor outside scene"
+   return
+  }
+  let offset=world.bodies[bodyIndex].position-proposed
+  let length=sqrt(offset.x*offset.x+offset.y*offset.y)
+  guard length.isFinite,(0.01...10).contains(length) else {
+   storageMessage="Pivot length outside allowed range"
+   return
+  }
+  saveUndo()
+  pivots[index].anchor=proposed
+  pivots[index].length=length
+  startingLayout=nil
+  startingPins=nil
+  startingSprings=nil
+  startingPivots=nil
+  reachedGoal=false
+  simulationSteps=0
+  trails=[]
+  saveDraft()
+ }
+ private func adjustPivotLength(by delta:Double) {
+  guard !running,case .ball(let bodyIndex)=selection,
+   let index=pivots.firstIndex(where:{$0.bodyIndex==bodyIndex}),
+   delta.isFinite else { return }
+  let current=pivots[index]
+  let next=min(10,max(0.01,current.length+delta))
+  guard abs(next-current.length)>1e-9 else { return }
+  let body=world.bodies[bodyIndex]
+  let offset=body.position-current.anchor
+  let distance=sqrt(offset.x*offset.x+offset.y*offset.y)
+  guard distance.isFinite,distance>1e-9 else { return }
+  let proposed=current.anchor+offset*(next/distance)
+  guard proposed.x>=body.radius,proposed.x<=Self.worldWidth-body.radius,
+   proposed.y>=body.radius,proposed.y<=Self.worldHeight-body.radius,
+   world.bodies.enumerated().allSatisfy({ entry in
+    entry.offset==bodyIndex || squaredDistance(proposed,entry.element.position)>=pow(body.radius+entry.element.radius+0.02,2)
+   }),
+   world.segments.allSatisfy({ segment in
+    segmentDistanceSquared(proposed,segment)>=pow(body.radius+0.02,2)
+   }) else {
+   storageMessage="Pivot resize blocked by boundary or object"
+   return
+  }
+  saveUndo()
+  pivots[index].length=next
+  world.bodies[bodyIndex].position=proposed
+  world.bodies[bodyIndex].velocity = .zero
+  world.bodies[bodyIndex].angularVelocity=0
+  startingLayout=nil
+  startingPins=nil
+  startingSprings=nil
+  startingPivots=nil
+  reachedGoal=false
+  simulationSteps=0
+  trails=[]
   saveDraft()
  }
  private func togglePivot() {
@@ -1206,6 +1271,24 @@ struct CMPlaygroundView: View {
      springControl("Stiffness",value:springs[springIndex].stiffness,step:5,key:"stiffness")
      springControl("Damping",value:springs[springIndex].damping,step:0.5,key:"damping")
     }
+   }
+   if case .ball(let bodyIndex)=selection,
+    let pivotIndex=pivots.firstIndex(where:{$0.bodyIndex==bodyIndex}) {
+    VStack(alignment:.leading,spacing:6) {
+     Text("Pivot anchor and length").font(.subheadline.bold())
+     Text("Anchor X: "+String(format:"%.2f",pivots[pivotIndex].anchor.x)+"  Y: "+String(format:"%.2f",pivots[pivotIndex].anchor.y)).font(.caption.monospacedDigit())
+     HStack {
+      Button("Anchor ←") { adjustPivotAnchor(dx:-0.1,dy:0) }
+      Button("Anchor →") { adjustPivotAnchor(dx:0.1,dy:0) }
+      Button("Anchor ↑") { adjustPivotAnchor(dx:0,dy:0.1) }
+      Button("Anchor ↓") { adjustPivotAnchor(dx:0,dy:-0.1) }
+     }.buttonStyle(.bordered)
+     HStack {
+      Text("Length: "+String(format:"%.2f",pivots[pivotIndex].length)).font(.caption.monospacedDigit())
+      Button("−") { adjustPivotLength(by:-0.1) }
+      Button("+") { adjustPivotLength(by:0.1) }
+     }.buttonStyle(.bordered)
+    }.disabled(running)
    }
    if let selection {
     VStack(alignment:.leading,spacing:6) {
