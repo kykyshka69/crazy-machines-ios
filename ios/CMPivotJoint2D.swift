@@ -14,6 +14,30 @@ public struct CMPivotJoint2D {
 }
 
 public extension CMPhysicsWorld2D {
+ /// Apply a controlled tangential velocity impulse to a disk attached to a pivot.
+ /// Returns false without mutation for malformed joints, invalid speeds or states.
+ @discardableResult
+ mutating func kickPivot(_ pivot:CMPivotJoint2D, speed:Double) -> Bool {
+  guard bodies.indices.contains(pivot.bodyIndex),
+   speed.isFinite,abs(speed)<=20,
+   pivot.anchor.x.isFinite,pivot.anchor.y.isFinite,
+   pivot.length.isFinite,pivot.length>0,pivot.length<=20 else { return false }
+  let body=bodies[pivot.bodyIndex]
+  guard body.mass.isFinite,body.mass>0,
+   body.position.x.isFinite,body.position.y.isFinite,
+   body.velocity.x.isFinite,body.velocity.y.isFinite else { return false }
+  let offset=body.position-pivot.anchor
+  let distanceSquared=offset.x*offset.x+offset.y*offset.y
+  guard distanceSquared.isFinite,distanceSquared>1e-12 else { return false }
+  let radius=sqrt(distanceSquared)
+  let tangent=SIMD2(-offset.y/radius,offset.x/radius)
+  let radial=offset/radius
+  let radialSpeed=body.velocity.x*radial.x+body.velocity.y*radial.y
+  let updated=body.velocity-radial*radialSpeed+tangent*speed
+  guard updated.x.isFinite,updated.y.isFinite else { return false }
+  bodies[pivot.bodyIndex].velocity=updated
+  return true
+ }
  /// Project disk centers onto their pivot circles and remove radial velocity.
  /// The caller should invoke this after each physics step.
  @discardableResult
