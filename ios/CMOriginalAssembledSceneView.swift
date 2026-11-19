@@ -36,7 +36,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         let reset = UILongPressGestureRecognizer(target: context.coordinator,
                                                   action: #selector(Coordinator.resetSelected(_:)))
         reset.minimumPressDuration = 0.8
-        reset.isEnabled = !experimentalPhysics
+        // In inspection mode, long press resets a saved position; in physics
+        // mode, it toggles a mesh between movable and fixed for diagnostics.
+        reset.isEnabled = true
         view.addGestureRecognizer(reset)
         context.coordinator.storageKey = "cm.original.positions.\(document.sceneSHA256)"
         context.coordinator.physicsEnabled = experimentalPhysics
@@ -81,7 +83,17 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
         @objc func resetSelected(_ gesture: UILongPressGestureRecognizer) {
             guard gesture.state == .began,
-                  let view = gesture.view as? SCNView,
+                  let view = gesture.view as? SCNView else { return }
+            if physicsEnabled {
+                guard let node = view.hitTest(gesture.location(in: view),
+                                              options: [.firstFoundOnly: true]).first?.node,
+                      let body = node.physicsBody else { return }
+                // Diagnostic-only manual classification: we have not decoded
+                // which original game components are fixed versus movable.
+                body.type = body.type == .dynamic ? .static : .dynamic
+                return
+            }
+            guard
                   let selected = highlighted,
                   view.hitTest(gesture.location(in: view), options: [.firstFoundOnly: true]).first?.node === selected,
                   let owner = selected.parent?.parent,
