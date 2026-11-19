@@ -34,7 +34,14 @@ def inspect_first_fields(data: bytes) -> dict:
             "decoded_sha256": hashlib.sha256(decoded).hexdigest(),
         })
         cursor = end
-    return {"fields": fields, "next_encoded_offset": cursor}
+    return {
+        "fields": fields,
+        "record_count": int.from_bytes(
+            decode_original_lab_field(data[:4 + len(ORIGINAL_LAB_KEY)], payload_length=4),
+            "little",
+        ),
+        "next_encoded_offset": cursor,
+    }
 
 
 def main() -> None:
@@ -48,6 +55,10 @@ def main() -> None:
         if hashlib.sha256(data).hexdigest() != KNOWN_SHA256[name]:
             parser.error(f"{name} does not match the verified original file")
         reports[name] = inspect_first_fields(data)
+    if reports["empty"]["record_count"] != 0:
+        parser.error("empty laboratory record count must be zero")
+    if reports["professor"]["record_count"] != 102:
+        parser.error("professor laboratory expected 102 original records")
     print(json.dumps(reports, indent=2))
 
 
