@@ -35,6 +35,17 @@ enum CMOriginalModelResolver {
             $0.pathExtension.lowercased() == "ucm" &&
             $0.deletingPathExtension().lastPathComponent.lowercased() == base
         }
-        return matches.count == 1 ? matches[0] : nil
+        if matches.count == 1 { return matches[0] }
+        if !matches.isEmpty { return nil }
+        // The original scene's 3DO "to_board" refers to the actual
+        // "board.ucm" asset. Only this explicit original naming prefix
+        // is stripped, never arbitrary prefixes or approximate names.
+        guard base.hasPrefix("to_"), base.count > 3 else { return nil }
+        let originalAssetName = String(base.dropFirst(3))
+        let aliasMatches = files.filter {
+            $0.pathExtension.lowercased() == "ucm" &&
+            $0.deletingPathExtension().lastPathComponent.lowercased() == originalAssetName
+        }
+        return aliasMatches.count == 1 ? aliasMatches[0] : nil
     }
 }
