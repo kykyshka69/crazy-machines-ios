@@ -27,6 +27,7 @@ struct CMPlaygroundView: View {
  @State private var gravityEditSnapshot: CMPhysicsWorld2D?
  @State private var storageMessage: String?
  @State private var selectedSaveSlot = 1
+ @State private var levelName = "Untitled experiment"
  @State private var confirmingOverwrite = false
  @State private var confirmingDelete = false
  private enum Selection: Equatable { case ball(Int), ramp(Int) }
@@ -173,6 +174,9 @@ struct CMPlaygroundView: View {
  private func saveKey(for slot:Int) -> String {
   slot == 1 ? Self.savedLevelKey : Self.savedLevelKey+".slot.\(slot)"
  }
+ private func levelNameKey(for slot:Int) -> String {
+  saveKey(for:slot)+".name"
+ }
  private func deleteSavedLevel() {
   let key=saveKey(for:selectedSaveSlot)
   guard UserDefaults.standard.data(forKey:key) != nil else {
@@ -180,6 +184,7 @@ struct CMPlaygroundView: View {
    return
   }
   UserDefaults.standard.removeObject(forKey:key)
+  UserDefaults.standard.removeObject(forKey:levelNameKey(for:selectedSaveSlot))
   storageMessage="Deleted saved experiment in slot \(selectedSaveSlot)"
  }
  private func requestSave() {
@@ -203,6 +208,8 @@ struct CMPlaygroundView: View {
    _ = try document.makeWorld() // Do not overwrite a good save with an invalid layout.
    let data=try JSONEncoder().encode(document)
    UserDefaults.standard.set(data,forKey:saveKey(for:selectedSaveSlot))
+   let cleanName=String(levelName.trimmingCharacters(in:.whitespacesAndNewlines).prefix(60))
+   UserDefaults.standard.set(cleanName.isEmpty ? "Untitled experiment" : cleanName,forKey:levelNameKey(for:selectedSaveSlot))
    storageMessage="Experiment saved to slot \(selectedSaveSlot)"
   } catch {
    storageMessage="Save failed: \(error.localizedDescription)"
@@ -221,6 +228,7 @@ struct CMPlaygroundView: View {
    undoStack=[]
    redoStack=[]
    world=loaded
+   levelName=UserDefaults.standard.string(forKey:levelNameKey(for:selectedSaveSlot)) ?? "Untitled experiment"
    gravityStrength = -loaded.gravity.y
    clearExperimentState()
    storageMessage="Loaded experiment from slot \(selectedSaveSlot)"
@@ -572,6 +580,7 @@ struct CMPlaygroundView: View {
     Button("Retry") { restartExperiment() }.disabled(startingLayout == nil).buttonStyle(.bordered)
     Button("Reset") { reset() }.buttonStyle(.bordered)
    }
+   TextField("Level name",text:$levelName).textFieldStyle(.roundedBorder).disabled(running)
    HStack {
     Text("Save slot").font(.caption)
     Picker("Save slot",selection:$selectedSaveSlot) {
