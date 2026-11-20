@@ -87,6 +87,7 @@ public struct CMOriginalGameplaySession {
     /// Only impulse actions reach SceneKit; links are resolved in the engine.
     public mutating func resolveActions() -> [PendingAction] {
         guard phase == .running else { return [] }
+        releaseDueActions()
         var impulses: [PendingAction] = []
         var processed = 0
         while !actionQueue.isEmpty && processed < 512 {
@@ -107,6 +108,49 @@ public struct CMOriginalGameplaySession {
         // Never carry an unbounded chain across frames.
         if processed >= 512 { actionQueue.removeAll() }
         return impulses
+    }
+
+    /// Explicit time-driven mechanism: schedule a reaction after a simulation
+    /// delay. The timer freezes while paused and is cleared on restart.
+    public struct ScheduledAction: Equatable {
+        public let dueTime: TimeInterval
+        public let sourceID: String
+        public let action: ReactionRule.Action
+    }
+
+    public private(set) var scheduledActions: [ScheduledAction] = []
+
+    @discardableResult
+    public mutating func schedule(_ action: ReactionRule.Action,
+                                  from sourceID: String,
+                                  after delay: TimeInterval) -> Bool {
+        guard phase == .running,
+              objects.contains(where: { $0.id == sourceID }),
+              delay.isFinite, delay >= 0, delay <= 3600,
+              scheduledActions.count < 512 else { return false }
+        switch action {
+        case .activate(let target):
+            guard objects.contains(where: { $0.id == target }) else { return false }
+        case .impulse(let x, let y, let z):
+            guard [x, y, z].allSatisfy({ $0.isFinite && abs($0) <= 1000 }) else { return false }
+        }
+        scheduledActions.append(ScheduledAction(dueTime: elapsedSimulationTime + delay,
+                                                sourceID: sourceID, action: action))
+        return true
+    }
+
+    private mutating func releaseDueActions() {
+        var remaining: [ScheduledAction] = []
+        for item in scheduledActions {
+            if item.dueTime <= elapsedSimulationTime && actionQueue.count < 512 {
+                actionQueue.append(PendingAction(sourceID: item.sourceID,
+                                                 action: item.action,
+                                                 simulationTime: elapsedSimulationTime))
+            } else {
+                remaining.append(item)
+            }
+        }
+        scheduledActions = remaining
     }
 
     /// Consume once; SceneKit may execute these actions on its renderer thread.
@@ -215,6 +259,7 @@ public struct CMOriginalGameplaySession {
         activations.removeAll()
         activatedObjectIDs.removeAll()
         actionQueue.removeAll()
+        scheduledActions.removeAll()
         phase = .running
     }
 
@@ -244,6 +289,7 @@ public struct CMOriginalGameplaySession {
         activations.removeAll()
         activatedObjectIDs.removeAll()
         actionQueue.removeAll()
+        scheduledActions.removeAll()
         phase = .ready
     }
 
