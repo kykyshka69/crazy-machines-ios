@@ -33,6 +33,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                          action: #selector(Coordinator.selectObject(_:)))
         tap.cancelsTouchesInView = false
         view.addGestureRecognizer(tap)
+        // Double-tap two different physical meshes to connect them while
+        // the simulation is running; single-tap retains impulse behavior.
+        if experimentalPhysics {
+            let connect = UITapGestureRecognizer(target: context.coordinator,
+                                                  action: #selector(Coordinator.selectHingeEndpoint(_:)))
+            connect.numberOfTapsRequired = 2
+            tap.require(toFail: connect)
+            view.addGestureRecognizer(connect)
+        }
         let drag = UIPanGestureRecognizer(target: context.coordinator,
                                           action: #selector(Coordinator.dragSelected(_:)))
         drag.minimumNumberOfTouches = 1
@@ -91,6 +100,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var dragWasActive = false
         var storageKey = ""
         var physicsEnabled = false
+        private weak var pendingHingeEndpoint: SCNNode?
         var originalPositions: [String: SCNVector3] = [:]
 
         @objc func resetSelected(_ gesture: UILongPressGestureRecognizer) {
@@ -206,6 +216,47 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 lastDragPoint = nil
                 dragWasActive = false
             }
+        }
+
+        @objc func selectHingeEndpoint(_ gesture: UITapGestureRecognizer) {
+            guard physicsEnabled, gesture.state == .ended,
+                  let view = gesture.view as? SCNView,
+                  let scene = view.scene,
+                  let node = view.hitTest(gesture.location(in: view),
+                                          options: [.firstFoundOnly: true]).first?.node,
+                  let body = node.physicsBody else { return }
+            guard let first = pendingHingeEndpoint, first !== node,
+                  let firstBody = first.physicsBody else {
+                pendingHingeEndpoint = node
+                return
+            }
+            pendingHingeEndpoint = nil
+            // A world-space midpoint gives a reproducible test connection.
+            // This is not a recovered original-game joint.
+            let a = first.presentation.convertPosition(SCNVector3Zero, to: nil)
+            let b = node.presentation.convertPosition(SCNVector3Zero, to: nil)
+            let anchor = SCNVector3((a.x + b.x) / 2,
+                                    (a.y + b.y) / 2,
+                                    (a.z + b.z) / 2)
+            let axis = SCNVector3(0, 0, 1)
+            let anchorA = first.presentation.convertPosition(anchor, from: nil)
+            let anchorB = node.presentation.convertPosition(anchor, from: nil)
+            let axisA = first.presentation.convertVector(axis, from: nil)
+            let axisB = node.presentation.convertVector(axis, from: nil)
+            let values = [anchorA.x, anchorA.y, anchorA.z,
+                          anchorB.x, anchorB.y, anchorB.z,
+                          axisA.x, axisA.y, axisA.z,
+                          axisB.x, axisB.y, axisB.z]
+            guard values.allSatisfy({ $0.isFinite }) else { return }
+            let hinge = SCNPhysicsHingeJoint(bodyA: firstBody, axisA: axisA,
+                                             anchorA: anchorA, bodyB: body,
+                                             axisB: axisB, anchorB: anchorB)
+            scene.physicsWorld.addBehavior(hinge)
+            let marker = SCNNode(geometry: SCNSphere(radius: 0.08))
+            marker.name = "manual-hinge-anchor"
+            marker.geometry?.firstMaterial?.diffuse.contents = UIColor.systemGreen
+            marker.position = anchor
+            scene.rootNode.addChildNode(marker)
         }
 
         @objc func selectObject(_ gesture: UITapGestureRecognizer) {
