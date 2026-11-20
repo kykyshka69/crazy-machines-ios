@@ -40,6 +40,25 @@ public struct CMOriginalGameplaySession {
 
     /// Explicitly configured experimental behaviors, never inferred from
     /// original GOAL markers or object names.
+    /// Explicit experimental physics roles. Imported objects default to
+    /// dynamic until a level-specific configuration is supplied; no role is
+    /// inferred from original object names or GOAL annotations.
+    public enum PhysicsRole: Equatable {
+        case fixed
+        case movable
+        case sensor
+    }
+
+    public private(set) var physicsRoles: [String: PhysicsRole] = [:]
+
+    public mutating func configurePhysicsRoles(_ roles: [String: PhysicsRole]) {
+        physicsRoles = roles.filter { validObjectIDs.contains($0.key) }
+    }
+
+    public func physicsRole(for id: String) -> PhysicsRole {
+        physicsRoles[id] ?? .movable
+    }
+
     public struct ReactionRule: Equatable {
         public enum Trigger: Equatable {
             case firstContact
