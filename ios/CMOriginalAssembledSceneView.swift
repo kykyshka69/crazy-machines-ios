@@ -257,9 +257,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // This is not a recovered original-game joint.
             let a = first.presentation.convertPosition(SCNVector3Zero, to: nil)
             let b = node.presentation.convertPosition(SCNVector3Zero, to: nil)
-            let anchor = SCNVector3((a.x + b.x) / 2,
-                                    (a.y + b.y) / 2,
-                                    (a.z + b.z) / 2)
+            // Use the actual visible surface hit on the second part as
+            // the attachment location, rather than a midpoint of pivots.
+            let hits = view.hitTest(gesture.location(in: view),
+                                    options: [.firstFoundOnly: true])
+            let anchor = hits.first?.worldCoordinates ?? SCNVector3(
+                (a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2)
             // Reject an implausibly distant manual connection: a hinge
             // between far-apart moving bodies can inject extreme forces.
             let dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z
