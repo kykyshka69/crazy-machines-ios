@@ -194,6 +194,41 @@ enum OriginalSceneDocumentSmoke {
         precondition(fiftyActions.count == 50)
         precondition(fiftyActions.allSatisfy { $0.sourceID == "object-0" })
         precondition(contactSession.resolveActions().isEmpty)
+        // Directed cross-object impulse: ten independent behavior checks.
+        contactSession.reset()
+        contactSession.configureReactions([
+            .init(objectID: "object-0", trigger: .firstContact,
+                  action: .impulseTarget(id: "object-1", x: 2, y: 3, z: 4)),
+            .init(objectID: "object-0", trigger: .firstContact,
+                  action: .impulseTarget(id: "unknown", x: 1, y: 0, z: 0)),
+            .init(objectID: "object-0", trigger: .firstContact,
+                  action: .impulseTarget(id: "object-1", x: .infinity, y: 0, z: 0)),
+            .init(objectID: "object-0", trigger: .firstContact,
+                  action: .impulseTarget(id: "object-1", x: 1001, y: 0, z: 0))
+        ])
+        precondition(contactSession.reactionRules.count == 1) // invalid targets/vectors rejected
+        precondition(!contactSession.schedule(.impulseTarget(id: "object-1", x: 1, y: 0, z: 0),
+                                              from: "object-0", after: 0)) // not running
+        contactSession.start()
+        precondition(!contactSession.schedule(.impulseTarget(id: "unknown", x: 1, y: 0, z: 0),
+                                              from: "object-0", after: 0))
+        precondition(!contactSession.schedule(.impulseTarget(id: "object-1", x: .nan, y: 0, z: 0),
+                                              from: "object-0", after: 0))
+        precondition(!contactSession.schedule(.impulseTarget(id: "object-1", x: 1001, y: 0, z: 0),
+                                              from: "object-0", after: 0))
+        precondition(contactSession.triggerObject("object-0"))
+        let directed = contactSession.resolveActions()
+        precondition(directed.count == 1 && directed[0].sourceID == "object-0")
+        precondition(directed[0].action == .impulseTarget(id: "object-1", x: 2, y: 3, z: 4))
+        precondition(contactSession.activatedObjectIDs == Set(["object-0"]))
+        precondition(contactSession.resolveActions().isEmpty)
+        precondition(contactSession.schedule(.impulseTarget(id: "object-1", x: 0, y: 8, z: 0),
+                                             from: "object-0", after: 0.25))
+        contactSession.advance(by: 0.25)
+        precondition(contactSession.resolveActions().map(\.action) ==
+                     [.impulseTarget(id: "object-1", x: 0, y: 8, z: 0)])
+        contactSession.reset()
+        precondition(contactSession.scheduledActions.isEmpty)
         // Contact-triggered delayed rules now run end-to-end without manual
         // calls to schedule(). They must respect pause and simulation time.
         contactSession.reset()
