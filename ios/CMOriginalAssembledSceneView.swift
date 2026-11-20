@@ -402,11 +402,17 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             marker.geometry?.firstMaterial?.diffuse.contents = UIColor.systemYellow
             marker.position = anchor
             scene.rootNode.addChildNode(marker)
+            // SceneKit expects each hinge axis in its own body's local
+            // coordinates. Convert a shared world-space Z axis separately,
+            // otherwise rotated meshes receive incompatible hinge axes.
+            let worldAxis = SCNVector3(0, 0, 1)
+            let firstAxis = first.convertVector(worldAxis, from: nil)
+            let secondAxis = second.convertVector(worldAxis, from: nil)
             let hinge = SCNPhysicsHingeJoint(bodyA: first.physicsBody!,
-                                             axisA: SCNVector3(0, 0, 1),
+                                             axisA: firstAxis,
                                              anchorA: first.convertPosition(anchor, from: nil),
                                              bodyB: second.physicsBody!,
-                                             axisB: SCNVector3(0, 0, 1),
+                                             axisB: secondAxis,
                                              anchorB: second.convertPosition(anchor, from: nil))
             scene.physicsWorld.addBehavior(hinge)
         }
