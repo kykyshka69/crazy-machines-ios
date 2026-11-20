@@ -56,7 +56,8 @@ enum CMOriginalModelResolver {
             let ext = (name as NSString).pathExtension.lowercased()
             guard ext.isEmpty || ext == "ucm" else { return nil }
             let base = (name as NSString).deletingPathExtension.lowercased()
-            guard !base.isEmpty else { return nil }
+            guard !base.isEmpty, base != ".", base != "..",
+                  !base.contains("\0"), !base.contains("\n"), !base.contains("\r") else { return nil }
             let matches = filesByBaseName[base] ?? []
             if matches.count == 1 { return matches[0] }
             if !matches.isEmpty { return nil }
