@@ -8,12 +8,13 @@ enum CMOriginalModelResolver {
         var result: [String] = []
         func visit(_ item: CMOriginalSceneDocument.Node) {
             if let models = item.models { result.append(contentsOf: models) }
-            for child in item.children {
-                if child.name.hasPrefix("3DO ") {
-                    result.append(String(child.name.dropFirst(4)))
-                }
-                visit(child)
+            // Each 3DO node contributes exactly one original model reference.
+            // Recurse into its children, but never append that same 3DO again
+            // from its parent; older exports can also list it in models.
+            if item.name.hasPrefix("3DO ") {
+                result.append(String(item.name.dropFirst(4)))
             }
+            for child in item.children { visit(child) }
         }
         visit(node)
         var seen = Set<String>()
