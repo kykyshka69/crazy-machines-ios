@@ -11,6 +11,7 @@ struct CMOriginalLevelBrowserView: View {
     @State private var previewModel: ModelPreviewSelection?
     @State private var assembledScene: AssembledSelection?
     @State private var confirmingResetEdits = false
+    @State private var physicsPaused = false
 
     private struct AssembledSelection: Identifiable {
         let document: CMOriginalSceneDocument
@@ -139,6 +140,7 @@ struct CMOriginalLevelBrowserView: View {
                     assembledScene = AssembledSelection(document: document, experimentalPhysics: false)
                 }
                 Button("Try experimental gravity and collisions") {
+                    physicsPaused = false
                     assembledScene = AssembledSelection(document: document, experimentalPhysics: true)
                 }
                 Text("Experimental sandbox: tap a mesh to push it; long-press a mesh to toggle fixed/movable. Restart restores the imported scene. These manual body types, approximate bounding-box collisions and uniform mass are not the original game physics or completion logic.")
@@ -204,15 +206,22 @@ struct CMOriginalLevelBrowserView: View {
         }
         .sheet(item: $assembledScene) { selection in
             NavigationStack {
-                CMOriginalAssembledSceneView(document: selection.document, assetDirectory: originalStorage, experimentalPhysics: selection.experimentalPhysics)
+                CMOriginalAssembledSceneView(document: selection.document, assetDirectory: originalStorage, experimentalPhysics: selection.experimentalPhysics, physicsPaused: physicsPaused)
                     .navigationTitle("Level \(selection.document.index) · 3D")
                     .toolbar {
                         if selection.experimentalPhysics {
                             ToolbarItem(placement: .topBarLeading) {
                                 Button("Restart") {
+                                    physicsPaused = false
                                     assembledScene = AssembledSelection(document: selection.document,
                                                                         experimentalPhysics: true)
                                 }
+                            }
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button(physicsPaused ? "Resume" : "Pause") {
+                                    physicsPaused.toggle()
+                                }
+                                .accessibilityIdentifier("cm.original.physics.pause")
                             }
                         }
                         ToolbarItem(placement: .topBarTrailing) {
