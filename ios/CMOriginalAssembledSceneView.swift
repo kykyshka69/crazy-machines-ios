@@ -3,6 +3,11 @@ import SceneKit
 
 /// Interactive assembly of authentic UCM meshes at original scene POS coordinates.
 /// Missing meshes are omitted and reported, never replaced with invented shapes.
+/// Preserve the original object identity without relying on unavailable SCNNode.userData.
+private final class CMOriginalObjectMeshNode: SCNNode {
+    var originalObjectID: String?
+}
+
 struct CMOriginalAssembledSceneView: UIViewRepresentable {
     let document: CMOriginalSceneDocument
     let assetDirectory: URL
@@ -196,7 +201,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             appliedPhysicsRoles.removeAll()
             scene.rootNode.enumerateChildNodes { node, _ in
                 guard node.physicsBody != nil,
-                      let id = node.userData?["originalObjectID"] as? String else { return }
+                      let id = (node as? CMOriginalObjectMeshNode)?.originalObjectID else { return }
                 self.physicsNodesByObjectID[id, default: []].append(node)
             }
         }
@@ -261,8 +266,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
         func physicsWorld(_ world: SCNPhysicsWorld, didBegin contact: SCNPhysicsContact) {
             guard physicsEnabled,
-                  let a = contact.nodeA.userData?["originalObjectID"] as? String,
-                  let b = contact.nodeB.userData?["originalObjectID"] as? String else { return }
+                  let a = (contact.nodeA as? CMOriginalObjectMeshNode)?.originalObjectID,
+                  let b = (contact.nodeB as? CMOriginalObjectMeshNode)?.originalObjectID else { return }
             sessionLock.lock()
             session?.recordContact(a, b, impulse: Double(contact.collisionImpulse))
             sessionLock.unlock()
@@ -571,7 +576,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // Explicitly configured prototype mechanisms can be started
                 // by tapping their imported mesh. Without a configured rule,
                 // retain the existing diagnostic tap impulse behavior.
-                if let id = node?.userData?["originalObjectID"] as? String {
+                if let id = (node as? CMOriginalObjectMeshNode)?.originalObjectID {
                     sessionLock.lock()
                     let hasRule = session?.reactionRules.contains(where: { $0.objectID == id }) == true
                     if hasRule { _ = session?.pressObject(id) }
@@ -617,7 +622,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // inspecting an authentic level. This is the imported 3DO name,
             // not an invented gameplay classification.
             selectedModelName = node.name
-            let objectID = node.userData?["originalObjectID"] as? String
+            let objectID = (node as? CMOriginalObjectMeshNode)?.originalObjectID
             let objectType = session?.objects.first(where: { $0.id == objectID })?.type
             view.accessibilityValue = [
                 "Selected original model: " + (node.name ?? "unnamed"),
@@ -689,12 +694,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             }
                         }
                         if let geometry {
-                            let mesh = SCNNode(geometry: geometry)
+                            let mesh = CMOriginalObjectMeshNode(geometry: geometry)
                             mesh.name = name
                             if let currentOwnerID {
-                                mesh.userData = NSMutableDictionary(dictionary: [
-                                    "originalObjectID": currentOwnerID
-                                ])
+                                mesh.originalObjectID = currentOwnerID
                             }
                             // Highlight only authentic imported geometry belonging to
                             // an original GOAL 1 node; never invent a goal marker.
