@@ -11,6 +11,18 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Import entire exported levels folder"].exists)
     }
 
+    func testOriginalResourcesImportControlsWithoutBundledAssets() {
+        let app = XCUIApplication()
+        app.launch()
+        let originalFiles = app.tabBars.buttons["Original files"]
+        XCTAssertTrue(originalFiles.waitForExistence(timeout: 20))
+        originalFiles.tap()
+        XCTAssertTrue(app.staticTexts["Original Crazy Machines resources"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Import original game files"].exists)
+        XCTAssertTrue(app.buttons["Import entire extracted models folder"].exists)
+        XCTAssertTrue(app.staticTexts["Imported files (0)"].exists)
+    }
+
     func testOnlyOriginalGameTabsAreExposed() {
         let app = XCUIApplication()
         app.launch()
