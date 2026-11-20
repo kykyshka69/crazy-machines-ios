@@ -296,10 +296,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 return (a === firstBody && b === body) || (a === body && b === firstBody)
             }
             guard !alreadyConnected else { return }
+            // Pause integration while installing a constraint between moving
+            // bodies, then restore the prior playback state. This prevents
+            // the solver from observing a half-configured joint.
+            let wasPlaying = view.isPlaying
+            view.isPlaying = false
             let hinge = SCNPhysicsHingeJoint(bodyA: firstBody, axisA: axisA,
                                              anchorA: anchorA, bodyB: body,
                                              axisB: axisB, anchorB: anchorB)
             scene.physicsWorld.addBehavior(hinge)
+            view.isPlaying = wasPlaying
             let marker = SCNNode(geometry: SCNSphere(radius: 0.08))
             marker.name = "manual-hinge-anchor"
             marker.geometry?.firstMaterial?.diffuse.contents = UIColor.systemGreen
