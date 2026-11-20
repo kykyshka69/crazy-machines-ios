@@ -204,6 +204,18 @@ struct CMOriginalLevelBrowserView: View {
                         if let goal = node.goalRaw {
                             Text("GOAL " + goal).font(.caption.monospaced()).foregroundStyle(.secondary)
                         }
+                        if node.name.hasPrefix("tmo_") {
+                            DisclosureGroup("Original object parameters") {
+                                ForEach(node.originalFieldValues.keys.sorted(), id: \.self) { key in
+                                    ForEach(Array((node.originalFieldValues[key] ?? []).enumerated()), id: \.offset) { item in
+                                        Text(key + (item.element.isEmpty ? "" : " " + item.element))
+                                            .font(.caption.monospaced())
+                                            .textSelection(.enabled)
+                                    }
+                                }
+                            }
+                            .font(.caption)
+                        }
                     }
                 }
             }
