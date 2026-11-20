@@ -53,5 +53,23 @@ enum OriginalModelResolverSmoke {
             preconditionFailure("Case-insensitive collision must be ambiguous")
         }
         precondition(index.resolve("to_board") == nil)
+        // A direct filename collision must never fall back to a different
+        // alias, and an alias collision must not pick a random mesh.
+        let aliasCollision = folder.appendingPathComponent("WHEEL.UCM")
+        try Data([4]).write(to: aliasCollision)
+        index = CMOriginalModelResolver.AssetIndex(directory: folder)
+        guard case .ambiguous = index.resolution(for: "to_wheel") else {
+            preconditionFailure("Duplicate to_ alias targets must remain ambiguous")
+        }
+        precondition(index.resolve("to_wheel") == nil)
+        // An exact to_wheel file takes precedence over the ambiguous
+        // unprefixed alias: explicit original references are authoritative.
+        let exactWheel = folder.appendingPathComponent("to_wheel.ucm")
+        try Data([5]).write(to: exactWheel)
+        index = CMOriginalModelResolver.AssetIndex(directory: folder)
+        guard case .found(let preferred) = index.resolution(for: "to_wheel") else {
+            preconditionFailure("Exact original model must win over alias collisions")
+        }
+        precondition(preferred == exactWheel)
     }
 }
