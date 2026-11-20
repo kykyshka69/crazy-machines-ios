@@ -51,6 +51,33 @@ enum OriginalSceneDocumentSmoke {
         precondition(doc.gameplayInventory.goalObjectTypes.isEmpty)
         precondition(doc.gameplayInventory.objectsWithoutModels.isEmpty)
         precondition(doc.gameplayInventory.objectsWithoutPosition.isEmpty)
+        // The original 3DO may sit below a helper transform rather than
+        // directly under its tmo_ owner. Do not report its mesh as missing.
+        var nestedRaw = try JSONSerialization.jsonObject(with: Data(json.utf8)) as! [String: Any]
+        var nestedRoot = nestedRaw["root"] as! [String: Any]
+        var nestedChildren = nestedRoot["children"] as! [[String: Any]]
+        nestedChildren[0]["models"] = [String]()
+        nestedChildren[0]["children"] = [[
+            "name": "transform", "fields": [],
+            "children": [["name": "3DO to_board", "fields": [], "children": []]]
+        ]]
+        nestedRoot["children"] = nestedChildren
+        nestedRaw["root"] = nestedRoot
+        let nestedDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: nestedRaw))
+        precondition(nestedDoc.gameplayInventory.objectsWithoutModels.isEmpty)
+        // A model inside a separate nested tmo_ cannot be attributed to
+        // the parent object.
+        nestedChildren[0]["children"] = [[
+            "name": "tmo_child", "fields": [],
+            "children": [["name": "3DO to_board", "fields": [], "children": []]]
+        ]]
+        nestedRoot["children"] = nestedChildren
+        nestedRaw["root"] = nestedRoot
+        let nestedObjectDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: nestedRaw))
+        precondition(nestedObjectDoc.gameplayInventory.objectsWithoutModels["tmo_board"] == 1)
+        precondition(nestedObjectDoc.gameplayInventory.objectsWithoutModels["tmo_child"] == nil)
         var session = CMOriginalGameplaySession(document: doc)
         precondition(session.objects.count == 1)
         precondition(session.objects[0].id == "object-0")
