@@ -307,8 +307,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
         func physicsWorld(_ world: SCNPhysicsWorld, didBegin contact: SCNPhysicsContact) {
             guard physicsEnabled,
-                  let a = physicsObjectID(for: contact.nodeA),
-                  let b = physicsObjectID(for: contact.nodeB) else { return }
+                  let physicalA = physicalNode(for: contact.nodeA),
+                  let physicalB = physicalNode(for: contact.nodeB),
+                  physicalA !== physicalB,
+                  let a = physicsObjectID(for: physicalA),
+                  let b = physicsObjectID(for: physicalB),
+                  a != b else { return }
+            // SceneKit can report a child mesh rather than the owning compound
+            // physics node. Resolve both owners before attributing contacts.
             sessionLock.lock()
             session?.recordContact(a, b, impulse: Double(contact.collisionImpulse))
             sessionLock.unlock()
