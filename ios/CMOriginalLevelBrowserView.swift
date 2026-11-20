@@ -165,12 +165,9 @@ struct CMOriginalLevelBrowserView: View {
             }
             Section("Original 3D asset readiness") {
                 let names = CMOriginalModelResolver.modelNames(in: document.root)
-                let available = names.filter {
-                    CMOriginalModelResolver.resolve($0, in: originalStorage) != nil
-                }
-                let missing = names.filter {
-                    CMOriginalModelResolver.resolve($0, in: originalStorage) == nil
-                }
+                let assets = CMOriginalModelResolver.AssetIndex(directory: originalStorage)
+                let available = names.filter { assets.resolve($0) != nil }
+                let missing = names.filter { assets.resolve($0) == nil }
                 LabeledContent("Referenced original meshes", value: "\(names.count)")
                 LabeledContent("Resolved original UCM files", value: "\(available.count)")
                 LabeledContent("Missing original UCM files", value: "\(missing.count)")
@@ -191,11 +188,12 @@ struct CMOriginalLevelBrowserView: View {
             }
             Section("Original 3D models") {
                 let names = CMOriginalModelResolver.modelNames(in: document.root)
+                let assets = CMOriginalModelResolver.AssetIndex(directory: originalStorage)
                 if names.isEmpty {
                     Text("No 3DO references in this level")
                 }
                 ForEach(names, id: \.self) { name in
-                    if let url = CMOriginalModelResolver.resolve(name, in: originalStorage) {
+                    if let url = assets.resolve(name) {
                         Button("Preview " + name) {
                             previewModel = ModelPreviewSelection(name: name, url: url)
                         }
