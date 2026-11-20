@@ -395,6 +395,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             let anchor = SCNVector3((a.x + b.x) / 2,
                                     (a.y + b.y) / 2,
                                     (a.z + b.z) / 2)
+            // Mark the approximate joint pivot in the diagnostic scene.
+            // This sphere is visual-only and never participates in physics.
+            let marker = SCNNode(geometry: SCNSphere(radius: 0.08))
+            marker.name = "experimental-hinge-anchor"
+            marker.geometry?.firstMaterial?.diffuse.contents = UIColor.systemYellow
+            marker.position = anchor
+            scene.rootNode.addChildNode(marker)
             let hinge = SCNPhysicsHingeJoint(bodyA: first.physicsBody!,
                                              axisA: SCNVector3(0, 0, 1),
                                              anchorA: first.convertPosition(anchor, from: nil),
