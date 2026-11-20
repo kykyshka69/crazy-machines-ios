@@ -12,8 +12,8 @@ from parse_original_scene import SceneNode, parse_scene
 
 # Accept the decimal and scientific notation used by PC scene coordinates,
 # including .5, 1., and signed exponents. Never emit NaN or infinity to JSON.
-_NUMBER = r"[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?"
-_VECTOR = re.compile(rf"^\\s*({_NUMBER})\\s*,\\s*({_NUMBER})\\s*,\\s*({_NUMBER})\\s*$")
+_NUMBER = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
+_VECTOR = re.compile(rf"^\s*({_NUMBER})\s*,\s*({_NUMBER})\s*,\s*({_NUMBER})\s*$")
 
 
 def parse_vector3(value: str) -> list[float]:
