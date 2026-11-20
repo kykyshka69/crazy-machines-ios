@@ -257,6 +257,19 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             let anchor = SCNVector3((a.x + b.x) / 2,
                                     (a.y + b.y) / 2,
                                     (a.z + b.z) / 2)
+            // Reject an implausibly distant manual connection: a hinge
+            // between far-apart moving bodies can inject extreme forces.
+            let dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z
+            let separationSquared = dx * dx + dy * dy + dz * dz
+            let (aMin, aMax) = first.boundingBox
+            let (bMin, bMax) = node.boundingBox
+            let adx = aMax.x - aMin.x, ady = aMax.y - aMin.y, adz = aMax.z - aMin.z
+            let bdx = bMax.x - bMin.x, bdy = bMax.y - bMin.y, bdz = bMax.z - bMin.z
+            let aSize = sqrt(adx * adx + ady * ady + adz * adz)
+            let bSize = sqrt(bdx * bdx + bdy * bdy + bdz * bdz)
+            let maxSeparation = max(0.1, 2 * max(aSize, bSize))
+            guard separationSquared.isFinite, maxSeparation.isFinite,
+                  separationSquared <= maxSeparation * maxSeparation else { return }
             let axis = SCNVector3(0, 0, 1)
             let anchorA = first.presentation.convertPosition(anchor, from: nil)
             let anchorB = node.presentation.convertPosition(anchor, from: nil)
