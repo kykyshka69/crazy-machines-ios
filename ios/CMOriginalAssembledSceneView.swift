@@ -667,18 +667,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             return SCNVector3(x, y, z)
         }
 
-        func walk(_ item: CMOriginalSceneDocument.Node, parent: SCNNode, goalAncestor: Bool = false, ownerID: String? = nil) {
+        func walk(_ item: CMOriginalSceneDocument.Node, parent: SCNNode, ownerID: String? = nil) {
             var currentOwnerID = ownerID
             if item.name.hasPrefix("tmo_") {
                 currentOwnerID = "object-\(objectOrdinal)"
                 objectOrdinal += 1
             }
-            // A nested tmo_* is a separate original object. GOAL 1 on its
-            // parent does not establish that the child is also a goal.
-            // Only propagate a goal through non-object transform/3DO nodes.
-            let isGoal = item.name.hasPrefix("tmo_")
-                ? item.goalRaw == "1"
-                : (goalAncestor || item.goalRaw == "1")
             let transform = SCNNode()
             let identifier = "original-node-\(nodeOrdinal)"
             nodeOrdinal += 1
@@ -764,7 +758,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
             }
             for child in item.children {
-                walk(child, parent: transform, goalAncestor: isGoal, ownerID: currentOwnerID)
+                walk(child, parent: transform, ownerID: currentOwnerID)
             }
         }
         walk(document.root, parent: scene.rootNode)
