@@ -267,6 +267,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             guard let first = pendingHingeEndpoint, first !== node,
                   let firstBody = first.physicsBody else {
                 clearPendingHingeEndpoint()
+                // Imported UCM geometries are cached and shared across
+                // instances. Give this endpoint its own geometry/materials
+                // before tinting it, or every copy of the part turns cyan.
+                if let geometry = node.geometry {
+                    let unique = geometry.copy() as! SCNGeometry
+                    unique.materials = geometry.materials.map { $0.copy() as! SCNMaterial }
+                    node.geometry = unique
+                }
                 pendingHingeEndpoint = node
                 pendingEndpointOriginalEmission = node.geometry?.firstMaterial?.emission.contents
                 node.geometry?.firstMaterial?.emission.contents = UIColor.systemCyan
