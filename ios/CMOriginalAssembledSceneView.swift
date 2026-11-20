@@ -32,6 +32,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // SceneKit defaults to a paused scene in some configurations; make
         // frame scheduling explicit for deterministic experiment startup.
         view.rendersContinuously = experimentalPhysics
+        if experimentalPhysics { view.delegate = context.coordinator }
         let tap = UITapGestureRecognizer(target: context.coordinator,
                                          action: #selector(Coordinator.selectObject(_:)))
         tap.cancelsTouchesInView = false
@@ -111,10 +112,22 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    final class Coordinator: NSObject, UIGestureRecognizerDelegate, SCNPhysicsContactDelegate {
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate, SCNPhysicsContactDelegate, SCNSceneRendererDelegate {
         private weak var highlighted: SCNNode?
         var selectedModelName: String?
         var session: CMOriginalGameplaySession?
+        private var lastRendererTime: TimeInterval?
+
+        func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+            guard physicsEnabled else { return }
+            defer { lastRendererTime = time }
+            guard let previous = lastRendererTime else { return }
+            let delta = time - previous
+            // Ignore discontinuities caused by app suspension, backgrounding
+            // or SceneKit restarting its renderer clock.
+            guard delta.isFinite, delta > 0, delta <= 0.25 else { return }
+            session?.advance(by: delta)
+        }
 
         func physicsWorld(_ world: SCNPhysicsWorld, didBegin contact: SCNPhysicsContact) {
             guard physicsEnabled,
