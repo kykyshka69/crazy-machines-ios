@@ -21,6 +21,23 @@ public struct CMOriginalGameplaySession {
         public let parentID: String?
     }
 
+    /// Experimental contact-driven activation graph. It tracks which imported
+    /// objects have physically interacted; it does not infer puzzle success.
+    public struct Activation: Equatable {
+        public let objectID: String
+        public let triggeredBy: String
+        public let impulse: Double
+        public let simulationTime: TimeInterval
+    }
+
+    public private(set) var activations: [Activation] = []
+    public private(set) var activatedObjectIDs: Set<String> = []
+
+    public var contactedGoalObjectIDs: Set<String> {
+        let goals = Set(annotatedGoalObjects.map(\.id))
+        return activatedObjectIDs.intersection(goals)
+    }
+
     public struct Contact: Equatable {
         public let objectA: String
         public let objectB: String
@@ -42,6 +59,15 @@ public struct CMOriginalGameplaySession {
         recentContacts.append(Contact(objectA: pair[0], objectB: pair[1],
                                       impulse: impulse,
                                       simulationTime: elapsedSimulationTime))
+        // First valid contact activates each endpoint once. Future object
+        // handlers can subscribe to these transitions, independent of physics.
+        for (target, source) in [(a, b), (b, a)] {
+            if activatedObjectIDs.insert(target).inserted {
+                activations.append(Activation(objectID: target, triggeredBy: source,
+                                              impulse: impulse,
+                                              simulationTime: elapsedSimulationTime))
+            }
+        }
         if recentContacts.count > 256 {
             recentContacts.removeFirst(recentContacts.count - 256)
         }
@@ -97,6 +123,8 @@ public struct CMOriginalGameplaySession {
         elapsedSimulationTime = 0
         recentContacts.removeAll()
         contactCounts.removeAll()
+        activations.removeAll()
+        activatedObjectIDs.removeAll()
         phase = .running
     }
 
@@ -123,6 +151,8 @@ public struct CMOriginalGameplaySession {
         elapsedSimulationTime = 0
         recentContacts.removeAll()
         contactCounts.removeAll()
+        activations.removeAll()
+        activatedObjectIDs.removeAll()
         phase = .ready
     }
 
