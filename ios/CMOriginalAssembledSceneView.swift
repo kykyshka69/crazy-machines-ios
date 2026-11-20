@@ -906,7 +906,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
             }
             let allCorners = hingeCandidates.map { corners($0.mesh) }
-            var closestPair = (0, 1)
+            // No pair exists when every visible mesh belongs to the same
+            // compound body. Keep that state explicit instead of falling
+            // back to an invalid (0, 1) pair.
+            var closestPair: (Int, Int)?
             var closestA = SCNVector3Zero
             var closestB = SCNVector3Zero
             var bestDistanceSquared = Float.infinity
@@ -930,6 +933,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                 }
             }
+            if let closestPair {
             let first = hingeCandidates[closestPair.0].bodyNode
             let second = hingeCandidates[closestPair.1].bodyNode
             let firstCorners = allCorners[closestPair.0]
@@ -992,6 +996,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     scene.rootNode.addChildNode(marker)
                 }
             }
+            } // A valid pair of distinct rigid bodies was found.
         }
         if hasBounds && experimentalPhysics {
             // A temporary diagnostic support surface keeps imported parts
