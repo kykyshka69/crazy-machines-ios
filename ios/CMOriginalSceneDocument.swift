@@ -140,7 +140,7 @@ public struct CMOriginalSceneDocument: Decodable {
               node.fields.count <= 256,
               node.children.count <= 2048,
               (node.models?.count ?? 0) <= 256,
-              (node.models ?? []).allSatisfy({ !$0.isEmpty && $0.count <= 512 }),
+              (node.models ?? []).allSatisfy({ !$0.isEmpty && $0.count <= 512 && !$0.contains(where: { $0.isNewline || $0.isASCII && $0.asciiValue == 0 }) }),
               (node.rotationRaw?.count ?? 0) <= 4096,
               (node.rotationRelativeRaw?.count ?? 0) <= 4096,
               (node.goalRaw?.count ?? 0) <= 256,
