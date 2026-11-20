@@ -309,14 +309,31 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
             let firstCorners = surfaceCorners(first)
             let secondCorners = surfaceCorners(node)
-            let separationSquared = firstCorners.flatMap { firstCorner in
-                secondCorners.map { secondCorner in
-                    let dx = firstCorner.x - secondCorner.x
-                    let dy = firstCorner.y - secondCorner.y
-                    let dz = firstCorner.z - secondCorner.z
-                    return dx * dx + dy * dy + dz * dz
+            // Corner-to-corner distances incorrectly reject two long parts
+            // touching at their faces or edges. Compare world-space bounding
+            // intervals instead; overlapping intervals have zero gap.
+            func bounds(_ corners: [SCNVector3]) -> (SCNVector3, SCNVector3)? {
+                guard let first = corners.first else { return nil }
+                var low = first, high = first
+                for corner in corners {
+                    guard corner.x.isFinite, corner.y.isFinite, corner.z.isFinite else {
+                        return nil
+                    }
+                    low.x = min(low.x, corner.x); high.x = max(high.x, corner.x)
+                    low.y = min(low.y, corner.y); high.y = max(high.y, corner.y)
+                    low.z = min(low.z, corner.z); high.z = max(high.z, corner.z)
                 }
-            }.min() ?? Float.infinity
+                return (low, high)
+            }
+            guard let (firstLow, firstHigh) = bounds(firstCorners),
+                  let (secondLow, secondHigh) = bounds(secondCorners) else { return }
+            func gap(_ aMin: Float, _ aMax: Float, _ bMin: Float, _ bMax: Float) -> Float {
+                max(0, max(aMin - bMax, bMin - aMax))
+            }
+            let dx = gap(firstLow.x, firstHigh.x, secondLow.x, secondHigh.x)
+            let dy = gap(firstLow.y, firstHigh.y, secondLow.y, secondHigh.y)
+            let dz = gap(firstLow.z, firstHigh.z, secondLow.z, secondHigh.z)
+            let separationSquared = dx * dx + dy * dy + dz * dz
             let (aMin, aMax) = first.boundingBox
             let (bMin, bMax) = node.boundingBox
             let adx = aMax.x - aMin.x, ady = aMax.y - aMin.y, adz = aMax.z - aMin.z
