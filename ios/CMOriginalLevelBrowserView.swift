@@ -116,6 +116,20 @@ struct CMOriginalLevelBrowserView: View {
                 LabeledContent("Objects", value: "\(document.root.objectCount)")
                 LabeledContent("With positions", value: "\(document.root.positionedObjectCount)")
                 LabeledContent("Goal markers", value: "\(document.root.goalCount)")
+                let inventory = document.gameplayInventory
+                LabeledContent("Distinct object types", value: "\(inventory.objectTypes.count)")
+                LabeledContent("Goal object types", value: "\(inventory.goalObjectTypes.count)")
+                if !inventory.goalObjectTypes.isEmpty {
+                    ForEach(inventory.goalObjectTypes.keys.sorted(), id: \.self) { name in
+                        LabeledContent(name, value: "\(inventory.goalObjectTypes[name] ?? 0) goal markers")
+                    }
+                }
+                if !inventory.objectsWithoutModels.isEmpty {
+                    LabeledContent("Objects without 3D references",
+                                   value: "\(inventory.objectsWithoutModels.values.reduce(0, +))")
+                }
+                Text("These are verified scene annotations, not a decoded victory condition.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Original object positions (X/Y)") {
                 CMOriginalLevelMapView(document: document)
@@ -141,7 +155,7 @@ struct CMOriginalLevelBrowserView: View {
                 Button("View original level in 3D") {
                     assembledScene = AssembledSelection(document: document, experimentalPhysics: false, diagnosticHinges: false)
                 }
-                Toggle("Experimental hinge between first two meshes", isOn: $diagnosticHinges)
+                Toggle("Experimental hinge between nearest meshes", isOn: $diagnosticHinges)
                 Text("Optional test constraint only. The connected meshes and hinge axis are not inferred from the original level.")
                     .font(.caption).foregroundStyle(.secondary)
                 Button("Try experimental gravity and collisions") {
