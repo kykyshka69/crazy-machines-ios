@@ -555,7 +555,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 if let id = node?.userData?["originalObjectID"] as? String {
                     sessionLock.lock()
                     let hasRule = session?.reactionRules.contains(where: { $0.objectID == id }) == true
-                    if hasRule { _ = session?.triggerObject(id) }
+                    if hasRule { _ = session?.pressObject(id) }
                     sessionLock.unlock()
                     if hasRule { return }
                 }
