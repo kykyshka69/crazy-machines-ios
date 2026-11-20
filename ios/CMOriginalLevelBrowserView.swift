@@ -410,7 +410,10 @@ struct CMOriginalLevelBrowserView: View {
                     .safeAreaInset(edge: .bottom) {
                         if selection.experimentalPhysics && !physicsPaused &&
                             CMOriginalGameplaySession(document: selection.document).objects.count >= 2 &&
-                            (mechanismSourceByScene[selection.document.sceneSHA256] != mechanismTargetByScene[selection.document.sceneSHA256]) {
+                            (mechanismSourceByScene[selection.document.sceneSHA256] ??
+                                CMOriginalGameplaySession(document: selection.document).objects[0].id) !=
+                            (mechanismTargetByScene[selection.document.sceneSHA256] ??
+                                CMOriginalGameplaySession(document: selection.document).objects[1].id) {
                             Button("Activate mechanism") { switchPressCount += 1 }
                                 .buttonStyle(.borderedProminent)
                                 .accessibilityIdentifier("cm.original.mechanism.activate")
