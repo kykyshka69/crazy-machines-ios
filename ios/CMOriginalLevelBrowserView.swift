@@ -13,8 +13,9 @@ struct CMOriginalLevelBrowserView: View {
     @State private var confirmingResetEdits = false
     @State private var physicsPaused = false
     @State private var diagnosticHinges = false
-    @State private var fixedObjectTypes: Set<String> = []
-    @State private var sensorObjectTypes: Set<String> = []
+    // Keep experimental role choices isolated by scene fingerprint.
+    @State private var fixedObjectTypesByScene: [String: Set<String>] = [:]
+    @State private var sensorObjectTypesByScene: [String: Set<String>] = [:]
 
     private struct AssembledSelection: Identifiable {
         let document: CMOriginalSceneDocument
@@ -178,20 +179,22 @@ struct CMOriginalLevelBrowserView: View {
                 }
             }
             Section("Experimental object physics by original type") {
-                Text("Choose roles for imported tmo object types. These are user-defined experiments, not recovered original game rules.")
+                Text("Roles apply only to this imported scene. These are experimental choices, not original rules.")
                     .font(.caption).foregroundStyle(.secondary)
+                let sceneKey = document.sceneSHA256
                 let types = Array(Set(CMOriginalGameplaySession(document: document).objects.map(\.type))).sorted()
                 ForEach(types, id: \.self) { type in
-                    Picker(type, selection: Binding(
+                    Picker(type, selection: Binding<String>(
                         get: {
-                            fixedObjectTypes.contains(type) ? "Fixed" :
-                                (sensorObjectTypes.contains(type) ? "Sensor" : "Movable")
+                            if fixedObjectTypesByScene[sceneKey, default: []].contains(type) { return "Fixed" }
+                            if sensorObjectTypesByScene[sceneKey, default: []].contains(type) { return "Sensor" }
+                            return "Movable"
                         },
                         set: { role in
-                            fixedObjectTypes.remove(type)
-                            sensorObjectTypes.remove(type)
-                            if role == "Fixed" { fixedObjectTypes.insert(type) }
-                            if role == "Sensor" { sensorObjectTypes.insert(type) }
+                            fixedObjectTypesByScene[sceneKey, default: []].remove(type)
+                            sensorObjectTypesByScene[sceneKey, default: []].remove(type)
+                            if role == "Fixed" { fixedObjectTypesByScene[sceneKey, default: []].insert(type) }
+                            if role == "Sensor" { sensorObjectTypesByScene[sceneKey, default: []].insert(type) }
                         }
                     )) {
                         Text("Movable").tag("Movable")
@@ -294,10 +297,10 @@ struct CMOriginalLevelBrowserView: View {
                     diagnosticHinges: selection.diagnosticHinges,
                     configuredPhysicsRoles: Dictionary(uniqueKeysWithValues:
                         CMOriginalGameplaySession(document: selection.document).objects.compactMap { object in
-                            if fixedObjectTypes.contains(object.type) {
+                            if fixedObjectTypesByScene[selection.document.sceneSHA256, default: []].contains(object.type) {
                                 return (object.id, CMOriginalGameplaySession.PhysicsRole.fixed)
                             }
-                            if sensorObjectTypes.contains(object.type) {
+                            if sensorObjectTypesByScene[selection.document.sceneSHA256, default: []].contains(object.type) {
                                 return (object.id, CMOriginalGameplaySession.PhysicsRole.sensor)
                             }
                             return nil
