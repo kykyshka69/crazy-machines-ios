@@ -3,7 +3,12 @@ from ucm_parser import parse
 class TestUCM(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
-  with zipfile.ZipFile(sys.argv[1]) as z:
+  # unittest discovery passes "discover" as argv[1], not an asset ZIP.
+  # Original commercial assets are intentionally not checked into the repo.
+  archive = getattr(cls, "archive_path", None)
+  if archive is None:
+   raise unittest.SkipTest("Original UCM model archive not provided; run this test directly with a ZIP path")
+  with zipfile.ZipFile(archive) as z:
    cls.models={n:z.read(n) for n in z.namelist() if n.lower().endswith('.ucm')}
  def test_all_models(self):
   self.assertEqual(len(self.models),160)
@@ -21,6 +26,8 @@ class TestUCM(unittest.TestCase):
   for data in self.models.values():
    with self.assertRaises(ValueError):parse(data+b'\0')
 if __name__=='__main__':
- archive=sys.argv[1]
+ if len(sys.argv) != 2:
+  raise SystemExit("Usage: python3 tools/test_ucm_parser.py ORIGINAL_MODELS.zip")
+ TestUCM.archive_path=sys.argv[1]
  sys.argv=[sys.argv[0]]
  unittest.main(verbosity=2)
