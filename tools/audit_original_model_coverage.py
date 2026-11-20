@@ -5,10 +5,11 @@ Read-only. Never copies game meshes or decoded scenes into the repository.
 """
 import argparse
 import collections
+import hashlib
 import json
 from pathlib import Path
 
-from decode_professor_records import read_professor_records
+from decode_professor_records import PROFESSOR_SHA256, read_professor_records
 from decompress_original_level import decode_level_scene
 from parse_original_scene import parse_scene
 
@@ -55,7 +56,10 @@ def main():
         parser.error("ucm_directory must be an existing directory")
     names = [p.stem for p in args.ucm_directory.rglob("*")
              if p.is_file() and p.suffix.lower() == ".ucm"]
-    records = read_professor_records(args.professor_cml.read_bytes(), include_payload=True)
+    data = args.professor_cml.read_bytes()
+    if hashlib.sha256(data).hexdigest() != PROFESSOR_SHA256:
+        parser.error("not the verified original Professor Laboratory CML")
+    records = read_professor_records(data, include_payload=True)
     result = audit_models(records, names)
     report = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
     if args.output:
