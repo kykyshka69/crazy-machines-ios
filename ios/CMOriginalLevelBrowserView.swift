@@ -13,6 +13,8 @@ struct CMOriginalLevelBrowserView: View {
     @State private var confirmingResetEdits = false
     @State private var physicsPaused = false
     @State private var diagnosticHinges = false
+    @State private var fixedObjectTypes: Set<String> = []
+    @State private var sensorObjectTypes: Set<String> = []
 
     private struct AssembledSelection: Identifiable {
         let document: CMOriginalSceneDocument
@@ -175,6 +177,29 @@ struct CMOriginalLevelBrowserView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
+            Section("Experimental object physics by original type") {
+                Text("Choose roles for imported tmo object types. These are user-defined experiments, not recovered original game rules.")
+                    .font(.caption).foregroundStyle(.secondary)
+                let types = Array(Set(CMOriginalGameplaySession(document: document).objects.map(\\.type))).sorted()
+                ForEach(types, id: \\.self) { type in
+                    Picker(type, selection: Binding(
+                        get: {
+                            fixedObjectTypes.contains(type) ? "Fixed" :
+                                (sensorObjectTypes.contains(type) ? "Sensor" : "Movable")
+                        },
+                        set: { role in
+                            fixedObjectTypes.remove(type)
+                            sensorObjectTypes.remove(type)
+                            if role == "Fixed" { fixedObjectTypes.insert(type) }
+                            if role == "Sensor" { sensorObjectTypes.insert(type) }
+                        }
+                    )) {
+                        Text("Movable").tag("Movable")
+                        Text("Fixed").tag("Fixed")
+                        Text("Sensor").tag("Sensor")
+                    }
+                }
+            }
             Section("Assembled original 3D scene") {
                 Button("View original level in 3D") {
                     assembledScene = AssembledSelection(document: document, experimentalPhysics: false, diagnosticHinges: false)
@@ -261,7 +286,23 @@ struct CMOriginalLevelBrowserView: View {
         }
         .sheet(item: $assembledScene) { selection in
             NavigationStack {
-                CMOriginalAssembledSceneView(document: selection.document, assetDirectory: originalStorage, experimentalPhysics: selection.experimentalPhysics, physicsPaused: physicsPaused, diagnosticHinges: selection.diagnosticHinges)
+                CMOriginalAssembledSceneView(
+                    document: selection.document,
+                    assetDirectory: originalStorage,
+                    experimentalPhysics: selection.experimentalPhysics,
+                    physicsPaused: physicsPaused,
+                    diagnosticHinges: selection.diagnosticHinges,
+                    configuredPhysicsRoles: Dictionary(uniqueKeysWithValues:
+                        CMOriginalGameplaySession(document: selection.document).objects.compactMap { object in
+                            if fixedObjectTypes.contains(object.type) {
+                                return (object.id, CMOriginalGameplaySession.PhysicsRole.fixed)
+                            }
+                            if sensorObjectTypes.contains(object.type) {
+                                return (object.id, CMOriginalGameplaySession.PhysicsRole.sensor)
+                            }
+                            return nil
+                        })
+                )
                     // Replacing the sheet selection alone does not guarantee
                     // UIViewRepresentable.makeUIView runs again. Force a new
                     // SceneKit world on Restart, including physics bodies and
