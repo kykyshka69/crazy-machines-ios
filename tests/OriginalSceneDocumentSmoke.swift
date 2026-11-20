@@ -66,6 +66,9 @@ enum OriginalSceneDocumentSmoke {
         let nestedDoc = try CMOriginalSceneDocument.read(
             JSONSerialization.data(withJSONObject: nestedRaw))
         precondition(nestedDoc.gameplayInventory.objectsWithoutModels.isEmpty)
+        let nestedSession = CMOriginalGameplaySession(document: nestedDoc)
+        precondition(nestedSession.objects.count == 1)
+        precondition(nestedSession.objects[0].models == ["to_board"])
         // A model inside a separate nested tmo_ cannot be attributed to
         // the parent object.
         nestedChildren[0]["children"] = [[
@@ -78,6 +81,11 @@ enum OriginalSceneDocumentSmoke {
             JSONSerialization.data(withJSONObject: nestedRaw))
         precondition(nestedObjectDoc.gameplayInventory.objectsWithoutModels["tmo_board"] == 1)
         precondition(nestedObjectDoc.gameplayInventory.objectsWithoutModels["tmo_child"] == nil)
+        let separateSession = CMOriginalGameplaySession(document: nestedObjectDoc)
+        precondition(separateSession.objects.count == 2)
+        precondition(separateSession.objects[0].models.isEmpty)
+        precondition(separateSession.objects[1].models == ["to_board"])
+        precondition(separateSession.objects[1].parentID == "object-0")
         var session = CMOriginalGameplaySession(document: doc)
         precondition(session.objects.count == 1)
         precondition(session.objects[0].id == "object-0")
