@@ -307,6 +307,7 @@ struct CMOriginalLevelBrowserView: View {
         } message: {
             Text("All objects will return to their original imported coordinates the next time you open the 3D scene.")
         }
+        .onAppear { loadPhysicsPresets(for: document) }
         .sheet(item: $assembledScene) { selection in
             NavigationStack {
                 CMOriginalAssembledSceneView(
