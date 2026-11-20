@@ -370,6 +370,26 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
             }
         }
+        if hasBounds && experimentalPhysics {
+            // A temporary diagnostic support surface keeps imported parts
+            // from falling forever. It is NOT an original game component.
+            // Position its top below the lowest imported mesh vertex.
+            let extentX = max(upper.x - lower.x, 1)
+            let extentZ = max(upper.z - lower.z, 1)
+            let thickness = max(min(max(extentX, extentZ) * 0.02, 1), 0.01)
+            let floor = SCNNode(geometry: SCNBox(width: CGFloat(extentX * 1.5),
+                                                 height: CGFloat(thickness),
+                                                 length: CGFloat(extentZ * 1.5),
+                                                 chamferRadius: 0))
+            floor.name = "experimental-support-floor"
+            floor.position = SCNVector3((lower.x + upper.x) / 2,
+                                        lower.y - thickness / 2 - 0.001,
+                                        (lower.z + upper.z) / 2)
+            floor.geometry?.firstMaterial?.diffuse.contents = UIColor.darkGray
+            floor.geometry?.firstMaterial?.transparency = 0.35
+            floor.physicsBody = SCNPhysicsBody.static()
+            scene.rootNode.addChildNode(floor)
+        }
         if hasBounds {
             let center = SCNVector3((lower.x + upper.x) / 2,
                                     (lower.y + upper.y) / 2,
