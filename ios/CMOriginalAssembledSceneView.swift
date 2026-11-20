@@ -725,7 +725,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             // synthetic GOAL colors. GOAL is preserved in the
                             // level inspector, not encoded as invented materials.
                             transform.addChildNode(mesh)
-                            if experimentalPhysics {
+                            if experimentalPhysics && currentOwnerID != nil {
                                 // Approximate collision volumes only; original CML
                                 // physical properties have not yet been decoded.
                                 // A shape attached to a mesh child must use
