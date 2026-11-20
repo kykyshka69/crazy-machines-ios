@@ -52,6 +52,13 @@ struct CMOriginalLevelBrowserView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Original puzzles") {
+                    if documents.isEmpty {
+                        ContentUnavailableView(
+                            "No original levels imported",
+                            systemImage: "square.stack.3d.up.slash",
+                            description: Text("Export the original CML levels to JSON on your computer, then import the files or their folder here.")
+                        )
+                    }
                     ForEach(sorted, id: \.index) { document in
                         NavigationLink {
                             levelDetails(document)
