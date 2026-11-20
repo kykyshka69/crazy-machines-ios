@@ -565,15 +565,20 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             guard separationSquared.isFinite, maxSeparation.isFinite,
                   separationSquared <= maxSeparation * maxSeparation else { return }
             let axis = SCNVector3(0, 0, 1)
-            let anchorA = first.presentation.convertPosition(anchor, from: nil)
-            let anchorB = node.presentation.convertPosition(anchor, from: nil)
+            // Hinge anchors must be expressed in the rigid body's local
+            // coordinate system, not in a clicked child mesh's coordinates.
+            // A multi-mesh original object has its body on the tmo owner.
+            guard let firstPhysical = physicalNode(for: first),
+                  let secondPhysical = physicalNode(for: node) else { return }
+            let anchorA = firstPhysical.presentation.convertPosition(anchor, from: nil)
+            let anchorB = secondPhysical.presentation.convertPosition(anchor, from: nil)
             func unit(_ vector: SCNVector3) -> SCNVector3 {
                 let length = sqrt(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z)
                 guard length.isFinite, length > 0.00001 else { return SCNVector3(0, 0, 1) }
                 return SCNVector3(vector.x / length, vector.y / length, vector.z / length)
             }
-            let axisA = unit(first.presentation.convertVector(axis, from: nil))
-            let axisB = unit(node.presentation.convertVector(axis, from: nil))
+            let axisA = unit(firstPhysical.presentation.convertVector(axis, from: nil))
+            let axisB = unit(secondPhysical.presentation.convertVector(axis, from: nil))
             let values = [anchorA.x, anchorA.y, anchorA.z,
                           anchorB.x, anchorB.y, anchorB.z,
                           axisA.x, axisA.y, axisA.z,
