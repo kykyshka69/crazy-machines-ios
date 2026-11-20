@@ -80,6 +80,9 @@ enum OriginalSceneDocumentSmoke {
         precondition(mixedCaseSession.objects[0].models == ["TO_BOARD"])
         // A model inside a separate nested tmo_ cannot be attributed to
         // the parent object.
+        // Remove the earlier metadata-only model references: this fixture
+        // tests ownership when the parent has no models of its own.
+        nestedChildren[0]["models"] = [String]()
         nestedChildren[0]["children"] = [[
             "name": "tmo_child", "fields": [],
             "children": [["name": "3DO to_board", "fields": [], "children": []]]
