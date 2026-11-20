@@ -382,6 +382,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
             highlighted = nil
             originalEmission = nil
+            view.accessibilityValue = "No original model selected"
             guard let node, let geometry = node.geometry,
                   geometry.firstMaterial != nil else { return }
             // Avoid re-copying a selected geometry when the user taps it again.
@@ -395,6 +396,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             originalEmission = uniqueMaterial.emission.contents
             uniqueMaterial.emission.contents = UIColor.systemOrange
             highlighted = node
+            // Make the original mesh identity available to VoiceOver while
+            // inspecting an authentic level. This is the imported 3DO name,
+            // not an invented gameplay classification.
+            view.accessibilityValue = "Selected original model: " + (node.name ?? "unnamed")
         }
     }
 
