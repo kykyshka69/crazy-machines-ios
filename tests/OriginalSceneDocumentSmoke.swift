@@ -69,6 +69,15 @@ enum OriginalSceneDocumentSmoke {
         let nestedSession = CMOriginalGameplaySession(document: nestedDoc)
         precondition(nestedSession.objects.count == 1)
         precondition(nestedSession.objects[0].models == ["to_board"])
+        // The same PC mesh may appear with different filename casing in
+        // metadata and in the 3DO tree; register it only once.
+        nestedChildren[0]["models"] = ["TO_BOARD", "to_board"]
+        nestedRoot["children"] = nestedChildren
+        nestedRaw["root"] = nestedRoot
+        let mixedCaseDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: nestedRaw))
+        let mixedCaseSession = CMOriginalGameplaySession(document: mixedCaseDoc)
+        precondition(mixedCaseSession.objects[0].models == ["TO_BOARD"])
         // A model inside a separate nested tmo_ cannot be attributed to
         // the parent object.
         nestedChildren[0]["children"] = [[
