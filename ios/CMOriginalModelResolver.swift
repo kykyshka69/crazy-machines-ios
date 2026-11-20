@@ -20,36 +20,43 @@ enum CMOriginalModelResolver {
         return result.filter { seen.insert($0.lowercased()).inserted }
     }
 
+    /// Index imported original meshes once for a whole level. Duplicate names
+    /// remain ambiguous and are never resolved to an arbitrary file.
+    struct AssetIndex {
+        private let filesByBaseName: [String: [URL]]
+
+        init(directory: URL) {
+            let files = (try? FileManager.default.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            )) ?? []
+            var index: [String: [URL]] = [:]
+            for file in files where file.pathExtension.lowercased() == "ucm" {
+                let key = file.deletingPathExtension().lastPathComponent.lowercased()
+                index[key, default: []].append(file)
+            }
+            filesByBaseName = index
+        }
+
+        func resolve(_ modelName: String) -> URL? {
+            let name = modelName.replacingOccurrences(of: "\\", with: "/")
+                .split(separator: "/").last.map(String.init) ?? ""
+            guard !name.isEmpty, name != ".", name != "..",
+                  !name.contains("/") else { return nil }
+            let ext = (name as NSString).pathExtension.lowercased()
+            guard ext.isEmpty || ext == "ucm" else { return nil }
+            let base = (name as NSString).deletingPathExtension.lowercased()
+            guard !base.isEmpty else { return nil }
+            let matches = filesByBaseName[base] ?? []
+            if matches.count == 1 { return matches[0] }
+            if !matches.isEmpty { return nil }
+            guard base.hasPrefix("to_"), base.count > 3 else { return nil }
+            let aliasMatches = filesByBaseName[String(base.dropFirst(3))] ?? []
+            return aliasMatches.count == 1 ? aliasMatches[0] : nil
+        }
+    }
+
     static func resolve(_ modelName: String, in directory: URL) -> URL? {
-        let name = modelName.replacingOccurrences(of: "\\", with: "/")
-            .split(separator: "/").last.map(String.init) ?? ""
-        guard !name.isEmpty, name != ".", name != "..",
-              !name.contains("/") else { return nil }
-        // A 3DO reference may omit its extension or explicitly use .ucm.
-        // Never turn a reference to another file type into a UCM match.
-        let ext = (name as NSString).pathExtension.lowercased()
-        guard ext.isEmpty || ext == "ucm" else { return nil }
-        let base = (name as NSString).deletingPathExtension.lowercased()
-        guard !base.isEmpty else { return nil }
-        guard let files = try? FileManager.default.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) else { return nil }
-        let matches = files.filter {
-            $0.pathExtension.lowercased() == "ucm" &&
-            $0.deletingPathExtension().lastPathComponent.lowercased() == base
-        }
-        if matches.count == 1 { return matches[0] }
-        if !matches.isEmpty { return nil }
-        // The original scene's 3DO "to_board" refers to the actual
-        // "board.ucm" asset. Only this explicit original naming prefix
-        // is stripped, never arbitrary prefixes or approximate names.
-        guard base.hasPrefix("to_"), base.count > 3 else { return nil }
-        let originalAssetName = String(base.dropFirst(3))
-        let aliasMatches = files.filter {
-            $0.pathExtension.lowercased() == "ucm" &&
-            $0.deletingPathExtension().lastPathComponent.lowercased() == originalAssetName
-        }
-        return aliasMatches.count == 1 ? aliasMatches[0] : nil
+        AssetIndex(directory: directory).resolve(modelName)
     }
 }
