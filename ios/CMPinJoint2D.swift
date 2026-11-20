@@ -22,7 +22,9 @@ public extension CMPhysicsWorld2D {
          pin.anchor.x.isFinite, pin.anchor.y.isFinite else { continue }
    let i=pin.bodyIndex
    guard !constrainedBodies.contains(i),
-         bodies[i].mass.isFinite,bodies[i].mass > 0 else { continue }
+         bodies[i].mass.isFinite,bodies[i].mass > 0,
+         bodies[i].radius.isFinite, bodies[i].radius > 0,
+         bodies[i].position.x.isFinite, bodies[i].position.y.isFinite else { continue }
    constrainedBodies.insert(i)
    bodies[i].position=pin.anchor
    bodies[i].velocity = .zero
