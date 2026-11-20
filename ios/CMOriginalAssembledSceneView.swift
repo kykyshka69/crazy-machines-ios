@@ -10,6 +10,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var physicsPaused = false
     var diagnosticHinges = false
     var configuredPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
+    var configuredReactions: [CMOriginalGameplaySession.ReactionRule] = []
 
     private var physicsAccessibilityStatus: String {
         let state = experimentalPhysics ? (physicsPaused ? "paused" : "running") : "off"
@@ -82,6 +83,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         if experimentalPhysics {
             context.coordinator.registerPhysicsNodes(in: scene)
             context.coordinator.configurePhysicsRoles(configuredPhysicsRoles)
+            context.coordinator.configureExperimentalReactions(configuredReactions)
         }
         // Assign a fixed simulation step to reduce device-dependent solver
         // behavior and tunneling through thin imported mechanisms.
@@ -125,6 +127,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var lastRendererTime: TimeInterval?
         private var physicsNodesByObjectID: [String: [SCNNode]] = [:]
         private var appliedPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
+        private var appliedReactionRules: [CMOriginalGameplaySession.ReactionRule] = []
 
         func setSessionPaused(_ paused: Bool) {
             sessionLock.lock()
@@ -182,6 +185,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         /// Reactions must be explicitly configured; imported scene data
         /// alone does not authorize an invented impulse or activation.
         func configureExperimentalReactions(_ rules: [CMOriginalGameplaySession.ReactionRule]) {
+            guard rules != appliedReactionRules else { return }
+            appliedReactionRules = rules
             sessionLock.lock()
             defer { sessionLock.unlock() }
             session?.configureReactions(rules)
