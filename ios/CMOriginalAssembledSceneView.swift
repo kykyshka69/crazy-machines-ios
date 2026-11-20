@@ -232,9 +232,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                   let view = gesture.view as? SCNView,
                   let scene = view.scene,
                   let last = manualHinges.popLast() else { return }
+            let wasPlaying = view.isPlaying
+            view.isPlaying = false
             scene.physicsWorld.removeBehavior(last.joint)
             last.marker.removeFromParentNode()
             pendingHingeEndpoint = nil
+            view.isPlaying = wasPlaying
         }
 
         @objc func selectHingeEndpoint(_ gesture: UITapGestureRecognizer) {
