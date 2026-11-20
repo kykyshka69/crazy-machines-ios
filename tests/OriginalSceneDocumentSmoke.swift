@@ -41,7 +41,7 @@ enum OriginalSceneDocumentSmoke {
             let bytes = try JSONSerialization.data(withJSONObject: malformed)
             do {
                 _ = try CMOriginalSceneDocument.read(bytes)
-                preconditionFailure("Oversized original scene metadata was accepted: \\(key)")
+                preconditionFailure("Oversized original scene metadata was accepted: \(key)")
             } catch CMOriginalSceneDocument.SceneError.invalid {
                 // Expected: reject malformed original scene metadata.
             }
