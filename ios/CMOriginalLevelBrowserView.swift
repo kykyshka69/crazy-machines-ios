@@ -386,7 +386,6 @@ struct CMOriginalLevelBrowserView: View {
                             }
                             return nil
                         }),
-                    switchPressCount: switchPressCount,
                     configuredReactions: {
                         let objects = CMOriginalGameplaySession(document: selection.document).objects
                         guard objects.count >= 2 else { return [] }
@@ -399,7 +398,8 @@ struct CMOriginalLevelBrowserView: View {
                                 objectID: source, trigger: .firstContact,
                                 action: .impulseTarget(id: target, x: 0, y: 8, z: 0))
                         ]
-                    }()
+                    }(),
+                    switchPressCount: switchPressCount
                 )
                     // Replacing the sheet selection alone does not guarantee
                     // UIViewRepresentable.makeUIView runs again. Force a new
