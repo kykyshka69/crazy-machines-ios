@@ -19,6 +19,27 @@ struct CMOriginalLevelBrowserView: View {
     @State private var fixedObjectTypesByScene: [String: Set<String>] = [:]
     @State private var sensorObjectTypesByScene: [String: Set<String>] = [:]
 
+    private func loadMechanismPreset(for document: CMOriginalSceneDocument) {
+        let key = document.sceneSHA256
+        let ids = CMOriginalGameplaySession(document: document).objects.map(\.id)
+        guard ids.count >= 2 else { return }
+        let prefix = "cm.original.mechanism." + key
+        let savedSource = UserDefaults.standard.string(forKey: prefix + ".source")
+        let savedTarget = UserDefaults.standard.string(forKey: prefix + ".target")
+        if mechanismSourceByScene[key] == nil {
+            mechanismSourceByScene[key] = savedSource.flatMap { ids.contains($0) ? $0 : nil } ?? ids[0]
+        }
+        if mechanismTargetByScene[key] == nil {
+            mechanismTargetByScene[key] = savedTarget.flatMap { ids.contains($0) ? $0 : nil } ?? ids[1]
+        }
+    }
+
+    private func saveMechanismPreset(for key: String) {
+        let prefix = "cm.original.mechanism." + key
+        UserDefaults.standard.set(mechanismSourceByScene[key], forKey: prefix + ".source")
+        UserDefaults.standard.set(mechanismTargetByScene[key], forKey: prefix + ".target")
+    }
+
     private func loadPhysicsPresets(for document: CMOriginalSceneDocument) {
         let key = document.sceneSHA256
         let prefix = "cm.original.physics.roles." + key
@@ -233,7 +254,7 @@ struct CMOriginalLevelBrowserView: View {
                         .font(.caption).foregroundStyle(.secondary)
                     Picker("Switch", selection: Binding(
                         get: { mechanismSourceByScene[key] ?? objects[0].id },
-                        set: { mechanismSourceByScene[key] = $0 }
+                        set: { mechanismSourceByScene[key] = $0; saveMechanismPreset(for: key) }
                     )) {
                         ForEach(objects) { object in
                             Text("\(object.id): \(object.type)").tag(object.id)
@@ -241,13 +262,17 @@ struct CMOriginalLevelBrowserView: View {
                     }
                     Picker("Target", selection: Binding(
                         get: { mechanismTargetByScene[key] ?? objects[1].id },
-                        set: { mechanismTargetByScene[key] = $0 }
+                        set: { mechanismTargetByScene[key] = $0; saveMechanismPreset(for: key) }
                     )) {
                         ForEach(objects) { object in
                             Text("\(object.id): \(object.type)").tag(object.id)
                         }
                     }
-                    Text("Tap the chosen switch mesh once in experimental physics mode to trigger the target.")
+                    if (mechanismSourceByScene[key] ?? objects[0].id) == (mechanismTargetByScene[key] ?? objects[1].id) {
+                        Text("Choose two different objects to enable the mechanism.")
+                            .foregroundStyle(.orange)
+                    }
+                    Text("Tap the chosen switch mesh in experimental physics mode to push the target. Repeated taps work.")
                         .font(.caption).foregroundStyle(.secondary)
                 } else {
                     Text("At least two imported objects are needed.")
@@ -338,7 +363,10 @@ struct CMOriginalLevelBrowserView: View {
         } message: {
             Text("All objects will return to their original imported coordinates the next time you open the 3D scene.")
         }
-        .onAppear { loadPhysicsPresets(for: document) }
+        .onAppear {
+            loadPhysicsPresets(for: document)
+            loadMechanismPreset(for: document)
+        }
         .sheet(item: $assembledScene) { selection in
             NavigationStack {
                 CMOriginalAssembledSceneView(
