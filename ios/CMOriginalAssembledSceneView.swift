@@ -270,7 +270,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             let bdx = bMax.x - bMin.x, bdy = bMax.y - bMin.y, bdz = bMax.z - bMin.z
             let aSize = sqrt(adx * adx + ady * ady + adz * adz)
             let bSize = sqrt(bdx * bdx + bdy * bdy + bdz * bdz)
-            let maxSeparation = max(0.1, 2 * max(aSize, bSize))
+            // Account for imported model scale: local-space dimensions
+            // alone can reject valid joints between scaled parts.
+            let aScale = first.presentation.worldTransform
+            let bScale = node.presentation.worldTransform
+            func worldScale(_ t: SCNMatrix4) -> Float {
+                let sx = sqrt(t.m11 * t.m11 + t.m12 * t.m12 + t.m13 * t.m13)
+                let sy = sqrt(t.m21 * t.m21 + t.m22 * t.m22 + t.m23 * t.m23)
+                let sz = sqrt(t.m31 * t.m31 + t.m32 * t.m32 + t.m33 * t.m33)
+                return max(sx, max(sy, sz))
+            }
+            let maxSeparation = max(0.1, 2 * max(aSize * worldScale(aScale),
+                                                  bSize * worldScale(bScale)))
             guard separationSquared.isFinite, maxSeparation.isFinite,
                   separationSquared <= maxSeparation * maxSeparation else { return }
             let axis = SCNVector3(0, 0, 1)
