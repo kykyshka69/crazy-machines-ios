@@ -90,7 +90,17 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       let body = node.physicsBody else { return }
                 // Diagnostic-only manual classification: we have not decoded
                 // which original game components are fixed versus movable.
-                body.type = body.type == .dynamic ? .static : .dynamic
+                let makeStatic = body.type == .dynamic
+                if makeStatic {
+                    // Stop existing motion before pinning a test component.
+                    body.clearAllForces()
+                    body.velocity = SCNVector3Zero
+                    body.angularVelocity = SCNVector4(0, 0, 0, 0)
+                }
+                body.type = makeStatic ? .static : .dynamic
+                // Visual feedback is per node, so shared imported geometry
+                // and the original GOAL material tint are left untouched.
+                node.opacity = makeStatic ? 0.55 : 1.0
                 return
             }
             guard
