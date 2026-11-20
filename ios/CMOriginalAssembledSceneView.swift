@@ -727,17 +727,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             if let currentOwnerID {
                                 mesh.originalObjectID = currentOwnerID
                             }
-                            // Highlight only authentic imported geometry belonging to
-                            // an original GOAL 1 node; never invent a goal marker.
-                            if isGoal {
-                                let goalGeometry = geometry.copy() as! SCNGeometry
-                                goalGeometry.materials = geometry.materials.map {
-                                    let material = $0.copy() as! SCNMaterial
-                                    material.emission.contents = UIColor.systemGreen.withAlphaComponent(0.45)
-                                    return material
-                                }
-                                mesh.geometry = goalGeometry
-                            }
+                            // Render the original UCM geometry without adding
+                            // synthetic GOAL colors. GOAL is preserved in the
+                            // level inspector, not encoded as invented materials.
                             transform.addChildNode(mesh)
                             if experimentalPhysics {
                                 // Approximate collision volumes only; original CML
