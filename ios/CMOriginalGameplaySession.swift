@@ -82,6 +82,33 @@ public struct CMOriginalGameplaySession {
         actionQueue.removeAll()
     }
 
+    /// Expand explicit activation links into executable actions. Each target
+    /// activates once per run, preventing cycles from looping forever.
+    /// Only impulse actions reach SceneKit; links are resolved in the engine.
+    public mutating func resolveActions() -> [PendingAction] {
+        guard phase == .running else { return [] }
+        var impulses: [PendingAction] = []
+        var processed = 0
+        while !actionQueue.isEmpty && processed < 512 {
+            let pending = actionQueue.removeFirst()
+            processed += 1
+            switch pending.action {
+            case .impulse:
+                impulses.append(pending)
+            case .activate(let target):
+                guard activatedObjectIDs.insert(target).inserted else { continue }
+                activations.append(Activation(objectID: target,
+                                              triggeredBy: pending.sourceID,
+                                              impulse: 0,
+                                              simulationTime: elapsedSimulationTime))
+                enqueueReactions(for: target, firstContact: true)
+            }
+        }
+        // Never carry an unbounded chain across frames.
+        if processed >= 512 { actionQueue.removeAll() }
+        return impulses
+    }
+
     /// Consume once; SceneKit may execute these actions on its renderer thread.
     public mutating func drainActions() -> [PendingAction] {
         let actions = actionQueue
