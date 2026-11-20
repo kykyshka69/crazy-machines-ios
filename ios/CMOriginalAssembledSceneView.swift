@@ -8,6 +8,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     let assetDirectory: URL
     var experimentalPhysics = false
     var physicsPaused = false
+    var diagnosticHinges = false
 
     private var physicsAccessibilityStatus: String {
         let state = experimentalPhysics ? (physicsPaused ? "paused" : "running") : "off"
@@ -380,6 +381,25 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                 }
             }
+        }
+        if experimentalPhysics && diagnosticHinges && loadedMeshNodes.count >= 2 {
+            // Experimental proof of a SceneKit hinge, not decoded CML linkage.
+            // Join the first two imported meshes at their midpoint. The
+            // physics bodies already exist on the mesh nodes.
+            let first = loadedMeshNodes[0]
+            let second = loadedMeshNodes[1]
+            let a = first.convertPosition(SCNVector3Zero, to: nil)
+            let b = second.convertPosition(SCNVector3Zero, to: nil)
+            let anchor = SCNVector3((a.x + b.x) / 2,
+                                    (a.y + b.y) / 2,
+                                    (a.z + b.z) / 2)
+            let hinge = SCNPhysicsHingeJoint(bodyA: first.physicsBody!,
+                                             axisA: SCNVector3(0, 0, 1),
+                                             anchorA: first.convertPosition(anchor, from: nil),
+                                             bodyB: second.physicsBody!,
+                                             axisB: SCNVector3(0, 0, 1),
+                                             anchorB: second.convertPosition(anchor, from: nil))
+            scene.physicsWorld.addBehavior(hinge)
         }
         if hasBounds && experimentalPhysics {
             // A temporary diagnostic support surface keeps imported parts
