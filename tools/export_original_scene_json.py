@@ -21,8 +21,11 @@ def parse_vector3(value: str) -> list[float]:
     if not match:
         raise ValueError(f"invalid original vector: {value!r}")
     numbers = [float(number) for number in match.groups()]
-    if not all(math.isfinite(number) for number in numbers):
-        raise ValueError(f"non-finite original vector: {value!r}")
+    # SceneKit stores positions as Float; reject coordinates that the iOS
+    # decoder cannot represent rather than exporting an unusable level.
+    if not all(math.isfinite(number) and abs(number) <= 3.4028234663852886e38
+               for number in numbers):
+        raise ValueError(f"out-of-range original vector: {value!r}")
     return numbers
 
 
