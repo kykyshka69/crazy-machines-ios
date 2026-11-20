@@ -424,6 +424,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             let anchor = SCNVector3((closestA.x + closestB.x) / 2,
                                     (closestA.y + closestB.y) / 2,
                                     (closestA.z + closestB.z) / 2)
+            // Avoid feeding non-finite positions into SceneKit physics.
+            // Invalid imported geometry must not destabilize the simulation.
+            let anchorIsFinite = anchor.x.isFinite && anchor.y.isFinite && anchor.z.isFinite
             // Mark the approximate joint pivot in the diagnostic scene.
             // This sphere is visual-only and never participates in physics.
             let marker = SCNNode(geometry: SCNSphere(radius: 0.08))
@@ -450,7 +453,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                              bodyB: second.physicsBody!,
                                              axisB: secondAxis,
                                              anchorB: second.convertPosition(anchor, from: nil))
-            scene.physicsWorld.addBehavior(hinge)
+            if anchorIsFinite {
+                scene.physicsWorld.addBehavior(hinge)
+            }
         }
         if hasBounds && experimentalPhysics {
             // A temporary diagnostic support surface keeps imported parts
