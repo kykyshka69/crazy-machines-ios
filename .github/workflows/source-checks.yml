@@ -33,6 +33,7 @@ jobs:
           python -m unittest -v test_parse_original_scene.py
           python -m unittest -v test_audit_original_model_coverage.py
           python -m unittest -v test_inventory_original_object_fields.py
+          python -m unittest -v test_inspect_original_level_objects.py
 
   original-cml-metadata-runtime:
     runs-on: ubuntu-latest
