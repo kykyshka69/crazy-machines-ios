@@ -109,6 +109,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var storageKey = ""
         var physicsEnabled = false
         private weak var pendingHingeEndpoint: SCNNode?
+        private var pendingEndpointOriginalEmission: Any?
+        private func clearPendingHingeEndpoint() {
+            if let node = pendingHingeEndpoint {
+                node.geometry?.firstMaterial?.emission.contents = pendingEndpointOriginalEmission
+            }
+            pendingHingeEndpoint = nil
+            pendingEndpointOriginalEmission = nil
+        }
         private var manualHinges: [(joint: SCNPhysicsHingeJoint, marker: SCNNode)] = []
         var originalPositions: [String: SCNVector3] = [:]
 
@@ -236,7 +244,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             view.isPlaying = false
             scene.physicsWorld.removeBehavior(last.joint)
             last.marker.removeFromParentNode()
-            pendingHingeEndpoint = nil
+            clearPendingHingeEndpoint()
             view.isPlaying = wasPlaying
         }
 
@@ -249,10 +257,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                   let body = node.physicsBody else { return }
             guard let first = pendingHingeEndpoint, first !== node,
                   let firstBody = first.physicsBody else {
+                clearPendingHingeEndpoint()
                 pendingHingeEndpoint = node
+                pendingEndpointOriginalEmission = node.geometry?.firstMaterial?.emission.contents
+                node.geometry?.firstMaterial?.emission.contents = UIColor.systemCyan
                 return
             }
-            pendingHingeEndpoint = nil
+            clearPendingHingeEndpoint()
             // A world-space midpoint gives a reproducible test connection.
             // This is not a recovered original-game joint.
             let a = first.presentation.convertPosition(SCNVector3Zero, to: nil)
