@@ -366,18 +366,22 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             guard let view = gesture.view as? SCNView,
                   gesture.state == .ended, !dragWasActive else { return }
             let point = gesture.location(in: view)
-            let node = view.hitTest(point, options: [.firstFoundOnly: true]).first?.node
+            let hit = view.hitTest(point, options: [.firstFoundOnly: true]).first
+            let node = hit?.node
             if physicsEnabled {
-                // SceneKit hit-tests return a mesh node with a physics body.
-                // Apply a small impulse along the camera's viewing direction
-                // to provide a repeatable, visible interaction test.
+                // Apply the experimental impulse at the actual touched surface
+                // rather than the center of mass. Off-center taps can now
+                // generate torque, allowing rotational collision experiments.
                 guard let body = node?.physicsBody, body.type == .dynamic,
-                      let camera = view.pointOfView else { return }
+                      let camera = view.pointOfView,
+                      let contact = hit?.worldCoordinates,
+                      contact.x.isFinite, contact.y.isFinite, contact.z.isFinite else { return }
                 let forward = camera.presentation.convertVector(SCNVector3(0, 0, -1), to: nil)
                 let magnitude: Float = 2
                 body.applyForce(SCNVector3(forward.x * magnitude,
                                            forward.y * magnitude,
-                                           forward.z * magnitude), asImpulse: true)
+                                           forward.z * magnitude),
+                                at: contact, asImpulse: true)
                 return
             }
             if let previous = highlighted, let material = previous.geometry?.firstMaterial {
