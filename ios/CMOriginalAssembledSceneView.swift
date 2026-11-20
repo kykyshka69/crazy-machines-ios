@@ -21,7 +21,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         view.accessibilityIdentifier = "cm.original.assembled-scene"
         view.accessibilityLabel = "Original level 3D scene"
         view.accessibilityHint = experimentalPhysics
-            ? "Double tap two different parts to add a hinge. Tap with three fingers to undo the last manual hinge. Long press a part to pin or unpin it."
+            ? "Double tap two different parts to add a hinge. Tap with three fingers to cancel a pending endpoint or undo the last manual hinge. Long press a part to pin or unpin it."
             : "Tap to select a part, drag to reposition it, or long press to reset its position."
         view.accessibilityValue = physicsAccessibilityStatus
         view.allowsCameraControl = true
@@ -238,8 +238,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         @objc func removeLastManualHinge(_ gesture: UITapGestureRecognizer) {
             guard physicsEnabled, gesture.state == .ended,
                   let view = gesture.view as? SCNView,
-                  let scene = view.scene,
-                  let last = manualHinges.popLast() else { return }
+                  let scene = view.scene else { return }
+            // A pending first endpoint is a selection, not an installed
+            // constraint. Cancel it before undoing an older hinge.
+            if pendingHingeEndpoint != nil {
+                clearPendingHingeEndpoint()
+                return
+            }
+            guard let last = manualHinges.popLast() else { return }
             let wasPlaying = view.isPlaying
             view.isPlaying = false
             scene.physicsWorld.removeBehavior(last.joint)
