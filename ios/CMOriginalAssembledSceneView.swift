@@ -94,13 +94,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // SwiftUI updates pause state without reconstructing imported meshes
         // or losing the current simulated positions.
         uiView.isPlaying = experimentalPhysics && !physicsPaused
-        uiView.accessibilityValue = physicsAccessibilityStatus
+        uiView.accessibilityValue = context.coordinator.selectedModelName.map {
+            physicsAccessibilityStatus + "; selected original model: " + $0
+        } ?? physicsAccessibilityStatus
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         private weak var highlighted: SCNNode?
+        var selectedModelName: String?
         private var originalEmission: Any?
         private weak var dragging: SCNNode?
         private var dragInitialPosition: SCNVector3?
@@ -382,6 +385,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
             highlighted = nil
             originalEmission = nil
+            selectedModelName = nil
             view.accessibilityValue = "No original model selected"
             guard let node, let geometry = node.geometry,
                   geometry.firstMaterial != nil else { return }
@@ -399,6 +403,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // Make the original mesh identity available to VoiceOver while
             // inspecting an authentic level. This is the imported 3DO name,
             // not an invented gameplay classification.
+            selectedModelName = node.name
             view.accessibilityValue = "Selected original model: " + (node.name ?? "unnamed")
         }
     }
