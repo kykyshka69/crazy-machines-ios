@@ -26,6 +26,22 @@ def parse_vector3(value: str) -> list[float]:
     return numbers
 
 
+def own_model_references(node: SceneNode) -> list[str]:
+    """Collect original 3DOs through helper nodes, not through another tmo_."""
+    names: list[str] = []
+
+    def visit(item: SceneNode) -> None:
+        for child in item.children:
+            if child.name.startswith("tmo_"):
+                continue  # This is a distinct original object.
+            if child.name.startswith("3DO "):
+                names.append(child.name[4:])
+            visit(child)
+
+    visit(node)
+    return names
+
+
 def export_node(node: SceneNode) -> dict:
     fields = list(node.fields)
     result = {"name": node.name, "fields": fields,
@@ -41,8 +57,7 @@ def export_node(node: SceneNode) -> dict:
         if value is not None:
             result[key] = value
     if node.name.startswith("tmo_"):
-        result["models"] = [child.name[4:] for child in node.children
-                            if child.name.startswith("3DO ")]
+        result["models"] = own_model_references(node)
         goal = node.first_field("GOAL")
         if goal is not None:
             result["goal_raw"] = goal
