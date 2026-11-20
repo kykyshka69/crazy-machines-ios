@@ -90,7 +90,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       let body = node.physicsBody else { return }
                 // Diagnostic-only manual classification: we have not decoded
                 // which original game components are fixed versus movable.
+                // Convert the current simulated world pose into a stable local
+                // transform before changing the body's simulation type.
+                // Otherwise SceneKit can snap a moving part back to its
+                // initial authored transform when it becomes static.
                 let makeStatic = body.type == .dynamic
+                if makeStatic {
+                    node.transform = node.presentation.transform
+                }
                 if makeStatic {
                     // Stop existing motion before pinning a test component.
                     body.clearAllForces()
