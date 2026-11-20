@@ -41,6 +41,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             connect.numberOfTapsRequired = 2
             tap.require(toFail: connect)
             view.addGestureRecognizer(connect)
+            // Three-finger tap removes the most recently added manual hinge.
+            let undoHinge = UITapGestureRecognizer(target: context.coordinator,
+                                                    action: #selector(Coordinator.removeLastManualHinge(_:)))
+            undoHinge.numberOfTouchesRequired = 3
+            view.addGestureRecognizer(undoHinge)
         }
         let drag = UIPanGestureRecognizer(target: context.coordinator,
                                           action: #selector(Coordinator.dragSelected(_:)))
@@ -101,6 +106,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var storageKey = ""
         var physicsEnabled = false
         private weak var pendingHingeEndpoint: SCNNode?
+        private var manualHinges: [(joint: SCNPhysicsHingeJoint, marker: SCNNode)] = []
         var originalPositions: [String: SCNVector3] = [:]
 
         @objc func resetSelected(_ gesture: UILongPressGestureRecognizer) {
@@ -218,6 +224,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
 
+        @objc func removeLastManualHinge(_ gesture: UITapGestureRecognizer) {
+            guard physicsEnabled, gesture.state == .ended,
+                  let view = gesture.view as? SCNView,
+                  let scene = view.scene,
+                  let last = manualHinges.popLast() else { return }
+            scene.physicsWorld.removeBehavior(last.joint)
+            last.marker.removeFromParentNode()
+            pendingHingeEndpoint = nil
+        }
+
         @objc func selectHingeEndpoint(_ gesture: UITapGestureRecognizer) {
             guard physicsEnabled, gesture.state == .ended,
                   let view = gesture.view as? SCNView,
@@ -262,6 +278,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             marker.geometry?.firstMaterial?.diffuse.contents = UIColor.systemGreen
             marker.position = anchor
             scene.rootNode.addChildNode(marker)
+            manualHinges.append((joint: hinge, marker: marker))
         }
 
         @objc func selectObject(_ gesture: UITapGestureRecognizer) {
