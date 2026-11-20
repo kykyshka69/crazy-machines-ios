@@ -78,6 +78,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             scene.physicsWorld.gravity = SCNVector3(0, -9.8, 0)
         }
         view.scene = scene
+        if experimentalPhysics { context.coordinator.registerPhysicsNodes(in: scene) }
         // Assign a fixed simulation step to reduce device-dependent solver
         // behavior and tunneling through thin imported mechanisms.
         if experimentalPhysics {
@@ -117,6 +118,40 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var selectedModelName: String?
         var session: CMOriginalGameplaySession?
         private var lastRendererTime: TimeInterval?
+        private var physicsNodesByObjectID: [String: [SCNNode]] = [:]
+
+        func registerPhysicsNodes(in scene: SCNScene) {
+            physicsNodesByObjectID.removeAll()
+            scene.rootNode.enumerateChildNodes { node, _ in
+                guard node.physicsBody != nil,
+                      let id = node.userData?["originalObjectID"] as? String else { return }
+                self.physicsNodesByObjectID[id, default: []].append(node)
+            }
+        }
+
+        /// Reactions must be explicitly configured; imported scene data
+        /// alone does not authorize an invented impulse or activation.
+        func configureExperimentalReactions(_ rules: [CMOriginalGameplaySession.ReactionRule]) {
+            session?.configureReactions(rules)
+        }
+
+        private func applyPendingActions() {
+            guard let actions = session?.drainActions() else { return }
+            for pending in actions {
+                switch pending.action {
+                case .impulse(let x, let y, let z):
+                    let vector = SCNVector3(Float(x), Float(y), Float(z))
+                    for node in physicsNodesByObjectID[pending.sourceID] ?? [] {
+                        guard let body = node.physicsBody, body.type == .dynamic else { continue }
+                        body.applyForce(vector, asImpulse: true)
+                    }
+                case .activate:
+                    // Reserved for a future explicit activation handler.
+                    // Do not pretend that a queued event operates a mechanism.
+                    break
+                }
+            }
+        }
 
         func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
             guard physicsEnabled else { return }
@@ -127,6 +162,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // or SceneKit restarting its renderer clock.
             guard delta.isFinite, delta > 0, delta <= 0.25 else { return }
             session?.advance(by: delta)
+            applyPendingActions()
         }
 
         func physicsWorld(_ world: SCNPhysicsWorld, didBegin contact: SCNPhysicsContact) {
