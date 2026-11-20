@@ -238,6 +238,11 @@ struct CMOriginalLevelBrowserView: View {
         .sheet(item: $assembledScene) { selection in
             NavigationStack {
                 CMOriginalAssembledSceneView(document: selection.document, assetDirectory: originalStorage, experimentalPhysics: selection.experimentalPhysics, physicsPaused: physicsPaused, diagnosticHinges: selection.diagnosticHinges)
+                    // Replacing the sheet selection alone does not guarantee
+                    // UIViewRepresentable.makeUIView runs again. Force a new
+                    // SceneKit world on Restart, including physics bodies and
+                    // diagnostic hinges, while preserving pause/resume updates.
+                    .id(selection.id)
                     .navigationTitle("Level \(selection.document.index) · 3D")
                     .toolbar {
                         if selection.experimentalPhysics {
