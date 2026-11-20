@@ -18,13 +18,17 @@ def audit_models(records, available_ucm_names):
     available = {name.casefold() for name in available_ucm_names}
     uses = collections.Counter()
     first_seen = {}
+    level_uses = {}
     for record in records:
         root = parse_scene(decode_level_scene(record["payload"]))
+        per_level = collections.Counter()
         for node in root.walk():
             if node.name.startswith("3DO "):
                 model = node.name[4:].strip()
                 uses[model] += 1
+                per_level[model] += 1
                 first_seen.setdefault(model, record["index"])
+        level_uses[record["index"]] = per_level
     resolved, unresolved = [], []
     for model, count in sorted(uses.items(), key=lambda item: (-item[1], item[0])):
         # Only the observed original to_* -> *.ucm mapping is trusted.
@@ -35,7 +39,24 @@ def audit_models(records, available_ucm_names):
             resolved.append(entry)
         else:
             unresolved.append(entry)
+    per_level_coverage = []
+    for index, models in sorted(level_uses.items()):
+        missing = sorted(
+            (model for model in models
+             if not (model.startswith("to_") and
+                     model[3:].casefold() in available))
+        )
+        per_level_coverage.append({
+            "index": index,
+            "model_references": sum(models.values()),
+            "unresolved_references": sum(models[name] for name in missing),
+            "unresolved_models": missing,
+        })
     return {
+        "levels_with_all_models": sum(
+            not item["unresolved_models"] for item in per_level_coverage
+        ),
+        "level_coverage": per_level_coverage,
         "unique_models": len(uses),
         "total_model_references": sum(uses.values()),
         "resolved_unique_models": len(resolved),
