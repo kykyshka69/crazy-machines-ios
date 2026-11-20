@@ -139,6 +139,11 @@ public struct CMOriginalSceneDocument: Decodable {
               node.name.count <= 256,
               node.fields.count <= 256,
               node.children.count <= 2048,
+              (node.models?.count ?? 0) <= 256,
+              (node.models ?? []).allSatisfy({ !$0.isEmpty && $0.count <= 512 }),
+              (node.rotationRaw?.count ?? 0) <= 4096,
+              (node.rotationRelativeRaw?.count ?? 0) <= 4096,
+              (node.goalRaw?.count ?? 0) <= 256,
               node.fields.allSatisfy({ $0.count <= 4096 }) else { throw SceneError.invalid }
         if let p = node.position {
             guard p.count == 3 && p.allSatisfy({ $0.isFinite && abs($0) <= Double(Float.greatestFiniteMagnitude) }) else { throw SceneError.invalid }
