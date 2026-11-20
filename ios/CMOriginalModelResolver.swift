@@ -58,8 +58,13 @@ enum CMOriginalModelResolver {
             let matches = filesByBaseName[base] ?? []
             if matches.count == 1 { return matches[0] }
             if !matches.isEmpty { return nil }
-            guard base.hasPrefix("to_"), base.count > 3 else { return nil }
-            let aliasMatches = filesByBaseName[String(base.dropFirst(3))] ?? []
+            // PC scene references may use the to_ prefix while imported
+            // UCM assets omit it (or vice versa). Never choose an ambiguous
+            // candidate when both names exist.
+            let alternate = base.hasPrefix("to_")
+                ? String(base.dropFirst(3)) : "to_" + base
+            guard !alternate.isEmpty else { return nil }
+            let aliasMatches = filesByBaseName[alternate] ?? []
             return aliasMatches.count == 1 ? aliasMatches[0] : nil
         }
     }
