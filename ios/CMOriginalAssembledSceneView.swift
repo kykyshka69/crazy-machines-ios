@@ -205,12 +205,31 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
 
+        private func physicsObjectID(for node: SCNNode) -> String? {
+            if let mesh = node as? CMOriginalObjectMeshNode {
+                return mesh.originalObjectID
+            }
+            if let name = node.name, name.hasPrefix("physics-owner-") {
+                return String(name.dropFirst("physics-owner-".count))
+            }
+            return nil
+        }
+
+        private func physicalNode(for node: SCNNode?) -> SCNNode? {
+            var current = node
+            while let candidate = current {
+                if candidate.physicsBody != nil { return candidate }
+                current = candidate.parent
+            }
+            return nil
+        }
+
         func registerPhysicsNodes(in scene: SCNScene) {
             physicsNodesByObjectID.removeAll()
             appliedPhysicsRoles.removeAll()
             scene.rootNode.enumerateChildNodes { node, _ in
                 guard node.physicsBody != nil,
-                      let id = (node as? CMOriginalObjectMeshNode)?.originalObjectID else { return }
+                      let id = self.physicsObjectID(for: node) else { return }
                 self.physicsNodesByObjectID[id, default: []].append(node)
             }
         }
@@ -275,8 +294,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
         func physicsWorld(_ world: SCNPhysicsWorld, didBegin contact: SCNPhysicsContact) {
             guard physicsEnabled,
-                  let a = (contact.nodeA as? CMOriginalObjectMeshNode)?.originalObjectID,
-                  let b = (contact.nodeB as? CMOriginalObjectMeshNode)?.originalObjectID else { return }
+                  let a = physicsObjectID(for: contact.nodeA),
+                  let b = physicsObjectID(for: contact.nodeB) else { return }
             sessionLock.lock()
             session?.recordContact(a, b, impulse: Double(contact.collisionImpulse))
             sessionLock.unlock()
@@ -595,7 +614,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // Apply the experimental impulse at the actual touched surface
                 // rather than the center of mass. Off-center taps can now
                 // generate torque, allowing rotational collision experiments.
-                guard let body = node?.physicsBody, body.type == .dynamic,
+                guard let body = physicalNode(for: node)?.physicsBody, body.type == .dynamic,
                       let camera = view.pointOfView,
                       let contact = hit?.worldCoordinates,
                       contact.x.isFinite, contact.y.isFinite, contact.z.isFinite else { return }
@@ -667,6 +686,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             return SCNVector3(x, y, z)
         }
 
+        // Keep each original tmo object's meshes together: a multi-part model
+        // must not split into independently falling rigid bodies.
+        var objectRoots: [String: SCNNode] = [:]
+        var objectMeshes: [String: [CMOriginalObjectMeshNode]] = [:]
+
         func walk(_ item: CMOriginalSceneDocument.Node, parent: SCNNode, ownerID: String? = nil) {
             var currentOwnerID = ownerID
             if item.name.hasPrefix("tmo_") {
@@ -683,6 +707,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             transform.eulerAngles = parseRotation(item.rotationRelativeRaw ?? item.rotationRaw)
             originalPositions[identifier] = transform.position
             parent.addChildNode(transform)
+            if item.name.hasPrefix("tmo_"), let currentOwnerID {
+                objectRoots[currentOwnerID] = transform
+            }
 
             // A 3DO entry is a model reference, not an additional object transform.
             if item.name.hasPrefix("3DO ") {
@@ -757,6 +784,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                 // SceneKit's physics solver advances only when
                                 // the scene is playing, even if it is visible.
                             }
+                            if let currentOwnerID {
+                                objectMeshes[currentOwnerID, default: []].append(mesh)
+                            }
                             loadedMeshNodes.append(mesh)
                         }
                     }
@@ -767,6 +797,36 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
         walk(document.root, parent: scene.rootNode)
+        if experimentalPhysics {
+            // Build one compound convex collision body per original object.
+            // Each mesh shape is transformed into its owning tmo node's space;
+            // nested tmo objects are kept separate by their distinct owner IDs.
+            for (id, meshes) in objectMeshes where meshes.count > 1 {
+                guard let root = objectRoots[id] else { continue }
+                let shapes: [SCNPhysicsShape] = meshes.compactMap { mesh in
+                    guard let geometry = mesh.geometry else { return nil }
+                    return SCNPhysicsShape(geometry: geometry, options: [
+                        .type: SCNPhysicsShape.ShapeType.convexHull
+                    ])
+                }
+                guard shapes.count == meshes.count else { continue }
+                let transforms = meshes.map { mesh in
+                    NSValue(scnMatrix4: mesh.convertTransform(SCNMatrix4Identity, to: root))
+                }
+                let shape = SCNPhysicsShape(shapes: shapes, transforms: transforms)
+                let body = SCNPhysicsBody(type: .dynamic, shape: shape)
+                body.mass = 1
+                body.friction = 0.6
+                body.restitution = 0.15
+                body.continuousCollisionDetectionThreshold = 0.001
+                body.categoryBitMask = 1
+                body.collisionBitMask = 1
+                body.contactTestBitMask = 1
+                for mesh in meshes { mesh.physicsBody = nil }
+                root.physicsBody = body
+                root.name = "physics-owner-\\(id)"
+            }
+        }
         // Frame actual transformed mesh bounds, not just object origins.
         // A long board can extend far beyond its POS coordinate.
         let camera = SCNNode()
