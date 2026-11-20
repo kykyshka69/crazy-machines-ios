@@ -86,6 +86,17 @@ enum OriginalSceneDocumentSmoke {
         var contactSession = CMOriginalGameplaySession(document: twoObjectDoc)
         precondition(contactSession.objects.count == 2)
         precondition(contactSession.annotatedGoalObjects.map(\.id) == ["object-1"])
+        contactSession.configureReactions([
+            .init(objectID: "object-0", trigger: .firstContact,
+                  action: .impulse(x: 1, y: 0, z: 0)),
+            .init(objectID: "object-1", trigger: .everyContact,
+                  action: .impulse(x: 0, y: 2, z: 0)),
+            .init(objectID: "missing", trigger: .everyContact,
+                  action: .impulse(x: 0, y: 1, z: 0)),
+            .init(objectID: "object-0", trigger: .everyContact,
+                  action: .impulse(x: .infinity, y: 0, z: 0))
+        ])
+        precondition(contactSession.reactionRules.count == 2)
         contactSession.start()
         contactSession.recordContact("object-1", "object-0", impulse: 3)
         precondition(contactSession.recentContacts.count == 1)
@@ -93,6 +104,7 @@ enum OriginalSceneDocumentSmoke {
         precondition(contactSession.contactedGoalObjectIDs == Set(["object-1"]))
         contactSession.recordContact("object-0", "object-1", impulse: 2)
         precondition(contactSession.contactCounts["object-0|object-1"] == 2)
+        precondition(contactSession.drainActions().count == 1)
         precondition(contactSession.activations.count == 2)
         contactSession.reset()
         precondition(contactSession.activations.isEmpty)
