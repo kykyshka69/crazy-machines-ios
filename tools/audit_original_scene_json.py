@@ -20,6 +20,8 @@ def audit(document):
     field_counts = collections.Counter()
     object_types = collections.Counter()
     missing_models = []
+    model_references = collections.Counter()
+    original_object_fields = collections.defaultdict(collections.Counter)
     stack = [(root, "level")]
     while stack:
         node, path = stack.pop()
@@ -28,8 +30,11 @@ def audit(document):
         if name.startswith("tmo_"):
             counts["original_objects"] += 1
             object_types[name] += 1
-            if not node.get("models"):
+            models = node.get("models", [])
+            if not models:
                 missing_models.append(path)
+            for model in models:
+                model_references[model] += 1
             if "position" not in node:
                 counts["objects_without_position"] += 1
             if "goal_raw" in node:
@@ -40,7 +45,10 @@ def audit(document):
                 counts[key] += 1
         for field in node.get("fields", []):
             if field.strip():
-                field_counts[field.split(None, 1)[0]] += 1
+                keyword = field.split(None, 1)[0]
+                field_counts[keyword] += 1
+                if name.startswith("tmo_"):
+                    original_object_fields[name][keyword] += 1
         for index, child in reversed(list(enumerate(node.get("children", [])))):
             stack.append((child, f"{path}/{index}:{child.get('name', '')}"))
     return {
@@ -49,6 +57,11 @@ def audit(document):
         "counts": dict(sorted(counts.items())),
         "original_object_types": dict(sorted(object_types.items())),
         "original_field_keywords": dict(sorted(field_counts.items())),
+        "object_fields_by_type": {
+            name: dict(sorted(fields.items()))
+            for name, fields in sorted(original_object_fields.items())
+        },
+        "referenced_original_models": dict(sorted(model_references.items())),
         "objects_without_direct_model_reference": missing_models,
         "original_victory_condition_verified": False,
     }
