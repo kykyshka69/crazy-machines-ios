@@ -23,6 +23,34 @@ enum CMOriginalModelResolver {
         return result.filter { seen.insert($0.lowercased()).inserted }
     }
 
+    /// Enumerate references across the entire level, including nested tmo_
+    /// objects. Use modelNames(in:) instead for one object's own meshes.
+    static func allModelNames(in root: CMOriginalSceneDocument.Node) -> [String] {
+        var names: [String] = []
+        var seen = Set<String>()
+        func visit(_ node: CMOriginalSceneDocument.Node) {
+            if node.name.hasPrefix("tmo_") {
+                for name in modelNames(in: node) {
+                    if seen.insert(name.lowercased()).inserted { names.append(name) }
+                }
+            } else if !node.name.hasPrefix("level") {
+                // Non-object helper nodes may still carry mesh references.
+                if let models = node.models {
+                    for name in models where seen.insert(name.lowercased()).inserted {
+                        names.append(name)
+                    }
+                }
+                if node.name.hasPrefix("3DO ") {
+                    let name = String(node.name.dropFirst(4))
+                    if seen.insert(name.lowercased()).inserted { names.append(name) }
+                }
+            }
+            for child in node.children { visit(child) }
+        }
+        visit(root)
+        return names
+    }
+
     /// Index imported original meshes once for a whole level. Duplicate names
     /// remain ambiguous and are never resolved to an arbitrary file.
     struct AssetIndex {
