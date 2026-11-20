@@ -24,6 +24,12 @@ enum OriginalModelResolverSmoke {
             }
         }
 
+        for invalid in ["folder/../to_board", "folder//to_board", "folder/./to_board", "folder\\nto_board", "folder\\0to_board"] {
+            guard case .invalidReference = index.resolution(for: invalid) else {
+                preconditionFailure("Invalid PC model parent path was accepted")
+            }
+        }
+
         guard case .found(let withExtension) = index.resolution(for: "models\\\\to_board.ucm") else {
             preconditionFailure("Safe Windows-relative model paths should resolve")
         }
