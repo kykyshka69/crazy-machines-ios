@@ -427,34 +427,38 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // Avoid feeding non-finite positions into SceneKit physics.
             // Invalid imported geometry must not destabilize the simulation.
             let anchorIsFinite = anchor.x.isFinite && anchor.y.isFinite && anchor.z.isFinite
-            // Mark the approximate joint pivot in the diagnostic scene.
-            // This sphere is visual-only and never participates in physics.
-            let marker = SCNNode(geometry: SCNSphere(radius: 0.08))
-            marker.name = "experimental-hinge-anchor"
-            marker.geometry?.firstMaterial?.diffuse.contents = UIColor.systemYellow
-            marker.position = anchor
-            scene.rootNode.addChildNode(marker)
-            // SceneKit expects each hinge axis in its own body's local
-            // coordinates. Convert a shared world-space Z axis separately,
-            // otherwise rotated meshes receive incompatible hinge axes.
-            let worldAxis = SCNVector3(0, 0, 1)
-            func normalizedAxis(_ axis: SCNVector3) -> SCNVector3 {
-                let length = sqrt(axis.x * axis.x + axis.y * axis.y + axis.z * axis.z)
-                guard length.isFinite, length > 0.00001 else {
-                    return SCNVector3(0, 0, 1)
-                }
-                return SCNVector3(axis.x / length, axis.y / length, axis.z / length)
-            }
-            let firstAxis = normalizedAxis(first.convertVector(worldAxis, from: nil))
-            let secondAxis = normalizedAxis(second.convertVector(worldAxis, from: nil))
-            let hinge = SCNPhysicsHingeJoint(bodyA: first.physicsBody!,
-                                             axisA: firstAxis,
-                                             anchorA: first.convertPosition(anchor, from: nil),
-                                             bodyB: second.physicsBody!,
-                                             axisB: secondAxis,
-                                             anchorB: second.convertPosition(anchor, from: nil))
             if anchorIsFinite {
-                scene.physicsWorld.addBehavior(hinge)
+                // SceneKit expects each axis and anchor in the corresponding
+                // body's local coordinate space.
+                let worldAxis = SCNVector3(0, 0, 1)
+                func normalizedAxis(_ axis: SCNVector3) -> SCNVector3 {
+                    let length = sqrt(axis.x * axis.x + axis.y * axis.y + axis.z * axis.z)
+                    guard length.isFinite, length > 0.00001 else {
+                        return SCNVector3(0, 0, 1)
+                    }
+                    return SCNVector3(axis.x / length, axis.y / length, axis.z / length)
+                }
+                let firstAxis = normalizedAxis(first.convertVector(worldAxis, from: nil))
+                let secondAxis = normalizedAxis(second.convertVector(worldAxis, from: nil))
+                let firstAnchor = first.convertPosition(anchor, from: nil)
+                let secondAnchor = second.convertPosition(anchor, from: nil)
+                let coordinates = [firstAnchor.x, firstAnchor.y, firstAnchor.z,
+                                   secondAnchor.x, secondAnchor.y, secondAnchor.z]
+                if coordinates.allSatisfy({ $0.isFinite }) {
+                    let hinge = SCNPhysicsHingeJoint(bodyA: first.physicsBody!,
+                                                     axisA: firstAxis,
+                                                     anchorA: firstAnchor,
+                                                     bodyB: second.physicsBody!,
+                                                     axisB: secondAxis,
+                                                     anchorB: secondAnchor)
+                    scene.physicsWorld.addBehavior(hinge)
+                    // Only show a pivot marker when a valid hinge was added.
+                    let marker = SCNNode(geometry: SCNSphere(radius: 0.08))
+                    marker.name = "experimental-hinge-anchor"
+                    marker.geometry?.firstMaterial?.diffuse.contents = UIColor.systemYellow
+                    marker.position = anchor
+                    scene.rootNode.addChildNode(marker)
+                }
             }
         }
         if hasBounds && experimentalPhysics {
