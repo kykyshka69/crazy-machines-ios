@@ -66,6 +66,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         view.addGestureRecognizer(reset)
         context.coordinator.storageKey = "cm.original.positions.\(document.sceneSHA256)"
         context.coordinator.physicsEnabled = experimentalPhysics
+        context.coordinator.session = CMOriginalGameplaySession(document: document)
+        if experimentalPhysics {
+            context.coordinator.session?.start()
+            if physicsPaused { context.coordinator.session?.pause() }
+        }
         var originalPositions: [String: SCNVector3] = [:]
         let scene = buildScene(originalPositions: &originalPositions)
         if experimentalPhysics {
@@ -94,6 +99,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // SwiftUI updates pause state without reconstructing imported meshes
         // or losing the current simulated positions.
         uiView.isPlaying = experimentalPhysics && !physicsPaused
+        if experimentalPhysics {
+            if physicsPaused { context.coordinator.session?.pause() }
+            else { context.coordinator.session?.resume() }
+        }
         uiView.accessibilityValue = context.coordinator.selectedModelName.map {
             physicsAccessibilityStatus + "; selected original model: " + $0
         } ?? physicsAccessibilityStatus
@@ -104,6 +113,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         private weak var highlighted: SCNNode?
         var selectedModelName: String?
+        var session: CMOriginalGameplaySession?
         private var originalEmission: Any?
         private weak var dragging: SCNNode?
         private var dragInitialPosition: SCNVector3?
@@ -459,6 +469,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         let savedPositions: [String: [Double]] = experimentalPhysics ? [:] :
             (UserDefaults.standard.dictionary(forKey: "cm.original.positions.\(document.sceneSHA256)") as? [String: [Double]] ?? [:])
         var nodeOrdinal = 0
+        var objectOrdinal = 0
 
         func parseRotation(_ raw: String?) -> SCNVector3 {
             guard let raw else { return SCNVector3Zero }
@@ -471,7 +482,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             return SCNVector3(x, y, z)
         }
 
-        func walk(_ item: CMOriginalSceneDocument.Node, parent: SCNNode, goalAncestor: Bool = false) {
+        func walk(_ item: CMOriginalSceneDocument.Node, parent: SCNNode, goalAncestor: Bool = false, ownerID: String? = nil) {
+            var currentOwnerID = ownerID
+            if item.name.hasPrefix("tmo_") {
+                currentOwnerID = "object-\(objectOrdinal)"
+                objectOrdinal += 1
+            }
             // A nested tmo_* is a separate original object. GOAL 1 on its
             // parent does not establish that the child is also a goal.
             // Only propagate a goal through non-object transform/3DO nodes.
@@ -512,6 +528,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         if let geometry {
                             let mesh = SCNNode(geometry: geometry)
                             mesh.name = name
+                            if let currentOwnerID {
+                                mesh.userData = NSMutableDictionary(dictionary: [
+                                    "originalObjectID": currentOwnerID
+                                ])
+                            }
                             // Highlight only authentic imported geometry belonging to
                             // an original GOAL 1 node; never invent a goal marker.
                             if isGoal {
@@ -553,7 +574,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                 }
             }
-            for child in item.children { walk(child, parent: transform, goalAncestor: isGoal) }
+            for child in item.children {
+                walk(child, parent: transform, goalAncestor: isGoal, ownerID: currentOwnerID)
+            }
         }
         walk(document.root, parent: scene.rootNode)
         // Frame actual transformed mesh bounds, not just object origins.
