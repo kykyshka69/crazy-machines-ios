@@ -81,6 +81,19 @@ import Foundation
     CMPinJoint2D(bodyIndex:0,anchor:SIMD2(.nan,4)),firstPin
   ])==1)
   precondition(duplicates.bodies[0].position==SIMD2(3,4))
+  // Malformed disk geometry or positions must not be silently repaired by pins.
+  var malformed=CMPhysicsWorld2D()
+  malformed.bodies=[CMPhysicsBody2D(position:SIMD2(.nan,2),radius:0.5)]
+  precondition(malformed.applyPins([firstPin])==0)
+  precondition(malformed.bodies[0].position.x.isNaN)
+  malformed.bodies[0].position=SIMD2(0,2)
+  malformed.bodies[0].radius = .infinity
+  precondition(malformed.applyPins([firstPin])==0)
+  malformed.bodies[0].radius = 0
+  precondition(malformed.applyPins([firstPin])==0)
+  malformed.bodies[0].radius = 0.5
+  precondition(malformed.applyPins([firstPin])==1)
+  precondition(malformed.bodies[0].position==SIMD2(3,4))
   print("PASS: 1000 fixed-pin constraint scenarios")
  }
 }
