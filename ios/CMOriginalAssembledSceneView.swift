@@ -471,6 +471,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             let hit = view.hitTest(point, options: [.firstFoundOnly: true]).first
             let node = hit?.node
             if physicsEnabled {
+                // Explicitly configured prototype mechanisms can be started
+                // by tapping their imported mesh. Without a configured rule,
+                // retain the existing diagnostic tap impulse behavior.
+                if let id = node?.userData?["originalObjectID"] as? String,
+                   session?.reactionRules.contains(where: { $0.objectID == id }) == true {
+                    _ = session?.triggerObject(id)
+                    return
+                }
                 // Apply the experimental impulse at the actual touched surface
                 // rather than the center of mass. Off-center taps can now
                 // generate torque, allowing rotational collision experiments.
