@@ -24,6 +24,16 @@ class OriginalSceneJSONTests(unittest.TestCase):
         self.assertEqual(board["children"][1]["position"], [0, 1, 2])
         self.assertIn("Оригинальный уровень", to_json(document))
 
+    def test_pc_vector_decimal_and_scientific_notation(self):
+        self.assertEqual(parse_vector3(" .5, -1., +2.5e-2 "), [0.5, -1.0, 0.025])
+        self.assertEqual(parse_vector3("1E+2, -0.25, 0"), [100.0, -0.25, 0.0])
+
+    def test_reject_nonfinite_or_overflowing_vectors(self):
+        for value in ("1e999, 0, 0", "NaN, 0, 0", "0, Infinity, 0"):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    parse_vector3(value)
+
     def test_reject_bad_vector(self):
         with self.assertRaises(ValueError):
             parse_vector3("abc, 1, 2")
