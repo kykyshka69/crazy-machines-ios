@@ -36,6 +36,9 @@ tmo_two
         self.assertEqual(result["unresolved_references"], 1)
         self.assertEqual(result["resolved"][0]["uses"], 2)
         self.assertEqual(result["unresolved"][0]["model"], "to_missing")
+        self.assertEqual(result["levels_with_all_models"], 0)
+        self.assertEqual(result["level_coverage"][0]["unresolved_models"], ["to_missing"])
+        self.assertEqual(result["level_coverage"][0]["unresolved_references"], 1)
 
     def test_does_not_guess_non_prefixed_mapping(self):
         scene = "level\n{\n3DO board\n{\n}\n}\n"
@@ -43,6 +46,14 @@ tmo_two
             result = audit_models([{"index": 9, "payload": b""}], ["board"])
         self.assertEqual(result["unresolved_unique_models"], 1)
         self.assertEqual(result["unresolved"][0]["first_level"], 9)
+        self.assertEqual(result["level_coverage"][0]["index"], 9)
+
+    def test_level_with_complete_model_coverage(self):
+        scene = "level\\n{\\n3DO to_board\\n{\\n}\\n}\\n"
+        with patch("audit_original_model_coverage.decode_level_scene", return_value=scene):
+            result = audit_models([{"index": 2, "payload": b""}], ["BOARD"])
+        self.assertEqual(result["levels_with_all_models"], 1)
+        self.assertEqual(result["level_coverage"][0]["unresolved_references"], 0)
 
 
 if __name__ == "__main__":
