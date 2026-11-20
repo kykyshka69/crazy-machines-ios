@@ -1047,7 +1047,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             guard x.isFinite, y.isFinite, z.isFinite else {
                 throw NSError(domain: "CMOriginalUCMGeometry", code: 1,
                               userInfo: [NSLocalizedDescriptionKey:
-                                "Non-finite position in UCM vertex \\(index)"])
+                                "Non-finite position in UCM vertex \(index)"])
             }
             positions.append(SCNVector3(x, y, z))
         }
