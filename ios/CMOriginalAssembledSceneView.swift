@@ -9,12 +9,17 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var experimentalPhysics = false
     var physicsPaused = false
 
+    private var physicsAccessibilityStatus: String {
+        let state = experimentalPhysics ? (physicsPaused ? "paused" : "running") : "off"
+        return "\(document.root.goalCount) original goal markers; physics \(state)"
+    }
+
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
         view.backgroundColor = UIColor(white: 0.09, alpha: 1)
         view.accessibilityIdentifier = "cm.original.assembled-scene"
         view.accessibilityLabel = "Original level 3D scene"
-        view.accessibilityValue = "\(document.root.goalCount) original goal markers; physics \(experimentalPhysics ? "experimental" : "off")"
+        view.accessibilityValue = physicsAccessibilityStatus
         view.allowsCameraControl = true
         view.autoenablesDefaultLighting = true
         view.antialiasingMode = .multisampling4X
@@ -71,6 +76,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // SwiftUI updates pause state without reconstructing imported meshes
         // or losing the current simulated positions.
         uiView.isPlaying = experimentalPhysics && !physicsPaused
+        uiView.accessibilityValue = physicsAccessibilityStatus
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
