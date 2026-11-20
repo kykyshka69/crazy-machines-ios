@@ -30,12 +30,23 @@ def candidate_spans(data: bytes, marker: bytes = OBSERVED_HEADER) -> dict:
     for index, offset in enumerate(offsets):
         end = offsets[index + 1] if index + 1 < len(offsets) else len(data)
         span = data[offset:end]
+        # Inspect only bytes after the shared marker. This does not assume
+        # that any part of the span is a decoded level or object record.
+        payload = span[len(marker):]
+        byte_histogram = [0] * 256
+        for value in payload:
+            byte_histogram[value] += 1
+        distinct_bytes = sum(count > 0 for count in byte_histogram)
+        zero_bytes = byte_histogram[0]
         spans.append({
             "index": index,
             "start": offset,
             "end_exclusive": end,
             "length": len(span),
             "sha256": hashlib.sha256(span).hexdigest(),
+            "payload_length": len(payload),
+            "payload_distinct_byte_values": distinct_bytes,
+            "payload_zero_bytes": zero_bytes,
         })
     return {
         "bytes": len(data),
