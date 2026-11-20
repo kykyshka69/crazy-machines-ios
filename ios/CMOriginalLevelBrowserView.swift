@@ -237,8 +237,19 @@ struct CMOriginalLevelBrowserView: View {
                             previewModel = ModelPreviewSelection(name: name, url: url)
                         }
                     } else {
-                        Text(name + " — import matching .ucm file")
-                            .foregroundStyle(.secondary)
+                        switch assets.resolution(for: name) {
+                        case .missing:
+                            Text(name + " — import matching .ucm file")
+                                .foregroundStyle(.secondary)
+                        case .ambiguous:
+                            Text(name + " — duplicate UCM filenames; resolve ambiguity")
+                                .foregroundStyle(.secondary)
+                        case .invalidReference:
+                            Text(name + " — invalid original model reference")
+                                .foregroundStyle(.secondary)
+                        case .found:
+                            EmptyView()
+                        }
                     }
                 }
             }
