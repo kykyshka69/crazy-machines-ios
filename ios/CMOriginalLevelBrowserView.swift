@@ -12,10 +12,12 @@ struct CMOriginalLevelBrowserView: View {
     @State private var assembledScene: AssembledSelection?
     @State private var confirmingResetEdits = false
     @State private var physicsPaused = false
+    @State private var diagnosticHinges = false
 
     private struct AssembledSelection: Identifiable {
         let document: CMOriginalSceneDocument
         let experimentalPhysics: Bool
+        let diagnosticHinges: Bool
         let id = UUID()
     }
 
@@ -137,11 +139,14 @@ struct CMOriginalLevelBrowserView: View {
             }
             Section("Assembled original 3D scene") {
                 Button("View original level in 3D") {
-                    assembledScene = AssembledSelection(document: document, experimentalPhysics: false)
+                    assembledScene = AssembledSelection(document: document, experimentalPhysics: false, diagnosticHinges: false)
                 }
+                Toggle("Experimental hinge between first two meshes", isOn: $diagnosticHinges)
+                Text("Optional test constraint only. The connected meshes and hinge axis are not inferred from the original level.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Button("Try experimental gravity and collisions") {
                     physicsPaused = false
-                    assembledScene = AssembledSelection(document: document, experimentalPhysics: true)
+                    assembledScene = AssembledSelection(document: document, experimentalPhysics: true, diagnosticHinges: diagnosticHinges)
                 }
                 Text("Experimental sandbox: tap a mesh to push it; long-press a mesh to toggle fixed/movable. Restart restores the imported scene. These manual body types, approximate bounding-box collisions and uniform mass are not the original game physics or completion logic.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -206,7 +211,7 @@ struct CMOriginalLevelBrowserView: View {
         }
         .sheet(item: $assembledScene) { selection in
             NavigationStack {
-                CMOriginalAssembledSceneView(document: selection.document, assetDirectory: originalStorage, experimentalPhysics: selection.experimentalPhysics, physicsPaused: physicsPaused)
+                CMOriginalAssembledSceneView(document: selection.document, assetDirectory: originalStorage, experimentalPhysics: selection.experimentalPhysics, physicsPaused: physicsPaused, diagnosticHinges: selection.diagnosticHinges)
                     .navigationTitle("Level \(selection.document.index) · 3D")
                     .toolbar {
                         if selection.experimentalPhysics {
