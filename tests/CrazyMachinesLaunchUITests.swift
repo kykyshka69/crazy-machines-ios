@@ -11,6 +11,18 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Import entire exported levels folder"].exists)
     }
 
+    func testOriginalLevelsEmptyOrImportedCountIsVisible() {
+        let app = XCUIApplication()
+        app.launch()
+        let originalLevels = app.tabBars.buttons["Original levels"]
+        XCTAssertTrue(originalLevels.waitForExistence(timeout: 20))
+        let countLabel = app.staticTexts.matching(
+            NSPredicate(format: "label MATCHES %@", "[0-9]+ original levels loaded")
+        ).firstMatch
+        XCTAssertTrue(countLabel.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Original puzzles"].exists)
+    }
+
     func testOriginalResourcesImportControlsWithoutBundledAssets() {
         let app = XCUIApplication()
         app.launch()
