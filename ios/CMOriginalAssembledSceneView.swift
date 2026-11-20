@@ -285,6 +285,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                           axisA.x, axisA.y, axisA.z,
                           axisB.x, axisB.y, axisB.z]
             guard values.allSatisfy({ $0.isFinite }) else { return }
+            // The joint must not connect an object to itself, even if
+            // hit-testing returns distinct mesh nodes sharing one body.
+            guard firstBody !== body else { return }
             // Avoid stacking duplicate constraints on the same two bodies:
             // repeated double taps should not over-constrain the solver.
             let alreadyConnected = manualHinges.contains { existing in
