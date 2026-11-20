@@ -790,38 +790,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             // synthetic GOAL colors. GOAL is preserved in the
                             // level inspector, not encoded as invented materials.
                             transform.addChildNode(mesh)
-                            if experimentalPhysics && currentOwnerID != nil {
-                                // Approximate collision volumes only; original CML
-                                // physical properties have not yet been decoded.
-                                // A shape attached to a mesh child must use
-                                // geometry-local coordinates. Building a shape
-                                // from the node can bake its parent transforms
-                                // into collision geometry a second time.
-                                // Use the imported UCM mesh's convex hull rather
-                                // than an axis-aligned box: thin ramps and angled
-                                // parts must not collide through empty box corners.
-                                // This remains an experimental approximation until
-                                // original per-object physics are recovered.
-                                let shape = SCNPhysicsShape(geometry: geometry, options: [
-                                    .type: SCNPhysicsShape.ShapeType.convexHull
-                                ])
-                                let body = SCNPhysicsBody(type: .dynamic,
-                                                          shape: shape)
-                                // GOAL is a puzzle objective, not a static-body flag.
-                                body.mass = 1
-                                body.friction = 0.6
-                                body.restitution = 0.15
-                                // Fast-moving small parts need continuous
-                                // collision detection to reduce tunneling
-                                // through thin approximate collision boxes.
-                                body.continuousCollisionDetectionThreshold = 0.001
-                                body.categoryBitMask = 1
-                                body.collisionBitMask = 1
-                                body.contactTestBitMask = 1
-                                mesh.physicsBody = body
-                                // SceneKit's physics solver advances only when
-                                // the scene is playing, even if it is visible.
-                            }
+                            // Collision bodies are attached to the owning tmo_
+                            // transform below, including single-mesh objects.
+                            // Keeping them off mesh children prevents a detached
+                            // part from moving independently of its object.
                             if let currentOwnerID {
                                 objectMeshes[currentOwnerID, default: []].append(mesh)
                             }
@@ -836,10 +808,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
         walk(document.root, parent: scene.rootNode)
         if experimentalPhysics {
-            // Build one compound convex collision body per original object.
+            // Build one owner-level convex collision body per original object.
             // Each mesh shape is transformed into its owning tmo node's space;
             // nested tmo objects are kept separate by their distinct owner IDs.
-            for (id, meshes) in objectMeshes where meshes.count > 1 {
+            for (id, meshes) in objectMeshes where !meshes.isEmpty {
                 guard let root = objectRoots[id] else { continue }
                 let shapes: [SCNPhysicsShape] = meshes.compactMap { mesh in
                     guard let geometry = mesh.geometry else { return nil }
@@ -860,7 +832,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 body.categoryBitMask = 1
                 body.collisionBitMask = 1
                 body.contactTestBitMask = 1
-                for mesh in meshes { mesh.physicsBody = nil }
                 root.physicsBody = body
             }
         }
