@@ -199,6 +199,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         guard let body = node.physicsBody, body.type == .dynamic else { continue }
                         body.applyForce(vector, asImpulse: true)
                     }
+                case .impulseTarget(let target, let x, let y, let z):
+                    let vector = SCNVector3(Float(x), Float(y), Float(z))
+                    for node in physicsNodesByObjectID[target] ?? [] {
+                        guard let body = node.physicsBody, body.type == .dynamic else { continue }
+                        body.applyForce(vector, asImpulse: true)
+                    }
                 case .activate:
                     // Activation links are resolved by the gameplay session.
                     break
