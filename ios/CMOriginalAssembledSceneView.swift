@@ -644,6 +644,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     private func buildScene(originalPositions: inout [String: SCNVector3]) -> SCNScene {
         let scene = SCNScene()
         var loadedMeshNodes: [SCNNode] = []
+        // Resolve each original 3DO reference once per scene; levels reuse meshes.
+        var resolvedModels: [String: URL] = [:]
+        var missingModels = Set<String>()
         var meshCache: [URL: SCNGeometry] = [:]
         // Avoid reparsing a corrupt UCM every time it is referenced.
         var invalidMeshes = Set<URL>()
@@ -689,7 +692,22 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // A 3DO entry is a model reference, not an additional object transform.
             if item.name.hasPrefix("3DO ") {
                 let name = String(item.name.dropFirst(4))
-                if let url = CMOriginalModelResolver.resolve(name, in: assetDirectory) {
+                let modelKey = name.lowercased()
+                let modelURL: URL?
+                if let cached = resolvedModels[modelKey] {
+                    modelURL = cached
+                } else if missingModels.contains(modelKey) {
+                    modelURL = nil
+                } else {
+                    let resolved = CMOriginalModelResolver.resolve(name, in: assetDirectory)
+                    if let resolved {
+                        resolvedModels[modelKey] = resolved
+                    } else {
+                        missingModels.insert(modelKey)
+                    }
+                    modelURL = resolved
+                }
+                if let url = modelURL {
                     if !invalidMeshes.contains(url) {
                         let geometry: SCNGeometry?
                         if let cached = meshCache[url] {
