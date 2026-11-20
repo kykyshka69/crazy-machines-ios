@@ -20,6 +20,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         view.backgroundColor = UIColor(white: 0.09, alpha: 1)
         view.accessibilityIdentifier = "cm.original.assembled-scene"
         view.accessibilityLabel = "Original level 3D scene"
+        view.accessibilityHint = experimentalPhysics
+            ? "Double tap two different parts to add a hinge. Tap with three fingers to undo the last manual hinge. Long press a part to pin or unpin it."
+            : "Tap to select a part, drag to reposition it, or long press to reset its position."
         view.accessibilityValue = physicsAccessibilityStatus
         view.allowsCameraControl = true
         view.autoenablesDefaultLighting = true
