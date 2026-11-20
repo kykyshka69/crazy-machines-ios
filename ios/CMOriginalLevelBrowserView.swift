@@ -180,8 +180,8 @@ struct CMOriginalLevelBrowserView: View {
             Section("Experimental object physics by original type") {
                 Text("Choose roles for imported tmo object types. These are user-defined experiments, not recovered original game rules.")
                     .font(.caption).foregroundStyle(.secondary)
-                let types = Array(Set(CMOriginalGameplaySession(document: document).objects.map(\\.type))).sorted()
-                ForEach(types, id: \\.self) { type in
+                let types = Array(Set(CMOriginalGameplaySession(document: document).objects.map(\.type))).sorted()
+                ForEach(types, id: \.self) { type in
                     Picker(type, selection: Binding(
                         get: {
                             fixedObjectTypes.contains(type) ? "Fixed" :
