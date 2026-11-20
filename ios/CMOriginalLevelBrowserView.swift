@@ -380,7 +380,11 @@ struct CMOriginalLevelBrowserView: View {
                   let size = attributes.fileSize, size > 0, size <= 8_000_000,
                   let data = try? Data(contentsOf: url),
                   let document = try? CMOriginalSceneDocument.read(data) else { continue }
-            loaded[document.index] = document
+            // Do not silently replace a previously loaded scene when two
+            // saved JSON files declare the same original level number.
+            if loaded[document.index] == nil {
+                loaded[document.index] = document
+            }
         }
         documents = loaded.values.sorted { $0.index < $1.index }
     }
