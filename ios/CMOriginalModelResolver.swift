@@ -41,10 +41,14 @@ enum CMOriginalModelResolver {
         }
 
         func resolve(_ modelName: String) -> URL? {
-            let name = modelName.replacingOccurrences(of: "\\", with: "/")
-                .split(separator: "/").last.map(String.init) ?? ""
-            guard !name.isEmpty, name != ".", name != "..",
-                  !name.contains("/") else { return nil }
+            // Reject traversal and absolute paths before stripping Windows
+            // or POSIX directory components from a PC 3DO reference.
+            let normalized = modelName.replacingOccurrences(of: "\\", with: "/")
+            let components = normalized.split(separator: "/", omittingEmptySubsequences: false)
+            guard !normalized.hasPrefix("/"),
+                  !components.contains(where: { $0 == "." || $0 == ".." }),
+                  let last = components.last, !last.isEmpty else { return nil }
+            let name = String(last)
             let ext = (name as NSString).pathExtension.lowercased()
             guard ext.isEmpty || ext == "ucm" else { return nil }
             let base = (name as NSString).deletingPathExtension.lowercased()
