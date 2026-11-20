@@ -7,6 +7,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     let document: CMOriginalSceneDocument
     let assetDirectory: URL
     var experimentalPhysics = false
+    var physicsPaused = false
 
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
@@ -53,7 +54,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         if experimentalPhysics {
             scene.physicsWorld.timeStep = 1.0 / 120.0
         }
-        view.isPlaying = experimentalPhysics
+        view.isPlaying = experimentalPhysics && !physicsPaused
         if experimentalPhysics {
             // Allow tapping a moving imported object to give it an impulse.
             // This is a sandbox interaction, not an original puzzle mechanic.
@@ -66,7 +67,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ uiView: SCNView, context: Context) {}
+    func updateUIView(_ uiView: SCNView, context: Context) {
+        // SwiftUI updates pause state without reconstructing imported meshes
+        // or losing the current simulated positions.
+        uiView.isPlaying = experimentalPhysics && !physicsPaused
+    }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
