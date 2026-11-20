@@ -711,7 +711,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
         func parseRotation(_ raw: String?) -> SCNVector3 {
             guard let raw else { return SCNVector3Zero }
-            let parts = raw.split(whereSeparator: { $0 == " " || $0 == "," })
+            let parts = raw.split(whereSeparator: { $0.isWhitespace || $0 == "," })
             guard parts.count == 4, parts[0].lowercased() == "xyz",
                   let x = Float(parts[1]), let y = Float(parts[2]),
                   let z = Float(parts[3]), x.isFinite, y.isFinite, z.isFinite else {
