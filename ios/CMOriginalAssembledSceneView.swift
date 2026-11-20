@@ -635,7 +635,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var invalidMeshes = Set<URL>()
         // Physics trials must always begin at the authentic imported positions,
         // not at coordinates previously edited in the 3D inspection mode.
-        let savedPositions: [String: [Double]] = [:] // Render original PC transforms, not saved sandbox edits.
         var nodeOrdinal = 0
         var objectOrdinal = 0
 
@@ -671,10 +670,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
             transform.eulerAngles = parseRotation(item.rotationRelativeRaw ?? item.rotationRaw)
             originalPositions[identifier] = transform.position
-            if let saved = savedPositions[identifier], saved.count == 3,
-               saved.allSatisfy({ $0.isFinite && abs($0) <= Double(Float.greatestFiniteMagnitude) }) {
-                transform.position = SCNVector3(Float(saved[0]), Float(saved[1]), Float(saved[2]))
-            }
             parent.addChildNode(transform)
 
             // A 3DO entry is a model reference, not an additional object transform.
