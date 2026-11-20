@@ -219,7 +219,8 @@ struct CMOriginalLevelBrowserView: View {
                                 Button("Restart") {
                                     physicsPaused = false
                                     assembledScene = AssembledSelection(document: selection.document,
-                                                                        experimentalPhysics: true)
+                                                                        experimentalPhysics: true,
+                                                                        diagnosticHinges: selection.diagnosticHinges)
                                 }
                             }
                             ToolbarItem(placement: .topBarLeading) {
