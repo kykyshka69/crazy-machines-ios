@@ -38,6 +38,66 @@ public struct CMOriginalGameplaySession {
         return activatedObjectIDs.intersection(goals)
     }
 
+    /// Explicitly configured experimental behaviors, never inferred from
+    /// original GOAL markers or object names.
+    public struct ReactionRule: Equatable {
+        public enum Trigger: Equatable {
+            case firstContact
+            case everyContact
+        }
+        public enum Action: Equatable {
+            case impulse(x: Double, y: Double, z: Double)
+            case activate(String)
+        }
+        public let objectID: String
+        public let trigger: Trigger
+        public let action: Action
+
+        public init(objectID: String, trigger: Trigger, action: Action) {
+            self.objectID = objectID
+            self.trigger = trigger
+            self.action = action
+        }
+    }
+
+    public struct PendingAction: Equatable {
+        public let sourceID: String
+        public let action: ReactionRule.Action
+        public let simulationTime: TimeInterval
+    }
+
+    public private(set) var reactionRules: [ReactionRule] = []
+    private var actionQueue: [PendingAction] = []
+
+    public mutating func configureReactions(_ rules: [ReactionRule]) {
+        let ids = Set(objects.map(\.id))
+        reactionRules = Array(rules.prefix(512)).filter { rule in
+            guard ids.contains(rule.objectID) else { return false }
+            switch rule.action {
+            case .activate(let target): return ids.contains(target)
+            case .impulse(let x, let y, let z):
+                return [x, y, z].allSatisfy { $0.isFinite && abs($0) <= 1000 }
+            }
+        }
+        actionQueue.removeAll()
+    }
+
+    /// Consume once; SceneKit may execute these actions on its renderer thread.
+    public mutating func drainActions() -> [PendingAction] {
+        let actions = actionQueue
+        actionQueue.removeAll()
+        return actions
+    }
+
+    private mutating func enqueueReactions(for id: String, firstContact: Bool) {
+        for rule in reactionRules where rule.objectID == id {
+            if rule.trigger == .firstContact && !firstContact { continue }
+            if actionQueue.count >= 512 { break }
+            actionQueue.append(PendingAction(sourceID: id, action: rule.action,
+                                             simulationTime: elapsedSimulationTime))
+        }
+    }
+
     public struct Contact: Equatable {
         public let objectA: String
         public let objectB: String
@@ -62,11 +122,13 @@ public struct CMOriginalGameplaySession {
         // First valid contact activates each endpoint once. Future object
         // handlers can subscribe to these transitions, independent of physics.
         for (target, source) in [(a, b), (b, a)] {
-            if activatedObjectIDs.insert(target).inserted {
+            let first = activatedObjectIDs.insert(target).inserted
+            if first {
                 activations.append(Activation(objectID: target, triggeredBy: source,
                                               impulse: impulse,
                                               simulationTime: elapsedSimulationTime))
             }
+            enqueueReactions(for: target, firstContact: first)
         }
         if recentContacts.count > 256 {
             recentContacts.removeFirst(recentContacts.count - 256)
@@ -125,6 +187,7 @@ public struct CMOriginalGameplaySession {
         contactCounts.removeAll()
         activations.removeAll()
         activatedObjectIDs.removeAll()
+        actionQueue.removeAll()
         phase = .running
     }
 
@@ -153,6 +216,7 @@ public struct CMOriginalGameplaySession {
         contactCounts.removeAll()
         activations.removeAll()
         activatedObjectIDs.removeAll()
+        actionQueue.removeAll()
         phase = .ready
     }
 
