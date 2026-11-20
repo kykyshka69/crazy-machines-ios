@@ -13,6 +13,8 @@ struct CMOriginalLevelBrowserView: View {
     @State private var confirmingResetEdits = false
     @State private var physicsPaused = false
     @State private var diagnosticHinges = false
+    @State private var mechanismSourceByScene: [String: String] = [:]
+    @State private var mechanismTargetByScene: [String: String] = [:]
     // Keep experimental role choices isolated by scene fingerprint.
     @State private var fixedObjectTypesByScene: [String: Set<String>] = [:]
     @State private var sensorObjectTypesByScene: [String: Set<String>] = [:]
@@ -223,6 +225,35 @@ struct CMOriginalLevelBrowserView: View {
                     }
                 }
             }
+            Section("Interactive mechanism prototype") {
+                let objects = CMOriginalGameplaySession(document: document).objects
+                let key = document.sceneSHA256
+                if objects.count >= 2 {
+                    Text("Select an imported switch and a different object. In physics mode, tapping the switch pushes the target upward. Experimental behavior, not a decoded original rule.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Picker("Switch", selection: Binding(
+                        get: { mechanismSourceByScene[key] ?? objects[0].id },
+                        set: { mechanismSourceByScene[key] = $0 }
+                    )) {
+                        ForEach(objects) { object in
+                            Text("\(object.id): \(object.type)").tag(object.id)
+                        }
+                    }
+                    Picker("Target", selection: Binding(
+                        get: { mechanismTargetByScene[key] ?? objects[1].id },
+                        set: { mechanismTargetByScene[key] = $0 }
+                    )) {
+                        ForEach(objects) { object in
+                            Text("\(object.id): \(object.type)").tag(object.id)
+                        }
+                    }
+                    Text("Tap the chosen switch mesh once in experimental physics mode to trigger the target.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text("At least two imported objects are needed.")
+                        .foregroundStyle(.secondary)
+                }
+            }
             Section("Assembled original 3D scene") {
                 Button("View original level in 3D") {
                     assembledScene = AssembledSelection(document: document, experimentalPhysics: false, diagnosticHinges: false)
@@ -325,7 +356,20 @@ struct CMOriginalLevelBrowserView: View {
                                 return (object.id, CMOriginalGameplaySession.PhysicsRole.sensor)
                             }
                             return nil
-                        })
+                        }),
+                    configuredReactions: {
+                        let objects = CMOriginalGameplaySession(document: selection.document).objects
+                        guard objects.count >= 2 else { return [] }
+                        let key = selection.document.sceneSHA256
+                        let source = mechanismSourceByScene[key] ?? objects[0].id
+                        let target = mechanismTargetByScene[key] ?? objects[1].id
+                        guard source != target else { return [] }
+                        return [
+                            CMOriginalGameplaySession.ReactionRule(
+                                objectID: source, trigger: .firstContact,
+                                action: .impulseTarget(id: target, x: 0, y: 8, z: 0))
+                        ]
+                    }()
                 )
                     // Replacing the sheet selection alone does not guarantee
                     // UIViewRepresentable.makeUIView runs again. Force a new
