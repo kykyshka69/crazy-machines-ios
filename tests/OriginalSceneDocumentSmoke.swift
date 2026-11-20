@@ -86,6 +86,18 @@ enum OriginalSceneDocumentSmoke {
         var contactSession = CMOriginalGameplaySession(document: twoObjectDoc)
         precondition(contactSession.objects.count == 2)
         precondition(contactSession.annotatedGoalObjects.map(\.id) == ["object-1"])
+        contactSession.configurePhysicsRoles([
+            "object-0": .fixed,
+            "object-1": .sensor,
+            "missing": .fixed
+        ])
+        precondition(contactSession.physicsRole(for: "object-0") == .fixed)
+        precondition(contactSession.physicsRole(for: "object-1") == .sensor)
+        precondition(contactSession.physicsRole(for: "missing") == .movable)
+        precondition(contactSession.physicsRoles.count == 2)
+        contactSession.configurePhysicsRoles(["object-0": .movable])
+        precondition(contactSession.physicsRole(for: "object-0") == .movable)
+        precondition(contactSession.physicsRole(for: "object-1") == .movable)
         contactSession.configureReactions([
             .init(objectID: "object-0", trigger: .firstContact,
                   action: .impulse(x: 1, y: 0, z: 0)),
