@@ -123,8 +123,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         func setSessionPaused(_ paused: Bool) {
             sessionLock.lock()
             defer { sessionLock.unlock() }
-            if paused { session?.pause() }
-            else { session?.resume() }
+            if paused {
+                session?.pause()
+                lastRendererTime = nil
+            } else {
+                session?.resume()
+            }
         }
 
         func registerPhysicsNodes(in scene: SCNScene) {
@@ -165,15 +169,24 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
         func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
             guard physicsEnabled else { return }
+            // The renderer clock may continue while SwiftUI pauses playback.
+            // Discard the first delta after pause/resume rather than crediting
+            // the paused interval as simulated gameplay time.
+            sessionLock.lock()
+            defer { sessionLock.unlock() }
+            guard session?.phase == .running else {
+                lastRendererTime = nil
+                return
+            }
             defer { lastRendererTime = time }
             guard let previous = lastRendererTime else { return }
             let delta = time - previous
-            // Ignore discontinuities caused by app suspension, backgrounding
-            // or SceneKit restarting its renderer clock.
             guard delta.isFinite, delta > 0, delta <= 0.25 else { return }
-            sessionLock.lock()
             session?.advance(by: delta)
-            sessionLock.unlock()
+        }
+
+        func renderer(_ renderer: SCNSceneRenderer, didSimulatePhysicsAtTime time: TimeInterval) {
+            guard physicsEnabled else { return }
             applyPendingActions()
         }
 
