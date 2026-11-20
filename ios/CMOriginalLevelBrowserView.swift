@@ -196,6 +196,25 @@ struct CMOriginalLevelBrowserView: View {
                 LabeledContent("Missing original UCM files", value: "\(missing.count)")
                 LabeledContent("Ambiguous original UCM files", value: "\(ambiguous.count)")
                 LabeledContent("Invalid original model references", value: "\(invalid.count)")
+                if !missing.isEmpty || !ambiguous.isEmpty || !invalid.isEmpty {
+                    let report = [
+                        "Crazy Machines — original 3D asset report",
+                        "Level: \(document.index) — \(document.title)",
+                        "Resolved: \(available.count) / \(names.count)",
+                        "",
+                        "Missing UCM models (\(missing.count)):",
+                        missing.isEmpty ? "(none)" : missing.joined(separator: "\\n"),
+                        "",
+                        "Ambiguous UCM models (\(ambiguous.count)):",
+                        ambiguous.isEmpty ? "(none)" : ambiguous.joined(separator: "\\n"),
+                        "",
+                        "Invalid original references (\(invalid.count)):",
+                        invalid.isEmpty ? "(none)" : invalid.joined(separator: "\\n")
+                    ].joined(separator: "\\n")
+                    ShareLink(item: report) {
+                        Label("Share missing-model report", systemImage: "square.and.arrow.up")
+                    }
+                }
                 if !missing.isEmpty {
                     Text("Import matching original UCM files from your PC installation.")
                         .font(.caption).foregroundStyle(.secondary)
