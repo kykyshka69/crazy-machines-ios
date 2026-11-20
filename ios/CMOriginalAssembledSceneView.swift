@@ -81,6 +81,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             scene.physicsWorld.gravity = SCNVector3(0, -9.8, 0)
         }
         view.scene = scene
+        context.coordinator.initializeSwitchPressCount(switchPressCount)
         if experimentalPhysics {
             context.coordinator.registerPhysicsNodes(in: scene)
             context.coordinator.configurePhysicsRoles(configuredPhysicsRoles)
@@ -132,6 +133,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var appliedReactionRules: [CMOriginalGameplaySession.ReactionRule] = []
 
         private var lastSwitchPressCount = 0
+
+        func initializeSwitchPressCount(_ count: Int) {
+            lastSwitchPressCount = count
+        }
 
         func pressConfiguredSwitchIfNeeded(_ count: Int) {
             guard count > lastSwitchPressCount else { return }
