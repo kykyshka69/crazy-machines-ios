@@ -24,6 +24,22 @@ enum OriginalModelResolverSmoke {
             }
         }
 
+        guard case .found(let withExtension) = index.resolution(for: "models\\\\to_board.ucm") else {
+            preconditionFailure("Safe Windows-relative model paths should resolve")
+        }
+        precondition(withExtension == mesh)
+        guard case .missing = index.resolution(for: "board") else {
+            preconditionFailure("Unprefixed names must not silently alias to to_ models")
+        }
+
+        let aliasMesh = folder.appendingPathComponent("wheel.ucm")
+        try Data([3]).write(to: aliasMesh)
+        index = CMOriginalModelResolver.AssetIndex(directory: folder)
+        guard case .found(let alias) = index.resolution(for: "to_wheel") else {
+            preconditionFailure("Original to_ prefix fallback should resolve when unique")
+        }
+        precondition(alias == aliasMesh)
+
         let duplicate = folder.appendingPathComponent("TO_BOARD.UCM")
         try Data([2]).write(to: duplicate)
         index = CMOriginalModelResolver.AssetIndex(directory: folder)
