@@ -36,6 +36,20 @@ public struct CMOriginalSceneDocument: Decodable {
         // Stable only within a displayed document's hierarchy, not globally.
         public var id: String { name + ":" + fields.joined(separator: "|") }
 
+        /// Preserve all original scalar field values, including repeated keys.
+        /// A field's presence does not establish its gameplay semantics.
+        public var originalFieldValues: [String: [String]] {
+            var result: [String: [String]] = [:]
+            for field in fields {
+                let parts = field.split(maxSplits: 1, whereSeparator: { $0.isWhitespace })
+                guard let first = parts.first else { continue }
+                let key = String(first)
+                let value = parts.count > 1 ? String(parts[1]) : ""
+                result[key, default: []].append(value)
+            }
+            return result
+        }
+
         public var objectCount: Int {
             (name.hasPrefix("tmo_") ? 1 : 0) +
             children.reduce(0) { $0 + $1.objectCount }
