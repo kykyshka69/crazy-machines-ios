@@ -32,6 +32,7 @@ enum CMOriginalModelResolver {
             )) ?? []
             var index: [String: [URL]] = [:]
             for file in files where file.pathExtension.lowercased() == "ucm" {
+                guard (try? file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
                 let key = file.deletingPathExtension().lastPathComponent.lowercased()
                 index[key, default: []].append(file)
             }
