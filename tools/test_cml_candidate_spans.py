@@ -43,6 +43,21 @@ class CandidateSpanTests(unittest.TestCase):
         result = candidate_spans(data)
         self.assertEqual(result["duplicate_payload_candidate_indices"], [])
 
+    def test_boundary_integrity_report(self):
+        data = b"header" + OBSERVED_HEADER + b"one" + OBSERVED_HEADER + b"two"
+        result = candidate_spans(data)
+        checks = result["boundary_checks"]
+        self.assertTrue(checks["all_markers_complete"])
+        self.assertTrue(checks["contiguous_after_first_marker"])
+        self.assertEqual(checks["empty_payload_indices"], [])
+        self.assertEqual(checks["minimum_candidate_length"], len(OBSERVED_HEADER) + 3)
+        self.assertEqual(checks["maximum_candidate_length"], len(OBSERVED_HEADER) + 3)
+        self.assertEqual(checks["total_candidate_bytes"], len(data) - len(b"header"))
+
+    def test_empty_candidate_payload_reported(self):
+        result = candidate_spans(OBSERVED_HEADER + OBSERVED_HEADER)
+        self.assertEqual(result["boundary_checks"]["empty_payload_indices"], [0, 1])
+
     def test_no_marker(self):
         result = candidate_spans(b"no original marker")
         self.assertEqual(result["candidate_count"], 0)
