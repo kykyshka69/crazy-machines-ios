@@ -48,6 +48,26 @@ def candidate_spans(data: bytes, marker: bytes = OBSERVED_HEADER) -> dict:
             "payload_distinct_byte_values": distinct_bytes,
             "payload_zero_bytes": zero_bytes,
         })
+    # Expose structural evidence without pretending the payload is decoded.
+    # A complete candidate header at each boundary and a nonempty payload
+    # are necessary (though not sufficient) for a record interpretation.
+    empty_indices = [item["index"] for item in spans
+                     if item["payload_length"] == 0]
+    candidate_lengths = [item["length"] for item in spans]
+    boundary_checks = {
+        "all_markers_complete": all(
+            data[item["start"]:item["start"] + len(marker)] == marker
+            for item in spans
+        ),
+        "contiguous_after_first_marker": all(
+            left["end_exclusive"] == right["start"]
+            for left, right in zip(spans, spans[1:])
+        ),
+        "empty_payload_indices": empty_indices,
+        "minimum_candidate_length": min(candidate_lengths, default=None),
+        "maximum_candidate_length": max(candidate_lengths, default=None),
+        "total_candidate_bytes": sum(candidate_lengths),
+    }
     # Equal payloads at different candidate offsets can indicate shared
     # templates or padding; report only fingerprints, never source bytes.
     payload_fingerprints = {}
@@ -66,6 +86,7 @@ def candidate_spans(data: bytes, marker: bytes = OBSERVED_HEADER) -> dict:
         "marker_hex": marker.hex(),
         "prologue_bytes": offsets[0] if offsets else None,
         "candidate_count": len(spans),
+        "boundary_checks": boundary_checks,
         "candidate_spans": spans,
         "interpretation": "opaque candidate spans, NOT decoded levels",
     }
