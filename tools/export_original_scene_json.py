@@ -5,18 +5,25 @@ never bundled with the open-source iOS app. No game physics is inferred.
 """
 import hashlib
 import json
+import math
 import re
 
 from parse_original_scene import SceneNode, parse_scene
 
-_VECTOR = re.compile(r"^\s*([-+]?\d+(?:\.\d*)?(?:[eE][-+]?\d+)?)\s*,\s*([-+]?\d+(?:\.\d*)?(?:[eE][-+]?\d+)?)\s*,\s*([-+]?\d+(?:\.\d*)?(?:[eE][-+]?\d+)?)\s*$")
+# Accept the decimal and scientific notation used by PC scene coordinates,
+# including .5, 1., and signed exponents. Never emit NaN or infinity to JSON.
+_NUMBER = r"[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?"
+_VECTOR = re.compile(rf"^\\s*({_NUMBER})\\s*,\\s*({_NUMBER})\\s*,\\s*({_NUMBER})\\s*$")
 
 
 def parse_vector3(value: str) -> list[float]:
     match = _VECTOR.fullmatch(value)
     if not match:
         raise ValueError(f"invalid original vector: {value!r}")
-    return [float(number) for number in match.groups()]
+    numbers = [float(number) for number in match.groups()]
+    if not all(math.isfinite(number) for number in numbers):
+        raise ValueError(f"non-finite original vector: {value!r}")
+    return numbers
 
 
 def export_node(node: SceneNode) -> dict:
