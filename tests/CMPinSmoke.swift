@@ -68,6 +68,19 @@ import Foundation
    precondition(probe.applyPins([CMPinJoint2D(bodyIndex:0,anchor:anchor)])==1)
    precondition(probe.bodies[0].position==anchor)
   }
+  // Duplicate constraints must not cause one body to jump between anchors.
+  var duplicates=CMPhysicsWorld2D()
+  duplicates.bodies=[CMPhysicsBody2D(position:SIMD2(0,2),radius:0.5)]
+  let firstPin=CMPinJoint2D(bodyIndex:0,anchor:SIMD2(3,4))
+  let conflictingPin=CMPinJoint2D(bodyIndex:0,anchor:SIMD2(9,10))
+  precondition(duplicates.applyPins([firstPin,conflictingPin])==1)
+  precondition(duplicates.bodies[0].position==SIMD2(3,4))
+  // An invalid first constraint must not block a later valid one.
+  duplicates.bodies[0].position=SIMD2(0,2)
+  precondition(duplicates.applyPins([
+    CMPinJoint2D(bodyIndex:0,anchor:SIMD2(.nan,4)),firstPin
+  ])==1)
+  precondition(duplicates.bodies[0].position==SIMD2(3,4))
   print("PASS: 1000 fixed-pin constraint scenarios")
  }
 }
