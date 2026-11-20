@@ -28,11 +28,15 @@ struct CMOriginalLevelBrowserView: View {
         let prefix = "cm.original.mechanism." + key
         let savedSource = UserDefaults.standard.string(forKey: prefix + ".source")
         let savedTarget = UserDefaults.standard.string(forKey: prefix + ".target")
+        let savedImpulse = UserDefaults.standard.object(forKey: prefix + ".impulse") as? Double
         if mechanismSourceByScene[key] == nil {
             mechanismSourceByScene[key] = savedSource.flatMap { ids.contains($0) ? $0 : nil } ?? ids[0]
         }
         if mechanismTargetByScene[key] == nil {
             mechanismTargetByScene[key] = savedTarget.flatMap { ids.contains($0) ? $0 : nil } ?? ids[1]
+        }
+        if mechanismImpulseByScene[key] == nil {
+            mechanismImpulseByScene[key] = savedImpulse.flatMap { $0.isFinite && (1...30).contains($0) ? $0 : nil } ?? 8
         }
     }
 
@@ -40,6 +44,7 @@ struct CMOriginalLevelBrowserView: View {
         let prefix = "cm.original.mechanism." + key
         UserDefaults.standard.set(mechanismSourceByScene[key], forKey: prefix + ".source")
         UserDefaults.standard.set(mechanismTargetByScene[key], forKey: prefix + ".target")
+        UserDefaults.standard.set(mechanismImpulseByScene[key] ?? 8, forKey: prefix + ".impulse")
     }
 
     private func loadPhysicsPresets(for document: CMOriginalSceneDocument) {
@@ -278,7 +283,7 @@ struct CMOriginalLevelBrowserView: View {
                         Text("Push strength")
                         Slider(value: Binding(
                             get: { mechanismImpulseByScene[key] ?? 8 },
-                            set: { mechanismImpulseByScene[key] = $0 }
+                            set: { mechanismImpulseByScene[key] = $0; saveMechanismPreset(for: key) }
                         ), in: 1...30, step: 1)
                         Text(String(format: "%.0f", mechanismImpulseByScene[key] ?? 8))
                             .monospacedDigit()
