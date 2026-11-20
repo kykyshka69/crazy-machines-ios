@@ -103,8 +103,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // or losing the current simulated positions.
         uiView.isPlaying = experimentalPhysics && !physicsPaused
         if experimentalPhysics {
-            if physicsPaused { context.coordinator.session?.pause() }
-            else { context.coordinator.session?.resume() }
+            context.coordinator.setSessionPaused(physicsPaused)
         }
         uiView.accessibilityValue = context.coordinator.selectedModelName.map {
             physicsAccessibilityStatus + "; selected original model: " + $0
@@ -117,8 +116,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private weak var highlighted: SCNNode?
         var selectedModelName: String?
         var session: CMOriginalGameplaySession?
+        private let sessionLock = NSLock()
         private var lastRendererTime: TimeInterval?
         private var physicsNodesByObjectID: [String: [SCNNode]] = [:]
+
+        func setSessionPaused(_ paused: Bool) {
+            sessionLock.lock()
+            defer { sessionLock.unlock() }
+            if paused { session?.pause() }
+            else { session?.resume() }
+        }
 
         func registerPhysicsNodes(in scene: SCNScene) {
             physicsNodesByObjectID.removeAll()
@@ -132,11 +139,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         /// Reactions must be explicitly configured; imported scene data
         /// alone does not authorize an invented impulse or activation.
         func configureExperimentalReactions(_ rules: [CMOriginalGameplaySession.ReactionRule]) {
+            sessionLock.lock()
+            defer { sessionLock.unlock() }
             session?.configureReactions(rules)
         }
 
         private func applyPendingActions() {
-            guard let actions = session?.resolveActions() else { return }
+            sessionLock.lock()
+            let actions = session?.resolveActions() ?? []
+            sessionLock.unlock()
             for pending in actions {
                 switch pending.action {
                 case .impulse(let x, let y, let z):
@@ -160,7 +171,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // Ignore discontinuities caused by app suspension, backgrounding
             // or SceneKit restarting its renderer clock.
             guard delta.isFinite, delta > 0, delta <= 0.25 else { return }
+            sessionLock.lock()
             session?.advance(by: delta)
+            sessionLock.unlock()
             applyPendingActions()
         }
 
@@ -168,7 +181,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             guard physicsEnabled,
                   let a = contact.nodeA.userData?["originalObjectID"] as? String,
                   let b = contact.nodeB.userData?["originalObjectID"] as? String else { return }
+            sessionLock.lock()
             session?.recordContact(a, b, impulse: Double(contact.collisionImpulse))
+            sessionLock.unlock()
         }
         private var originalEmission: Any?
         private weak var dragging: SCNNode?
@@ -474,10 +489,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // Explicitly configured prototype mechanisms can be started
                 // by tapping their imported mesh. Without a configured rule,
                 // retain the existing diagnostic tap impulse behavior.
-                if let id = node?.userData?["originalObjectID"] as? String,
-                   session?.reactionRules.contains(where: { $0.objectID == id }) == true {
-                    _ = session?.triggerObject(id)
-                    return
+                if let id = node?.userData?["originalObjectID"] as? String {
+                    sessionLock.lock()
+                    let hasRule = session?.reactionRules.contains(where: { $0.objectID == id }) == true
+                    if hasRule { _ = session?.triggerObject(id) }
+                    sessionLock.unlock()
+                    if hasRule { return }
                 }
                 // Apply the experimental impulse at the actual touched surface
                 // rather than the center of mass. Off-center taps can now
