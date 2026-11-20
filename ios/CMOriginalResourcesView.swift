@@ -117,7 +117,9 @@ struct CMOriginalResourcesView: View {
         entries = files.compactMap { url in
             let ext = url.pathExtension.lowercased()
             guard allowed.contains(ext),
-                  let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize else { return nil }
+                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+                  values.isRegularFile == true,
+                  let size = values.fileSize, size > 0, size <= 64 * 1024 * 1024 else { return nil }
             return ResourceEntry(name: url.lastPathComponent, kind: ext, bytes: size)
         }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
