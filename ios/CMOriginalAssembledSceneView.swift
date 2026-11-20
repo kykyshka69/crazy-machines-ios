@@ -881,8 +881,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
             }
         }
-        // Only meshes with a physics body can be hinge endpoints.
-        let hingeCandidates = loadedMeshNodes.filter { $0.physicsBody != nil }
+        // Geometry supplies surface corners, while a compound body's physics
+        // owner can be an ancestor rather than the visible mesh itself.
+        let hingeCandidates: [(mesh: SCNNode, bodyNode: SCNNode)] = loadedMeshNodes.compactMap { mesh in
+            var current: SCNNode? = mesh
+            while let node = current {
+                if node.physicsBody != nil { return (mesh: mesh, bodyNode: node) }
+                current = node.parent
+            }
+            return nil
+        }
         if experimentalPhysics && diagnosticHinges && hingeCandidates.count >= 2 {
             // Experimental only: find the nearest bounding-box corners
             // across all imported meshes, not just the nearest origins.
@@ -897,13 +905,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                 }
             }
-            let allCorners = hingeCandidates.map { corners($0) }
+            let allCorners = hingeCandidates.map { corners($0.mesh) }
             var closestPair = (0, 1)
             var closestA = SCNVector3Zero
             var closestB = SCNVector3Zero
             var bestDistanceSquared = Float.infinity
             for i in 0..<(allCorners.count - 1) {
                 for j in (i + 1)..<allCorners.count {
+                    // Never hinge two visible meshes of the same rigid body.
+                    if hingeCandidates[i].bodyNode === hingeCandidates[j].bodyNode { continue }
                     for a in allCorners[i] {
                         for b in allCorners[j] {
                             let dx = a.x - b.x
@@ -920,8 +930,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                 }
             }
-            let first = hingeCandidates[closestPair.0]
-            let second = hingeCandidates[closestPair.1]
+            let first = hingeCandidates[closestPair.0].bodyNode
+            let second = hingeCandidates[closestPair.1].bodyNode
             let firstCorners = allCorners[closestPair.0]
             let secondCorners = allCorners[closestPair.1]
             let anchor = SCNVector3((closestA.x + closestB.x) / 2,
