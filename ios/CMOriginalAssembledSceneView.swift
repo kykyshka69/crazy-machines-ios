@@ -386,10 +386,24 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
            loadedMeshNodes[0].physicsBody != nil,
            loadedMeshNodes[1].physicsBody != nil {
             // Experimental proof of a SceneKit hinge, not decoded CML linkage.
-            // Join the first two imported meshes at their midpoint. The
-            // physics bodies already exist on the mesh nodes.
-            let first = loadedMeshNodes[0]
-            let second = loadedMeshNodes[1]
+            // Choose the closest pair of imported mesh origins instead of
+            // blindly linking the first two entries in file order.
+            var closestPair = (0, 1)
+            var closestOriginDistance = Float.infinity
+            for i in 0..<(loadedMeshNodes.count - 1) {
+                let a = loadedMeshNodes[i].convertPosition(SCNVector3Zero, to: nil)
+                for j in (i + 1)..<loadedMeshNodes.count {
+                    let b = loadedMeshNodes[j].convertPosition(SCNVector3Zero, to: nil)
+                    let dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z
+                    let distance = dx * dx + dy * dy + dz * dz
+                    if distance.isFinite && distance < closestOriginDistance {
+                        closestOriginDistance = distance
+                        closestPair = (i, j)
+                    }
+                }
+            }
+            let first = loadedMeshNodes[closestPair.0]
+            let second = loadedMeshNodes[closestPair.1]
             // Find the closest pair of world-space bounding-box corners.
             // This is a geometry-derived diagnostic guess, not a decoded
             // attachment point from the original level.
