@@ -203,14 +203,14 @@ struct CMOriginalLevelBrowserView: View {
                         "Resolved: \(available.count) / \(names.count)",
                         "",
                         "Missing UCM models (\(missing.count)):",
-                        missing.isEmpty ? "(none)" : missing.joined(separator: "\\n"),
+                        missing.isEmpty ? "(none)" : missing.joined(separator: "\n"),
                         "",
                         "Ambiguous UCM models (\(ambiguous.count)):",
-                        ambiguous.isEmpty ? "(none)" : ambiguous.joined(separator: "\\n"),
+                        ambiguous.isEmpty ? "(none)" : ambiguous.joined(separator: "\n"),
                         "",
                         "Invalid original references (\(invalid.count)):",
-                        invalid.isEmpty ? "(none)" : invalid.joined(separator: "\\n")
-                    ].joined(separator: "\\n")
+                        invalid.isEmpty ? "(none)" : invalid.joined(separator: "\n")
+                    ].joined(separator: "\n")
                     ShareLink(item: report) {
                         Label("Share missing-model report", systemImage: "square.and.arrow.up")
                     }
