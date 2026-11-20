@@ -58,13 +58,12 @@ enum CMOriginalModelResolver {
             let matches = filesByBaseName[base] ?? []
             if matches.count == 1 { return matches[0] }
             if !matches.isEmpty { return nil }
-            // PC scene references may use the to_ prefix while imported
-            // UCM assets omit it (or vice versa). Never choose an ambiguous
-            // candidate when both names exist.
-            let alternate = base.hasPrefix("to_")
-                ? String(base.dropFirst(3)) : "to_" + base
-            guard !alternate.isEmpty else { return nil }
-            let aliasMatches = filesByBaseName[alternate] ?? []
+            // The original scene may reference a to_ model while the
+            // imported mesh omits the prefix. Do not infer the reverse:
+            // an unprefixed PC model must not silently resolve to a
+            // potentially different to_ mesh.
+            guard base.hasPrefix("to_"), base.count > 3 else { return nil }
+            let aliasMatches = filesByBaseName[String(base.dropFirst(3))] ?? []
             return aliasMatches.count == 1 ? aliasMatches[0] : nil
         }
     }
