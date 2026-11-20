@@ -253,48 +253,7 @@ struct CMOriginalLevelBrowserView: View {
                     }
                 }
             }
-            Section("Interactive mechanism prototype") {
-                let objects = CMOriginalGameplaySession(document: document).objects
-                let key = document.sceneSHA256
-                if objects.count >= 2 {
-                    Text("Select an imported switch and a different object. In physics mode, tapping the switch pushes the target upward. Experimental behavior, not a decoded original rule.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Picker("Switch", selection: Binding(
-                        get: { mechanismSourceByScene[key] ?? objects[0].id },
-                        set: { mechanismSourceByScene[key] = $0; saveMechanismPreset(for: key) }
-                    )) {
-                        ForEach(objects) { object in
-                            Text("\(object.id): \(object.type)").tag(object.id)
-                        }
-                    }
-                    Picker("Target", selection: Binding(
-                        get: { mechanismTargetByScene[key] ?? objects[1].id },
-                        set: { mechanismTargetByScene[key] = $0; saveMechanismPreset(for: key) }
-                    )) {
-                        ForEach(objects) { object in
-                            Text("\(object.id): \(object.type)").tag(object.id)
-                        }
-                    }
-                    if (mechanismSourceByScene[key] ?? objects[0].id) == (mechanismTargetByScene[key] ?? objects[1].id) {
-                        Text("Choose two different objects to enable the mechanism.")
-                            .foregroundStyle(.orange)
-                    }
-                    HStack {
-                        Text("Push strength")
-                        Slider(value: Binding(
-                            get: { mechanismImpulseByScene[key] ?? 8 },
-                            set: { mechanismImpulseByScene[key] = $0; saveMechanismPreset(for: key) }
-                        ), in: 1...30, step: 1)
-                        Text(String(format: "%.0f", mechanismImpulseByScene[key] ?? 8))
-                            .monospacedDigit()
-                    }
-                    Text("Tap the chosen switch mesh in experimental physics mode to push the target. Repeated taps work.")
-                        .font(.caption).foregroundStyle(.secondary)
-                } else {
-                    Text("At least two imported objects are needed.")
-                        .foregroundStyle(.secondary)
-                }
-            }
+            // Experimental invented mechanisms are not presented as original gameplay.
             Section("Assembled original 3D scene") {
                 Button("View original level in 3D") {
                     assembledScene = AssembledSelection(document: document, experimentalPhysics: false, diagnosticHinges: false)
@@ -401,19 +360,7 @@ struct CMOriginalLevelBrowserView: View {
                             }
                             return nil
                         }),
-                    configuredReactions: {
-                        let objects = CMOriginalGameplaySession(document: selection.document).objects
-                        guard objects.count >= 2 else { return [] }
-                        let key = selection.document.sceneSHA256
-                        let source = mechanismSourceByScene[key] ?? objects[0].id
-                        let target = mechanismTargetByScene[key] ?? objects[1].id
-                        guard source != target else { return [] }
-                        return [
-                            CMOriginalGameplaySession.ReactionRule(
-                                objectID: source, trigger: .firstContact,
-                                action: .impulseTarget(id: target, x: 0, y: mechanismImpulseByScene[key] ?? 8, z: 0))
-                        ]
-                    }(),
+                    configuredReactions: [],
                     switchPressCount: switchPressCount
                 )
                     // Replacing the sheet selection alone does not guarantee
@@ -422,19 +369,6 @@ struct CMOriginalLevelBrowserView: View {
                     // diagnostic hinges, while preserving pause/resume updates.
                     .id(selection.id)
                     .navigationTitle("Level \(selection.document.index) · 3D")
-                    .safeAreaInset(edge: .bottom) {
-                        if selection.experimentalPhysics && !physicsPaused &&
-                            CMOriginalGameplaySession(document: selection.document).objects.count >= 2 &&
-                            (mechanismSourceByScene[selection.document.sceneSHA256] ??
-                                CMOriginalGameplaySession(document: selection.document).objects[0].id) !=
-                            (mechanismTargetByScene[selection.document.sceneSHA256] ??
-                                CMOriginalGameplaySession(document: selection.document).objects[1].id) {
-                            Button("Activate mechanism") { switchPressCount += 1 }
-                                .buttonStyle(.borderedProminent)
-                                .accessibilityIdentifier("cm.original.mechanism.activate")
-                                .padding(8)
-                        }
-                    }
                     .toolbar {
                         if selection.experimentalPhysics {
                             ToolbarItem(placement: .topBarLeading) {
