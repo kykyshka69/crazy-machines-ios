@@ -127,6 +127,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 guard let node = view.hitTest(gesture.location(in: view),
                                               options: [.firstFoundOnly: true]).first?.node,
                       let body = node.physicsBody else { return }
+                // A pending hinge selection must not survive a body-type
+                // change: its cached endpoint can become a static body.
+                clearPendingHingeEndpoint()
                 // Diagnostic-only manual classification: we have not decoded
                 // which original game components are fixed versus movable.
                 // Convert the current simulated world pose into a stable local
