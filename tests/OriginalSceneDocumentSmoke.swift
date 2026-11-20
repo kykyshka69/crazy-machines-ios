@@ -66,6 +66,37 @@ enum OriginalSceneDocumentSmoke {
         session.stop()
         session.reset()
         precondition(session.phase == .ready && session.elapsedSimulationTime == 0)
+        // Two distinct imported objects generate two activation transitions
+        // on first contact, but repeated contacts do not re-activate them.
+        var raw = try JSONSerialization.jsonObject(with: Data(json.utf8)) as! [String: Any]
+        var root = raw["root"] as! [String: Any]
+        var children = root["children"] as! [[String: Any]]
+        children.append([
+            "name": "tmo_target",
+            "fields": ["GOAL 1", "POS 4, 5, 6"],
+            "position": [4, 5, 6],
+            "goal_raw": "1",
+            "models": ["to_target"],
+            "children": []
+        ])
+        root["children"] = children
+        raw["root"] = root
+        let twoObjectDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: raw))
+        var contactSession = CMOriginalGameplaySession(document: twoObjectDoc)
+        precondition(contactSession.objects.count == 2)
+        precondition(contactSession.annotatedGoalObjects.map(\.id) == ["object-1"])
+        contactSession.start()
+        contactSession.recordContact("object-1", "object-0", impulse: 3)
+        precondition(contactSession.recentContacts.count == 1)
+        precondition(contactSession.activations.count == 2)
+        precondition(contactSession.contactedGoalObjectIDs == Set(["object-1"]))
+        contactSession.recordContact("object-0", "object-1", impulse: 2)
+        precondition(contactSession.contactCounts["object-0|object-1"] == 2)
+        precondition(contactSession.activations.count == 2)
+        contactSession.reset()
+        precondition(contactSession.activations.isEmpty)
+        precondition(contactSession.contactedGoalObjectIDs.isEmpty)
         print("Original scene document decoding: OK")
     }
 }
