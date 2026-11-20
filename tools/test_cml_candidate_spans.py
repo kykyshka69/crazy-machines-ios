@@ -33,6 +33,16 @@ class CandidateSpanTests(unittest.TestCase):
         self.assertEqual(record["payload_distinct_byte_values"], 0)
         self.assertEqual(record["payload_zero_bytes"], 0)
 
+    def test_duplicate_payload_groups(self):
+        data = OBSERVED_HEADER + b"same" + OBSERVED_HEADER + b"other" + OBSERVED_HEADER + b"same"
+        result = candidate_spans(data)
+        self.assertEqual(result["duplicate_payload_candidate_indices"], [[0, 2]])
+
+    def test_no_duplicate_payload_groups(self):
+        data = OBSERVED_HEADER + b"a" + OBSERVED_HEADER + b"b"
+        result = candidate_spans(data)
+        self.assertEqual(result["duplicate_payload_candidate_indices"], [])
+
     def test_no_marker(self):
         result = candidate_spans(b"no original marker")
         self.assertEqual(result["candidate_count"], 0)
