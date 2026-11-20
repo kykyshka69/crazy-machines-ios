@@ -17,6 +17,25 @@ struct CMOriginalLevelBrowserView: View {
     @State private var fixedObjectTypesByScene: [String: Set<String>] = [:]
     @State private var sensorObjectTypesByScene: [String: Set<String>] = [:]
 
+    private func loadPhysicsPresets(for document: CMOriginalSceneDocument) {
+        let key = document.sceneSHA256
+        let prefix = "cm.original.physics.roles." + key
+        if fixedObjectTypesByScene[key] == nil {
+            fixedObjectTypesByScene[key] = Set(UserDefaults.standard.stringArray(forKey: prefix + ".fixed") ?? [])
+        }
+        if sensorObjectTypesByScene[key] == nil {
+            sensorObjectTypesByScene[key] = Set(UserDefaults.standard.stringArray(forKey: prefix + ".sensor") ?? [])
+        }
+    }
+
+    private func savePhysicsPresets(for sceneKey: String) {
+        let prefix = "cm.original.physics.roles." + sceneKey
+        UserDefaults.standard.set(Array(fixedObjectTypesByScene[sceneKey, default: []]).sorted(),
+                                  forKey: prefix + ".fixed")
+        UserDefaults.standard.set(Array(sensorObjectTypesByScene[sceneKey, default: []]).sorted(),
+                                  forKey: prefix + ".sensor")
+    }
+
     private struct AssembledSelection: Identifiable {
         let document: CMOriginalSceneDocument
         let experimentalPhysics: Bool
@@ -195,6 +214,7 @@ struct CMOriginalLevelBrowserView: View {
                             sensorObjectTypesByScene[sceneKey, default: []].remove(type)
                             if role == "Fixed" { fixedObjectTypesByScene[sceneKey, default: []].insert(type) }
                             if role == "Sensor" { sensorObjectTypesByScene[sceneKey, default: []].insert(type) }
+                            savePhysicsPresets(for: sceneKey)
                         }
                     )) {
                         Text("Movable").tag("Movable")
