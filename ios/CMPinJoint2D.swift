@@ -16,11 +16,14 @@ public extension CMPhysicsWorld2D {
  @discardableResult
  mutating func applyPins(_ pins:[CMPinJoint2D]) -> Int {
   var count=0
+  var constrainedBodies = Set<Int>()
   for pin in pins {
    guard bodies.indices.contains(pin.bodyIndex),
          pin.anchor.x.isFinite, pin.anchor.y.isFinite else { continue }
    let i=pin.bodyIndex
-   guard bodies[i].mass.isFinite,bodies[i].mass > 0 else { continue }
+   guard !constrainedBodies.contains(i),
+         bodies[i].mass.isFinite,bodies[i].mass > 0 else { continue }
+   constrainedBodies.insert(i)
    bodies[i].position=pin.anchor
    bodies[i].velocity = .zero
    count += 1
