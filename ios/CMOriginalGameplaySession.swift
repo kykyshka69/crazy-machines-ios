@@ -297,11 +297,22 @@ public struct CMOriginalGameplaySession {
                 let id = "object-\(ordinal)"
                 ordinal += 1
                 owner = id
+                // Preserve every original 3DO belonging to this object,
+                // including models below helper transforms in older exports.
+                // A nested tmo_* starts a different original object.
                 var models = node.models ?? []
-                for child in node.children where child.name.hasPrefix("3DO ") {
-                    let model = String(child.name.dropFirst(4))
-                    if !models.contains(model) { models.append(model) }
+                var seenModels = Set(models)
+                func collectOwnModels(_ item: CMOriginalSceneDocument.Node) {
+                    for child in item.children {
+                        if child.name.hasPrefix("tmo_") { continue }
+                        if child.name.hasPrefix("3DO ") {
+                            let model = String(child.name.dropFirst(4))
+                            if seenModels.insert(model).inserted { models.append(model) }
+                        }
+                        collectOwnModels(child)
+                    }
                 }
+                collectOwnModels(node)
                 collected.append(Object(
                     id: id,
                     type: node.name,
