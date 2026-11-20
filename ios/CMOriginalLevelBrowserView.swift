@@ -329,7 +329,10 @@ struct CMOriginalLevelBrowserView: View {
         ) else { return }
         var loaded: [Int: CMOriginalSceneDocument] = [:]
         for url in urls where url.pathExtension.lowercased() == "json" {
-            guard let data = try? Data(contentsOf: url),
+            guard let attributes = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+                  attributes.isRegularFile == true,
+                  let size = attributes.fileSize, size > 0, size <= 8_000_000,
+                  let data = try? Data(contentsOf: url),
                   let document = try? CMOriginalSceneDocument.read(data) else { continue }
             loaded[document.index] = document
         }
@@ -352,7 +355,19 @@ struct CMOriginalLevelBrowserView: View {
             let accessed = url.startAccessingSecurityScopedResource()
             defer { if accessed { url.stopAccessingSecurityScopedResource() } }
             do {
+                // Check file metadata before allocating its contents. The
+                // decoder's 8 MB limit alone runs after Data(contentsOf:).
+                let attributes = try url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+                guard attributes.isRegularFile == true,
+                      let size = attributes.fileSize, size > 0, size <= 8_000_000 else {
+                    rejected += 1
+                    continue
+                }
                 let data = try Data(contentsOf: url)
+                guard data.count <= 8_000_000 else {
+                    rejected += 1
+                    continue
+                }
                 let document = try CMOriginalSceneDocument.read(data)
                 // Refuse conflicting duplicate level numbers in the same import.
                 // Otherwise the last file silently wins depending on file order.
