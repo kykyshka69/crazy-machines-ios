@@ -48,7 +48,19 @@ def candidate_spans(data: bytes, marker: bytes = OBSERVED_HEADER) -> dict:
             "payload_distinct_byte_values": distinct_bytes,
             "payload_zero_bytes": zero_bytes,
         })
+    # Equal payloads at different candidate offsets can indicate shared
+    # templates or padding; report only fingerprints, never source bytes.
+    payload_fingerprints = {}
+    for item in spans:
+        start = item["start"] + len(marker)
+        end = item["end_exclusive"]
+        digest = hashlib.sha256(data[start:end]).hexdigest()
+        payload_fingerprints.setdefault(digest, []).append(item["index"])
+    duplicate_groups = [
+        indices for indices in payload_fingerprints.values() if len(indices) > 1
+    ]
     return {
+        "duplicate_payload_candidate_indices": duplicate_groups,
         "bytes": len(data),
         "file_sha256": hashlib.sha256(data).hexdigest(),
         "marker_hex": marker.hex(),
