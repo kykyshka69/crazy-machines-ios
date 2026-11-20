@@ -81,6 +81,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // behavior and tunneling through thin imported mechanisms.
         if experimentalPhysics {
             scene.physicsWorld.timeStep = 1.0 / 120.0
+            scene.physicsWorld.contactDelegate = context.coordinator
         }
         view.isPlaying = experimentalPhysics && !physicsPaused
         if experimentalPhysics {
@@ -110,10 +111,17 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate, SCNPhysicsContactDelegate {
         private weak var highlighted: SCNNode?
         var selectedModelName: String?
         var session: CMOriginalGameplaySession?
+
+        func physicsWorld(_ world: SCNPhysicsWorld, didBegin contact: SCNPhysicsContact) {
+            guard physicsEnabled,
+                  let a = contact.nodeA.userData?["originalObjectID"] as? String,
+                  let b = contact.nodeB.userData?["originalObjectID"] as? String else { return }
+            session?.recordContact(a, b, impulse: Double(contact.collisionImpulse))
+        }
         private var originalEmission: Any?
         private weak var dragging: SCNNode?
         private var dragInitialPosition: SCNVector3?
@@ -571,6 +579,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                 // collision detection to reduce tunneling
                                 // through thin approximate collision boxes.
                                 body.continuousCollisionDetectionThreshold = 0.001
+                                body.categoryBitMask = 1
+                                body.collisionBitMask = 1
+                                body.contactTestBitMask = 1
                                 mesh.physicsBody = body
                                 // SceneKit's physics solver advances only when
                                 // the scene is playing, even if it is visible.
