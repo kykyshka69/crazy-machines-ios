@@ -52,11 +52,14 @@ public struct CMOriginalGameplaySession {
         public let objectID: String
         public let trigger: Trigger
         public let action: Action
+        public let delay: TimeInterval
 
-        public init(objectID: String, trigger: Trigger, action: Action) {
+        public init(objectID: String, trigger: Trigger, action: Action,
+                    delay: TimeInterval = 0) {
             self.objectID = objectID
             self.trigger = trigger
             self.action = action
+            self.delay = delay
         }
     }
 
@@ -72,7 +75,9 @@ public struct CMOriginalGameplaySession {
     public mutating func configureReactions(_ rules: [ReactionRule]) {
         let ids = Set(objects.map(\.id))
         reactionRules = Array(rules.prefix(512)).filter { rule in
-            guard ids.contains(rule.objectID) else { return false }
+            guard ids.contains(rule.objectID),
+                  rule.delay.isFinite, rule.delay >= 0,
+                  rule.delay <= 3600 else { return false }
             switch rule.action {
             case .activate(let target): return ids.contains(target)
             case .impulse(let x, let y, let z):
@@ -163,9 +168,13 @@ public struct CMOriginalGameplaySession {
     private mutating func enqueueReactions(for id: String, firstContact: Bool) {
         for rule in reactionRules where rule.objectID == id {
             if rule.trigger == .firstContact && !firstContact { continue }
-            if actionQueue.count >= 512 { break }
-            actionQueue.append(PendingAction(sourceID: id, action: rule.action,
-                                             simulationTime: elapsedSimulationTime))
+            if rule.delay > 0 {
+                _ = schedule(rule.action, from: id, after: rule.delay)
+            } else {
+                if actionQueue.count >= 512 { break }
+                actionQueue.append(PendingAction(sourceID: id, action: rule.action,
+                                                 simulationTime: elapsedSimulationTime))
+            }
         }
     }
 
