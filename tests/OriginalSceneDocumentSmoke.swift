@@ -125,6 +125,25 @@ enum OriginalSceneDocumentSmoke {
         precondition(CMOriginalModelResolver.modelNames(in: nestedObjectDoc.root.children[0].children[0]) == ["to_board"])
         precondition(CMOriginalModelResolver.allModelNames(in: nestedObjectDoc.root) == ["to_board"])
         precondition(CMOriginalModelResolver.allModelNames(in: mixedCaseDoc.root) == ["TO_BOARD"])
+        // The level-wide inventory must include sibling objects and root
+        // references, while the per-object inventory stays owner-scoped.
+        var siblingsRaw = try JSONSerialization.jsonObject(with: Data(json.utf8)) as! [String: Any]
+        var siblingsRoot = siblingsRaw["root"] as! [String: Any]
+        var siblingsChildren = siblingsRoot["children"] as! [[String: Any]]
+        siblingsRoot["models"] = ["level_mesh"]
+        siblingsChildren.append([
+            "name": "tmo_wheel", "fields": [],
+            "children": [["name": "3DO to_wheel", "fields": [], "children": []]]
+        ])
+        siblingsRoot["children"] = siblingsChildren
+        siblingsRaw["root"] = siblingsRoot
+        let siblingsDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: siblingsRaw))
+        precondition(CMOriginalModelResolver.allModelNames(in: siblingsDoc.root) ==
+                     ["level_mesh", "to_board", "to_wheel"])
+        precondition(CMOriginalModelResolver.modelNames(in: siblingsDoc.root.children[0]) ==
+                     ["to_board"])
+
 
         var session = CMOriginalGameplaySession(document: doc)
         precondition(session.objects.count == 1)
