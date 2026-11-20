@@ -11,7 +11,7 @@ for source in ios/*.swift; do
   swiftc -frontend -parse "$source" -o /dev/null
 done
 echo "iOS Swift syntax parsing passed (Apple SDK typecheck not performed)."
-swiftc ios/CMPhysics2D.swift ios/CMLevelDocument.swift tests/CMLevelDocumentSmoke.swift -o "$tmp/levels"
+swiftc ios/CMPhysics2D.swift ios/CMPinJoint2D.swift ios/CMSpringJoint2D.swift ios/CMPivotJoint2D.swift ios/CMLevelDocument.swift tests/CMLevelDocumentSmoke.swift -o "$tmp/levels"
 "$tmp/levels"
 for spec in "CMPhysicsSmoke" "CMCircleCollisionSmoke" "CMSlopeSmoke" "CMFrictionSmoke" "CMAngularSmoke"; do
  swiftc ios/CMPhysics2D.swift "tests/$spec.swift" -o "$tmp/$spec"
