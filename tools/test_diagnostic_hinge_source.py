@@ -29,6 +29,15 @@ class DiagnosticHingeSourceTests(unittest.TestCase):
         self.assertIn("if let closestPair {", self.section)
         self.assertNotIn("var closestPair = (0, 1)", self.section)
 
+    def test_selected_pair_is_updated_only_for_valid_distinct_bodies(self):
+        self.assertIn("closestPair = (i, j)", self.section)
+        self.assertIn("if distanceSquared.isFinite && distanceSquared < bestDistanceSquared", self.section)
+        self.assertIn("if let closestPair {", self.section)
+
+    def test_joint_creation_is_guarded_by_finite_coordinates(self):
+        self.assertIn("if coordinates.allSatisfy({ $0.isFinite })", self.section)
+        self.assertIn("scene.physicsWorld.addBehavior(hinge)", self.section)
+
     def test_anchor_uses_body_local_coordinates(self):
         self.assertIn("first.convertPosition(anchor, from: nil)", self.section)
         self.assertIn("second.convertPosition(anchor, from: nil)", self.section)
