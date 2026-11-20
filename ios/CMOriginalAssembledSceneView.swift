@@ -325,7 +325,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             if physicsEnabled {
                 guard let node = view.hitTest(gesture.location(in: view),
                                               options: [.firstFoundOnly: true]).first?.node,
-                      let body = node.physicsBody else { return }
+                      let physical = physicalNode(for: node),
+                      let body = physical.physicsBody else { return }
                 // A pending hinge selection must not survive a body-type
                 // change: its cached endpoint can become a static body.
                 clearPendingHingeEndpoint()
@@ -337,7 +338,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // initial authored transform when it becomes static.
                 let makeStatic = body.type == .dynamic
                 if makeStatic {
-                    node.transform = node.presentation.transform
+                    physical.transform = physical.presentation.transform
                 }
                 if makeStatic {
                     // Stop existing motion before pinning a test component.
@@ -348,7 +349,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 body.type = makeStatic ? .static : .dynamic
                 // Visual feedback is per node, so shared imported geometry
                 // and the original GOAL material tint are left untouched.
-                node.opacity = makeStatic ? 0.55 : 1.0
+                physical.opacity = makeStatic ? 0.55 : 1.0
                 return
             }
             guard
@@ -824,7 +825,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 body.contactTestBitMask = 1
                 for mesh in meshes { mesh.physicsBody = nil }
                 root.physicsBody = body
-                root.name = "physics-owner-\\(id)"
+                root.name = "physics-owner-\(id)"
             }
         }
         // Frame actual transformed mesh bounds, not just object origins.
