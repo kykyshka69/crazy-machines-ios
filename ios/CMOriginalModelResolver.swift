@@ -4,6 +4,8 @@ import Foundation
 /// An explicit model name is resolved only to the same basename, optionally
 /// with the .ucm extension. Duplicate basenames are treated as ambiguous.
 enum CMOriginalModelResolver {
+    /// Collect only meshes owned by this object. Nested tmo_ nodes are
+    /// independent PC objects and must not leak their meshes into the parent.
     static func modelNames(in node: CMOriginalSceneDocument.Node) -> [String] {
         var result: [String] = []
         func visit(_ item: CMOriginalSceneDocument.Node) {
@@ -14,7 +16,7 @@ enum CMOriginalModelResolver {
             if item.name.hasPrefix("3DO ") {
                 result.append(String(item.name.dropFirst(4)))
             }
-            for child in item.children { visit(child) }
+            for child in item.children where !child.name.hasPrefix("tmo_") { visit(child) }
         }
         visit(node)
         var seen = Set<String>()
