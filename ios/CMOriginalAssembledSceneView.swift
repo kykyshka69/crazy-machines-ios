@@ -382,9 +382,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
             }
         }
-        if experimentalPhysics && diagnosticHinges && loadedMeshNodes.count >= 2,
-           loadedMeshNodes[0].physicsBody != nil,
-           loadedMeshNodes[1].physicsBody != nil {
+        // Only meshes with a physics body can be hinge endpoints.
+        let hingeCandidates = loadedMeshNodes.filter { $0.physicsBody != nil }
+        if experimentalPhysics && diagnosticHinges && hingeCandidates.count >= 2 {
             // Experimental only: find the nearest bounding-box corners
             // across all imported meshes, not just the nearest origins.
             // Offset mesh pivots can otherwise select unrelated parts.
@@ -398,7 +398,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                 }
             }
-            let allCorners = loadedMeshNodes.map { corners($0) }
+            let allCorners = hingeCandidates.map { corners($0) }
             var closestPair = (0, 1)
             var closestA = SCNVector3Zero
             var closestB = SCNVector3Zero
@@ -421,8 +421,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                 }
             }
-            let first = loadedMeshNodes[closestPair.0]
-            let second = loadedMeshNodes[closestPair.1]
+            let first = hingeCandidates[closestPair.0]
+            let second = hingeCandidates[closestPair.1]
             let firstCorners = allCorners[closestPair.0]
             let secondCorners = allCorners[closestPair.1]
             let anchor = SCNVector3((closestA.x + closestB.x) / 2,
