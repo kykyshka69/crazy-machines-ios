@@ -1,6 +1,18 @@
 import XCTest
 
 final class CrazyMachinesLaunchUITests: XCTestCase {
+    func testOriginalLevelsImportControlsWithoutBundledAssets() {
+        let app = XCUIApplication()
+        app.launch()
+        let originalLevels = app.tabBars.buttons["Original levels"]
+        XCTAssertTrue(originalLevels.waitForExistence(timeout: 20))
+        originalLevels.tap()
+        // Import controls must be available even when the user has not
+        // supplied any copyrighted original-game files.
+        XCTAssertTrue(app.buttons["Import original levels"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Import entire exported levels folder"].exists)
+    }
+
     func testLaunchAndSwitchTabs() {
         let app = XCUIApplication()
         app.launch()
