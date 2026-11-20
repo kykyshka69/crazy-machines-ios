@@ -12,64 +12,8 @@ struct CMOriginalLevelBrowserView: View {
     @State private var assembledScene: AssembledSelection?
     @State private var confirmingResetEdits = false
     @State private var physicsPaused = false
-    @State private var diagnosticHinges = false
-    @State private var mechanismSourceByScene: [String: String] = [:]
-    @State private var mechanismTargetByScene: [String: String] = [:]
-    @State private var switchPressCount = 0
-    @State private var mechanismImpulseByScene: [String: Double] = [:]
-    // Keep experimental role choices isolated by scene fingerprint.
-    @State private var fixedObjectTypesByScene: [String: Set<String>] = [:]
-    @State private var sensorObjectTypesByScene: [String: Set<String>] = [:]
-
-    private func loadMechanismPreset(for document: CMOriginalSceneDocument) {
-        let key = document.sceneSHA256
-        let ids = CMOriginalGameplaySession(document: document).objects.map(\.id)
-        guard ids.count >= 2 else { return }
-        let prefix = "cm.original.mechanism." + key
-        let savedSource = UserDefaults.standard.string(forKey: prefix + ".source")
-        let savedTarget = UserDefaults.standard.string(forKey: prefix + ".target")
-        let savedImpulse = UserDefaults.standard.object(forKey: prefix + ".impulse") as? Double
-        if mechanismSourceByScene[key] == nil {
-            mechanismSourceByScene[key] = savedSource.flatMap { ids.contains($0) ? $0 : nil } ?? ids[0]
-        }
-        if mechanismTargetByScene[key] == nil {
-            mechanismTargetByScene[key] = savedTarget.flatMap { ids.contains($0) ? $0 : nil } ?? ids[1]
-        }
-        if mechanismImpulseByScene[key] == nil {
-            mechanismImpulseByScene[key] = savedImpulse.flatMap { $0.isFinite && (1...30).contains($0) ? $0 : nil } ?? 8
-        }
-    }
-
-    private func saveMechanismPreset(for key: String) {
-        let prefix = "cm.original.mechanism." + key
-        UserDefaults.standard.set(mechanismSourceByScene[key], forKey: prefix + ".source")
-        UserDefaults.standard.set(mechanismTargetByScene[key], forKey: prefix + ".target")
-        UserDefaults.standard.set(mechanismImpulseByScene[key] ?? 8, forKey: prefix + ".impulse")
-    }
-
-    private func loadPhysicsPresets(for document: CMOriginalSceneDocument) {
-        let key = document.sceneSHA256
-        let prefix = "cm.original.physics.roles." + key
-        if fixedObjectTypesByScene[key] == nil {
-            fixedObjectTypesByScene[key] = Set(UserDefaults.standard.stringArray(forKey: prefix + ".fixed") ?? [])
-        }
-        if sensorObjectTypesByScene[key] == nil {
-            sensorObjectTypesByScene[key] = Set(UserDefaults.standard.stringArray(forKey: prefix + ".sensor") ?? [])
-        }
-    }
-
-    private func savePhysicsPresets(for sceneKey: String) {
-        let prefix = "cm.original.physics.roles." + sceneKey
-        UserDefaults.standard.set(Array(fixedObjectTypesByScene[sceneKey, default: []]).sorted(),
-                                  forKey: prefix + ".fixed")
-        UserDefaults.standard.set(Array(sensorObjectTypesByScene[sceneKey, default: []]).sorted(),
-                                  forKey: prefix + ".sensor")
-    }
-
     private struct AssembledSelection: Identifiable {
         let document: CMOriginalSceneDocument
-        let experimentalPhysics: Bool
-        let diagnosticHinges: Bool
         let id = UUID()
     }
 
@@ -227,46 +171,10 @@ struct CMOriginalLevelBrowserView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
-            Section("Experimental object physics by original type") {
-                Text("Roles apply only to this imported scene. These are experimental choices, not original rules.")
-                    .font(.caption).foregroundStyle(.secondary)
-                let sceneKey = document.sceneSHA256
-                let types = Array(Set(CMOriginalGameplaySession(document: document).objects.map(\.type))).sorted()
-                ForEach(types, id: \.self) { type in
-                    Picker(type, selection: Binding<String>(
-                        get: {
-                            if fixedObjectTypesByScene[sceneKey, default: []].contains(type) { return "Fixed" }
-                            if sensorObjectTypesByScene[sceneKey, default: []].contains(type) { return "Sensor" }
-                            return "Movable"
-                        },
-                        set: { role in
-                            fixedObjectTypesByScene[sceneKey, default: []].remove(type)
-                            sensorObjectTypesByScene[sceneKey, default: []].remove(type)
-                            if role == "Fixed" { fixedObjectTypesByScene[sceneKey, default: []].insert(type) }
-                            if role == "Sensor" { sensorObjectTypesByScene[sceneKey, default: []].insert(type) }
-                            savePhysicsPresets(for: sceneKey)
-                        }
-                    )) {
-                        Text("Movable").tag("Movable")
-                        Text("Fixed").tag("Fixed")
-                        Text("Sensor").tag("Sensor")
-                    }
-                }
-            }
-            // Experimental invented mechanisms are not presented as original gameplay.
             Section("Assembled original 3D scene") {
                 Button("View original level in 3D") {
-                    assembledScene = AssembledSelection(document: document, experimentalPhysics: false, diagnosticHinges: false)
+                    assembledScene = AssembledSelection(document: document)
                 }
-                Toggle("Experimental hinge between nearest meshes", isOn: $diagnosticHinges)
-                Text("Optional test constraint only. The connected meshes and hinge axis are not inferred from the original level.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Button("Try experimental gravity and collisions") {
-                    physicsPaused = false
-                    assembledScene = AssembledSelection(document: document, experimentalPhysics: true, diagnosticHinges: diagnosticHinges)
-                }
-                Text("Experimental sandbox: tap a mesh to push it; long-press a mesh to toggle fixed/movable. Restart restores the imported scene. These manual body types, approximate bounding-box collisions and uniform mass are not the original game physics or completion logic.")
-                    .font(.caption).foregroundStyle(.secondary)
                 Button("Reset all saved 3D positions", role: .destructive) {
                     confirmingResetEdits = true
                 }
@@ -338,30 +246,12 @@ struct CMOriginalLevelBrowserView: View {
         } message: {
             Text("All objects will return to their original imported coordinates the next time you open the 3D scene.")
         }
-        .onAppear {
-            loadPhysicsPresets(for: document)
-            loadMechanismPreset(for: document)
-        }
         .sheet(item: $assembledScene) { selection in
             NavigationStack {
                 CMOriginalAssembledSceneView(
                     document: selection.document,
                     assetDirectory: originalStorage,
-                    experimentalPhysics: selection.experimentalPhysics,
-                    physicsPaused: physicsPaused,
-                    diagnosticHinges: selection.diagnosticHinges,
-                    configuredPhysicsRoles: Dictionary(uniqueKeysWithValues:
-                        CMOriginalGameplaySession(document: selection.document).objects.compactMap { object in
-                            if fixedObjectTypesByScene[selection.document.sceneSHA256, default: []].contains(object.type) {
-                                return (object.id, CMOriginalGameplaySession.PhysicsRole.fixed)
-                            }
-                            if sensorObjectTypesByScene[selection.document.sceneSHA256, default: []].contains(object.type) {
-                                return (object.id, CMOriginalGameplaySession.PhysicsRole.sensor)
-                            }
-                            return nil
-                        }),
-                    configuredReactions: [],
-                    switchPressCount: switchPressCount
+                    experimentalPhysics: false
                 )
                     // Replacing the sheet selection alone does not guarantee
                     // UIViewRepresentable.makeUIView runs again. Force a new
@@ -370,22 +260,6 @@ struct CMOriginalLevelBrowserView: View {
                     .id(selection.id)
                     .navigationTitle("Level \(selection.document.index) · 3D")
                     .toolbar {
-                        if selection.experimentalPhysics {
-                            ToolbarItem(placement: .topBarLeading) {
-                                Button("Restart") {
-                                    physicsPaused = false
-                                    assembledScene = AssembledSelection(document: selection.document,
-                                                                        experimentalPhysics: true,
-                                                                        diagnosticHinges: selection.diagnosticHinges)
-                                }
-                            }
-                            ToolbarItem(placement: .topBarLeading) {
-                                Button(physicsPaused ? "Resume" : "Pause") {
-                                    physicsPaused.toggle()
-                                }
-                                .accessibilityIdentifier("cm.original.physics.pause")
-                            }
-                        }
                         ToolbarItem(placement: .topBarTrailing) {
                             Button("Close") { assembledScene = nil }
                         }
