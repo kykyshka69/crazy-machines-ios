@@ -52,6 +52,47 @@ public struct CMOriginalSceneDocument: Decodable {
         }
     }
 
+    /// A conservative inventory for rebuilding original gameplay.
+    /// These are scene facts, not inferred physics or victory rules.
+    public struct GameplayInventory {
+        public let objectTypes: [String: Int]
+        public let goalObjectTypes: [String: Int]
+        public let objectsWithoutModels: [String: Int]
+        public let objectsWithoutPosition: [String: Int]
+    }
+
+    public var gameplayInventory: GameplayInventory {
+        var objects: [String: Int] = [:]
+        var goals: [String: Int] = [:]
+        var missingModels: [String: Int] = [:]
+        var missingPositions: [String: Int] = [:]
+
+        func visit(_ node: Node) {
+            if node.name.hasPrefix("tmo_") {
+                objects[node.name, default: 0] += 1
+                if node.goalRaw == "1" {
+                    goals[node.name, default: 0] += 1
+                }
+                let hasModel = !(node.models ?? []).isEmpty ||
+                    node.children.contains(where: { $0.name.hasPrefix("3DO ") })
+                if !hasModel {
+                    missingModels[node.name, default: 0] += 1
+                }
+                if node.position == nil && node.positionRelative == nil {
+                    missingPositions[node.name, default: 0] += 1
+                }
+            }
+            for child in node.children { visit(child) }
+        }
+        visit(root)
+        return GameplayInventory(
+            objectTypes: objects,
+            goalObjectTypes: goals,
+            objectsWithoutModels: missingModels,
+            objectsWithoutPosition: missingPositions
+        )
+    }
+
     public static func read(_ data: Data) throws -> Self {
         guard data.count <= 8_000_000 else { throw SceneError.invalid }
         let document = try JSONDecoder().decode(Self.self, from: data)
