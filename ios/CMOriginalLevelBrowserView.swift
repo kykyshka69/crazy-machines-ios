@@ -149,6 +149,32 @@ struct CMOriginalLevelBrowserView: View {
                 Text("GOAL 1 identifies original annotations, not a verified win condition.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Section("Original PC object properties") {
+                Text("Unmodified properties from the imported level. No behavior is inferred from these values.")
+                    .font(.caption).foregroundStyle(.secondary)
+                let objects = originalObjects(in: document.root)
+                ForEach(Array(objects.enumerated()), id: \.offset) { entry in
+                    DisclosureGroup("\(entry.offset + 1). \(entry.element.name)") {
+                        if let position = entry.element.position {
+                            LabeledContent("POS", value: position.map(String.init).joined(separator: ", "))
+                        }
+                        if let relative = entry.element.positionRelative {
+                            LabeledContent("POSREL", value: relative.map(String.init).joined(separator: ", "))
+                        }
+                        if let rotation = entry.element.rotationRaw {
+                            LabeledContent("ROT", value: rotation)
+                        }
+                        if let rotation = entry.element.rotationRelativeRaw {
+                            LabeledContent("ROTREL", value: rotation)
+                        }
+                        ForEach(Array(entry.element.fields.enumerated()), id: \.offset) { field in
+                            Text(field.element)
+                                .font(.caption.monospaced())
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+            }
             Section("Original object positions (X/Y)") {
                 CMOriginalLevelMapView(document: document)
                 Text("Read-only top-down coordinate plot. Orange markers are objects with GOAL 1; no original geometry or physics is simulated.")
@@ -255,6 +281,16 @@ struct CMOriginalLevelBrowserView: View {
                     .toolbar { Button("Close") { previewModel = nil } }
             }
         }
+    }
+
+    private func originalObjects(in root: CMOriginalSceneDocument.Node) -> [CMOriginalSceneDocument.Node] {
+        var result: [CMOriginalSceneDocument.Node] = []
+        func visit(_ node: CMOriginalSceneDocument.Node) {
+            if node.name.hasPrefix("tmo_") { result.append(node) }
+            for child in node.children { visit(child) }
+        }
+        visit(root)
+        return result
     }
 
     private func goalMarkedObjects(in root: CMOriginalSceneDocument.Node) -> [CMOriginalSceneDocument.Node] {
