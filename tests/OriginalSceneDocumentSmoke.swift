@@ -142,6 +142,30 @@ enum OriginalSceneDocumentSmoke {
         precondition(delayed[0].sourceID == "object-0")
         precondition(contactSession.scheduledActions.isEmpty)
         precondition(contactSession.resolveActions().isEmpty)
+        // Contact-triggered delayed rules now run end-to-end without manual
+        // calls to schedule(). They must respect pause and simulation time.
+        contactSession.reset()
+        contactSession.configureReactions([
+            .init(objectID: "object-0", trigger: .firstContact,
+                  action: .impulse(x: 4, y: 0, z: 0), delay: 0.75),
+            .init(objectID: "object-1", trigger: .firstContact,
+                  action: .activate("object-0"), delay: .infinity)
+        ])
+        precondition(contactSession.reactionRules.count == 1)
+        contactSession.start()
+        contactSession.recordContact("object-0", "object-1", impulse: 1)
+        precondition(contactSession.scheduledActions.count == 1)
+        precondition(contactSession.resolveActions().isEmpty)
+        contactSession.advance(by: 0.5)
+        precondition(contactSession.resolveActions().isEmpty)
+        contactSession.pause()
+        contactSession.advance(by: 10)
+        contactSession.resume()
+        contactSession.advance(by: 0.25)
+        let contactTriggered = contactSession.resolveActions()
+        precondition(contactTriggered.count == 1)
+        precondition(contactTriggered[0].sourceID == "object-0")
+        precondition(contactSession.scheduledActions.isEmpty)
         contactSession.reset()
         precondition(contactSession.activations.isEmpty)
         precondition(contactSession.scheduledActions.isEmpty)
