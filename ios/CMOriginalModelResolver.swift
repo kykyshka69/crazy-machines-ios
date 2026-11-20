@@ -46,6 +46,8 @@ enum CMOriginalModelResolver {
             let normalized = modelName.replacingOccurrences(of: "\\", with: "/")
             let components = normalized.split(separator: "/", omittingEmptySubsequences: false)
             guard !normalized.hasPrefix("/"),
+                  !normalized.hasPrefix("//"),
+                  !normalized.contains(":"),
                   !components.contains(where: { $0 == "." || $0 == ".." }),
                   let last = components.last, !last.isEmpty else { return nil }
             let name = String(last)
