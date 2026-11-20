@@ -30,7 +30,7 @@ enum OriginalModelResolverSmoke {
             }
         }
 
-        guard case .found(let withExtension) = index.resolution(for: "models\\\\to_board.ucm") else {
+        guard case .found(let withExtension) = index.resolution(for: "models\\to_board.ucm") else {
             preconditionFailure("Safe Windows-relative model paths should resolve")
         }
         precondition(withExtension == mesh)
