@@ -732,8 +732,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                 // geometry-local coordinates. Building a shape
                                 // from the node can bake its parent transforms
                                 // into collision geometry a second time.
+                                // Use the imported UCM mesh's convex hull rather
+                                // than an axis-aligned box: thin ramps and angled
+                                // parts must not collide through empty box corners.
+                                // This remains an experimental approximation until
+                                // original per-object physics are recovered.
                                 let shape = SCNPhysicsShape(geometry: geometry, options: [
-                                    .type: SCNPhysicsShape.ShapeType.boundingBox
+                                    .type: SCNPhysicsShape.ShapeType.convexHull
                                 ])
                                 let body = SCNPhysicsBody(type: .dynamic,
                                                           shape: shape)
