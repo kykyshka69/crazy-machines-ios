@@ -300,14 +300,19 @@ public struct CMOriginalGameplaySession {
                 // Preserve every original 3DO belonging to this object,
                 // including models below helper transforms in older exports.
                 // A nested tmo_* starts a different original object.
-                var models = node.models ?? []
-                var seenModels = Set(models)
+                var models: [String] = []
+                var seenModels = Set<String>()
+                for model in node.models ?? [] {
+                    if seenModels.insert(model.lowercased()).inserted {
+                        models.append(model)
+                    }
+                }
                 func collectOwnModels(_ item: CMOriginalSceneDocument.Node) {
                     for child in item.children {
                         if child.name.hasPrefix("tmo_") { continue }
                         if child.name.hasPrefix("3DO ") {
                             let model = String(child.name.dropFirst(4))
-                            if seenModels.insert(model).inserted { models.append(model) }
+                            if seenModels.insert(model.lowercased()).inserted { models.append(model) }
                         }
                         collectOwnModels(child)
                     }
