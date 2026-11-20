@@ -390,11 +390,40 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // physics bodies already exist on the mesh nodes.
             let first = loadedMeshNodes[0]
             let second = loadedMeshNodes[1]
-            let a = first.convertPosition(SCNVector3Zero, to: nil)
-            let b = second.convertPosition(SCNVector3Zero, to: nil)
-            let anchor = SCNVector3((a.x + b.x) / 2,
-                                    (a.y + b.y) / 2,
-                                    (a.z + b.z) / 2)
+            // Find the closest pair of world-space bounding-box corners.
+            // This is a geometry-derived diagnostic guess, not a decoded
+            // attachment point from the original level.
+            func corners(_ mesh: SCNNode) -> [SCNVector3] {
+                let (low, high) = mesh.boundingBox
+                return [low.x, high.x].flatMap { x in
+                    [low.y, high.y].flatMap { y in
+                        [low.z, high.z].map { z in
+                            mesh.convertPosition(SCNVector3(x, y, z), to: nil)
+                        }
+                    }
+                }
+            }
+            let firstCorners = corners(first)
+            let secondCorners = corners(second)
+            var closestA = first.convertPosition(SCNVector3Zero, to: nil)
+            var closestB = second.convertPosition(SCNVector3Zero, to: nil)
+            var bestDistanceSquared = Float.infinity
+            for a in firstCorners {
+                for b in secondCorners {
+                    let dx = a.x - b.x
+                    let dy = a.y - b.y
+                    let dz = a.z - b.z
+                    let distanceSquared = dx * dx + dy * dy + dz * dz
+                    if distanceSquared.isFinite && distanceSquared < bestDistanceSquared {
+                        bestDistanceSquared = distanceSquared
+                        closestA = a
+                        closestB = b
+                    }
+                }
+            }
+            let anchor = SCNVector3((closestA.x + closestB.x) / 2,
+                                    (closestA.y + closestB.y) / 2,
+                                    (closestA.z + closestB.z) / 2)
             // Mark the approximate joint pivot in the diagnostic scene.
             // This sphere is visual-only and never participates in physics.
             let marker = SCNNode(geometry: SCNSphere(radius: 0.08))
