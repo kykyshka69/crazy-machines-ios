@@ -73,7 +73,7 @@ public struct CMOriginalGameplaySession {
     private var actionQueue: [PendingAction] = []
 
     public mutating func configureReactions(_ rules: [ReactionRule]) {
-        let ids = Set(objects.map(\.id))
+        let ids = validObjectIDs
         reactionRules = Array(rules.prefix(512)).filter { rule in
             guard ids.contains(rule.objectID),
                   rule.delay.isFinite, rule.delay >= 0,
@@ -130,12 +130,12 @@ public struct CMOriginalGameplaySession {
                                   from sourceID: String,
                                   after delay: TimeInterval) -> Bool {
         guard phase == .running,
-              objects.contains(where: { $0.id == sourceID }),
+              validObjectIDs.contains(sourceID),
               delay.isFinite, delay >= 0, delay <= 3600,
               scheduledActions.count < 512 else { return false }
         switch action {
         case .activate(let target):
-            guard objects.contains(where: { $0.id == target }) else { return false }
+            guard validObjectIDs.contains(target) else { return false }
         case .impulse(let x, let y, let z):
             guard [x, y, z].allSatisfy({ $0.isFinite && abs($0) <= 1000 }) else { return false }
         }
@@ -191,8 +191,8 @@ public struct CMOriginalGameplaySession {
     /// Collision telemetry only: not an inferred original win condition.
     public mutating func recordContact(_ a: String, _ b: String, impulse: Double) {
         guard phase == .running, a != b, impulse.isFinite, impulse >= 0,
-              objects.contains(where: { $0.id == a }),
-              objects.contains(where: { $0.id == b }) else { return }
+              validObjectIDs.contains(a),
+              validObjectIDs.contains(b) else { return }
         let pair = [a, b].sorted()
         let key = pair.joined(separator: "|")
         contactCounts[key, default: 0] += 1
@@ -221,7 +221,7 @@ public struct CMOriginalGameplaySession {
     @discardableResult
     public mutating func triggerObject(_ id: String) -> Bool {
         guard phase == .running,
-              objects.contains(where: { $0.id == id }),
+              validObjectIDs.contains(id),
               activatedObjectIDs.insert(id).inserted else { return false }
         activations.append(Activation(objectID: id, triggeredBy: id,
                                       impulse: 0,
@@ -233,6 +233,7 @@ public struct CMOriginalGameplaySession {
     public let levelIndex: Int
     public let sceneSHA256: String
     public let objects: [Object]
+    private let validObjectIDs: Set<String>
     public private(set) var phase: Phase = .ready
     public private(set) var elapsedSimulationTime: TimeInterval = 0
 
@@ -269,6 +270,7 @@ public struct CMOriginalGameplaySession {
         }
         visit(document.root, parentObjectID: nil)
         objects = collected
+        validObjectIDs = Set(collected.map(\.id))
     }
 
     public var annotatedGoalObjects: [Object] {
