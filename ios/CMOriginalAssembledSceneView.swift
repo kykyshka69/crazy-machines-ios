@@ -385,28 +385,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         if experimentalPhysics && diagnosticHinges && loadedMeshNodes.count >= 2,
            loadedMeshNodes[0].physicsBody != nil,
            loadedMeshNodes[1].physicsBody != nil {
-            // Experimental proof of a SceneKit hinge, not decoded CML linkage.
-            // Choose the closest pair of imported mesh origins instead of
-            // blindly linking the first two entries in file order.
-            var closestPair = (0, 1)
-            var closestOriginDistance = Float.infinity
-            for i in 0..<(loadedMeshNodes.count - 1) {
-                let a = loadedMeshNodes[i].convertPosition(SCNVector3Zero, to: nil)
-                for j in (i + 1)..<loadedMeshNodes.count {
-                    let b = loadedMeshNodes[j].convertPosition(SCNVector3Zero, to: nil)
-                    let dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z
-                    let distance = dx * dx + dy * dy + dz * dz
-                    if distance.isFinite && distance < closestOriginDistance {
-                        closestOriginDistance = distance
-                        closestPair = (i, j)
-                    }
-                }
-            }
-            let first = loadedMeshNodes[closestPair.0]
-            let second = loadedMeshNodes[closestPair.1]
-            // Find the closest pair of world-space bounding-box corners.
-            // This is a geometry-derived diagnostic guess, not a decoded
-            // attachment point from the original level.
+            // Experimental only: find the nearest bounding-box corners
+            // across all imported meshes, not just the nearest origins.
+            // Offset mesh pivots can otherwise select unrelated parts.
             func corners(_ mesh: SCNNode) -> [SCNVector3] {
                 let (low, high) = mesh.boundingBox
                 return [low.x, high.x].flatMap { x in
@@ -417,24 +398,33 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                 }
             }
-            let firstCorners = corners(first)
-            let secondCorners = corners(second)
-            var closestA = first.convertPosition(SCNVector3Zero, to: nil)
-            var closestB = second.convertPosition(SCNVector3Zero, to: nil)
+            let allCorners = loadedMeshNodes.map { corners($0) }
+            var closestPair = (0, 1)
+            var closestA = SCNVector3Zero
+            var closestB = SCNVector3Zero
             var bestDistanceSquared = Float.infinity
-            for a in firstCorners {
-                for b in secondCorners {
-                    let dx = a.x - b.x
-                    let dy = a.y - b.y
-                    let dz = a.z - b.z
-                    let distanceSquared = dx * dx + dy * dy + dz * dz
-                    if distanceSquared.isFinite && distanceSquared < bestDistanceSquared {
-                        bestDistanceSquared = distanceSquared
-                        closestA = a
-                        closestB = b
+            for i in 0..<(allCorners.count - 1) {
+                for j in (i + 1)..<allCorners.count {
+                    for a in allCorners[i] {
+                        for b in allCorners[j] {
+                            let dx = a.x - b.x
+                            let dy = a.y - b.y
+                            let dz = a.z - b.z
+                            let distanceSquared = dx * dx + dy * dy + dz * dz
+                            if distanceSquared.isFinite && distanceSquared < bestDistanceSquared {
+                                bestDistanceSquared = distanceSquared
+                                closestPair = (i, j)
+                                closestA = a
+                                closestB = b
+                            }
+                        }
                     }
                 }
             }
+            let first = loadedMeshNodes[closestPair.0]
+            let second = loadedMeshNodes[closestPair.1]
+            let firstCorners = allCorners[closestPair.0]
+            let secondCorners = allCorners[closestPair.1]
             let anchor = SCNVector3((closestA.x + closestB.x) / 2,
                                     (closestA.y + closestB.y) / 2,
                                     (closestA.z + closestB.z) / 2)
