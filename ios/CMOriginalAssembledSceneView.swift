@@ -9,6 +9,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var experimentalPhysics = false
     var physicsPaused = false
     var diagnosticHinges = false
+    var configuredPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
 
     private var physicsAccessibilityStatus: String {
         let state = experimentalPhysics ? (physicsPaused ? "paused" : "running") : "off"
@@ -78,7 +79,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             scene.physicsWorld.gravity = SCNVector3(0, -9.8, 0)
         }
         view.scene = scene
-        if experimentalPhysics { context.coordinator.registerPhysicsNodes(in: scene) }
+        if experimentalPhysics {
+            context.coordinator.registerPhysicsNodes(in: scene)
+            context.coordinator.configurePhysicsRoles(configuredPhysicsRoles)
+        }
         // Assign a fixed simulation step to reduce device-dependent solver
         // behavior and tunneling through thin imported mechanisms.
         if experimentalPhysics {
