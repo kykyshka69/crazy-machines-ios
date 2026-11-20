@@ -191,7 +191,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Compile and validate original scene JSON with Swift
         run: |
-          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift tests/OriginalSceneDocumentSmoke.swift -o /tmp/cm-original-scene
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalModelResolver.swift ios/CMOriginalGameplaySession.swift tests/OriginalSceneDocumentSmoke.swift -o /tmp/cm-original-scene
           /tmp/cm-original-scene
 
   ios-simulator-build:
