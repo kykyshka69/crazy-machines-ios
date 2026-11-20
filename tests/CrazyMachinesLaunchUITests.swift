@@ -20,7 +20,12 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Original Crazy Machines resources"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Import original game files"].exists)
         XCTAssertTrue(app.buttons["Import entire extracted models folder"].exists)
-        XCTAssertTrue(app.staticTexts["Imported files (0)"].exists)
+        // Simulator data can survive between runs: do not assume the
+        // original-resource library is empty on every launch.
+        let importedSection = app.staticTexts.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Imported files (")
+        ).firstMatch
+        XCTAssertTrue(importedSection.exists)
     }
 
     func testOnlyOriginalGameTabsAreExposed() {
