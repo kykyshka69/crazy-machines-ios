@@ -645,6 +645,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         let scene = SCNScene()
         var loadedMeshNodes: [SCNNode] = []
         // Resolve each original 3DO reference once per scene; levels reuse meshes.
+        let assetIndex = CMOriginalModelResolver.AssetIndex(directory: assetDirectory)
         var resolvedModels: [String: URL] = [:]
         var missingModels = Set<String>()
         var meshCache: [URL: SCNGeometry] = [:]
@@ -699,7 +700,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 } else if missingModels.contains(modelKey) {
                     modelURL = nil
                 } else {
-                    let resolved = CMOriginalModelResolver.resolve(name, in: assetDirectory)
+                    let resolved = assetIndex.resolve(name)
                     if let resolved {
                         resolvedModels[modelKey] = resolved
                     } else {
