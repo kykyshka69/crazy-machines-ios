@@ -260,6 +260,22 @@ public struct CMOriginalGameplaySession {
         return true
     }
 
+    /// A repeatable player-operated switch. Unlike collision activation,
+    /// a deliberate tap remains usable after incidental physics contacts.
+    @discardableResult
+    public mutating func pressObject(_ id: String) -> Bool {
+        guard phase == .running,
+              validObjectIDs.contains(id),
+              reactionRules.contains(where: { $0.objectID == id }) else { return false }
+        if activatedObjectIDs.insert(id).inserted {
+            activations.append(Activation(objectID: id, triggeredBy: id,
+                                          impulse: 0,
+                                          simulationTime: elapsedSimulationTime))
+        }
+        enqueueReactions(for: id, firstContact: true)
+        return true
+    }
+
     public let levelIndex: Int
     public let sceneSHA256: String
     public let objects: [Object]
