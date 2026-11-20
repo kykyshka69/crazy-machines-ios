@@ -476,9 +476,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                   let scene = view.scene,
                   let node = view.hitTest(gesture.location(in: view),
                                           options: [.firstFoundOnly: true]).first?.node,
-                  let body = node.physicsBody else { return }
+                  let body = physicalNode(for: node)?.physicsBody else { return }
             guard let first = pendingHingeEndpoint, first !== node,
-                  let firstBody = first.physicsBody else {
+                  let firstBody = physicalNode(for: first)?.physicsBody else {
                 clearPendingHingeEndpoint()
                 // Imported UCM geometries are cached and shared across
                 // instances. Give this endpoint its own geometry/materials
