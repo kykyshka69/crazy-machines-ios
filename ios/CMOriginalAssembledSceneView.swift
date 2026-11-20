@@ -454,7 +454,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // inspecting an authentic level. This is the imported 3DO name,
             // not an invented gameplay classification.
             selectedModelName = node.name
-            view.accessibilityValue = "Selected original model: " + (node.name ?? "unnamed")
+            let objectID = node.userData?["originalObjectID"] as? String
+            let objectType = session?.objects.first(where: { $0.id == objectID })?.type
+            view.accessibilityValue = [
+                "Selected original model: " + (node.name ?? "unnamed"),
+                objectType.map { "Original object type: " + $0 },
+                objectID.map { "Object ID: " + $0 }
+            ].compactMap { $0 }.joined(separator: "; ")
         }
     }
 
