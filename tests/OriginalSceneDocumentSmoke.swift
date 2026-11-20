@@ -36,6 +36,17 @@ enum OriginalSceneDocumentSmoke {
         precondition(board.originalFieldValues["ROT"] == ["xyz 0, 0, 1"])
         precondition(doc.root.objectCount == 1)
         precondition(doc.root.positionedObjectCount == 1)
+        // Original PC scenes may position an object exclusively via POSREL.
+        var relativeOnlyRaw = try JSONSerialization.jsonObject(with: Data(json.utf8)) as! [String: Any]
+        var relativeRoot = relativeOnlyRaw["root"] as! [String: Any]
+        var relativeChildren = relativeRoot["children"] as! [[String: Any]]
+        relativeChildren[0].removeValue(forKey: "position")
+        relativeChildren[0]["fields"] = ["POSREL 0.25, -0.5, 0"]
+        relativeRoot["children"] = relativeChildren
+        relativeOnlyRaw["root"] = relativeRoot
+        let relativeOnlyDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: relativeOnlyRaw))
+        precondition(relativeOnlyDoc.root.positionedObjectCount == 1)
         precondition(doc.gameplayInventory.objectTypes["tmo_board"] == 1)
         precondition(doc.gameplayInventory.goalObjectTypes.isEmpty)
         precondition(doc.gameplayInventory.objectsWithoutModels.isEmpty)
