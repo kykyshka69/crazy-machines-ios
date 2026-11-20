@@ -104,6 +104,7 @@ public struct CMOriginalGameplaySession {
             }
         }
         actionQueue.removeAll()
+        scheduledActions.removeAll()
     }
 
     /// Expand explicit activation links into executable actions. Each target
@@ -114,8 +115,10 @@ public struct CMOriginalGameplaySession {
         releaseDueActions()
         var impulses: [PendingAction] = []
         var processed = 0
-        while !actionQueue.isEmpty && processed < 512 {
-            let pending = actionQueue.removeFirst()
+        var cursor = 0
+        while cursor < actionQueue.count && processed < 512 {
+            let pending = actionQueue[cursor]
+            cursor += 1
             processed += 1
             switch pending.action {
             case .impulse:
@@ -129,8 +132,9 @@ public struct CMOriginalGameplaySession {
                 enqueueReactions(for: target, firstContact: true)
             }
         }
-        // Never carry an unbounded chain across frames.
-        if processed >= 512 { actionQueue.removeAll() }
+        // Retain any work beyond the per-frame budget for the next frame.
+        // Avoid repeated removeFirst() array shifts for large reaction chains.
+        actionQueue.removeFirst(cursor)
         return impulses
     }
 
@@ -319,7 +323,8 @@ public struct CMOriginalGameplaySession {
     }
 
     public mutating func advance(by delta: TimeInterval) {
-        guard phase == .running, delta.isFinite, delta > 0 else { return }
+        guard phase == .running, delta.isFinite, delta > 0,
+              (elapsedSimulationTime + delta).isFinite else { return }
         elapsedSimulationTime += delta
     }
 
