@@ -369,7 +369,12 @@ struct CMOriginalLevelBrowserView: View {
             return
         }
         var loaded: [Int: CMOriginalSceneDocument] = [:]
-        for url in urls where url.pathExtension.lowercased() == "json" {
+        // Stable ordering prevents duplicate level indices from resolving
+        // differently between launches when the filesystem enumeration varies.
+        let sortedURLs = urls.sorted {
+            $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
+        }
+        for url in sortedURLs where url.pathExtension.lowercased() == "json" {
             guard let attributes = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
                   attributes.isRegularFile == true,
                   let size = attributes.fileSize, size > 0, size <= 8_000_000,
