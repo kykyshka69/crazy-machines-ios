@@ -108,6 +108,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         uiView.isPlaying = experimentalPhysics && !physicsPaused
         if experimentalPhysics {
             context.coordinator.setSessionPaused(physicsPaused)
+            context.coordinator.configurePhysicsRoles(configuredPhysicsRoles)
         }
         uiView.accessibilityValue = context.coordinator.selectedModelName.map {
             physicsAccessibilityStatus + "; selected original model: " + $0
@@ -123,6 +124,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private let sessionLock = NSLock()
         private var lastRendererTime: TimeInterval?
         private var physicsNodesByObjectID: [String: [SCNNode]] = [:]
+        private var appliedPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
 
         func setSessionPaused(_ paused: Bool) {
             sessionLock.lock()
@@ -138,11 +140,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         /// Apply explicit level physics configuration without reconstructing
         /// the imported 3D geometry. Sensors generate contacts but no forces.
         func configurePhysicsRoles(_ roles: [String: CMOriginalGameplaySession.PhysicsRole]) {
+            guard roles != appliedPhysicsRoles else { return }
+            let previousRoles = appliedPhysicsRoles
+            appliedPhysicsRoles = roles
             sessionLock.lock()
             session?.configurePhysicsRoles(roles)
             sessionLock.unlock()
             for (id, nodes) in physicsNodesByObjectID {
-                guard let role = roles[id] else { continue }
+                let role = roles[id] ?? .movable
+                guard role != (previousRoles[id] ?? .movable) else { continue }
                 for node in nodes {
                     guard let body = node.physicsBody else { continue }
                     switch role {
@@ -165,6 +171,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
         func registerPhysicsNodes(in scene: SCNScene) {
             physicsNodesByObjectID.removeAll()
+            appliedPhysicsRoles.removeAll()
             scene.rootNode.enumerateChildNodes { node, _ in
                 guard node.physicsBody != nil,
                       let id = node.userData?["originalObjectID"] as? String else { return }
