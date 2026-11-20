@@ -56,7 +56,7 @@ public struct CMOriginalSceneDocument: Decodable {
         }
 
         public var positionedObjectCount: Int {
-            (name.hasPrefix("tmo_") && position != nil ? 1 : 0) +
+            (name.hasPrefix("tmo_") && (position != nil || positionRelative != nil) ? 1 : 0) +
             children.reduce(0) { $0 + $1.positionedObjectCount }
         }
 
