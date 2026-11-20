@@ -173,7 +173,7 @@ struct CMOriginalLevelBrowserView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Original 3D asset readiness") {
-                let names = CMOriginalModelResolver.modelNames(in: document.root)
+                let names = CMOriginalModelResolver.allModelNames(in: document.root)
                 let assets = CMOriginalModelResolver.AssetIndex(directory: originalStorage)
                 let available = names.filter {
                     if case .found = assets.resolution(for: $0) { return true }
@@ -226,7 +226,7 @@ struct CMOriginalLevelBrowserView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Original 3D models") {
-                let names = CMOriginalModelResolver.modelNames(in: document.root)
+                let names = CMOriginalModelResolver.allModelNames(in: document.root)
                 let assets = CMOriginalModelResolver.AssetIndex(directory: originalStorage)
                 if names.isEmpty {
                     Text("No 3DO references in this level")
