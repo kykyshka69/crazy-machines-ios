@@ -21,6 +21,32 @@ public struct CMOriginalGameplaySession {
         public let parentID: String?
     }
 
+    public struct Contact: Equatable {
+        public let objectA: String
+        public let objectB: String
+        public let impulse: Double
+        public let simulationTime: TimeInterval
+    }
+
+    public private(set) var recentContacts: [Contact] = []
+    public private(set) var contactCounts: [String: Int] = [:]
+
+    /// Collision telemetry only: not an inferred original win condition.
+    public mutating func recordContact(_ a: String, _ b: String, impulse: Double) {
+        guard phase == .running, a != b, impulse.isFinite, impulse >= 0,
+              objects.contains(where: { $0.id == a }),
+              objects.contains(where: { $0.id == b }) else { return }
+        let pair = [a, b].sorted()
+        let key = pair.joined(separator: "|")
+        contactCounts[key, default: 0] += 1
+        recentContacts.append(Contact(objectA: pair[0], objectB: pair[1],
+                                      impulse: impulse,
+                                      simulationTime: elapsedSimulationTime))
+        if recentContacts.count > 256 {
+            recentContacts.removeFirst(recentContacts.count - 256)
+        }
+    }
+
     public let levelIndex: Int
     public let sceneSHA256: String
     public let objects: [Object]
@@ -69,6 +95,8 @@ public struct CMOriginalGameplaySession {
     public mutating func start() {
         guard phase == .ready || phase == .stopped else { return }
         elapsedSimulationTime = 0
+        recentContacts.removeAll()
+        contactCounts.removeAll()
         phase = .running
     }
 
@@ -93,6 +121,8 @@ public struct CMOriginalGameplaySession {
 
     public mutating func reset() {
         elapsedSimulationTime = 0
+        recentContacts.removeAll()
+        contactCounts.removeAll()
         phase = .ready
     }
 
