@@ -15,6 +15,8 @@ jobs:
           xcodebuild -showsdks
       - name: Parse Swift sources before generating project
         run: swiftc -frontend -parse ios/*.swift
+      - name: Run portable physics and level regression tests
+        run: bash scripts/run-local-checks.sh
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate Xcode project
@@ -45,14 +47,16 @@ jobs:
           xcrun simctl io "$DEVICE_ID" screenshot /tmp/crazy-machines-screenshots/iphone-launch.png
       - name: Run launch and navigation UI tests on the booted iPhone
         run: |
+          set -o pipefail
+          mkdir -p /tmp/crazy-machines-build-logs
           DEVICE_ID=$(xcrun simctl list devices booted -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for group in d.values() for x in group if x["name"].startswith("iPhone")))')
-          xcodebuild -project CrazyMachinesIOS.xcodeproj -scheme CrazyMachinesIOS -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath /tmp/crazy-machines-derived -resultBundlePath /tmp/CrazyMachinesUITests.xcresult CODE_SIGNING_ALLOWED=NO test
+          xcodebuild -project CrazyMachinesIOS.xcodeproj -scheme CrazyMachinesIOS -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath /tmp/crazy-machines-derived -resultBundlePath /tmp/CrazyMachinesUITests.xcresult CODE_SIGNING_ALLOWED=NO test 2>&1 | tee /tmp/crazy-machines-build-logs/ui-tests.log
       - name: Upload Xcode build diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: CrazyMachinesIOS-xcodebuild-log
-          path: /tmp/crazy-machines-build-logs/xcodebuild.log
+          path: /tmp/crazy-machines-build-logs/*.log
           if-no-files-found: warn
           retention-days: 7
       - name: Upload real iPhone simulator screenshot
