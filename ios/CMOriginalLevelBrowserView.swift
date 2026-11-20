@@ -16,6 +16,7 @@ struct CMOriginalLevelBrowserView: View {
     @State private var mechanismSourceByScene: [String: String] = [:]
     @State private var mechanismTargetByScene: [String: String] = [:]
     @State private var switchPressCount = 0
+    @State private var mechanismImpulseByScene: [String: Double] = [:]
     // Keep experimental role choices isolated by scene fingerprint.
     @State private var fixedObjectTypesByScene: [String: Set<String>] = [:]
     @State private var sensorObjectTypesByScene: [String: Set<String>] = [:]
@@ -273,6 +274,15 @@ struct CMOriginalLevelBrowserView: View {
                         Text("Choose two different objects to enable the mechanism.")
                             .foregroundStyle(.orange)
                     }
+                    HStack {
+                        Text("Push strength")
+                        Slider(value: Binding(
+                            get: { mechanismImpulseByScene[key] ?? 8 },
+                            set: { mechanismImpulseByScene[key] = $0 }
+                        ), in: 1...30, step: 1)
+                        Text(String(format: "%.0f", mechanismImpulseByScene[key] ?? 8))
+                            .monospacedDigit()
+                    }
                     Text("Tap the chosen switch mesh in experimental physics mode to push the target. Repeated taps work.")
                         .font(.caption).foregroundStyle(.secondary)
                 } else {
@@ -396,7 +406,7 @@ struct CMOriginalLevelBrowserView: View {
                         return [
                             CMOriginalGameplaySession.ReactionRule(
                                 objectID: source, trigger: .firstContact,
-                                action: .impulseTarget(id: target, x: 0, y: 8, z: 0))
+                                action: .impulseTarget(id: target, x: 0, y: mechanismImpulseByScene[key] ?? 8, z: 0))
                         ]
                     }(),
                     switchPressCount: switchPressCount
