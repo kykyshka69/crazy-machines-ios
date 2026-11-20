@@ -427,7 +427,26 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // Avoid feeding non-finite positions into SceneKit physics.
             // Invalid imported geometry must not destabilize the simulation.
             let anchorIsFinite = anchor.x.isFinite && anchor.y.isFinite && anchor.z.isFinite
-            if anchorIsFinite {
+            // Do not pull unrelated, widely separated meshes together.
+            // Use world-space corner spans so parent transforms and mesh
+            // scaling are accounted for when judging proximity.
+            func cornerSpan(_ points: [SCNVector3]) -> Float {
+                guard let first = points.first else { return 0 }
+                var minX = first.x, maxX = first.x
+                var minY = first.y, maxY = first.y
+                var minZ = first.z, maxZ = first.z
+                for point in points {
+                    minX = min(minX, point.x); maxX = max(maxX, point.x)
+                    minY = min(minY, point.y); maxY = max(maxY, point.y)
+                    minZ = min(minZ, point.z); maxZ = max(maxZ, point.z)
+                }
+                let dx = maxX - minX, dy = maxY - minY, dz = maxZ - minZ
+                return sqrt(dx * dx + dy * dy + dz * dz)
+            }
+            let maxGap = max(0.01, 0.25 * max(cornerSpan(firstCorners), cornerSpan(secondCorners)))
+            let closeEnough = bestDistanceSquared.isFinite && maxGap.isFinite
+                && bestDistanceSquared <= maxGap * maxGap
+            if anchorIsFinite && closeEnough {
                 // SceneKit expects each axis and anchor in the corresponding
                 // body's local coordinate space.
                 let worldAxis = SCNVector3(0, 0, 1)
