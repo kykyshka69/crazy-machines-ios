@@ -67,6 +67,7 @@ public struct CMOriginalGameplaySession {
         public enum Action: Equatable {
             case impulse(x: Double, y: Double, z: Double)
             case activate(String)
+            case impulseTarget(id: String, x: Double, y: Double, z: Double)
         }
         public let objectID: String
         public let trigger: Trigger
@@ -99,6 +100,8 @@ public struct CMOriginalGameplaySession {
                   rule.delay <= 3600 else { return false }
             switch rule.action {
             case .activate(let target): return ids.contains(target)
+            case .impulseTarget(let id, let x, let y, let z):
+                return ids.contains(id) && [x, y, z].allSatisfy { $0.isFinite && abs($0) <= 1000 }
             case .impulse(let x, let y, let z):
                 return [x, y, z].allSatisfy { $0.isFinite && abs($0) <= 1000 }
             }
@@ -121,7 +124,7 @@ public struct CMOriginalGameplaySession {
             cursor += 1
             processed += 1
             switch pending.action {
-            case .impulse:
+            case .impulse, .impulseTarget:
                 impulses.append(pending)
             case .activate(let target):
                 guard activatedObjectIDs.insert(target).inserted else { continue }
@@ -159,9 +162,13 @@ public struct CMOriginalGameplaySession {
         switch action {
         case .activate(let target):
             guard validObjectIDs.contains(target) else { return false }
+        case .impulseTarget(let id, let x, let y, let z):
+            guard validObjectIDs.contains(id),
+                  [x, y, z].allSatisfy({ $0.isFinite && abs($0) <= 1000 }) else { return false }
         case .impulse(let x, let y, let z):
             guard [x, y, z].allSatisfy({ $0.isFinite && abs($0) <= 1000 }) else { return false }
         }
+        guard (elapsedSimulationTime + delay).isFinite else { return false }
         scheduledActions.append(ScheduledAction(dueTime: elapsedSimulationTime + delay,
                                                 sourceID: sourceID, action: action))
         return true
