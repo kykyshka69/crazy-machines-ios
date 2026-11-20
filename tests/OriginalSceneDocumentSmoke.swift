@@ -33,6 +33,10 @@ enum OriginalSceneDocumentSmoke {
         precondition(board.models == ["to_board"])
         precondition(doc.root.objectCount == 1)
         precondition(doc.root.positionedObjectCount == 1)
+        precondition(doc.gameplayInventory.objectTypes["tmo_board"] == 1)
+        precondition(doc.gameplayInventory.goalObjectTypes.isEmpty)
+        precondition(doc.gameplayInventory.objectsWithoutModels.isEmpty)
+        precondition(doc.gameplayInventory.objectsWithoutPosition.isEmpty)
         print("Original scene document decoding: OK")
     }
 }
