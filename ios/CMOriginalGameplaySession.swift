@@ -215,6 +215,21 @@ public struct CMOriginalGameplaySession {
         }
     }
 
+    /// An explicit input event for switches, buttons and motor starters.
+    /// Unlike a collision, this activates only the addressed object, allowing
+    /// genuine one-way chains and controllable prototype mechanisms.
+    @discardableResult
+    public mutating func triggerObject(_ id: String) -> Bool {
+        guard phase == .running,
+              objects.contains(where: { $0.id == id }),
+              activatedObjectIDs.insert(id).inserted else { return false }
+        activations.append(Activation(objectID: id, triggeredBy: id,
+                                      impulse: 0,
+                                      simulationTime: elapsedSimulationTime))
+        enqueueReactions(for: id, firstContact: true)
+        return true
+    }
+
     public let levelIndex: Int
     public let sceneSHA256: String
     public let objects: [Object]
