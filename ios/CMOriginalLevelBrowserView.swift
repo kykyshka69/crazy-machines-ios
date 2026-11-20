@@ -362,7 +362,12 @@ struct CMOriginalLevelBrowserView: View {
         guard let urls = try? FileManager.default.contentsOfDirectory(
             at: sceneStorage, includingPropertiesForKeys: nil,
             options: [.skipsHiddenFiles]
-        ) else { return }
+        ) else {
+            // Do not retain stale levels if private storage was removed
+            // while the app was running or is not readable.
+            documents = []
+            return
+        }
         var loaded: [Int: CMOriginalSceneDocument] = [:]
         for url in urls where url.pathExtension.lowercased() == "json" {
             guard let attributes = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
