@@ -59,6 +59,10 @@ enum OriginalSceneDocumentSmoke {
         session.resume()
         session.advance(by: 0.25)
         precondition(session.elapsedSimulationTime == 0.75)
+        // A one-object scene cannot register self-collisions.
+        session.recordContact("object-0", "object-0", impulse: 2)
+        session.recordContact("object-0", "missing", impulse: 2)
+        precondition(session.recentContacts.isEmpty)
         session.stop()
         session.reset()
         precondition(session.phase == .ready && session.elapsedSimulationTime == 0)
