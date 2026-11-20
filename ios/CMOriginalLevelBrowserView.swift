@@ -157,32 +157,7 @@ struct CMOriginalLevelBrowserView: View {
                 Text("GOAL 1 identifies original annotations, not a verified win condition.")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            Section("Original PC object properties") {
-                Text("Unmodified properties from the imported level. No behavior is inferred from these values.")
-                    .font(.caption).foregroundStyle(.secondary)
-                let objects = originalObjects(in: document.root)
-                ForEach(Array(objects.enumerated()), id: \.offset) { entry in
-                    DisclosureGroup("\(entry.offset + 1). \(entry.element.name)") {
-                        if let position = entry.element.position {
-                            LabeledContent("POS", value: position.map(String.init).joined(separator: ", "))
-                        }
-                        if let relative = entry.element.positionRelative {
-                            LabeledContent("POSREL", value: relative.map(String.init).joined(separator: ", "))
-                        }
-                        if let rotation = entry.element.rotationRaw {
-                            LabeledContent("ROT", value: rotation)
-                        }
-                        if let rotation = entry.element.rotationRelativeRaw {
-                            LabeledContent("ROTREL", value: rotation)
-                        }
-                        ForEach(Array(entry.element.fields.enumerated()), id: \.offset) { field in
-                            Text(field.element)
-                                .font(.caption.monospaced())
-                                .textSelection(.enabled)
-                        }
-                    }
-                }
-            }
+            originalPropertiesSection(document)
             Section("Original object positions (X/Y)") {
                 CMOriginalLevelMapView(document: document)
                 Text("Read-only top-down coordinate plot. Orange markers are objects with GOAL 1; no original geometry or physics is simulated.")
@@ -291,6 +266,38 @@ struct CMOriginalLevelBrowserView: View {
                 CMOriginalModelPreview(modelURL: selection.url)
                     .navigationTitle(selection.name)
                     .toolbar { Button("Close") { previewModel = nil } }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func originalPropertiesSection(_ document: CMOriginalSceneDocument) -> some View {
+        Section("Original PC object properties") {
+            Text("Unmodified properties from the imported level. No behavior is inferred from these values.")
+                .font(.caption).foregroundStyle(.secondary)
+            ForEach(Array(originalObjects(in: document.root).enumerated()), id: \.offset) { entry in
+                originalObjectProperties(entry.element, number: entry.offset + 1)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func originalObjectProperties(_ object: CMOriginalSceneDocument.Node, number: Int) -> some View {
+        DisclosureGroup("\(number). \(object.name)") {
+            if let position = object.position {
+                LabeledContent("POS", value: position.map { String($0) }.joined(separator: ", "))
+            }
+            if let relative = object.positionRelative {
+                LabeledContent("POSREL", value: relative.map { String($0) }.joined(separator: ", "))
+            }
+            if let rotation = object.rotationRaw {
+                LabeledContent("ROT", value: rotation)
+            }
+            if let rotation = object.rotationRelativeRaw {
+                LabeledContent("ROTREL", value: rotation)
+            }
+            ForEach(Array(object.fields.enumerated()), id: \.offset) { field in
+                Text(field.element).font(.caption.monospaced()).textSelection(.enabled)
             }
         }
     }
