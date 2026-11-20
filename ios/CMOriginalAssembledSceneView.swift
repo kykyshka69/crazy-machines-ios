@@ -136,7 +136,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
 
         private func applyPendingActions() {
-            guard let actions = session?.drainActions() else { return }
+            guard let actions = session?.resolveActions() else { return }
             for pending in actions {
                 switch pending.action {
                 case .impulse(let x, let y, let z):
@@ -146,8 +146,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         body.applyForce(vector, asImpulse: true)
                     }
                 case .activate:
-                    // Reserved for a future explicit activation handler.
-                    // Do not pretend that a queued event operates a mechanism.
+                    // Activation links are resolved by the gameplay session.
                     break
                 }
             }
