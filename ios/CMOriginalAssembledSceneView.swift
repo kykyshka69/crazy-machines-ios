@@ -1062,6 +1062,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 | (UInt32(raw[offset+2]) << 16) | (UInt32(raw[offset+3]) << 24)
             return Float(bitPattern: bits)
         }
+        // UCM is a packed little-endian vertex stream. Decode the positions
+        // explicitly rather than assuming the host's byte order.
         var positions: [SCNVector3] = []
         positions.reserveCapacity(model.vertexCount)
         for index in 0..<model.vertexCount {
