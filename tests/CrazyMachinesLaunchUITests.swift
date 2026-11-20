@@ -1,6 +1,25 @@
 import XCTest
 
 final class CrazyMachinesLaunchUITests: XCTestCase {
+    func testOriginalLevelFileImporterOpens() {
+        let app = XCUIApplication()
+        app.launch()
+        let importButton = app.buttons["Import original levels"]
+        XCTAssertTrue(importButton.waitForExistence(timeout: 20))
+        importButton.tap()
+        // A real iOS document picker must appear, not just an inert import button.
+        let picker = app.navigationBars["Browse"]
+        let cancel = app.buttons["Cancel"]
+        XCTAssertTrue(
+            picker.waitForExistence(timeout: 15) || cancel.waitForExistence(timeout: 5),
+            "Original level import did not present the iOS document picker"
+        )
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "03-original-level-document-picker"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     func testCaptureBothOriginalGameScreens() {
         let app = XCUIApplication()
         app.launch()
