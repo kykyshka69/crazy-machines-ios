@@ -49,7 +49,7 @@ tmo_two
         self.assertEqual(result["level_coverage"][0]["index"], 9)
 
     def test_level_with_complete_model_coverage(self):
-        scene = "level\\n{\\n3DO to_board\\n{\\n}\\n}\\n"
+        scene = "level\n{\n3DO to_board\n{\n}\n}\n"
         with patch("audit_original_model_coverage.decode_level_scene", return_value=scene):
             result = audit_models([{"index": 2, "payload": b""}], ["BOARD"])
         self.assertEqual(result["levels_with_all_models"], 1)
