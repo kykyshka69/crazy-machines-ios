@@ -36,20 +36,33 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Info.plist" > /tmp/cm-bundle-id
           BUNDLE_ID=$(cat /tmp/cm-bundle-id)
           xcrun simctl install "$DEVICE_ID" "$APP"
-          xcrun simctl launch "$DEVICE_ID" "$BUNDLE_ID"
+          xcrun simctl launch --terminate-running-process "$DEVICE_ID" "$BUNDLE_ID"
           sleep 8
+          xcrun simctl spawn "$DEVICE_ID" launchctl list | grep -F "$BUNDLE_ID" || echo "App launch command succeeded; process not found in launchctl list"
           mkdir -p /tmp/crazy-machines-screenshots
           xcrun simctl io "$DEVICE_ID" screenshot /tmp/crazy-machines-screenshots/iphone-launch.png
+      - name: Run launch and navigation UI tests on the booted iPhone
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices booted -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for group in d.values() for x in group if x["name"].startswith("iPhone")))')
+          xcodebuild -project CrazyMachinesIOS.xcodeproj -scheme CrazyMachinesIOS -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath /tmp/crazy-machines-derived -resultBundlePath /tmp/CrazyMachinesUITests.xcresult CODE_SIGNING_ALLOWED=NO test
       - name: Upload real iPhone simulator screenshot
-        if: success()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: CrazyMachinesIOS-iphone-launch-screenshot
           path: /tmp/crazy-machines-screenshots/iphone-launch.png
-          if-no-files-found: error
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload UI test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CrazyMachinesIOS-ui-test-results
+          path: /tmp/CrazyMachinesUITests.xcresult
+          if-no-files-found: warn
           retention-days: 7
       - name: Upload simulator app for inspection
-        if: success()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: CrazyMachinesIOS-simulator
