@@ -432,7 +432,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
 
         func walk(_ item: CMOriginalSceneDocument.Node, parent: SCNNode, goalAncestor: Bool = false) {
-            let isGoal = goalAncestor || item.goalRaw == "1"
+            // A nested tmo_* is a separate original object. GOAL 1 on its
+            // parent does not establish that the child is also a goal.
+            // Only propagate a goal through non-object transform/3DO nodes.
+            let isGoal = item.name.hasPrefix("tmo_")
+                ? item.goalRaw == "1"
+                : (goalAncestor || item.goalRaw == "1")
             let transform = SCNNode()
             let identifier = "original-node-\(nodeOrdinal)"
             nodeOrdinal += 1
