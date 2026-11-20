@@ -11,6 +11,7 @@ struct CMOriginalLevelBrowserView: View {
     @State private var previewModel: ModelPreviewSelection?
     @State private var assembledScene: AssembledSelection?
     @State private var physicsExperimentEnabled = false
+    @State private var physicsExperimentPaused = false
     private struct AssembledSelection: Identifiable {
         let document: CMOriginalSceneDocument
         let id = UUID()
@@ -251,10 +252,25 @@ struct CMOriginalLevelBrowserView: View {
                         .padding(.horizontal)
                         .padding(.vertical, 8)
                         .accessibilityIdentifier("cm.original.experimental-physics")
+                    if physicsExperimentEnabled {
+                        HStack {
+                            Button(physicsExperimentPaused ? "Resume simulation" : "Pause simulation") {
+                                physicsExperimentPaused.toggle()
+                            }
+                            .accessibilityIdentifier("cm.original.physics-pause")
+                            Spacer()
+                            Text("Approximate UCM collisions")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
+                    }
                     CMOriginalAssembledSceneView(
                         document: selection.document,
                         assetDirectory: originalStorage,
-                        experimentalPhysics: physicsExperimentEnabled
+                        experimentalPhysics: physicsExperimentEnabled,
+                        physicsPaused: physicsExperimentPaused
                     )
                     // Rebuild the original scene when changing simulation
                     // modes; otherwise SceneKit bodies are never created.
@@ -265,6 +281,7 @@ struct CMOriginalLevelBrowserView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Close") {
                             physicsExperimentEnabled = false
+                            physicsExperimentPaused = false
                             assembledScene = nil
                         }
                     }
