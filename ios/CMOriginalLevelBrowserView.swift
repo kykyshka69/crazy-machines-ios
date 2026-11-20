@@ -72,22 +72,30 @@ struct CMOriginalLevelBrowserView: View {
                 case .success(let folder):
                     let access = folder.startAccessingSecurityScopedResource()
                     defer { if access { folder.stopAccessingSecurityScopedResource() } }
-                    guard let files = try? FileManager.default.contentsOfDirectory(
+                    guard let enumerator = FileManager.default.enumerator(
                         at: folder, includingPropertiesForKeys: [.isRegularFileKey],
-                        options: [.skipsHiddenFiles]
+                        options: [.skipsHiddenFiles, .skipsPackageDescendants]
                     ) else {
                         errorMessage = "Cannot read exported level folder"
                         return
                     }
-                    let jsonFiles = files.filter { $0.pathExtension.lowercased() == "json" }
+                    var jsonFiles: [URL] = []
+                    for case let file as URL in enumerator {
+                        guard file.pathExtension.lowercased() == "json" else { continue }
+                        guard (try? file.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else {
+                            continue
+                        }
+                        jsonFiles.append(file)
+                        if jsonFiles.count > 102 {
+                            errorMessage = "Too many JSON files in selected folder"
+                            return
+                        }
+                    }
                     guard !jsonFiles.isEmpty else {
                         errorMessage = "No exported JSON levels found in this folder"
                         return
                     }
-                    guard jsonFiles.count <= 102 else {
-                        errorMessage = "Too many JSON files in selected folder"
-                        return
-                    }
+                    jsonFiles.sort { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
                     importDocuments(jsonFiles)
                 }
             }
