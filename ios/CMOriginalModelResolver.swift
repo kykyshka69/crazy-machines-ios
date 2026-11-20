@@ -89,9 +89,9 @@ enum CMOriginalModelResolver {
             let components = normalized.split(separator: "/", omittingEmptySubsequences: false)
             guard !normalized.hasPrefix("/"),
                   !normalized.contains(":"),
-                  !normalized.contains("\\0"),
-                  !normalized.contains("\\n"),
-                  !normalized.contains("\\r"),
+                  !normalized.contains("\0"),
+                  !normalized.contains("\n"),
+                  !normalized.contains("\r"),
                   !components.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." }),
                   let last = components.last, !last.isEmpty else { return .invalidReference }
             let name = String(last)
