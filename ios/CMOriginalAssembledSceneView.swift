@@ -1039,8 +1039,17 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         positions.reserveCapacity(model.vertexCount)
         for index in 0..<model.vertexCount {
             let offset = index * 32
-            positions.append(SCNVector3(readFloat(offset), readFloat(offset + 4),
-                                        readFloat(offset + 8)))
+            let x = readFloat(offset)
+            let y = readFloat(offset + 4)
+            let z = readFloat(offset + 8)
+            // Invalid coordinates must not enter SceneKit bounds or physics:
+            // NaN/Infinity can poison the camera framing and collision solver.
+            guard x.isFinite, y.isFinite, z.isFinite else {
+                throw NSError(domain: "CMOriginalUCMGeometry", code: 1,
+                              userInfo: [NSLocalizedDescriptionKey:
+                                "Non-finite position in UCM vertex \\(index)"])
+            }
+            positions.append(SCNVector3(x, y, z))
         }
         let source = SCNGeometrySource(vertices: positions)
         // UCM vertex records: position at 0, normal at 12, UV at 24.
