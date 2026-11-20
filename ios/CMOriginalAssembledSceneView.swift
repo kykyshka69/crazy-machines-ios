@@ -382,7 +382,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
             }
         }
-        if experimentalPhysics && diagnosticHinges && loadedMeshNodes.count >= 2 {
+        if experimentalPhysics && diagnosticHinges && loadedMeshNodes.count >= 2,
+           loadedMeshNodes[0].physicsBody != nil,
+           loadedMeshNodes[1].physicsBody != nil {
             // Experimental proof of a SceneKit hinge, not decoded CML linkage.
             // Join the first two imported meshes at their midpoint. The
             // physics bodies already exist on the mesh nodes.
