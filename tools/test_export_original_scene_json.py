@@ -24,6 +24,17 @@ class OriginalSceneJSONTests(unittest.TestCase):
         self.assertEqual(board["children"][1]["position"], [0, 1, 2])
         self.assertIn("Оригинальный уровень", to_json(document))
 
+    def test_nested_model_ownership(self):
+        scene = ("level\n{\n"
+                 "tmo_parent\n{\n"
+                 "helper\n{\n3DO to_parent\n{\n}\n}\n"
+                 "tmo_child\n{\n3DO to_child\n{\n}\n}\n"
+                 "}\n}\n")
+        document = export_scene(scene, index=1, title="Nested original models")
+        parent = document["root"]["children"][0]
+        self.assertEqual(parent["models"], ["to_parent"])
+        self.assertEqual(parent["children"][1]["models"], ["to_child"])
+
     def test_pc_vector_decimal_and_scientific_notation(self):
         self.assertEqual(parse_vector3(" .5, -1., +2.5e-2 "), [0.5, -1.0, 0.025])
         self.assertEqual(parse_vector3("1E+2, -0.25, 0"), [100.0, -0.25, 0.0])
