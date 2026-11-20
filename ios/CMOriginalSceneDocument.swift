@@ -81,15 +81,26 @@ public struct CMOriginalSceneDocument: Decodable {
         var missingModels: [String: Int] = [:]
         var missingPositions: [String: Int] = [:]
 
+        // Original 3DO references may be nested below transform/helper
+        // nodes. A nested tmo_* belongs to a different original object.
+        func hasOwnModel(_ node: Node) -> Bool {
+            if !(node.models ?? []).isEmpty { return true }
+            for child in node.children {
+                if child.name.hasPrefix("3DO ") { return true }
+                if !child.name.hasPrefix("tmo_") && hasOwnModel(child) {
+                    return true
+                }
+            }
+            return false
+        }
+
         func visit(_ node: Node) {
             if node.name.hasPrefix("tmo_") {
                 objects[node.name, default: 0] += 1
                 if node.goalRaw == "1" {
                     goals[node.name, default: 0] += 1
                 }
-                let hasModel = !(node.models ?? []).isEmpty ||
-                    node.children.contains(where: { $0.name.hasPrefix("3DO ") })
-                if !hasModel {
+                if !hasOwnModel(node) {
                     missingModels[node.name, default: 0] += 1
                 }
                 if node.position == nil && node.positionRelative == nil {
