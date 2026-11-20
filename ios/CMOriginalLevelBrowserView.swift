@@ -10,6 +10,7 @@ struct CMOriginalLevelBrowserView: View {
     @State private var selected: Int?
     @State private var previewModel: ModelPreviewSelection?
     @State private var assembledScene: AssembledSelection?
+    @State private var physicsExperimentEnabled = false
     private struct AssembledSelection: Identifiable {
         let document: CMOriginalSceneDocument
         let id = UUID()
@@ -244,19 +245,30 @@ struct CMOriginalLevelBrowserView: View {
         .navigationTitle("Level \(document.index)")
         .sheet(item: $assembledScene) { selection in
             NavigationStack {
-                CMOriginalAssembledSceneView(
-                    document: selection.document,
-                    assetDirectory: originalStorage,
-                    experimentalPhysics: false
-                )
-                    // Keep the imported original scene tied to this presentation.
-                    .id(selection.id)
-                    .navigationTitle("Level \(selection.document.index) · 3D")
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("Close") { assembledScene = nil }
+                VStack(spacing: 0) {
+                    Toggle("Experimental collisions (not original game physics)", isOn: $physicsExperimentEnabled)
+                        .font(.caption)
+                        .padding(.horizontal)
+                        .padding(.vertical, 8)
+                        .accessibilityIdentifier("cm.original.experimental-physics")
+                    CMOriginalAssembledSceneView(
+                        document: selection.document,
+                        assetDirectory: originalStorage,
+                        experimentalPhysics: physicsExperimentEnabled
+                    )
+                    // Rebuild the original scene when changing simulation
+                    // modes; otherwise SceneKit bodies are never created.
+                    .id("\(selection.id)-physics-\(physicsExperimentEnabled)")
+                }
+                .navigationTitle("Level \(selection.document.index) · 3D")
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Close") {
+                            physicsExperimentEnabled = false
+                            assembledScene = nil
                         }
                     }
+                }
             }
         }
         .sheet(item: $previewModel) { selection in
