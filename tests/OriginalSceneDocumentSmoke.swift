@@ -127,8 +127,8 @@ enum OriginalSceneDocumentSmoke {
         precondition(contactSession.contactedGoalObjectIDs == Set(["object-1"]))
         contactSession.recordContact("object-0", "object-1", impulse: 2)
         precondition(contactSession.contactCounts["object-0|object-1"] == 2)
-        // An every-contact rule fires for both valid collisions, not only the first.
-        precondition(contactSession.drainActions().count == 2)
+        // One first-contact reaction plus two every-contact reactions.
+        precondition(contactSession.drainActions().count == 3)
         precondition(contactSession.activations.count == 2)
         // Explicit activation links can drive a second object's impulse.
         contactSession.reset()
