@@ -11,6 +11,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var diagnosticHinges = false
     var configuredPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
     var configuredReactions: [CMOriginalGameplaySession.ReactionRule] = []
+    var switchPressCount = 0
 
     private var physicsAccessibilityStatus: String {
         let state = experimentalPhysics ? (physicsPaused ? "paused" : "running") : "off"
@@ -111,6 +112,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         if experimentalPhysics {
             context.coordinator.setSessionPaused(physicsPaused)
             context.coordinator.configurePhysicsRoles(configuredPhysicsRoles)
+            context.coordinator.pressConfiguredSwitchIfNeeded(switchPressCount)
         }
         uiView.accessibilityValue = context.coordinator.selectedModelName.map {
             physicsAccessibilityStatus + "; selected original model: " + $0
@@ -128,6 +130,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var physicsNodesByObjectID: [String: [SCNNode]] = [:]
         private var appliedPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
         private var appliedReactionRules: [CMOriginalGameplaySession.ReactionRule] = []
+
+        private var lastSwitchPressCount = 0
+
+        func pressConfiguredSwitchIfNeeded(_ count: Int) {
+            guard count > lastSwitchPressCount else { return }
+            lastSwitchPressCount = count
+            sessionLock.lock()
+            if let source = session?.reactionRules.first?.objectID {
+                _ = session?.pressObject(source)
+            }
+            sessionLock.unlock()
+        }
 
         func setSessionPaused(_ paused: Bool) {
             sessionLock.lock()
