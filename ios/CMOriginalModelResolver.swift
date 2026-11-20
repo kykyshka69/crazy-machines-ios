@@ -33,8 +33,8 @@ enum CMOriginalModelResolver {
                 for name in modelNames(in: node) {
                     if seen.insert(name.lowercased()).inserted { names.append(name) }
                 }
-            } else if !node.name.hasPrefix("level") {
-                // Non-object helper nodes may still carry mesh references.
+            } else {
+                // Root and non-object helpers may also carry mesh references.
                 if let models = node.models {
                     for name in models where seen.insert(name.lowercased()).inserted {
                         names.append(name)
