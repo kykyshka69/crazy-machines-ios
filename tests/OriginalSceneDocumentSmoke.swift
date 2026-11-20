@@ -229,6 +229,27 @@ enum OriginalSceneDocumentSmoke {
                      [.impulseTarget(id: "object-1", x: 0, y: 8, z: 0)])
         contactSession.reset()
         precondition(contactSession.scheduledActions.isEmpty)
+        // Player-operated switch can be pressed repeatedly after collisions.
+        contactSession.reset()
+        contactSession.configureReactions([
+            .init(objectID: "object-0", trigger: .firstContact,
+                  action: .impulseTarget(id: "object-1", x: 0, y: 8, z: 0))
+        ])
+        precondition(!contactSession.pressObject("object-0")) // stopped
+        contactSession.start()
+        precondition(!contactSession.pressObject("unknown"))
+        precondition(!contactSession.pressObject("object-1")) // no configured switch
+        contactSession.recordContact("object-0", "object-1", impulse: 1)
+        _ = contactSession.resolveActions()
+        precondition(contactSession.pressObject("object-0"))
+        precondition(contactSession.pressObject("object-0"))
+        precondition(contactSession.resolveActions().count == 2)
+        precondition(contactSession.activations.count == 2) // no duplicate activation
+        contactSession.pause()
+        precondition(!contactSession.pressObject("object-0"))
+        contactSession.resume()
+        precondition(contactSession.pressObject("object-0"))
+        precondition(contactSession.resolveActions().count == 1)
         // Contact-triggered delayed rules now run end-to-end without manual
         // calls to schedule(). They must respect pause and simulation time.
         contactSession.reset()
