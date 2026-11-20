@@ -18,6 +18,21 @@ class CandidateSpanTests(unittest.TestCase):
         self.assertEqual(spans[0]["sha256"],
                          hashlib.sha256(OBSERVED_HEADER + b"abc").hexdigest())
 
+    def test_payload_statistics_exclude_marker_bytes(self):
+        data = b"prefix" + OBSERVED_HEADER + bytes([0, 0, 3, 3, 255])
+        result = candidate_spans(data)
+        record = result["candidate_spans"][0]
+        self.assertEqual(record["payload_length"], 5)
+        self.assertEqual(record["payload_distinct_byte_values"], 3)
+        self.assertEqual(record["payload_zero_bytes"], 2)
+
+    def test_empty_payload_statistics(self):
+        result = candidate_spans(OBSERVED_HEADER)
+        record = result["candidate_spans"][0]
+        self.assertEqual(record["payload_length"], 0)
+        self.assertEqual(record["payload_distinct_byte_values"], 0)
+        self.assertEqual(record["payload_zero_bytes"], 0)
+
     def test_no_marker(self):
         result = candidate_spans(b"no original marker")
         self.assertEqual(result["candidate_count"], 0)
