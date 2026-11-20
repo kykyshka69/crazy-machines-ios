@@ -15,6 +15,7 @@ struct CMOriginalLevelBrowserView: View {
     @State private var diagnosticHinges = false
     @State private var mechanismSourceByScene: [String: String] = [:]
     @State private var mechanismTargetByScene: [String: String] = [:]
+    @State private var switchPressCount = 0
     // Keep experimental role choices isolated by scene fingerprint.
     @State private var fixedObjectTypesByScene: [String: Set<String>] = [:]
     @State private var sensorObjectTypesByScene: [String: Set<String>] = [:]
@@ -385,6 +386,7 @@ struct CMOriginalLevelBrowserView: View {
                             }
                             return nil
                         }),
+                    switchPressCount: switchPressCount,
                     configuredReactions: {
                         let objects = CMOriginalGameplaySession(document: selection.document).objects
                         guard objects.count >= 2 else { return [] }
@@ -405,6 +407,16 @@ struct CMOriginalLevelBrowserView: View {
                     // diagnostic hinges, while preserving pause/resume updates.
                     .id(selection.id)
                     .navigationTitle("Level \(selection.document.index) · 3D")
+                    .safeAreaInset(edge: .bottom) {
+                        if selection.experimentalPhysics && !physicsPaused &&
+                            CMOriginalGameplaySession(document: selection.document).objects.count >= 2 &&
+                            (mechanismSourceByScene[selection.document.sceneSHA256] != mechanismTargetByScene[selection.document.sceneSHA256]) {
+                            Button("Activate mechanism") { switchPressCount += 1 }
+                                .buttonStyle(.borderedProminent)
+                                .accessibilityIdentifier("cm.original.mechanism.activate")
+                                .padding(8)
+                        }
+                    }
                     .toolbar {
                         if selection.experimentalPhysics {
                             ToolbarItem(placement: .topBarLeading) {
