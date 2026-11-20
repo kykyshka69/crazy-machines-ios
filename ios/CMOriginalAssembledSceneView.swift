@@ -17,6 +17,19 @@ private final class CMOriginalObjectMeshNode: SCNNode {
     }
 }
 
+/// A physics owner retains its original transform identifier for reset and inspection.
+private final class CMOriginalPhysicsOwnerNode: SCNNode {
+    var originalObjectID: String?
+
+    override init() {
+        super.init()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+}
+
 struct CMOriginalAssembledSceneView: UIViewRepresentable {
     let document: CMOriginalSceneDocument
     let assetDirectory: URL
@@ -209,8 +222,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             if let mesh = node as? CMOriginalObjectMeshNode {
                 return mesh.originalObjectID
             }
-            if let name = node.name, name.hasPrefix("physics-owner-") {
-                return String(name.dropFirst("physics-owner-".count))
+            if let owner = node as? CMOriginalPhysicsOwnerNode {
+                return owner.originalObjectID
             }
             return nil
         }
@@ -698,7 +711,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 currentOwnerID = "object-\(objectOrdinal)"
                 objectOrdinal += 1
             }
-            let transform = SCNNode()
+            let transform: SCNNode = item.name.hasPrefix("tmo_")
+                ? CMOriginalPhysicsOwnerNode() : SCNNode()
+            if let owner = transform as? CMOriginalPhysicsOwnerNode {
+                owner.originalObjectID = currentOwnerID
+            }
             let identifier = "original-node-\(nodeOrdinal)"
             nodeOrdinal += 1
             transform.name = identifier
@@ -825,7 +842,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 body.contactTestBitMask = 1
                 for mesh in meshes { mesh.physicsBody = nil }
                 root.physicsBody = body
-                root.name = "physics-owner-\(id)"
             }
         }
         // Frame actual transformed mesh bounds, not just object origins.
