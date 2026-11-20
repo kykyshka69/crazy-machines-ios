@@ -40,7 +40,7 @@ class OriginalSceneJSONTests(unittest.TestCase):
         self.assertEqual(parse_vector3("1E+2, -0.25, 0"), [100.0, -0.25, 0.0])
 
     def test_reject_nonfinite_or_overflowing_vectors(self):
-        for value in ("1e999, 0, 0", "NaN, 0, 0", "0, Infinity, 0"):
+        for value in ("1e999, 0, 0", "1e39, 0, 0", "NaN, 0, 0", "0, Infinity, 0"):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
                     parse_vector3(value)
