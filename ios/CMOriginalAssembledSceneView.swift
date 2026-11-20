@@ -228,6 +228,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             return nil
         }
 
+        private func owningOriginalObjectID(for node: SCNNode?) -> String? {
+            var current = node
+            while let candidate = current {
+                if let id = physicsObjectID(for: candidate) { return id }
+                current = candidate.parent
+            }
+            return nil
+        }
+
         private func physicalNode(for node: SCNNode?) -> SCNNode? {
             var current = node
             while let candidate = current {
@@ -310,8 +319,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                   let physicalA = physicalNode(for: contact.nodeA),
                   let physicalB = physicalNode(for: contact.nodeB),
                   physicalA !== physicalB,
-                  let a = physicsObjectID(for: physicalA),
-                  let b = physicsObjectID(for: physicalB),
+                  let a = owningOriginalObjectID(for: physicalA),
+                  let b = owningOriginalObjectID(for: physicalB),
                   a != b else { return }
             // SceneKit can report a child mesh rather than the owning compound
             // physics node. Resolve both owners before attributing contacts.
