@@ -25,7 +25,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         view.accessibilityLabel = "Original level 3D scene"
         view.accessibilityHint = experimentalPhysics
             ? "Double tap two different parts to add a hinge. Tap with three fingers to cancel a pending endpoint or undo the last manual hinge. Long press a part to pin or unpin it."
-            : "Tap to select a part, drag to reposition it, or long press to reset its position."
+            : "Inspect the original imported parts using the camera controls."
         view.accessibilityValue = physicsAccessibilityStatus
         view.allowsCameraControl = true
         view.autoenablesDefaultLighting = true
@@ -59,14 +59,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         drag.minimumNumberOfTouches = 1
         drag.maximumNumberOfTouches = 1
         drag.delegate = context.coordinator
-        drag.isEnabled = !experimentalPhysics
+        drag.isEnabled = false // Never rewrite authentic original level placement.
         view.addGestureRecognizer(drag)
         let reset = UILongPressGestureRecognizer(target: context.coordinator,
                                                   action: #selector(Coordinator.resetSelected(_:)))
         reset.minimumPressDuration = 0.8
         // In inspection mode, long press resets a saved position; in physics
         // mode, it toggles a mesh between movable and fixed for diagnostics.
-        reset.isEnabled = true
+        reset.isEnabled = experimentalPhysics
         view.addGestureRecognizer(reset)
         context.coordinator.storageKey = "cm.original.positions.\(document.sceneSHA256)"
         context.coordinator.physicsEnabled = experimentalPhysics
@@ -635,8 +635,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var invalidMeshes = Set<URL>()
         // Physics trials must always begin at the authentic imported positions,
         // not at coordinates previously edited in the 3D inspection mode.
-        let savedPositions: [String: [Double]] = experimentalPhysics ? [:] :
-            (UserDefaults.standard.dictionary(forKey: "cm.original.positions.\(document.sceneSHA256)") as? [String: [Double]] ?? [:])
+        let savedPositions: [String: [Double]] = [:] // Render original PC transforms, not saved sandbox edits.
         var nodeOrdinal = 0
         var objectOrdinal = 0
 
