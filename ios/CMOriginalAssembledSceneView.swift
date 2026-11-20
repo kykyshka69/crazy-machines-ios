@@ -406,8 +406,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // coordinates. Convert a shared world-space Z axis separately,
             // otherwise rotated meshes receive incompatible hinge axes.
             let worldAxis = SCNVector3(0, 0, 1)
-            let firstAxis = first.convertVector(worldAxis, from: nil)
-            let secondAxis = second.convertVector(worldAxis, from: nil)
+            func normalizedAxis(_ axis: SCNVector3) -> SCNVector3 {
+                let length = sqrt(axis.x * axis.x + axis.y * axis.y + axis.z * axis.z)
+                guard length.isFinite, length > 0.00001 else {
+                    return SCNVector3(0, 0, 1)
+                }
+                return SCNVector3(axis.x / length, axis.y / length, axis.z / length)
+            }
+            let firstAxis = normalizedAxis(first.convertVector(worldAxis, from: nil))
+            let secondAxis = normalizedAxis(second.convertVector(worldAxis, from: nil))
             let hinge = SCNPhysicsHingeJoint(bodyA: first.physicsBody!,
                                              axisA: firstAxis,
                                              anchorA: first.convertPosition(anchor, from: nil),
