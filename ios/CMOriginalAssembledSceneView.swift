@@ -131,6 +131,34 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
 
+        /// Apply explicit level physics configuration without reconstructing
+        /// the imported 3D geometry. Sensors generate contacts but no forces.
+        func configurePhysicsRoles(_ roles: [String: CMOriginalGameplaySession.PhysicsRole]) {
+            sessionLock.lock()
+            session?.configurePhysicsRoles(roles)
+            sessionLock.unlock()
+            for (id, nodes) in physicsNodesByObjectID {
+                guard let role = roles[id] else { continue }
+                for node in nodes {
+                    guard let body = node.physicsBody else { continue }
+                    switch role {
+                    case .fixed:
+                        body.type = .static
+                        body.collisionBitMask = 1
+                        body.contactTestBitMask = 1
+                    case .movable:
+                        body.type = .dynamic
+                        body.collisionBitMask = 1
+                        body.contactTestBitMask = 1
+                    case .sensor:
+                        body.type = .kinematic
+                        body.collisionBitMask = 0
+                        body.contactTestBitMask = 1
+                    }
+                }
+            }
+        }
+
         func registerPhysicsNodes(in scene: SCNScene) {
             physicsNodesByObjectID.removeAll()
             scene.rootNode.enumerateChildNodes { node, _ in
