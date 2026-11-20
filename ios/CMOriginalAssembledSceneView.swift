@@ -294,10 +294,29 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                     options: [.firstFoundOnly: true])
             let anchor = hits.first?.worldCoordinates ?? SCNVector3(
                 (a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2)
-            // Reject an implausibly distant manual connection: a hinge
-            // between far-apart moving bodies can inject extreme forces.
-            let dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z
-            let separationSquared = dx * dx + dy * dy + dz * dz
+            // Reject hinges based on the nearest visible surfaces, not the
+            // distance between model pivots. Original UCM pivots can be far
+            // outside the mesh, even when two parts visibly touch.
+            func surfaceCorners(_ mesh: SCNNode) -> [SCNVector3] {
+                let (lo, hi) = mesh.boundingBox
+                return [lo.x, hi.x].flatMap { x in
+                    [lo.y, hi.y].flatMap { y in
+                        [lo.z, hi.z].map { z in
+                            mesh.presentation.convertPosition(SCNVector3(x, y, z), to: nil)
+                        }
+                    }
+                }
+            }
+            let firstCorners = surfaceCorners(first)
+            let secondCorners = surfaceCorners(node)
+            let separationSquared = firstCorners.flatMap { firstCorner in
+                secondCorners.map { secondCorner in
+                    let dx = firstCorner.x - secondCorner.x
+                    let dy = firstCorner.y - secondCorner.y
+                    let dz = firstCorner.z - secondCorner.z
+                    return dx * dx + dy * dy + dz * dz
+                }
+            }.min() ?? Float.infinity
             let (aMin, aMax) = first.boundingBox
             let (bMin, bMax) = node.boundingBox
             let adx = aMax.x - aMin.x, ady = aMax.y - aMin.y, adz = aMax.z - aMin.z
