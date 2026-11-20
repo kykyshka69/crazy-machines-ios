@@ -106,6 +106,26 @@ enum OriginalSceneDocumentSmoke {
         precondition(contactSession.contactCounts["object-0|object-1"] == 2)
         precondition(contactSession.drainActions().count == 1)
         precondition(contactSession.activations.count == 2)
+        // Explicit activation links can drive a second object's impulse.
+        contactSession.reset()
+        contactSession.configureReactions([
+            .init(objectID: "object-0", trigger: .firstContact,
+                  action: .activate("object-1")),
+            .init(objectID: "object-1", trigger: .firstContact,
+                  action: .impulse(x: 0, y: 3, z: 0)),
+            .init(objectID: "object-1", trigger: .firstContact,
+                  action: .activate("object-0"))
+        ])
+        contactSession.start()
+        // A real contact activates object-0; the configured link activates
+        // object-1, and the reverse link must not form an infinite cycle.
+        // Both endpoints normally activate on contact, so first prove that
+        // explicit activation chains can be resolved without contact.
+        contactSession.recordContact("object-0", "object-1", impulse: 1)
+        let resolved = contactSession.resolveActions()
+        precondition(resolved.count == 1)
+        precondition(resolved[0].sourceID == "object-1")
+        precondition(contactSession.resolveActions().isEmpty)
         contactSession.reset()
         precondition(contactSession.activations.isEmpty)
         precondition(contactSession.contactedGoalObjectIDs.isEmpty)
