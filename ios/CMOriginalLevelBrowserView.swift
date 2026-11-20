@@ -180,19 +180,23 @@ struct CMOriginalLevelBrowserView: View {
                 Text("Read-only top-down coordinate plot. Orange markers are objects with GOAL 1; no original geometry or physics is simulated.")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            Section("3D asset readiness") {
+            Section("Original 3D asset readiness") {
                 let names = CMOriginalModelResolver.modelNames(in: document.root)
                 let available = names.filter {
                     CMOriginalModelResolver.resolve($0, in: originalStorage) != nil
                 }
-                LabeledContent("Referenced meshes", value: "\(names.count)")
-                LabeledContent("Available UCM meshes", value: "\(available.count)")
-                if available.isEmpty {
-                    Text("Import the original .ucm model files in the Original files tab before opening 3D.")
+                let missing = names.filter {
+                    CMOriginalModelResolver.resolve($0, in: originalStorage) == nil
+                }
+                LabeledContent("Referenced original meshes", value: "\(names.count)")
+                LabeledContent("Resolved original UCM files", value: "\(available.count)")
+                LabeledContent("Missing original UCM files", value: "\(missing.count)")
+                if !missing.isEmpty {
+                    Text("These are original model references, not substitute objects. Import matching UCM files from your PC installation.")
                         .font(.caption).foregroundStyle(.secondary)
-                } else if available.count < names.count {
-                    Text("Some original models are missing; the scene will omit them rather than substitute invented geometry.")
-                        .font(.caption).foregroundStyle(.secondary)
+                    ForEach(missing, id: \.self) { name in
+                        Text(name).font(.caption.monospaced()).textSelection(.enabled)
+                    }
                 }
             }
             Section("Assembled original 3D scene") {
