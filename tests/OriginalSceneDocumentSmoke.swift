@@ -24,6 +24,28 @@ enum OriginalSceneDocumentSmoke {
           }
         }
         """
+        // Imported PC metadata must be bounded before the renderer traverses it.
+        // Exercise malformed references without requiring proprietary game assets.
+        for (key, value) in [
+            ("models", [String(repeating: "x", count: 513)] as Any),
+            ("models", Array(repeating: "model", count: 257) as Any),
+            ("rotation_raw", String(repeating: "r", count: 4097) as Any),
+            ("goal_raw", String(repeating: "g", count: 257) as Any)
+        ] {
+            var malformed = try JSONSerialization.jsonObject(with: Data(json.utf8)) as! [String: Any]
+            var malformedRoot = malformed["root"] as! [String: Any]
+            var malformedChildren = malformedRoot["children"] as! [[String: Any]]
+            malformedChildren[0][key] = value
+            malformedRoot["children"] = malformedChildren
+            malformed["root"] = malformedRoot
+            let bytes = try JSONSerialization.data(withJSONObject: malformed)
+            do {
+                _ = try CMOriginalSceneDocument.read(bytes)
+                preconditionFailure("Oversized original scene metadata was accepted: \\(key)")
+            } catch CMOriginalSceneDocument.SceneError.invalid {
+                // Expected: reject malformed original scene metadata.
+            }
+        }
         let doc = try CMOriginalSceneDocument.read(Data(json.utf8))
         precondition(doc.root.positionRelative == [0, 0, 0])
         let board = doc.root.children[0]
