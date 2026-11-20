@@ -131,6 +131,30 @@ struct CMOriginalLevelBrowserView: View {
                 Text("These are verified scene annotations, not a decoded victory condition.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Section("Original goal-marked objects") {
+                let goalObjects = goalMarkedObjects(in: document.root)
+                if goalObjects.isEmpty {
+                    Text("No GOAL 1 annotations in this scene.")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(Array(goalObjects.enumerated()), id: \.offset) { entry in
+                    DisclosureGroup(entry.element.name) {
+                        if let position = entry.element.position {
+                            LabeledContent("Original POS", value: position.map {
+                                String(format: "%.5f", $0)
+                            }.joined(separator: ", "))
+                        }
+                        if let models = entry.element.models, !models.isEmpty {
+                            LabeledContent("3D models", value: models.joined(separator: ", "))
+                        }
+                        ForEach(entry.element.fields, id: \.self) { field in
+                            Text(field).font(.caption.monospaced()).textSelection(.enabled)
+                        }
+                    }
+                }
+                Text("GOAL 1 identifies original annotations, not a verified win condition.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Original object positions (X/Y)") {
                 CMOriginalLevelMapView(document: document)
                 Text("Read-only top-down coordinate plot. Orange markers are objects with GOAL 1; no original geometry or physics is simulated.")
@@ -274,6 +298,18 @@ struct CMOriginalLevelBrowserView: View {
                     .toolbar { Button("Close") { previewModel = nil } }
             }
         }
+    }
+
+    private func goalMarkedObjects(in root: CMOriginalSceneDocument.Node) -> [CMOriginalSceneDocument.Node] {
+        var result: [CMOriginalSceneDocument.Node] = []
+        func visit(_ node: CMOriginalSceneDocument.Node) {
+            if node.name.hasPrefix("tmo_"), node.goalRaw == "1" {
+                result.append(node)
+            }
+            for child in node.children { visit(child) }
+        }
+        visit(root)
+        return result
     }
 
     private func reloadSavedScenes() {
