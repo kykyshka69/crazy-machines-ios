@@ -1,6 +1,27 @@
 import XCTest
 
 final class CrazyMachinesLaunchUITests: XCTestCase {
+    func testCaptureBothOriginalGameScreens() {
+        let app = XCUIApplication()
+        app.launch()
+        let levels = app.tabBars.buttons["Original levels"]
+        let files = app.tabBars.buttons["Original files"]
+        XCTAssertTrue(levels.waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["Import original levels"].waitForExistence(timeout: 10))
+        attachScreenshot(app, named: "01-original-levels")
+        XCTAssertTrue(files.exists)
+        files.tap()
+        XCTAssertTrue(app.buttons["Import original game files"].waitForExistence(timeout: 10))
+        attachScreenshot(app, named: "02-original-files")
+    }
+
+    private func attachScreenshot(_ app: XCUIApplication, named name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     func testOriginalLevelsImportControlsWithoutBundledAssets() {
         let app = XCUIApplication()
         app.launch()
