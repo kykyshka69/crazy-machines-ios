@@ -121,6 +121,9 @@ enum OriginalSceneDocumentSmoke {
         precondition(separateSession.objects[0].models.isEmpty)
         precondition(separateSession.objects[1].models == ["to_board"])
         precondition(separateSession.objects[1].parentID == "object-0")
+        precondition(CMOriginalModelResolver.modelNames(in: nestedObjectDoc.root.children[0]).isEmpty)
+        precondition(CMOriginalModelResolver.modelNames(in: nestedObjectDoc.root.children[0].children[0]) == ["to_board"])
+
         var session = CMOriginalGameplaySession(document: doc)
         precondition(session.objects.count == 1)
         precondition(session.objects[0].id == "object-0")
