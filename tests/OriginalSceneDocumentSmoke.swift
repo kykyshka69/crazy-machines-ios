@@ -29,6 +29,7 @@ enum OriginalSceneDocumentSmoke {
         for (key, value) in [
             ("models", [String(repeating: "x", count: 513)] as Any),
             ("models", Array(repeating: "model", count: 257) as Any),
+            ("models", ["to_board\\nmalformed"] as Any),
             ("rotation_raw", String(repeating: "r", count: 4097) as Any),
             ("goal_raw", String(repeating: "g", count: 257) as Any)
         ] {
