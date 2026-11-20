@@ -6,6 +6,15 @@ import SceneKit
 /// Preserve the original object identity without relying on unavailable SCNNode.userData.
 private final class CMOriginalObjectMeshNode: SCNNode {
     var originalObjectID: String?
+
+    init(geometry: SCNGeometry) {
+        super.init()
+        self.geometry = geometry
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
 }
 
 struct CMOriginalAssembledSceneView: UIViewRepresentable {
