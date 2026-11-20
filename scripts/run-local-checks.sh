@@ -5,6 +5,12 @@ cd "$(dirname "$0")/.."
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 echo "Swift toolchain: $(swiftc --version | head -1)"
+# Parse iOS Swift sources even on Linux. This catches syntax errors in
+# SceneKit/SwiftUI files without pretending Apple SDK typechecking succeeded.
+for source in ios/*.swift; do
+  swiftc -frontend -parse "$source" -o /dev/null
+done
+echo "iOS Swift syntax parsing passed (Apple SDK typecheck not performed)."
 swiftc ios/CMPhysics2D.swift ios/CMLevelDocument.swift tests/CMLevelDocumentSmoke.swift -o "$tmp/levels"
 "$tmp/levels"
 for spec in "CMPhysicsSmoke" "CMCircleCollisionSmoke" "CMSlopeSmoke" "CMFrictionSmoke" "CMAngularSmoke"; do
