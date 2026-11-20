@@ -11,7 +11,6 @@ struct CMOriginalLevelBrowserView: View {
     @State private var previewModel: ModelPreviewSelection?
     @State private var assembledScene: AssembledSelection?
     @State private var confirmingResetEdits = false
-    @State private var physicsPaused = false
     private struct AssembledSelection: Identifiable {
         let document: CMOriginalSceneDocument
         let id = UUID()
@@ -253,10 +252,7 @@ struct CMOriginalLevelBrowserView: View {
                     assetDirectory: originalStorage,
                     experimentalPhysics: false
                 )
-                    // Replacing the sheet selection alone does not guarantee
-                    // UIViewRepresentable.makeUIView runs again. Force a new
-                    // SceneKit world on Restart, including physics bodies and
-                    // diagnostic hinges, while preserving pause/resume updates.
+                    // Keep the imported original scene tied to this presentation.
                     .id(selection.id)
                     .navigationTitle("Level \(selection.document.index) · 3D")
                     .toolbar {
