@@ -175,6 +175,25 @@ enum OriginalSceneDocumentSmoke {
         precondition(!contactSession.triggerObject("object-0"))
         contactSession.reset()
         precondition(contactSession.activatedObjectIDs.isEmpty)
+        // Batch regression: 50 repeated physics interactions must preserve
+        // every configured every-contact reaction without duplicate activation.
+        contactSession.reset()
+        contactSession.configureReactions([
+            .init(objectID: "object-0", trigger: .everyContact,
+                  action: .impulse(x: 1, y: 0, z: 0))
+        ])
+        contactSession.start()
+        for index in 0..<50 {
+            contactSession.recordContact("object-0", "object-1",
+                                         impulse: Double(index + 1))
+        }
+        precondition(contactSession.recentContacts.count == 50)
+        precondition(contactSession.contactCounts["object-0|object-1"] == 50)
+        precondition(contactSession.activations.count == 2)
+        let fiftyActions = contactSession.resolveActions()
+        precondition(fiftyActions.count == 50)
+        precondition(fiftyActions.allSatisfy { $0.sourceID == "object-0" })
+        precondition(contactSession.resolveActions().isEmpty)
         // Contact-triggered delayed rules now run end-to-end without manual
         // calls to schedule(). They must respect pause and simulation time.
         contactSession.reset()
