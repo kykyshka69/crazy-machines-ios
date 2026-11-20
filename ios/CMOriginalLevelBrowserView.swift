@@ -175,15 +175,45 @@ struct CMOriginalLevelBrowserView: View {
             Section("Original 3D asset readiness") {
                 let names = CMOriginalModelResolver.modelNames(in: document.root)
                 let assets = CMOriginalModelResolver.AssetIndex(directory: originalStorage)
-                let available = names.filter { assets.resolve($0) != nil }
-                let missing = names.filter { assets.resolve($0) == nil }
+                let available = names.filter {
+                    if case .found = assets.resolution(for: $0) { return true }
+                    return false
+                }
+                let missing = names.filter {
+                    if case .missing = assets.resolution(for: $0) { return true }
+                    return false
+                }
+                let ambiguous = names.filter {
+                    if case .ambiguous = assets.resolution(for: $0) { return true }
+                    return false
+                }
+                let invalid = names.filter {
+                    if case .invalidReference = assets.resolution(for: $0) { return true }
+                    return false
+                }
                 LabeledContent("Referenced original meshes", value: "\(names.count)")
                 LabeledContent("Resolved original UCM files", value: "\(available.count)")
                 LabeledContent("Missing original UCM files", value: "\(missing.count)")
+                LabeledContent("Ambiguous original UCM files", value: "\(ambiguous.count)")
+                LabeledContent("Invalid original model references", value: "\(invalid.count)")
                 if !missing.isEmpty {
-                    Text("These are original model references, not substitute objects. Import matching UCM files from your PC installation.")
+                    Text("Import matching original UCM files from your PC installation.")
                         .font(.caption).foregroundStyle(.secondary)
                     ForEach(missing, id: \.self) { name in
+                        Text(name).font(.caption.monospaced()).textSelection(.enabled)
+                    }
+                }
+                if !ambiguous.isEmpty {
+                    Text("Multiple imported UCM files match these names. Remove duplicate basenames before rendering.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    ForEach(ambiguous, id: \.self) { name in
+                        Text(name).font(.caption.monospaced()).textSelection(.enabled)
+                    }
+                }
+                if !invalid.isEmpty {
+                    Text("These original model references contain unsupported paths or names.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    ForEach(invalid, id: \.self) { name in
                         Text(name).font(.caption.monospaced()).textSelection(.enabled)
                     }
                 }
