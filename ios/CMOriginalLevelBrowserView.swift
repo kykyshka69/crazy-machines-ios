@@ -173,20 +173,11 @@ struct CMOriginalLevelBrowserView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Original 3D asset readiness") {
-                let names = CMOriginalModelResolver.allModelNames(in: document.root)
-                let assets = CMOriginalModelResolver.AssetIndex(directory: originalStorage)
-                let available = names.filter { assets.resolve($0) != nil }
-                let missing = names.filter { assets.resolve($0) == nil }
-                LabeledContent("Referenced original meshes", value: "\(names.count)")
-                LabeledContent("Resolved original UCM files", value: "\(available.count)")
-                LabeledContent("Missing original UCM files", value: "\(missing.count)")
-                if !missing.isEmpty {
-                    Text("These are original model references, not substitute objects. Import matching UCM files from your PC installation.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    ForEach(missing, id: \.self) { name in
-                        Text(name).font(.caption.monospaced()).textSelection(.enabled)
-                    }
-                }
+                CMOriginalAssetAuditView(
+                    modelNames: CMOriginalModelResolver.allModelNames(in: document.root),
+                    directory: originalStorage
+                )
+                .id(document.sceneSHA256)
             }
             Section("Assembled original 3D scene") {
                 Button("View original level in 3D") {
