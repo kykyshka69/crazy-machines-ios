@@ -1111,6 +1111,27 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
                 let shapes: [SCNPhysicsShape] = meshes.compactMap { mesh in
                     guard let geometry = mesh.geometry else { return nil }
+                    if kind == "tmo_zone" {
+                        // The authentic PC zone.ucm is a four-vertex plane
+                        // with ZERO Z thickness. A 3D convex hull of that
+                        // plane is degenerate and may never report ball/crate
+                        // contacts. Give the original XY capture area an
+                        // invisible sensor depth so 2.5D objects can overlap
+                        // it regardless of their original visible Z offset.
+                        // The original UCM stays untouched and remains the
+                        // only visible zone mesh.
+                        let (low, high) = mesh.boundingBox
+                        let width = CGFloat(max(0.001, high.x - low.x))
+                        let height = CGFloat(max(0.001, high.y - low.y))
+                        let depth: CGFloat = 0.6
+                        let sensor = SCNBox(
+                            width: width, height: height, length: depth,
+                            chamferRadius: 0
+                        )
+                        return SCNPhysicsShape(geometry: sensor, options: [
+                            .type: SCNPhysicsShape.ShapeType.boundingBox
+                        ])
+                    }
                     return SCNPhysicsShape(geometry: geometry, options: [
                         .type: SCNPhysicsShape.ShapeType.convexHull
                     ])
