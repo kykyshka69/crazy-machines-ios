@@ -1346,8 +1346,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             floor.position = SCNVector3((lower.x + upper.x) / 2,
                                         lower.y - thickness / 2 - 0.001,
                                         (lower.z + upper.z) / 2)
-            floor.geometry?.firstMaterial?.diffuse.contents = UIColor.darkGray
-            floor.geometry?.firstMaterial?.transparency = 0.35
+            // Collision safety net only: the original PC game did not
+            // render this slab. Keep its physics for falling pieces, but do
+            // not paint a fake platform over the original puzzle artwork.
+            floor.geometry?.firstMaterial?.transparency = 0
+            floor.geometry?.firstMaterial?.writesToDepthBuffer = false
             floor.physicsBody = SCNPhysicsBody.static()
             scene.rootNode.addChildNode(floor)
         }
