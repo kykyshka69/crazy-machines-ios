@@ -204,6 +204,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalZoneContact: ((String) -> Void)?
         private var reportedZoneContacts = Set<String>()
         private var physicsNodesByObjectID: [String: [SCNNode]] = [:]
+        // All 46 original balloon objects are identified by their PC tmo_
+        // type. Only the 45 with VALB's movable bit will actually float;
+        // the fixed balloon is kept static by configuredPhysicsRoles.
+        private var buoyantObjectIDs = Set<String>()
         private var appliedPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
         private var appliedReactionRules: [CMOriginalGameplaySession.ReactionRule] = []
 
@@ -306,10 +310,22 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         func registerPhysicsNodes(in scene: SCNScene) {
             physicsNodesByObjectID.removeAll()
             appliedPhysicsRoles.removeAll()
+            buoyantObjectIDs = Set(
+                (session?.objects ?? [])
+                    .filter { $0.type == "tmo_balloon" }
+                    .map(\.id)
+            )
             scene.rootNode.enumerateChildNodes { node, _ in
-                guard node.physicsBody != nil,
+                guard let body = node.physicsBody,
                       let id = self.physicsObjectID(for: node) else { return }
                 self.physicsNodesByObjectID[id, default: []].append(node)
+                if self.buoyantObjectIDs.contains(id) {
+                    // The PC's balloons cannot share the standard
+                    // downward-gravity behavior of crates and balls.
+                    // Approximate upward buoyancy below; do not claim
+                    // the acceleration matches the Windows solver.
+                    body.isAffectedByGravity = false
+                }
             }
         }
 
@@ -363,6 +379,20 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             guard let previous = lastRendererTime else { return }
             let delta = time - previous
             guard delta.isFinite, delta > 0, delta <= 0.25 else { return }
+            // Render-timestep-aware buoyancy for authentic tmo_balloon
+            // parts: the original puzzles treat them as rising objects,
+            // not heavy falling crates. Use a conservative acceleration
+            // and speed cap until Windows physical constants are decoded.
+            // Never move VALB-fixed balloons or bodies in a paused scene.
+            for id in buoyantObjectIDs {
+                for node in physicsNodesByObjectID[id] ?? [] {
+                    guard let body = node.physicsBody,
+                          body.type == .dynamic else { continue }
+                    let velocity = body.velocity
+                    let upSpeed = min(2.0, velocity.y + Float(delta) * 1.25)
+                    body.velocity = SCNVector3(velocity.x, upSpeed, velocity.z)
+                }
+            }
             session?.advance(by: delta)
         }
 
