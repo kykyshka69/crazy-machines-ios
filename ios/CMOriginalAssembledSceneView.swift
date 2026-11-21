@@ -142,6 +142,43 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     }
     #endif
 
+    #if DEBUG && targetEnvironment(simulator)
+    /// SceneKit can exist in the scene graph while its Metal layer remains
+    /// black in CI captures. SCNView.snapshot() asks SceneKit to render an
+    /// independent image: it distinguishes a capture/compositing problem
+    /// from a camera or renderer problem without altering genuine PC art.
+    private static func ciSceneSnapshotColors(_ image: UIImage) -> (orange: Int, cyan: Int) {
+        guard let cg = image.cgImage else { return (0, 0) }
+        let side = 72
+        var rgba = [UInt8](repeating: 0, count: side * side * 4)
+        let decoded = rgba.withUnsafeMutableBytes { buffer -> Bool in
+            guard let address = buffer.baseAddress,
+                  let context = CGContext(
+                    data: address, width: side, height: side,
+                    bitsPerComponent: 8, bytesPerRow: side * 4,
+                    space: CGColorSpaceCreateDeviceRGB(),
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                  ) else { return false }
+            context.draw(cg, in: CGRect(x: 0, y: 0, width: side, height: side))
+            return true
+        }
+        guard decoded else { return (0, 0) }
+        var orange = 0
+        var cyan = 0
+        for offset in stride(from: 0, to: rgba.count, by: 4) {
+            let r = Int(rgba[offset]), g = Int(rgba[offset + 1])
+            let b = Int(rgba[offset + 2])
+            if r >= 140 && g >= 40 && r >= g + 35 && g >= b + 25 {
+                orange += 1
+            }
+            if g >= 120 && b >= 120 && r + 45 <= g && r + 45 <= b {
+                cyan += 1
+            }
+        }
+        return (orange, cyan)
+    }
+    #endif
+
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
         view.backgroundColor = UIColor(white: 0.09, alpha: 1)
@@ -275,6 +312,23 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.originalPositions = originalPositions
         context.coordinator.originalRotations = originalRotations
         view.pointOfView = scene.rootNode.childNode(withName: "original-level-camera", recursively: false)
+        #if DEBUG && targetEnvironment(simulator)
+        if document.title == "CM synthetic CI 3D scene" {
+            // Allow SwiftUI to lay out the SceneKit layer before probing.
+            // This is an app-side snapshot, not an XCTest or OS screenshot.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak view] in
+                guard let view, view.window != nil else { return }
+                let image = view.snapshot()
+                let counts = Self.ciSceneSnapshotColors(image)
+                let size = view.bounds.size
+                let details = "; nativeSCNSnapshot=orange:\(counts.orange)," +
+                    "cyan:\(counts.cyan); viewSize=\(Int(size.width))x\(Int(size.height))" +
+                    "; snapshotSize=\(Int(image.size.width))x\(Int(image.size.height))" +
+                    "; renderingAPI=\(view.renderingAPI.rawValue)"
+                view.accessibilityValue = (view.accessibilityValue ?? "") + details
+            }
+        }
+        #endif
         return view
     }
 

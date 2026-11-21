@@ -87,7 +87,15 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
             if orangePixels >= 8 && calibrationPixels >= 8 { break }
             Thread.sleep(forTimeInterval: 0.4)
         }
-        let sceneStatus = (viewport.value as? String) ?? "no scene diagnostics"
+        // If the native SceneKit probe has not finished yet, give its
+        // independent offscreen snapshot a brief opportunity to render.
+        // Its pixel counts distinguish GPU/compositing failure from geometry
+        // which fails to appear in the live simulator screenshot.
+        var sceneStatus = (viewport.value as? String) ?? "no scene diagnostics"
+        for _ in 0..<6 where !sceneStatus.contains("nativeSCNSnapshot=") {
+            Thread.sleep(forTimeInterval: 0.5)
+            sceneStatus = (viewport.value as? String) ?? "no scene diagnostics"
+        }
         XCTAssertTrue(calibrationPixels >= 8,
                       "SceneKit calibration is invisible (cyan=\(calibrationPixels), " +
                       "orange=\(orangePixels)); \(sceneStatus)")
