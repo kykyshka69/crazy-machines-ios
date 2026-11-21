@@ -24,5 +24,7 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalModelResolver.swift tests/OriginalModelResolverSmoke.swift -o "$tmp/model-resolution"
 "$tmp/model-resolution"
 "$tmp/original-scenes"
+swiftc ios/CMOriginalLZW12.swift tests/OriginalLZW12Smoke.swift -o "$tmp/original-lzw"
+"$tmp/original-lzw"
 python3 -m unittest discover -s tools -p 'test_*.py'
 echo "Portable checks passed. iOS simulator build still requires Xcode/macOS."
