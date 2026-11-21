@@ -7,7 +7,9 @@ struct CMOriginalQuickPlayView: View {
     let document: CMOriginalSceneDocument
     let assetDirectory: URL
 
-    @State private var experimentalPhysics = true
+    // Open an authentic scene at rest; users arrange original parts before
+    // starting the approximate physics simulation, matching the PC play loop.
+    @State private var experimentalPhysics = false
     @State private var physicsPaused = false
     @State private var sceneRevision = UUID()
     @State private var showAllLevels = false
@@ -89,11 +91,11 @@ struct CMOriginalQuickPlayView: View {
 
             HStack(spacing: 10) {
                 if !experimentalPhysics {
-                    Label("Arrange: tap, drag or rotate with two fingers.", systemImage: "hand.draw")
+                    Label("Tap to select · drag · twist to rotate · pinch to zoom.", systemImage: "hand.draw")
                         .font(.caption.weight(.medium))
                         .accessibilityIdentifier("cm.original.quickplay-arrange-hint")
                 } else {
-                    Text("Switch physics off to rearrange imported parts.")
+                    Text("Stop physics to return to object placement.")
                         .font(.caption)
                 }
                 Spacer(minLength: 6)
