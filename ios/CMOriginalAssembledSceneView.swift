@@ -1109,6 +1109,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 if kind.hasPrefix("tmo_background_") || kind == "tmo_arrow" {
                     continue
                 }
+                // Original levels consistently embed these mounting fixtures
+                // as child tmo_ nodes of boards, motors and other mechanisms,
+                // never as independent puzzle objects. The previous solver
+                // created separate static collision bodies for every mount,
+                // including 12 mounts in level 1, leading to spurious impacts
+                // and blocking the balls. Render their authentic UCM models
+                // but omit these support-only bodies from SceneKit collisions.
+                if kind == "tmo_mount_bar"
+                    || kind == "tmo_mount_wood"
+                    || kind == "tmo_mount_shear" {
+                    continue
+                }
                 let shapes: [SCNPhysicsShape] = meshes.compactMap { mesh in
                     guard let geometry = mesh.geometry else { return nil }
                     if kind.hasPrefix("tmo_ball_") {
