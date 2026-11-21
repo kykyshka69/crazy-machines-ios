@@ -1474,17 +1474,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             if item.name.hasPrefix("3DO ") {
                 attachOriginalModel(String(item.name.dropFirst(4)))
             }
-            let explicitChildren = Set(item.children.compactMap { child -> String? in
-                guard child.name.hasPrefix("3DO ") else { return nil }
-                return String(child.name.dropFirst(4)).lowercased()
-            })
-            if let models = item.models {
-                var seen = Set<String>()
-                for name in models {
-                    let key = name.lowercased()
-                    guard !explicitChildren.contains(key), seen.insert(key).inserted else { continue }
-                    attachOriginalModel(name)
-                }
+            // Exported tmo_ models lists are flattened across helper nodes,
+            // while the same 3DO nodes are rendered below with their actual
+            // nested PC transforms. Only add model-only fallback references.
+            for name in CMOriginalModelResolver.fallbackModelNames(in: item) {
+                attachOriginalModel(name)
             }
             for child in item.children {
                 walk(child, parent: transform, ownerID: currentOwnerID)

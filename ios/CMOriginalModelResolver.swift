@@ -23,6 +23,30 @@ enum CMOriginalModelResolver {
         return result.filter { seen.insert($0.lowercased()).inserted }
     }
 
+    /// Model-only fallbacks are rendered at the owning transform ONLY when
+    /// there is no explicit 3DO node for that model anywhere beneath the
+    /// owner. Original 3DO children can live under POSREL/ROTREL helpers;
+    /// rendering their parent's flattened models list would create a second,
+    /// incorrectly positioned mesh and duplicate its collision shape.
+    /// Nested tmo_ objects have their own independent model ownership.
+    static func fallbackModelNames(in node: CMOriginalSceneDocument.Node) -> [String] {
+        var explicitModels = Set<String>()
+        func visit(_ current: CMOriginalSceneDocument.Node) {
+            if current.name.hasPrefix("3DO ") {
+                explicitModels.insert(String(current.name.dropFirst(4)).lowercased())
+            }
+            for child in current.children where !child.name.hasPrefix("tmo_") {
+                visit(child)
+            }
+        }
+        visit(node)
+        var seen = Set<String>()
+        return (node.models ?? []).filter { name in
+            let key = name.lowercased()
+            return !explicitModels.contains(key) && seen.insert(key).inserted
+        }
+    }
+
     /// Enumerate references across the entire level, including nested tmo_
     /// objects. Use modelNames(in:) instead for one object's own meshes.
     static func allModelNames(in root: CMOriginalSceneDocument.Node) -> [String] {

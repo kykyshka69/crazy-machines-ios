@@ -8,6 +8,54 @@ enum OriginalModelResolverSmoke {
         try fm.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: folder) }
 
+        // The scene exporter places all owned 3DO names in the tmo_
+        // models array, including those below nested POSREL helpers.
+        // Renderer must NOT load them a second time at the tmo_ origin.
+        let fixture = """
+        {
+          "schema":"crazy-machines-original-scene-v1",
+          "index":1,"title":"Model ownership",
+          "scene_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "root":{"name":"level","fields":[],"children":[
+            {"name":"tmo_machine","fields":[],"models":["to_motor","to_motor","to_extra","to_child"],
+             "children":[
+               {"name":"helper","fields":["POSREL 1, 2, 3"],"children":[
+                 {"name":"3DO to_motor","fields":[],"children":[]}
+               ]},
+               {"name":"tmo_attachment","fields":[],"models":["to_child"],
+                "children":[{"name":"3DO to_child","fields":[],"children":[]}]}
+             ]}
+          ]}
+        }
+        """
+        let document = try CMOriginalSceneDocument.read(Data(fixture.utf8))
+        let owner = document.root.children[0]
+        let nested = owner.children[1]
+        precondition(CMOriginalModelResolver.fallbackModelNames(in: owner) == ["to_extra", "to_child"])
+        // 'to_child' is only in the parent models array here as an explicit
+        // fallback, but its nested tmo_ is an independent owner. A real PC
+        // exporter should never list child-owned models in its parent's list.
+        precondition(CMOriginalModelResolver.fallbackModelNames(in: nested).isEmpty)
+        precondition(CMOriginalModelResolver.modelNames(in: owner).contains("to_motor"))
+        let noDuplicates = """
+        {
+          "schema":"crazy-machines-original-scene-v1",
+          "index":1,"title":"No duplicate mesh",
+          "scene_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "root":{"name":"level","fields":[],"children":[
+            {"name":"tmo_machine","fields":[],"models":["to_motor","to_extra"],
+             "children":[
+               {"name":"helper","fields":["POSREL 1, 2, 3"],"children":[
+                 {"name":"3DO to_motor","fields":[],"children":[]}
+               ]}
+             ]}
+          ]}
+        }
+        """
+        let nestedScene = try CMOriginalSceneDocument.read(Data(noDuplicates.utf8))
+        precondition(CMOriginalModelResolver.fallbackModelNames(in: nestedScene.root.children[0]) == ["to_extra"])
+        precondition(CMOriginalModelResolver.fallbackModelNames(in: nestedScene.root).isEmpty)
+
         let mesh = folder.appendingPathComponent("to_board.ucm")
         try Data([1]).write(to: mesh)
         var index = CMOriginalModelResolver.AssetIndex(directory: folder)
