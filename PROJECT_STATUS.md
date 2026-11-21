@@ -39,10 +39,20 @@ Primary goal: load and play the **original PC Crazy Machines puzzles on iPhone**
 - Local run: `swiftc` compiled and executed a **standalone Foundation-only reproduction of the new metadata fallback logic** against explicit, metadata-only, nested and casing fixtures (PASS). This did **not** execute the full repository tests, compile SceneKit/SwiftUI, or start the iPhone Simulator.
 - Device/simulator screenshots, CI job results, genuine first-level asset coverage, exact materials and gameplay parity: **not confirmed**.
 
+## Continued work — original asset verification in the iOS level browser (2026-11-21)
+
+- `89e78c94`: `CMOriginalModelResolver.AssetIndex.locate` now distinguishes **found / missing / ambiguous / invalid reference**, retaining `resolve` for older callers.
+- `59cc05cc`: added `ios/CMOriginalAssetAudit.swift`, validating UCM bytes using `CMUCMModel` rather than treating a matching filename as a renderable model. Reports malformed and oversized assets and caches repeated references within one audit.
+- `dec3ce25` and `6df64c6e`: wired an **on-demand original geometry verification** control into the level details UI. It runs away from the main actor, displays usable meshes and specific missing/invalid references, and does not claim this validates textures or original physics.
+- `97ed364d`: regression suite `tests/OriginalAssetAuditSmoke.swift` uses synthetic UCM v2 bytes and tests valid geometry, missing/corrupt files, unsafe names, case-insensitive de-duplication and ambiguous filenames on Linux.
+- `c2163713`, `f74ecd36`: added this regression to GitHub portable CI and `scripts/run-local-checks.sh`.
+- **Executed here:** a Foundation-only Swift 6.2.1 Linux *isolated reproduction* of the asset resolver/audit behavior compiled and passed, including missing, malformed, ambiguous and alias cases. The **exact full GitHub test target has not been executed in this environment**. The code compiles in isolation, but SwiftUI/SceneKit and an Xcode iOS app build require a macOS runner.
+- GitHub combined commit status for `f74ecd36` currently returned **no statuses** from the connected API, so this is neither a verified CI success nor a failure. No actual first-level iPhone screenshot yet.
+
 ## Priority blockers / work order
 
 1. **DONE IN CODE, AWAITING APP/CI VERIFICATION:** the original level model inventory now calls `CMOriginalModelResolver.allModelNames(in:)`; this collects UCM references from nested `tmo_*` owners, preserves object-local resolution, and de-duplicates case-insensitively. UI readiness and per-level preview selection use it. Regression assertions added, CI Swift compiler inputs corrected. Verify in the actual iOS level browser with user-owned original assets.
-2. Confirm the first *real* exported level's full mesh coverage: which referenced UCM models resolve, which are missing/ambiguous and whether transforms are consistent.
+2. **Audit code/UI implemented; actual assets outstanding:** open the first real exported level, run *Verify original UCM geometry*, record missing/ambiguous/corrupt meshes, and confirm transforms by comparing the real 3D assembly to the PC game. No original asset files are committed.
 3. Finish materials/UV binding and level rendering parity, then demonstrate an actual first-level screenshot from the iPhone Simulator.
 4. Implement and validate original puzzle-specific object physics and win/failure logic; do not replace with generic toy physics and claim gameplay parity.
 5. Compile with Xcode on macOS, review CI logs, launch on a real iPhone, verify controls/performance and prepare signed distribution.
