@@ -85,11 +85,12 @@ struct OriginalFirstLevelRunSmoke {
 
         // Never apply level-one prototype rules to another original level
         // or to different data merely because there is a collection zone.
-        precondition(CMOriginalFirstLevelRun(document: try document(2)) == nil)
-        precondition(CMOriginalFirstLevelRun(
-            document: try document(1, corruptSource: true)) == nil)
-        precondition(CMOriginalFirstLevelRun(
-            document: try document(1, removeUnlock: true)) == nil)
+        let otherLevel = try document(2)
+        let wrongTarget = try document(1, corruptSource: true)
+        let noEditableBoards = try document(1, removeUnlock: true)
+        precondition(CMOriginalFirstLevelRun(document: otherLevel) == nil)
+        precondition(CMOriginalFirstLevelRun(document: wrongTarget) == nil)
+        precondition(CMOriginalFirstLevelRun(document: noEditableBoards) == nil)
 
         print("Original level-1 four-linked-object delivery objective: OK")
     }
