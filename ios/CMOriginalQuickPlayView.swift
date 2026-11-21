@@ -162,14 +162,6 @@ struct CMOriginalQuickPlayView: View {
                     // Callback is posted to the main thread by SceneKit bridge.
                     zoneContacts[type, default: 0] += 1
                 },
-                onOriginalConnectionContact: { sourceID, targetID in
-                    let key = sourceID + "|" + targetID
-                    if originalMechanismConnections.contains(where: {
-                        $0.sourceID == sourceID && $0.targetID == targetID
-                    }) {
-                        matchedMechanismLinks.insert(key)
-                    }
-                },
                 onLinkedZoneContact: { sourceID, zoneID in
                     // Only a contact with the source object's OWN original
                     // CONNECTED_TO zone counts as a recovered objective.
@@ -180,6 +172,14 @@ struct CMOriginalQuickPlayView: View {
                         matchedZoneLinks.insert(sourceID + "|" + zoneID)
                     }
                 }
+                onOriginalConnectionContact: { sourceID, targetID in
+                    let key = sourceID + "|" + targetID
+                    if originalMechanismConnections.contains(where: {
+                        $0.sourceID == sourceID && $0.targetID == targetID
+                    }) {
+                        matchedMechanismLinks.insert(key)
+                    }
+                },
             )
             .id(sceneRevision)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
