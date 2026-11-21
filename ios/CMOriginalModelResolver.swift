@@ -46,6 +46,24 @@ enum CMOriginalModelResolver {
         return result
     }
 
+    /// Imported scenes normally contain explicit 3DO children as well as a
+    /// derived models array. Older or hand-exported JSON may contain only
+    /// models metadata. Return only references that lack an explicit 3DO in
+    /// this owner; never borrow a nested tmo_* object's model.
+    static func metadataOnlyModelNames(in owner: CMOriginalSceneDocument.Node) -> [String] {
+        var explicit = Set<String>()
+        func findExplicit(_ node: CMOriginalSceneDocument.Node) {
+            if node.name.hasPrefix("3DO ") {
+                explicit.insert(String(node.name.dropFirst(4)).lowercased())
+            }
+            for child in node.children where !child.name.hasPrefix("tmo_") {
+                findExplicit(child)
+            }
+        }
+        findExplicit(owner)
+        return modelNames(in: owner).filter { !explicit.contains($0.lowercased()) }
+    }
+
     /// Index imported original meshes once for a whole level. Duplicate names
     /// remain ambiguous and are never resolved to an arbitrary file.
     struct AssetIndex {
