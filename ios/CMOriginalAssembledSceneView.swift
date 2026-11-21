@@ -1053,16 +1053,31 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
         let source = SCNGeometrySource(vertices: positions)
         // UCM vertex records: position at 0, normal at 12, UV at 24.
-        let normals = SCNGeometrySource(
-            data: model.vertexData, semantic: .normal,
-            vectorCount: model.vertexCount, usesFloatComponents: true,
-            componentsPerVector: 3, bytesPerComponent: 4,
-            dataOffset: 12, dataStride: 32)
-        let texcoords = SCNGeometrySource(
-            data: model.vertexData, semantic: .texcoord,
-            vectorCount: model.vertexCount, usesFloatComponents: true,
-            componentsPerVector: 2, bytesPerComponent: 4,
-            dataOffset: 24, dataStride: 32)
+        // Decode all UCM attributes as little-endian, just like positions.
+        // Passing packed bytes directly to SceneKit assumes host endianness
+        // and allows malformed normals/UVs to reach the renderer.
+        var normalVectors: [SCNVector3] = []
+        var uvVectors: [CGPoint] = []
+        normalVectors.reserveCapacity(model.vertexCount)
+        uvVectors.reserveCapacity(model.vertexCount)
+        for index in 0..<model.vertexCount {
+            let offset = index * 32
+            let nx = readFloat(offset + 12)
+            let ny = readFloat(offset + 16)
+            let nz = readFloat(offset + 20)
+            let u = readFloat(offset + 24)
+            let v = readFloat(offset + 28)
+            guard nx.isFinite, ny.isFinite, nz.isFinite,
+                  u.isFinite, v.isFinite else {
+                throw NSError(domain: "CMOriginalUCMGeometry", code: 2,
+                              userInfo: [NSLocalizedDescriptionKey:
+                                "Non-finite normal or UV in UCM vertex \(index)"])
+            }
+            normalVectors.append(SCNVector3(nx, ny, nz))
+            uvVectors.append(CGPoint(x: CGFloat(u), y: CGFloat(v)))
+        }
+        let normals = SCNGeometrySource(normals: normalVectors)
+        let texcoords = SCNGeometrySource(textureCoordinates: uvVectors)
         let indexData = model.indices.withUnsafeBytes { Data($0) }
         let element = SCNGeometryElement(data: indexData, primitiveType: .triangles,
                                          primitiveCount: model.triangleCount,
