@@ -833,6 +833,24 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             for child in item.children {
                 walk(child, parent: transform, ownerID: currentOwnerID)
             }
+            // The original scene exporter records both a models array and
+            // explicit 3DO children. Do not duplicate those meshes. However,
+            // metadata-only imports otherwise look complete in the level
+            // browser while rendering no geometry at all. Display those
+            // original model references at their owning object transform.
+            // This renderer-only wrapper does not modify the scene document.
+            // An absent 3DO transform cannot be reconstructed from metadata.
+            if item.name == "level" || item.name.hasPrefix("tmo_") {
+                for modelName in CMOriginalModelResolver.metadataOnlyModelNames(in: item) {
+                    let reference = CMOriginalSceneDocument.Node(
+                        name: "3DO " + modelName,
+                        fields: [], children: [],
+                        position: nil, positionRelative: nil,
+                        rotationRaw: nil, rotationRelativeRaw: nil,
+                        models: nil, goalRaw: nil)
+                    walk(reference, parent: transform, ownerID: currentOwnerID)
+                }
+            }
         }
         walk(document.root, parent: scene.rootNode)
         if experimentalPhysics {
