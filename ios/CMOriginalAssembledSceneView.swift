@@ -308,12 +308,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
         func pressConfiguredSwitchIfNeeded(_ count: Int) {
             guard count > lastSwitchPressCount else { return }
+            // SwiftUI can coalesce several button presses into one view update.
+            // Replay each input rather than dropping all but the latest.
+            let previous = lastSwitchPressCount
             lastSwitchPressCount = count
             sessionLock.lock()
-            if let source = session?.reactionRules.first?.objectID {
+            defer { sessionLock.unlock() }
+            guard let source = session?.reactionRules.first?.objectID else { return }
+            // Diagnostic actuator only; no undocumented electrical simulation.
+            let replayCount = min(count - previous, 64)
+            for _ in 0..<replayCount {
                 _ = session?.pressObject(source)
             }
-            sessionLock.unlock()
         }
 
         func setSessionPaused(_ paused: Bool) {
