@@ -92,7 +92,7 @@ struct CMOriginalQuickPlayView: View {
                 .accessibilityLabel("Previous original level")
                 .accessibilityIdentifier("cm.original.quickplay-previous")
 
-                Text("Level \(document.index): \(document.title)")
+                Text("Original level \(document.index): \(document.title)")
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .center)
