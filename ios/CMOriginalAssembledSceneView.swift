@@ -503,6 +503,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                   let scene = view.scene,
                   let node = view.hitTest(gesture.location(in: view),
                                           options: [.firstFoundOnly: true]).first?.node,
+                  // The temporary support floor and hinge markers are not
+                  // original parts. Never let them become hinge endpoints.
+                  node is CMOriginalObjectMeshNode,
                   let body = physicalNode(for: node)?.physicsBody else { return }
             if let first = pendingHingeEndpoint {
                 // A second tap on the same mesh or another mesh belonging
