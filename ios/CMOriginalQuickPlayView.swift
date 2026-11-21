@@ -20,13 +20,21 @@ struct CMOriginalQuickPlayView: View {
     @State private var showAllLevels = false
     @State private var zoneContacts: [String: Int] = [:]
     @State private var matchedZoneLinks = Set<String>()
+    @State private var matchedMechanismLinks = Set<String>()
 
     // Reconstruct the PC's explicit CONNECTED_TO references to tmo_zone.
     // The original 0-based indices refer to level_elements.children,
     // not the nested SceneKit hierarchy. GOAL is not a victory rule.
-    private var originalZoneConnections: [CMOriginalGameplaySession.OriginalConnection] {
+    private var originalConnections: [CMOriginalGameplaySession.OriginalConnection] {
         CMOriginalGameplaySession(document: document).originalConnections
-            .filter { $0.targetType == "tmo_zone" }
+    }
+
+    private var originalZoneConnections: [CMOriginalGameplaySession.OriginalConnection] {
+        originalConnections.filter { $0.targetType == "tmo_zone" }
+    }
+
+    private var originalMechanismConnections: [CMOriginalGameplaySession.OriginalConnection] {
+        originalConnections.filter { $0.targetType != "tmo_zone" }
     }
 
     /// An explicit experimental starting configuration for the imported PC
@@ -107,6 +115,7 @@ struct CMOriginalQuickPlayView: View {
         physicsPaused = false
         zoneContacts.removeAll()
         matchedZoneLinks.removeAll()
+        matchedMechanismLinks.removeAll()
         sceneRevision = UUID()
     }
 
@@ -153,6 +162,14 @@ struct CMOriginalQuickPlayView: View {
                     // Callback is posted to the main thread by SceneKit bridge.
                     zoneContacts[type, default: 0] += 1
                 },
+                onOriginalConnectionContact: { sourceID, targetID in
+                    let key = sourceID + "|" + targetID
+                    if originalMechanismConnections.contains(where: {
+                        $0.sourceID == sourceID && $0.targetID == targetID
+                    }) {
+                        matchedMechanismLinks.insert(key)
+                    }
+                },
                 onLinkedZoneContact: { sourceID, zoneID in
                     // Only a contact with the source object's OWN original
                     // CONNECTED_TO zone counts as a recovered objective.
@@ -174,6 +191,7 @@ struct CMOriginalQuickPlayView: View {
                         physicsPaused = false
                         zoneContacts.removeAll()
                         matchedZoneLinks.removeAll()
+                        matchedMechanismLinks.removeAll()
                         // Rebuild bodies only after changing scene physics mode.
                         sceneRevision = UUID()
                     }
@@ -187,7 +205,8 @@ struct CMOriginalQuickPlayView: View {
                 Button("Restart") {
                     physicsPaused = false
                     zoneContacts.removeAll()
-                        matchedZoneLinks.removeAll()
+                    matchedZoneLinks.removeAll()
+                    matchedMechanismLinks.removeAll()
                     sceneRevision = UUID()
                 }
                 .accessibilityIdentifier("cm.original.quickplay-reset")
@@ -220,7 +239,8 @@ struct CMOriginalQuickPlayView: View {
                     experimentalPhysics = false
                     physicsPaused = false
                     zoneContacts.removeAll()
-                        matchedZoneLinks.removeAll()
+                    matchedZoneLinks.removeAll()
+                    matchedMechanismLinks.removeAll()
                     sceneRevision = UUID()
                 }
                 .font(.caption.weight(.semibold))
@@ -269,6 +289,18 @@ struct CMOriginalQuickPlayView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 14)
+            }
+
+            if experimentalPhysics && !originalMechanismConnections.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Original linked mechanisms: \(matchedMechanismLinks.count) / \(originalMechanismConnections.count)")
+                        .font(.caption.weight(.semibold))
+                        .accessibilityIdentifier("cm.original.linked-mechanism-progress")
+                    Text("Physical contacts with explicitly linked PC objects; these do not prove puzzle completion.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 14)
             }
 
             Text(experimentalPhysics
