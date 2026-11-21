@@ -1,10 +1,12 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import CryptoKit
 
 /// Browse actual user-exported original levels without simulating invented physics.
 struct CMOriginalLevelBrowserView: View {
     @State private var importing = false
     @State private var importingFolder = false
+    @State private var importingCML = false
     @State private var documents: [CMOriginalSceneDocument] = []
     @State private var errorMessage: String?
     @State private var selected: Int?
@@ -37,6 +39,7 @@ struct CMOriginalLevelBrowserView: View {
                         .font(.caption)
                     Button("Import original levels") { importing = true }
                     Button("Import entire exported levels folder") { importingFolder = true }
+                    Button("Import original PC laboratory (.cml)") { importingCML = true }
                     if let errorMessage {
                         Text(errorMessage).foregroundStyle(.red).font(.caption)
                     }
@@ -113,6 +116,15 @@ struct CMOriginalLevelBrowserView: View {
                     }
                     jsonFiles.sort { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
                     importDocuments(jsonFiles)
+                }
+            }
+            .fileImporter(isPresented: $importingCML,
+                          allowedContentTypes: [UTType(filenameExtension: "cml") ?? .data]) { result in
+                switch result {
+                case .failure(let error):
+                    errorMessage = error.localizedDescription
+                case .success(let url):
+                    importOriginalLaboratory(url)
                 }
             }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.json],
@@ -421,6 +433,73 @@ struct CMOriginalLevelBrowserView: View {
         }
         visit(root)
         return result
+    }
+
+    /// Native original CML import: read the user-supplied encrypted Windows
+    /// laboratory, decompress each LZW scene and generate the same verified
+    /// scene documents already supported by the existing player. Preflight
+    /// every level before writing anything into the private app sandbox.
+    private func importOriginalLaboratory(_ url: URL) {
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+        do {
+            let attributes = try url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+            guard attributes.isRegularFile == true,
+                  let size = attributes.fileSize,
+                  size >= 256, size <= 32 * 1024 * 1024 else {
+                errorMessage = "Original CML file has an invalid size"
+                return
+            }
+            let data = try Data(contentsOf: url)
+            let records = try CMOriginalCMLContainer.read(data)
+            guard !records.isEmpty else {
+                errorMessage = "This original laboratory contains no puzzles"
+                return
+            }
+
+            var prepared: [(url: URL, bytes: Data, hash: String, title: String)] = []
+            for record in records {
+                let originalBytes = try CMOriginalLZW12.decodeLevelSection(record.payload)
+                guard let text = String(data: originalBytes, encoding: .windowsCP1251) else {
+                    throw CMOriginalCMLContainer.DecodeError.invalidText
+                }
+                let hash = SHA256.hash(data: originalBytes)
+                    .map { String(format: "%02x", $0) }.joined()
+                let json = try CMOriginalSceneTextParser.export(
+                    text, index: record.index, title: record.title, sceneSHA256: hash
+                )
+                let filename = String(format: "level-%03d.json", record.index)
+                let destination = sceneStorage.appendingPathComponent(filename)
+                prepared.append((destination, json, hash, record.title))
+            }
+
+            // Preserve any existing imported levels. Equivalent original
+            // scenes are idempotent even if JSON key ordering differs.
+            var fresh: [(url: URL, bytes: Data)] = []
+            for item in prepared {
+                if FileManager.default.fileExists(atPath: item.url.path) {
+                    let existingData = try Data(contentsOf: item.url)
+                    let existing = try CMOriginalSceneDocument.read(existingData)
+                    guard existing.sceneSHA256 == item.hash,
+                          existing.title == item.title else {
+                        errorMessage = "A different original level already exists: \(item.url.lastPathComponent)"
+                        return
+                    }
+                } else {
+                    fresh.append((item.url, item.bytes))
+                }
+            }
+            try FileManager.default.createDirectory(
+                at: sceneStorage, withIntermediateDirectories: true
+            )
+            for item in fresh {
+                try item.bytes.write(to: item.url, options: .atomic)
+            }
+            reloadSavedScenes()
+            errorMessage = "Imported \(fresh.count) original PC puzzles (\(records.count) in laboratory)"
+        } catch {
+            errorMessage = "Unable to import original CML: \(error.localizedDescription)"
+        }
     }
 
     private func reloadSavedScenes() {

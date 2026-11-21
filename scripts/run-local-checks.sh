@@ -26,5 +26,10 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalModelResolver.swift tests
 "$tmp/original-scenes"
 swiftc ios/CMOriginalLZW12.swift tests/OriginalLZW12Smoke.swift -o "$tmp/original-lzw"
 "$tmp/original-lzw"
+# Native CML decryption + scene export are portable Swift, not iOS-only stubs.
+swiftc ios/CMOriginalLZW12.swift ios/CMOriginalCMLContainer.swift tests/OriginalCMLContainerSmoke.swift -o "$tmp/original-cml"
+"$tmp/original-cml"
+swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalSceneTextParser.swift tests/OriginalSceneTextParserSmoke.swift -o "$tmp/original-scene-text"
+"$tmp/original-scene-text"
 python3 -m unittest discover -s tools -p 'test_*.py'
 echo "Portable checks passed. iOS simulator build still requires Xcode/macOS."
