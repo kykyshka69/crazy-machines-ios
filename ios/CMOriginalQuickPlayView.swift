@@ -215,7 +215,20 @@ struct CMOriginalQuickPlayView: View {
                 }
                 .font(.caption.weight(.medium))
                 .padding(.horizontal, 14)
-                Text("Real 3D contact detection only. Original PC victory rules are not yet decoded.")
+                if !zoneContacts.isEmpty {
+                    // Report the actual object kinds seen by the original
+                    // capture-zone sensor, not an invented win condition.
+                    Text(zoneContacts.keys.sorted().map { kind in
+                        let readable = kind.replacingOccurrences(of: "tmo_", with: "")
+                            .replacingOccurrences(of: "_", with: " ")
+                        return "\(readable): \(zoneContacts[kind] ?? 0)"
+                    }.joined(separator: " · "))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 14)
+                    .accessibilityIdentifier("cm.original.zone-contact-types")
+                }
+                Text("Actual 3D collisions only. Original PC victory rules are not yet decoded.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 14)
