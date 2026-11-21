@@ -796,8 +796,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
 
             // A 3DO entry is a model reference, not an additional object transform.
-            if item.name.hasPrefix("3DO ") {
-                let name = String(item.name.dropFirst(4))
+            func attachOriginalModel(_ name: String) {
                 // Preserve exact spelling: distinct UCM assets can differ only
                 // by case, and the resolver gives exact names precedence.
                 let modelKey = name
@@ -848,6 +847,24 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             loadedMeshNodes.append(mesh)
                         }
                     }
+                }
+            }
+            // Some valid exports store 3DO references in the models array
+            // without a corresponding explicit child node. Render those too,
+            // but do not duplicate references represented by 3DO children.
+            if item.name.hasPrefix("3DO ") {
+                attachOriginalModel(String(item.name.dropFirst(4)))
+            }
+            let explicitChildren = Set(item.children.compactMap { child -> String? in
+                guard child.name.hasPrefix("3DO ") else { return nil }
+                return String(child.name.dropFirst(4)).lowercased()
+            })
+            if let models = item.models {
+                var seen = Set<String>()
+                for name in models {
+                    let key = name.lowercased()
+                    guard !explicitChildren.contains(key), seen.insert(key).inserted else { continue }
+                    attachOriginalModel(name)
                 }
             }
             for child in item.children {
