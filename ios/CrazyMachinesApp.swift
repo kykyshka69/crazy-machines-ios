@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreGraphics
 
 /// Player-facing entry point. Original PC menu artwork has not yet been
 /// integrated; this is a functional iPhone navigation screen, not a claim
@@ -15,6 +16,40 @@ struct CrazyMachinesApp: App {
 private struct CMGameHomeView: View {
     @State private var showLevels = false
     @State private var showResources = false
+    @State private var originalBackdrop: UIImage?
+
+    private var assetDirectory: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("OriginalGame", isDirectory: true)
+    }
+
+    private func loadOriginalBackdrop() {
+        // Use only an actual imported PC menu/background asset. Never
+        // present a guessed gameplay texture as the original title screen.
+        let accepted = Set(["menu", "mainmenu", "main_menu", "menu_background",
+                            "menubackground", "title", "title_screen", "titlescreen"])
+        let files = (try? FileManager.default.contentsOfDirectory(
+            at: assetDirectory, includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        )) ?? []
+        for url in files.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+            guard url.pathExtension.lowercased() == "tga",
+                  accepted.contains(url.deletingPathExtension().lastPathComponent.lowercased()),
+                  let data = try? Data(contentsOf: url),
+                  let tga = try? CMTGATexture(data: data),
+                  let provider = CGDataProvider(data: tga.rgba as CFData),
+                  let space = CGColorSpace(name: CGColorSpace.sRGB),
+                  let image = CGImage(width: tga.width, height: tga.height,
+                                      bitsPerComponent: 8, bitsPerPixel: 32,
+                                      bytesPerRow: tga.width * 4, space: space,
+                                      bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
+                                      provider: provider, decode: nil,
+                                      shouldInterpolate: true, intent: .defaultIntent) else { continue }
+            originalBackdrop = UIImage(cgImage: image)
+            return
+        }
+        originalBackdrop = nil
+    }
 
     var body: some View {
         NavigationStack {
@@ -25,6 +60,15 @@ private struct CMGameHomeView: View {
                     startPoint: .topLeading, endPoint: .bottomTrailing
                 )
                 .ignoresSafeArea()
+
+                if let originalBackdrop {
+                    Image(uiImage: originalBackdrop)
+                        .resizable()
+                        .scaledToFill()
+                        .ignoresSafeArea()
+                        .overlay(Color.black.opacity(0.45))
+                        .accessibilityHidden(true)
+                }
 
                 VStack(spacing: 24) {
                     Spacer()
@@ -72,6 +116,7 @@ private struct CMGameHomeView: View {
                 .padding(28)
                 .frame(maxWidth: 520)
             }
+            .onAppear(perform: loadOriginalBackdrop)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $showLevels) {
                 CMOriginalLevelBrowserView()
