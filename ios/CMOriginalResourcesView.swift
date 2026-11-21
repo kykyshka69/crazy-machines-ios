@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 struct CMOriginalResourcesView: View {
     @State private var importing = false
     @State private var importingFolder = false
+    @State private var importingPack = false
     @State private var selectedCML: ResourceEntry?
     @State private var selectedProbe: CMOriginalCMLProbe?
     @State private var entries: [ResourceEntry] = []
@@ -30,8 +31,10 @@ struct CMOriginalResourcesView: View {
                 Section {
                     Text("Original Crazy Machines resources")
                         .font(.headline)
-                    Text("Original CML decoding and private scene export are available through the project tools. Import the exported JSON scenes in Original levels; original physics is not playable yet.")
+                    Text("Install your private CrazyMachines_Original_102Levels.cmassets pack to load 160 original models, 181 textures and all 102 original level scenes at once. Original game physics is still being reconstructed.")
                         .font(.caption)
+                    Button("Install original game pack (102 levels)") { importingPack = true }
+                        .accessibilityIdentifier("cm.original.import-pack")
                     Button("Import original game files") { importing = true }
                     Button("Import entire extracted models folder") { importingFolder = true }
                     Text(message).font(.caption).foregroundStyle(.secondary)
@@ -77,6 +80,27 @@ struct CMOriginalResourcesView: View {
             }
 
             .onAppear(perform: reload)
+            .fileImporter(isPresented: $importingPack, allowedContentTypes: [.item]) { result in
+                switch result {
+                case .success(let url):
+                    let access = url.startAccessingSecurityScopedResource()
+                    defer { if access { url.stopAccessingSecurityScopedResource() } }
+                    guard url.pathExtension.lowercased() == "cmassets" else {
+                        message = "Select the CrazyMachines_Original_102Levels.cmassets file."
+                        return
+                    }
+                    do {
+                        let data = try Data(contentsOf: url, options: .mappedIfSafe)
+                        let report = try CMOriginalAssetPackImporter.install(data)
+                        reload()
+                        message = "Installed \(report.installed) files (\(report.existing) already present). \(report.models) original 3D models, \(report.textures) textures and \(report.levels) authentic scenes. Open Play to view levels."
+                    } catch {
+                        message = "Original game pack import failed: \(error.localizedDescription)"
+                    }
+                case .failure(let error):
+                    message = "Original game pack selection failed: \(error.localizedDescription)"
+                }
+            }
             .fileImporter(isPresented: $importingFolder, allowedContentTypes: [.folder]) { result in
                 switch result {
                 case .success(let folder):
