@@ -63,7 +63,10 @@ struct CMOriginalStartscreen3D: UIViewRepresentable {
         camera.camera = SCNCamera()
         camera.camera?.zNear = 0.01
         camera.camera?.zFar = Double(max(span * 30, 1000))
-        camera.position = SCNVector3(center.x, center.y, center.z + span * 2.4)
+        // The original startscreen board, notes and wall have normals
+        // facing -Z. Viewing from +Z reverses layering and hides notes
+        // behind the chalkboard; view authentic geometry from -Z instead.
+        camera.position = SCNVector3(center.x, center.y, center.z - span * 2.4)
         camera.look(at: center)
         scene.rootNode.addChildNode(camera)
         view.pointOfView = camera
