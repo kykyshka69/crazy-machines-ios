@@ -537,7 +537,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
             // Both endpoints exist and belong to distinct rigid bodies.
             // Keep the first endpoint highlighted until all validation passes.
-            clearPendingHingeEndpoint()
             // A world-space midpoint gives a reproducible test connection.
             // This is not a recovered original-game joint.
             let a = first.presentation.convertPosition(SCNVector3Zero, to: nil)
@@ -646,6 +645,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                              anchorA: anchorA, bodyB: body,
                                              axisB: axisB, anchorB: anchorB)
             scene.physicsWorld.addBehavior(hinge)
+            clearPendingHingeEndpoint()
             view.isPlaying = wasPlaying
             let marker = SCNNode(geometry: SCNSphere(radius: 0.08))
             marker.name = "manual-hinge-anchor"
