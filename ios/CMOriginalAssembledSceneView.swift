@@ -136,9 +136,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         let camera = scene.rootNode.childNode(
             withName: "original-level-camera", recursively: false)
         let position = camera?.position ?? SCNVector3Zero
+        let forward = camera?.convertVector(
+            SCNVector3(0, 0, -1), to: nil) ?? SCNVector3Zero
         return "; sceneMeshes=\(meshes); originalUCM=\(originalMeshes)" +
             "; calibration=\(diagnosticMarkers); camera=" +
-            "\(position.x),\(position.y),\(position.z)"
+            "\(position.x),\(position.y),\(position.z)" +
+            "; forward=\(forward.x),\(forward.y),\(forward.z)"
     }
     #endif
 
@@ -1583,6 +1586,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
         #if DEBUG && targetEnvironment(simulator)
         if document.title == "CM synthetic CI 3D scene" {
+            // This test-only background is intentionally different from
+            // SCNView's UIKit charcoal fill. If it never appears, SceneKit
+            // did not composite any scene frame, irrespective of camera or
+            // imported UCM geometry.
+            scene.background.contents = UIColor(
+                red: 0.12, green: 0.20, blue: 0.55, alpha: 1)
             // An unmistakably CYAN SceneKit-native calibration sphere is
             // deliberately separate from the imported ORANGE UCM triangle.
             // Never use the reference marker to satisfy the UCM rendering
@@ -1982,13 +1991,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // while balls/boards are around z=0. Placing the camera at +Z
             // puts the background IN FRONT and occludes authentic puzzles.
             camera.position = SCNVector3(center.x, center.y, center.z - distance)
-            camera.look(at: center)
+            // A camera looks down local -Z. From the original puzzle's
+            // negative-Z side it must look toward world +Z. Because the
+            // target lies EXACTLY behind the default direction, look(at:)
+            // encounters an antiparallel (180 degree) case with an
+            // underdetermined rotation axis. Fix an explicit yaw instead:
+            // +Y stays up and the entire authentic XY puzzle stays ahead.
+            camera.eulerAngles = SCNVector3(0, Float.pi, 0)
         } else {
             camera.position = SCNVector3(0, 0, -10)
-            // SceneKit cameras look along LOCAL -Z by default. Without an
-            // explicit look(at:), a fallback camera at world -Z points AWAY
-            // from scene objects at Z=0, guaranteeing a blank preview.
-            camera.look(at: SCNVector3Zero)
+            camera.eulerAngles = SCNVector3(0, Float.pi, 0)
         }
         scene.rootNode.addChildNode(camera)
         return scene
