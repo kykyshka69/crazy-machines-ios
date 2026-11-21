@@ -880,6 +880,25 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             return SCNVector3(x, y, z)
         }
 
+        // All 102 original Professor Laboratory scenes use the SCAL field:
+        // 710 per-node scale values, including intentional negative scales
+        // (mirrored conveyor parts) and nonuniform model/zone dimensions.
+        // The previous renderer ignored it, causing incorrect puzzle sizes,
+        // collision shapes, and orientation even with the correct PC UCMs.
+        // Leave coordinates in the original scene's local coordinate system.
+        func parseOriginalScale(_ fields: [String]) -> SCNVector3 {
+            guard let field = fields.first(where: { $0.hasPrefix("SCAL ") }) else {
+                return SCNVector3(1, 1, 1)
+            }
+            let values = field.dropFirst(5).split(separator: ",")
+                .compactMap { Float($0.trimmingCharacters(in: .whitespaces)) }
+            guard values.count == 3,
+                  values.allSatisfy({ $0.isFinite && abs($0) <= 1_000 }) else {
+                return SCNVector3(1, 1, 1)
+            }
+            return SCNVector3(values[0], values[1], values[2])
+        }
+
         // Keep each original tmo object's meshes together: a multi-part model
         // must not split into independently falling rigid bodies.
         var objectRoots: [String: SCNNode] = [:]
@@ -904,6 +923,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 transform.position = SCNVector3(Float(p[0]), Float(p[1]), Float(p[2]))
             }
             transform.eulerAngles = parseRotation(item.rotationRelativeRaw ?? item.rotationRaw)
+            transform.scale = parseOriginalScale(item.fields)
             originalPositions[identifier] = transform.position
             originalRotations[identifier] = transform.eulerAngles
             parent.addChildNode(transform)
