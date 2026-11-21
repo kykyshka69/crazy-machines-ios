@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 final class CrazyMachinesLaunchUITests: XCTestCase {
     private func launchHome() -> XCUIApplication {
@@ -72,6 +73,21 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         // simulation. Verify both modes instead of assuming an automatic run.
         let pause = app.buttons["cm.original.quickplay-pause"]
         XCTAssertFalse(pause.exists, "Pause must not be shown before physics starts")
+        // A successful app launch does NOT prove SceneKit drew the UCM mesh.
+        // Guard against the all-black 3D viewport captured in run #850.
+        let viewport = app.otherElements["cm.original.assembled-scene"]
+        XCTAssertTrue(viewport.waitForExistence(timeout: 10),
+                      "Imported SceneKit viewport is missing")
+        var drewOriginalModel = false
+        for _ in 0..<5 {
+            if containsRenderedModel(viewport.screenshot().image) {
+                drewOriginalModel = true
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.4)
+        }
+        XCTAssertTrue(drewOriginalModel,
+                      "The imported 3D UCM viewport is blank, even though the level opened")
         attachScreenshot(app, named: "05-imported-original-3D-SceneKit-fixture")
 
         physics.tap()
@@ -95,6 +111,42 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         )
         XCTAssertTrue(app.staticTexts["1 original levels loaded"].exists)
         attachScreenshot(app, named: "06-imported-scene-level-browser")
+    }
+
+    /// Downsample only the SceneKit viewport, excluding bright SwiftUI
+    /// navigation/controls. A solid dark rectangle must fail this test even
+    /// when Play -> original level navigation and physics buttons work.
+    private func containsRenderedModel(_ image: UIImage) -> Bool {
+        guard let original = image.cgImage else { return false }
+        let side = 48
+        var rgba = [UInt8](repeating: 0, count: side * side * 4)
+        let decoded = rgba.withUnsafeMutableBytes { bytes -> Bool in
+            guard let base = bytes.baseAddress,
+                  let context = CGContext(
+                    data: base, width: side, height: side,
+                    bitsPerComponent: 8, bytesPerRow: side * 4,
+                    space: CGColorSpaceCreateDeviceRGB(),
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                  ) else { return false }
+            context.draw(original, in: CGRect(
+                x: 0, y: 0, width: side, height: side))
+            return true
+        }
+        guard decoded else { return false }
+        let darkBackground = (Int(rgba[0]), Int(rgba[1]), Int(rgba[2]))
+        var visible = 0
+        for offset in stride(from: 0, to: rgba.count, by: 4) {
+            let red = Int(rgba[offset])
+            let green = Int(rgba[offset + 1])
+            let blue = Int(rgba[offset + 2])
+            let contrast = max(abs(red - darkBackground.0),
+                               abs(green - darkBackground.1),
+                               abs(blue - darkBackground.2))
+            if contrast > 35 && red + green + blue > 160 {
+                visible += 1
+            }
+        }
+        return visible >= 8
     }
 
     private func attachScreenshot(_ app: XCUIApplication, named name: String) {

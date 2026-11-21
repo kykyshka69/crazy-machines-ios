@@ -137,7 +137,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         view.defaultCameraController.inertiaEnabled = true
         // SceneKit defaults to a paused scene in some configurations; make
         // frame scheduling explicit for deterministic experiment startup.
-        view.rendersContinuously = experimentalPhysics
+        // Keep the renderer active while arranging an original level.
+        // view.isPlaying=false can leave the imported SceneKit viewport
+        // completely black until the user starts physics. Drawing a scene
+        // and integrating its rigid bodies are separate responsibilities.
+        view.rendersContinuously = true
+        view.preferredFramesPerSecond = experimentalPhysics ? 60 : 30
         if experimentalPhysics { view.delegate = context.coordinator }
         let tap = UITapGestureRecognizer(target: context.coordinator,
                                          action: #selector(Coordinator.selectObject(_:)))
@@ -224,7 +229,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             scene.physicsWorld.timeStep = 1.0 / 120.0
             scene.physicsWorld.contactDelegate = context.coordinator
         }
-        view.isPlaying = experimentalPhysics && !physicsPaused
+        // Render original UCM meshes in both arrangement and playback modes.
+        // PhysicsWorld.speed=0 freezes simulation without stopping drawing,
+        // camera orbiting or screenshots of a paused/unsolved puzzle.
+        scene.physicsWorld.speed = experimentalPhysics && !physicsPaused ? 1 : 0
+        view.isPlaying = true
         if experimentalPhysics {
             // Allow tapping a moving imported object to give it an impulse.
             // This is a sandbox interaction, not an original puzzle mechanic.
@@ -247,7 +256,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
         context.coordinator.setExperimentalMotorDrive(experimentalMotorDrive)
-        uiView.isPlaying = experimentalPhysics && !physicsPaused
+        // A paused experiment must still display its current 3D frame.
+        // Freezing SceneKit's renderer would also prevent camera updates.
+        uiView.isPlaying = true
+        uiView.scene?.physicsWorld.speed =
+            experimentalPhysics && !physicsPaused ? 1 : 0
         uiView.allowsCameraControl = !allowObjectPlacement || experimentalPhysics
         if experimentalPhysics {
             context.coordinator.setSessionPaused(physicsPaused)
