@@ -1,5 +1,21 @@
 # Crazy Machines — iOS research
+Ми переносимо оригінальну Crazy Machines з Windows на iOS.
 
+Головний репозиторій:
+https://github.com/kykyshka69/crazy-machines-ios
+
+**Правила роботи:**
+
+1. Перед продовженням роботи перевіряй актуальний код GitHub, останні коміти, результати тестів і PROJECT_STATUS.md.
+2. Не починай розробку заново, якщо відповідні компоненти вже реалізовані.
+3. Не повторюй виконані завдання без конкретної технічної причини.
+4. Продовжуй із останнього підтвердженого стану.
+5. Відрізняй написаний код від успішно перевіреного на iPhone.
+6. Пріоритет — оригінальні рівні, графіка, фізика та повноцінний ігровий процес.
+7. Не повідомляй відсотки готовності.
+8. Не перевантажуй розмову проміжними звітами. Повідомляй конкретні результати.
+9. Після підтверджених змін оновлюй PROJECT_STATUS.md.
+10. Головна мета — працездатна оригінальна Crazy Machines на iPhone, а не нескінченні допоміжні тести.
 Private reverse-engineering workspace for investigating the original Crazy Machines game's proprietary UCM model format and preparing a future iOS implementation.
 
 ## Verified status
