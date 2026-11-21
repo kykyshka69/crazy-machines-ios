@@ -115,6 +115,33 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         return "\(document.root.goalCount) original goal markers; physics \(state)"
     }
 
+    /// Simulator-only rendering diagnostics: accessibility exposes whether
+    /// imported UCM geometry is present in the SceneKit graph. The CI visual
+    /// smoke test can now distinguish an asset-loading regression from a
+    /// camera/rendering regression instead of reporting only "black screen".
+    #if DEBUG && targetEnvironment(simulator)
+    private func sceneDebugStatus(_ scene: SCNScene?) -> String {
+        guard let scene else { return "; scene=missing" }
+        var meshes = 0
+        var originalMeshes = 0
+        var diagnosticMarkers = 0
+        scene.rootNode.enumerateChildNodes { node, _ in
+            guard node.geometry != nil else { return }
+            meshes += 1
+            if node is CMOriginalObjectMeshNode { originalMeshes += 1 }
+            if node.name == "cm-ci-render-calibration" {
+                diagnosticMarkers += 1
+            }
+        }
+        let camera = scene.rootNode.childNode(
+            withName: "original-level-camera", recursively: false)
+        let position = camera?.position ?? SCNVector3Zero
+        return "; sceneMeshes=\(meshes); originalUCM=\(originalMeshes)" +
+            "; calibration=\(diagnosticMarkers); camera=" +
+            "\(position.x),\(position.y),\(position.z)"
+    }
+    #endif
+
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
         view.backgroundColor = UIColor(white: 0.09, alpha: 1)
@@ -217,6 +244,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             scene.physicsWorld.gravity = SCNVector3(0, -9.8, 0)
         }
         view.scene = scene
+        #if DEBUG && targetEnvironment(simulator)
+        view.accessibilityValue = physicsAccessibilityStatus +
+            sceneDebugStatus(scene)
+        #endif
         context.coordinator.initializeSwitchPressCount(switchPressCount)
         if experimentalPhysics {
             context.coordinator.registerPhysicsNodes(in: scene)
@@ -267,9 +298,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             context.coordinator.configurePhysicsRoles(configuredPhysicsRoles)
             context.coordinator.pressConfiguredSwitchIfNeeded(switchPressCount)
         }
-        uiView.accessibilityValue = context.coordinator.selectedModelName.map {
+        let status = context.coordinator.selectedModelName.map {
             physicsAccessibilityStatus + "; selected original model: " + $0
         } ?? physicsAccessibilityStatus
+        #if DEBUG && targetEnvironment(simulator)
+        uiView.accessibilityValue = status + sceneDebugStatus(uiView.scene)
+        #else
+        uiView.accessibilityValue = status
+        #endif
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -1491,6 +1527,27 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
         walk(document.root, parent: scene.rootNode)
 
+        #if DEBUG && targetEnvironment(simulator)
+        if document.title == "CM synthetic CI 3D scene" {
+            // An unmistakably CYAN SceneKit-native calibration sphere is
+            // deliberately separate from the imported ORANGE UCM triangle.
+            // Never use the reference marker to satisfy the UCM rendering
+            // assertion: if cyan renders and orange does not, asset/geometry
+            // rendering is broken. If neither renders, inspect the camera or
+            // Metal viewport. This is only present in the copyright-free CI
+            // fixture, never in authentic PC puzzles or release builds.
+            let calibration = SCNNode(geometry: SCNSphere(radius: 0.22))
+            calibration.name = "cm-ci-render-calibration"
+            calibration.position = SCNVector3(1, 0, -0.1)
+            let material = SCNMaterial()
+            material.lightingModel = .constant
+            material.diffuse.contents = UIColor.cyan
+            material.emission.contents = UIColor.cyan
+            calibration.geometry?.materials = [material]
+            scene.rootNode.addChildNode(calibration)
+        }
+        #endif
+
         // Reapply user-edited positions to original object owners BEFORE
         // creating collision shapes. The same edited arrangement must be
         // used when switching from placement mode into physics mode.
@@ -1874,6 +1931,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             camera.look(at: center)
         } else {
             camera.position = SCNVector3(0, 0, -10)
+            // SceneKit cameras look along LOCAL -Z by default. Without an
+            // explicit look(at:), a fallback camera at world -Z points AWAY
+            // from scene objects at Z=0, guaranteeing a blank preview.
+            camera.look(at: SCNVector3Zero)
         }
         scene.rootNode.addChildNode(camera)
         return scene

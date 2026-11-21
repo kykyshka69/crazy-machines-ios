@@ -78,16 +78,22 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         let viewport = app.otherElements["cm.original.assembled-scene"]
         XCTAssertTrue(viewport.waitForExistence(timeout: 10),
                       "Imported SceneKit viewport is missing")
-        var drewOriginalModel = false
+        var orangePixels = 0
+        var calibrationPixels = 0
         for _ in 0..<5 {
-            if containsRenderedModel(viewport.screenshot().image) {
-                drewOriginalModel = true
-                break
-            }
+            let colors = renderedPixelCounts(viewport.screenshot().image)
+            orangePixels = max(orangePixels, colors.orange)
+            calibrationPixels = max(calibrationPixels, colors.cyan)
+            if orangePixels >= 8 && calibrationPixels >= 8 { break }
             Thread.sleep(forTimeInterval: 0.4)
         }
-        XCTAssertTrue(drewOriginalModel,
-                      "The imported 3D UCM viewport is blank, even though the level opened")
+        let sceneStatus = (viewport.value as? String) ?? "no scene diagnostics"
+        XCTAssertTrue(calibrationPixels >= 8,
+                      "SceneKit calibration is invisible (cyan=\(calibrationPixels), " +
+                      "orange=\(orangePixels)); \(sceneStatus)")
+        XCTAssertTrue(orangePixels >= 8,
+                      "Imported UCM triangle is invisible (orange=\(orangePixels), " +
+                      "cyan=\(calibrationPixels)); \(sceneStatus)")
         attachScreenshot(app, named: "05-imported-original-3D-SceneKit-fixture")
 
         // XCUI reports both a wrapper Switch and its native UISwitch.
@@ -121,12 +127,13 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         attachScreenshot(app, named: "06-imported-scene-level-browser")
     }
 
-    /// Downsample only the SceneKit viewport, excluding bright SwiftUI
-    /// navigation/controls. A solid dark rectangle must fail this test even
-    /// when Play -> original level navigation and physics buttons work.
-    private func containsRenderedModel(_ image: UIImage) -> Bool {
-        guard let original = image.cgImage else { return false }
-        let side = 48
+    /// Inspect only the SceneKit pixels, not the bright SwiftUI controls.
+    /// The fixture's actual imported UCM mesh is ORANGE; the simulator-only
+    /// reference SCNSphere is CYAN. A successful test must see BOTH: one
+    /// proves SceneKit draws, the other proves authentic UCM geometry draws.
+    private func renderedPixelCounts(_ image: UIImage) -> (orange: Int, cyan: Int) {
+        guard let original = image.cgImage else { return (0, 0) }
+        let side = 72
         var rgba = [UInt8](repeating: 0, count: side * side * 4)
         let decoded = rgba.withUnsafeMutableBytes { bytes -> Bool in
             guard let base = bytes.baseAddress,
@@ -140,21 +147,21 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
                 x: 0, y: 0, width: side, height: side))
             return true
         }
-        guard decoded else { return false }
-        let darkBackground = (Int(rgba[0]), Int(rgba[1]), Int(rgba[2]))
-        var visible = 0
+        guard decoded else { return (0, 0) }
+        var orange = 0
+        var cyan = 0
         for offset in stride(from: 0, to: rgba.count, by: 4) {
-            let red = Int(rgba[offset])
-            let green = Int(rgba[offset + 1])
-            let blue = Int(rgba[offset + 2])
-            let contrast = max(abs(red - darkBackground.0),
-                               abs(green - darkBackground.1),
-                               abs(blue - darkBackground.2))
-            if contrast > 35 && red + green + blue > 160 {
-                visible += 1
+            let r = Int(rgba[offset])
+            let g = Int(rgba[offset + 1])
+            let b = Int(rgba[offset + 2])
+            if r >= 140 && g >= 40 && r >= g + 35 && g >= b + 25 {
+                orange += 1
+            }
+            if g >= 120 && b >= 120 && r + 45 <= g && r + 45 <= b {
+                cyan += 1
             }
         }
-        return visible >= 8
+        return (orange, cyan)
     }
 
     private func attachScreenshot(_ app: XCUIApplication, named name: String) {
