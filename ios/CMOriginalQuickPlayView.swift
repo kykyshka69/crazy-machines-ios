@@ -89,7 +89,7 @@ struct CMOriginalQuickPlayView: View {
 
             HStack(spacing: 10) {
                 if !experimentalPhysics {
-                    Label("Arrange: tap a part, then drag it.", systemImage: "hand.draw")
+                    Label("Arrange: tap, drag or rotate with two fingers.", systemImage: "hand.draw")
                         .font(.caption.weight(.medium))
                         .accessibilityIdentifier("cm.original.quickplay-arrange-hint")
                 } else {
@@ -100,6 +100,9 @@ struct CMOriginalQuickPlayView: View {
                 Button("Original layout") {
                     UserDefaults.standard.removeObject(
                         forKey: "cm.original.positions.\(document.sceneSHA256)"
+                    )
+                    UserDefaults.standard.removeObject(
+                        forKey: "cm.original.rotations.\(document.sceneSHA256)"
                     )
                     experimentalPhysics = false
                     physicsPaused = false
@@ -113,7 +116,7 @@ struct CMOriginalQuickPlayView: View {
 
             Text(experimentalPhysics
                  ? "Experimental SceneKit collisions, not the original game's physics."
-                 : "Positions are saved only on this iPhone. Turning physics on starts from your arrangement; original PC level files stay unchanged.")
+                 : "Positions and rotations are stored only on this iPhone. Starting physics uses this arrangement; original PC level files stay unchanged.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
