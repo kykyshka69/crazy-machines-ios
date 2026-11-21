@@ -264,6 +264,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var lastRendererTime: TimeInterval?
         private var experimentalMotorDriveEnabled = false
         private var motorRotorObjectIDs = Set<String>()
+        private var axleObjectIDs = Set<String>()
 
         func setExperimentalMotorDrive(_ enabled: Bool) {
             sessionLock.lock()
@@ -396,6 +397,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     .filter { $0.type == "tmo_power_motor_rotor" }
                     .map(\.id)
             )
+            axleObjectIDs = Set(
+                (session?.objects ?? [])
+                    .filter {
+                        CMOriginalAxleParts.rotatingKinds.contains($0.type)
+                            || $0.type == "tmo_rope_seesaw_lever"
+                    }
+                    .map(\.id)
+            )
             scene.rootNode.enumerateChildNodes { node, _ in
                 guard let body = node.physicsBody,
                       let id = self.physicsObjectID(for: node) else { return }
@@ -405,6 +414,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     // downward-gravity behavior of crates and balls.
                     // Approximate upward buoyancy below; do not claim
                     // the acceleration matches the Windows solver.
+                    body.isAffectedByGravity = false
+                }
+                if self.axleObjectIDs.contains(id) {
+                    // These authentic original mechanisms are pinned to
+                    // non-translating world hinges. Gravity on their moving
+                    // bodies was constantly pulling at the hinge constraint
+                    // and made the compound axles vibrate or drift.
+                    // A seesaw is still tipped by colliding objects.
                     body.isAffectedByGravity = false
                 }
             }
