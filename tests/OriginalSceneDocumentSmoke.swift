@@ -169,7 +169,9 @@ enum OriginalSceneDocumentSmoke {
         precondition(originalMeshes.resolve("to_zone")?.lastPathComponent == "zone.UCM")
         precondition(originalMeshes.resolve("to_belt_conveyer_roll_small")?.lastPathComponent
                      == "belt_conveyor_roll2.ucm")
-        precondition(originalMeshes.resolve("to_wall_brick") == nil)
+        precondition(originalMeshes.resolve("to_wall_brick")?.lastPathComponent == "wall.ucm")
+        precondition(originalMeshes.resolve("to_wall_wall_paper")?.lastPathComponent == "wall.ucm")
+        precondition(originalMeshes.resolve("to_wall_nonexistent") == nil)
         precondition(originalMeshes.resolve("../wall.ucm") == nil)
 
         var session = CMOriginalGameplaySession(document: doc)
