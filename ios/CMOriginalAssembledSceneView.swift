@@ -511,10 +511,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // A second tap on the same mesh or another mesh belonging
                 // to the same rigid body is not a new hinge endpoint.
                 // Preserve the pending selection so the user can still
-                // choose a different original object.
+                // choose a different original object. If the first body's
+                // physics was removed, cancel the now-stale endpoint.
+                guard let firstPhysical = physicalNode(for: first),
+                      let secondPhysical = physicalNode(for: node) else {
+                    clearPendingHingeEndpoint()
+                    return
+                }
                 guard first !== node,
-                      let firstPhysical = physicalNode(for: first),
-                      let secondPhysical = physicalNode(for: node),
                       firstPhysical !== secondPhysical else { return }
             }
             guard let first = pendingHingeEndpoint else {
