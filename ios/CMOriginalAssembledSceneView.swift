@@ -45,6 +45,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var configuredPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
     var configuredReactions: [CMOriginalGameplaySession.ReactionRule] = []
     var switchPressCount = 0
+    // SceneKit collision telemetry for authentic PC capture zones.
+    // This does NOT assert that the Windows level completion condition is met.
+    var onOriginalZoneContact: ((String) -> Void)? = nil
 
     private var physicsAccessibilityStatus: String {
         let state = experimentalPhysics ? (physicsPaused ? "paused" : "running") : "off"
@@ -125,6 +128,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.rotationStorageKey = "cm.original.rotations.\(document.sceneSHA256)"
         context.coordinator.physicsEnabled = experimentalPhysics
         context.coordinator.session = CMOriginalGameplaySession(document: document)
+        context.coordinator.onOriginalZoneContact = onOriginalZoneContact
         if experimentalPhysics {
             context.coordinator.session?.start()
             if physicsPaused { context.coordinator.session?.pause() }
@@ -168,6 +172,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     func updateUIView(_ uiView: SCNView, context: Context) {
         // SwiftUI updates pause state without reconstructing imported meshes
         // or losing the current simulated positions.
+        context.coordinator.onOriginalZoneContact = onOriginalZoneContact
         uiView.isPlaying = experimentalPhysics && !physicsPaused
         uiView.allowsCameraControl = !allowObjectPlacement || experimentalPhysics
         if experimentalPhysics {
@@ -188,6 +193,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var session: CMOriginalGameplaySession?
         private let sessionLock = NSLock()
         private var lastRendererTime: TimeInterval?
+        var onOriginalZoneContact: ((String) -> Void)?
+        private var reportedZoneContacts = Set<String>()
         private var physicsNodesByObjectID: [String: [SCNNode]] = [:]
         private var appliedPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
         private var appliedReactionRules: [CMOriginalGameplaySession.ReactionRule] = []
@@ -368,7 +375,34 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // physics node. Resolve both owners before attributing contacts.
             sessionLock.lock()
             session?.recordContact(a, b, impulse: Double(contact.collisionImpulse))
+            // Original PC 'tmo_zone' nodes are collection areas. Notify the
+            // UI of ACTUAL SceneKit contacts, not of inferred puzzle victory.
+            // Report each object only once for this simulation run.
+            let types = Dictionary(
+                uniqueKeysWithValues: (session?.objects ?? []).map { ($0.id, $0.type) }
+            )
+            let candidate: String?
+            if types[a] == "tmo_zone" && types[b] != "tmo_zone" {
+                candidate = b
+            } else if types[b] == "tmo_zone" && types[a] != "tmo_zone" {
+                candidate = a
+            } else {
+                candidate = nil
+            }
+            let contactType: String?
+            if let candidate, reportedZoneContacts.insert(candidate).inserted {
+                contactType = types[candidate]
+            } else {
+                contactType = nil
+            }
             sessionLock.unlock()
+            if let contactType {
+                // SCNPhysicsContactDelegate is not guaranteed to execute on
+                // the main thread. SwiftUI state may only change on main.
+                DispatchQueue.main.async { [weak self] in
+                    self?.onOriginalZoneContact?(contactType)
+                }
+            }
         }
         private var originalEmission: Any?
         private weak var dragging: SCNNode?
