@@ -57,13 +57,14 @@ struct CMOriginalQuickPlayView: View {
                 assetDirectory: assetDirectory,
                 experimentalPhysics: experimentalPhysics,
                 physicsPaused: physicsPaused,
+                allowObjectPlacement: true,
                 configuredPhysicsRoles: experimentalPhysicsRoles
             )
             .id(sceneRevision)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             HStack(spacing: 12) {
-                Toggle("Experimental collisions", isOn: $experimentalPhysics)
+                Toggle("Run experimental physics", isOn: $experimentalPhysics)
                     .font(.caption)
                     .onChange(of: experimentalPhysics) { _, _ in
                         physicsPaused = false
@@ -77,15 +78,42 @@ struct CMOriginalQuickPlayView: View {
                     }
                     .accessibilityIdentifier("cm.original.quickplay-pause")
                 }
-                Button("Reset") {
+                Button("Restart") {
                     physicsPaused = false
                     sceneRevision = UUID()
                 }
                 .accessibilityIdentifier("cm.original.quickplay-reset")
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            Text("Original PC geometry and layout. Approximate SceneKit physics: balls and crate move; scenery stays fixed; goal zone is a sensor. This is NOT the original game physics.")
+            .padding(.top, 10)
+
+            HStack(spacing: 10) {
+                if !experimentalPhysics {
+                    Label("Arrange: tap a part, then drag it.", systemImage: "hand.draw")
+                        .font(.caption.weight(.medium))
+                        .accessibilityIdentifier("cm.original.quickplay-arrange-hint")
+                } else {
+                    Text("Switch physics off to rearrange imported parts.")
+                        .font(.caption)
+                }
+                Spacer(minLength: 6)
+                Button("Original layout") {
+                    UserDefaults.standard.removeObject(
+                        forKey: "cm.original.positions.\(document.sceneSHA256)"
+                    )
+                    experimentalPhysics = false
+                    physicsPaused = false
+                    sceneRevision = UUID()
+                }
+                .font(.caption.weight(.semibold))
+                .accessibilityIdentifier("cm.original.quickplay-original-layout")
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+
+            Text(experimentalPhysics
+                 ? "Experimental SceneKit collisions, not the original game's physics."
+                 : "Positions are saved only on this iPhone. Turning physics on starts from your arrangement; original PC level files stay unchanged.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
