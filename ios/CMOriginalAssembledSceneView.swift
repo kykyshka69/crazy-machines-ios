@@ -1750,6 +1750,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         "ball_basket": "ball_basket", "ball_beach": "ball_beach",
         "ball_steel": "env_chrom", "ball_tt": "ball_tt",
         "belt_gear": "belt_gear", "board": "board",
+        // Original PC asset basenames use "conveyer" while mesh filenames
+        // use "conveyor". These two RGB TGA files were verified directly
+        // inside the user's recovered game pack (512x64 belt, 256x256 wheel).
+        "belt_conveyor_belt": "belt_conveyer_belt",
+        "belt_conveyor_wheel": "belt_conveyer",
+        "belt_conveyor_roll1": "belt_conveyer",
+        "belt_conveyor_roll2": "belt_conveyer",
         "boiler": "boiler", "bucket": "bucket",
         "crate": "crate", "domino": "domino",
         "element_bars_plank": "element_bars_pult",
