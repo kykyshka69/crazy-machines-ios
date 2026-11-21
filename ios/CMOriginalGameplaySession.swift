@@ -429,3 +429,26 @@ public struct CMOriginalGameplaySession {
     /// Intentionally no inferred 'completed' phase: GOAL 1 alone does not
     /// tell us how the original puzzle decides success.
 }
+
+
+// Mechanism identities recovered from the user's authentic CML scene graphs.
+// These types carry UCM geometry centered on their local XY pivot and must
+// be allowed to SPIN, even when their original VALB field is absent.
+// Motion is not automatically driven: electricity, steam and belt power
+// transmission are not yet reconstructed from the Windows game.
+enum CMOriginalAxleParts {
+    static let rotatingKinds: Set<String> = [
+        "tmo_belt_gear",
+        "tmo_belt_conveyer_wheel",
+        "tmo_belt_conveyer_roll_big",
+        "tmo_belt_conveyer_roll_small",
+        "tmo_power_motor_rotor",
+        "tmo_power_generator_rotor",
+        "tmo_power_disrupter_wheel",
+        "tmo_steam_wheel",
+        "tmo_windmill_wheel",
+        "tmo_hammer_wheel",
+        "tmo_belt_flag_wheel",
+        "tmo_heat_grill_wheel"
+    ]
+}
