@@ -202,6 +202,13 @@ private struct CMGameHomeView: View {
                 .frame(maxWidth: 520)
             }
             .onAppear {
+                #if DEBUG && targetEnvironment(simulator)
+                do {
+                    try CMOriginalCISimulatorFixture.handleLaunchArguments()
+                } catch {
+                    bundledAssetError = "CI synthetic scene import failed: \(error.localizedDescription)"
+                }
+                #endif
                 installBundledAssetsIfNeeded()
                 loadOriginalMenuArt()
             }
