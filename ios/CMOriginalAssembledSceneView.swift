@@ -182,6 +182,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     }
     #endif
 
+    #if DEBUG && targetEnvironment(simulator)
+    /// Counts ONLY parsed original UCM drawables, not synthetic calibration
+    /// nodes, physics proxies or decorative SwiftUI controls.
+    private func loadedSceneOriginalMeshCount(_ scene: SCNScene) -> Int {
+        var count = 0
+        scene.rootNode.enumerateChildNodes { node, _ in
+            if node is CMOriginalObjectMeshNode, node.geometry != nil { count += 1 }
+        }
+        return count
+    }
+    #endif
+
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
         view.backgroundColor = UIColor(white: 0.09, alpha: 1)
@@ -316,6 +328,21 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.originalRotations = originalRotations
         view.pointOfView = scene.rootNode.childNode(withName: "original-level-camera", recursively: false)
         #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains(CMPrivateSimulatorCapture.launchArgument) {
+            let registeredModels = CMOriginalModelResolver.allModelNames(in: document.root)
+            let originalMeshes = loadedSceneOriginalMeshCount(scene)
+            let hasCamera = view.pointOfView?.camera != nil
+            let isAuthenticFirstLevel =
+                document.index == 1 && document.title != "CM synthetic CI 3D scene"
+            CMPrivateSimulatorCapture.record(
+                state: isAuthenticFirstLevel && originalMeshes >= 25 && hasCamera
+                    ? "original-scene-loaded" : "original-scene-incomplete",
+                message: "Captured scene contains original imported PC UCM geometry; screenshot must be verified separately.",
+                level: document.index, title: document.title,
+                originalMeshCount: originalMeshes,
+                referencedModelCount: registeredModels.count,
+                cameraReady: hasCamera)
+        }
         if document.title == "CM synthetic CI 3D scene" {
             // Allow SwiftUI to lay out the SceneKit layer before probing.
             // This is an app-side snapshot, not an XCTest or OS screenshot.

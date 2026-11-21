@@ -223,6 +223,27 @@ private struct CMGameHomeView: View {
                 #endif
                 installBundledAssetsIfNeeded()
                 loadOriginalMenuArt()
+                #if DEBUG && targetEnvironment(simulator)
+                // Only the owner's LOCAL simulator build has a private pack.
+                // GitHub CI never receives original UCM/CML/TGA resources.
+                if ProcessInfo.processInfo.arguments.contains(
+                    CMPrivateSimulatorCapture.launchArgument
+                ) {
+                    if Bundle.main.url(
+                        forResource: "CrazyMachines_Original_102Levels",
+                        withExtension: "cmassets"
+                    ) == nil {
+                        CMPrivateSimulatorCapture.record(
+                            state: "missing-private-pack",
+                            message: "The real .cmassets was not bundled into the simulator app.")
+                    } else if !launchOriginalLevelIfReady() {
+                        CMPrivateSimulatorCapture.record(
+                            state: "cannot-open-original-level-1",
+                            message: bundledAssetError ??
+                                "The imported level-001.json or its original UCM models could not be loaded.")
+                    }
+                }
+                #endif
             }
             .onChange(of: showResources) { _, presented in
                 if !presented { loadOriginalMenuArt() }
