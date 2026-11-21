@@ -244,6 +244,44 @@ struct CMOriginalLevelBrowserView: View {
                     }
                 }
             }
+            Section("Original PC electrical terminals") {
+                let session = CMOriginalGameplaySession(document: document)
+                let terminals = session.originalPowerTerminals
+                let indexed = terminals.filter { $0.originalTerminalNumber != nil }
+                if terminals.isEmpty {
+                    Text("No original tmo_power_plug terminals in this puzzle.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    LabeledContent("Original terminals", value: "\(terminals.count)")
+                    LabeledContent("Numbered VALF terminals", value: "\(indexed.count)")
+                    LabeledContent("Unnumbered PC terminals",
+                                   value: "\(terminals.count - indexed.count)")
+                    LabeledContent("Terminal IDs",
+                                   value: session.powerTerminalNumbersAreUnique
+                                     ? "Unique in this level" : "Duplicate values")
+                    ForEach(terminals, id: \.plugObjectID) { terminal in
+                        DisclosureGroup(
+                            terminal.originalTerminalNumber.map { "Terminal #\($0)" }
+                                ?? "Unnumbered terminal"
+                        ) {
+                            LabeledContent(
+                                "Original device",
+                                value: terminal.deviceType ?? "Unresolved PC owner"
+                            )
+                            if let location = terminal.originalRelativePosition {
+                                Text("POSREL " + location.map {
+                                    String(format: "%.5f", $0)
+                                }.joined(separator: ", "))
+                                    .font(.caption.monospaced())
+                                    .textSelection(.enabled)
+                            }
+                        }
+                    }
+                    Text("The original VALF number identifies a plug, not its wire, voltage, or switch state. The original electrical wiring has not yet been decoded; this screen does not invent connections.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
             Section("Play original 3D level") {
                 NavigationLink {
                     CMOriginalQuickPlayView(
