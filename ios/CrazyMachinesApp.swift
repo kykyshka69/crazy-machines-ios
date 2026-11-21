@@ -19,6 +19,7 @@ private struct CMGameHomeView: View {
     @State private var originalBackdrop: UIImage?
     @State private var originalStartButton: UIImage?
     @State private var originalSelectButton: UIImage?
+    @State private var hasOriginalStartscreenMeshes = false
 
     private var assetDirectory: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -51,6 +52,9 @@ private struct CMGameHomeView: View {
                       shouldInterpolate: true, intent: .defaultIntent) else { return nil }
             return UIImage(cgImage: cgImage)
         }
+        let index = CMOriginalModelResolver.AssetIndex(directory: assetDirectory)
+        hasOriginalStartscreenMeshes = index.resolve("startscreen_chalkboard_board") != nil
+            || index.resolve("startscreen_chalkboard_frame") != nil
         originalBackdrop = image("startscreen_chalk")
         originalStartButton = image("startscreen_note_start")
         originalSelectButton = image("startscreen_note_select")
@@ -66,7 +70,12 @@ private struct CMGameHomeView: View {
                 )
                 .ignoresSafeArea()
 
-                if let originalBackdrop {
+                if hasOriginalStartscreenMeshes {
+                    CMOriginalStartscreen3D(assetDirectory: assetDirectory)
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                } else if let originalBackdrop {
                     Image(uiImage: originalBackdrop)
                         .resizable()
                         .scaledToFill()
