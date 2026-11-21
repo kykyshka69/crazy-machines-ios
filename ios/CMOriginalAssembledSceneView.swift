@@ -1101,7 +1101,21 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     private static func originalTexture(for modelURL: URL, in directory: URL) -> CGImage? {
         let modelName = modelURL.deletingPathExtension().lastPathComponent.lowercased()
         guard let textureName = verifiedTextures[modelName] else { return nil }
-        let textureURL = directory.appendingPathComponent(textureName + ".tga")
+        // Original Windows asset paths are case-insensitive; the iPhone
+        // sandbox is not. Resolve the real imported filename rather than
+        // assuming its spelling matches the shader's lowercase name.
+        let candidates = (try? FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        )) ?? []
+        let matches = candidates.filter {
+            $0.pathExtension.lowercased() == "tga"
+                && $0.deletingPathExtension().lastPathComponent.lowercased() == textureName
+                && (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+        }
+        // A duplicate basename is ambiguous: never select an arbitrary texture.
+        guard matches.count == 1 else { return nil }
+        let textureURL = matches[0]
         guard let bytes = try? Data(contentsOf: textureURL),
               let decoded = try? CMTGATexture(data: bytes),
               let provider = CGDataProvider(data: decoded.rgba as CFData),
