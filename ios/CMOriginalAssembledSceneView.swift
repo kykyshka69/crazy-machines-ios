@@ -752,7 +752,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // A 3DO entry is a model reference, not an additional object transform.
             if item.name.hasPrefix("3DO ") {
                 let name = String(item.name.dropFirst(4))
-                let modelKey = name.lowercased()
+                // Preserve exact spelling: distinct UCM assets can differ only
+                // by case, and the resolver gives exact names precedence.
+                let modelKey = name
                 let modelURL: URL?
                 if let cached = resolvedModels[modelKey] {
                     modelURL = cached
