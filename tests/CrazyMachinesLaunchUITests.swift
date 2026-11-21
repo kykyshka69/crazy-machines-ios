@@ -65,15 +65,28 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
             "Play did not navigate to the 3D scene populated from imported UCM data"
         )
         let physics = app.switches["cm.original.quickplay-physics"]
-        XCTAssertTrue(physics.exists, "3D physics controls are not accessible")
+        XCTAssertTrue(physics.waitForExistence(timeout: 10),
+                      "3D physics controls are not accessible")
+        // The original puzzle opens in arrangement mode, with physics OFF.
+        // The Pause button is deliberately absent until the user starts
+        // simulation. Verify both modes instead of assuming an automatic run.
         let pause = app.buttons["cm.original.quickplay-pause"]
-        XCTAssertTrue(pause.waitForExistence(timeout: 10))
+        XCTAssertFalse(pause.exists, "Pause must not be shown before physics starts")
         attachScreenshot(app, named: "05-imported-original-3D-SceneKit-fixture")
 
+        physics.tap()
+        XCTAssertTrue(pause.waitForExistence(timeout: 10),
+                      "Pause must appear after enabling physics")
+        attachScreenshot(app, named: "05b-running-3D-SceneKit-fixture")
         pause.tap()
-        XCTAssertTrue(app.buttons["cm.original.quickplay-pause"].label.contains("Resume"))
+        XCTAssertTrue(pause.label.contains("Resume"),
+                      "Pause must change to Resume")
+        pause.tap()
+        XCTAssertTrue(pause.label.contains("Pause"),
+                      "Resume must change back to Pause")
         app.buttons["cm.original.quickplay-reset"].tap()
-        XCTAssertTrue(app.buttons["cm.original.quickplay-pause"].waitForExistence(timeout: 10))
+        XCTAssertTrue(pause.waitForExistence(timeout: 10),
+                      "Restart must retain the running physics mode")
 
         app.buttons["cm.original.quickplay-levels"].tap()
         XCTAssertTrue(
