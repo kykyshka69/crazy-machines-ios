@@ -14,7 +14,29 @@ struct CrazyMachinesApp: App {
 }
 
 private struct CMGameHomeView: View {
+    private struct OriginalQuickPlaySelection: Identifiable {
+        let id = UUID()
+        let document: CMOriginalSceneDocument
+    }
+
+    /// The first original laboratory level exists only after importing the
+    /// user's private scene pack; do not fabricate a synthetic fallback.
+    private func launchOriginalLevelIfReady() -> Bool {
+        let support = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let sceneURL = support.appendingPathComponent("OriginalScenes/level-001.json")
+        guard let data = try? Data(contentsOf: sceneURL),
+              let document = try? CMOriginalSceneDocument.read(data) else { return false }
+        let index = CMOriginalModelResolver.AssetIndex(directory: assetDirectory)
+        let resolved = CMOriginalModelResolver.allModelNames(in: document.root)
+            .contains { index.resolve($0) != nil }
+        guard resolved else { return false }
+        quickPlaySelection = OriginalQuickPlaySelection(document: document)
+        return true
+    }
+
     @State private var showLevels = false
+    @State private var quickPlaySelection: OriginalQuickPlaySelection?
     @State private var showResources = false
     @State private var originalBackdrop: UIImage?
     @State private var originalStartButton: UIImage?
@@ -100,7 +122,7 @@ private struct CMGameHomeView: View {
                         .foregroundStyle(.white.opacity(0.7))
                     Spacer()
                     Button {
-                        showLevels = true
+                        if !launchOriginalLevelIfReady() { showLevels = true }
                     } label: {
                         if let originalStartButton {
                             Image(uiImage: originalStartButton)
@@ -151,6 +173,12 @@ private struct CMGameHomeView: View {
             }
             .navigationDestination(isPresented: $showResources) {
                 CMOriginalResourcesView()
+            }
+            .navigationDestination(item: $quickPlaySelection) { selection in
+                CMOriginalQuickPlayView(
+                    document: selection.document,
+                    assetDirectory: assetDirectory
+                )
             }
         }
     }
