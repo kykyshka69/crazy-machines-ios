@@ -269,6 +269,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // parentID, not through a guessed nearest wheel or motor.
         private var originalTypesByID: [String: String] = [:]
         private var conveyorWheelNodes: [String: SCNNode] = [:]
+        private var conveyorBeltMaterials: [String: SCNMaterial] = [:]
+        private var conveyorTextureOffsets: [String: Float] = [:]
 
         func setExperimentalMotorDrive(_ enabled: Bool) {
             sessionLock.lock()
@@ -390,6 +392,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             physicsNodesByObjectID.removeAll()
             appliedPhysicsRoles.removeAll()
             conveyorWheelNodes.removeAll()
+            conveyorBeltMaterials.removeAll()
+            conveyorTextureOffsets.removeAll()
             let originalObjects = session?.objects ?? []
             originalTypesByID = Dictionary(
                 uniqueKeysWithValues: originalObjects.map { ($0.id, $0.type) }
@@ -415,6 +419,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     .map(\.id)
             )
             scene.rootNode.enumerateChildNodes { node, _ in
+                // Only the authentic conveyor-belt visual texture scrolls.
+                // Each belt has its own copied material, so separate
+                // conveyors can reverse or stop without affecting each other.
+                if let mesh = node as? CMOriginalObjectMeshNode,
+                   mesh.name?.lowercased() == "to_belt_conveyer_belt",
+                   let ownerID = mesh.originalObjectID,
+                   let material = mesh.geometry?.firstMaterial {
+                    self.conveyorBeltMaterials[ownerID] = material
+                    material.diffuse.wrapS = .repeat
+                }
                 guard let body = node.physicsBody,
                       let id = self.physicsObjectID(for: node) else { return }
                 self.physicsNodesByObjectID[id, default: []].append(node)
@@ -509,6 +523,26 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     let upSpeed = min(2.0, velocity.y + Float(delta) * 1.25)
                     body.velocity = SCNVector3(velocity.x, upSpeed, velocity.z)
                 }
+            }
+            // Scroll the REAL original 512x64 belt texture using the same
+            // signed wheel angular velocity as physical belt friction.
+            // No motion is shown when the wheel is stationary, and each
+            // user's SCAL-mirrored belt retains its authored mesh transform.
+            for (conveyorID, wheel) in conveyorWheelNodes {
+                guard let beltMaterial = conveyorBeltMaterials[conveyorID],
+                      let body = wheel.physicsBody,
+                      body.type == .dynamic else { continue }
+                let axisSpeed = body.angularVelocity
+                let omega = Float(axisSpeed.z >= 0 ? 1 : -1) * axisSpeed.w
+                guard omega.isFinite, abs(omega) > 0.01 else { continue }
+                let surfaceSpeed = max(-2.0, min(2.0, -omega * 0.09))
+                let step = surfaceSpeed * Float(delta) / 1.18144
+                let next = (conveyorTextureOffsets[conveyorID] ?? 0) + step
+                let fraction = next.truncatingRemainder(dividingBy: 1.0)
+                conveyorTextureOffsets[conveyorID] = fraction
+                beltMaterial.diffuse.contentsTransform = SCNMatrix4MakeTranslation(
+                    CGFloat(fraction), 0, 0
+                )
             }
             if experimentalMotorDriveEnabled {
                 // Ramp the physically simulated rotor toward a limited
@@ -1313,7 +1347,21 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             }
                         }
                         if let geometry {
-                            let mesh = CMOriginalObjectMeshNode(geometry: geometry)
+                            // Geometry is cached by original UCM filename.
+                            // The conveyor's belt texture must NOT share a
+                            // mutable material between 57 independent belts:
+                            // each conveyor has its own physical roller speed.
+                            let rendered: SCNGeometry
+                            if name.lowercased() == "to_belt_conveyer_belt",
+                               let copy = geometry.copy() as? SCNGeometry {
+                                copy.materials = geometry.materials.map {
+                                    ($0.copy() as? SCNMaterial) ?? $0
+                                }
+                                rendered = copy
+                            } else {
+                                rendered = geometry
+                            }
+                            let mesh = CMOriginalObjectMeshNode(geometry: rendered)
                             mesh.name = name
                             if let currentOwnerID {
                                 mesh.originalObjectID = currentOwnerID
