@@ -103,8 +103,20 @@ private struct CMGameHomeView: View {
         let support = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let firstScene = support.appendingPathComponent("OriginalScenes/level-001.json")
-        if FileManager.default.fileExists(atPath: firstScene.path) {
-            return
+        // A scene-only import is NOT proof the bundled PC meshes were installed.
+        // Previous versions returned as soon as level-001.json existed, which
+        // left all 30 original first-level models absent if the user had
+        // previously imported JSON before installing a private game pack.
+        // Check actual 3DO resolutions, not just the scene filename. When the
+        // complete first level is already present, avoid reading the 33 MB
+        // resource pack again on every app launch.
+        if let saved = try? Data(contentsOf: firstScene),
+           let document = try? CMOriginalSceneDocument.read(saved) {
+            let names = CMOriginalModelResolver.allModelNames(in: document.root)
+            let index = CMOriginalModelResolver.AssetIndex(directory: assetDirectory)
+            if !names.isEmpty && names.allSatisfy({ index.resolve($0) != nil }) {
+                return
+            }
         }
         do {
             let data = try Data(contentsOf: pack, options: .mappedIfSafe)

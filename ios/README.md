@@ -46,3 +46,30 @@ writing any files to the user's app sandbox. A pack with pre-exported
 JSON scenes still imports those exact 102 documents unchanged.
 
 Keep `.cmassets` private: game resources must not be pushed to GitHub.
+
+## Verify the actual first original level in a PRIVATE iPhone Simulator build
+
+The public GitHub Actions checks intentionally use a copyright-free UCM
+triangle. To capture a real 30-object first Professor Laboratory level
+on your own Mac without uploading game assets:
+
+1. Place your own `CrazyMachines_Original_102Levels.cmassets` inside
+   `ios/` **only in your local checkout**. It is ignored by Git.
+2. Run `xcodegen generate --spec project.yml`.
+3. Boot an iPhone simulator in Xcode, then run:
+
+```bash
+CM_PRIVATE_ORIGINAL_PACK_TEST=1 xcodebuild \
+  -project CrazyMachinesIOS.xcodeproj -scheme CrazyMachinesIOS \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  CODE_SIGNING_ALLOWED=NO \
+  -only-testing:CrazyMachinesUITests/CrazyMachinesLaunchUITests/testPrivateOriginalLevelOneWhenOptedIn \
+  test
+```
+
+The optional UI test installs the *private* original asset pack, opens
+Professor level 1 from Play, verifies at least 25 original UCM mesh
+instances were attached, and captures arrangement/physics screenshots.
+It is automatically **skipped** in public GitHub Actions. Do not push
+the `cmassets` file, private screenshots, or `xcresult` containing the
+original artwork to public CI/artifacts.

@@ -135,6 +135,58 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         attachScreenshot(app, named: "06-imported-scene-level-browser")
     }
 
+    func testPrivateOriginalLevelOneWhenOptedIn() throws {
+        // This test is opt-in because the user's original game files are
+        // copyrighted and MUST NOT enter public GitHub Actions artifacts.
+        // Copy the privately owned .cmassets to ios/ in a LOCAL checkout;
+        // run CM_PRIVATE_ORIGINAL_PACK_TEST=1 xcodebuild test on a Mac.
+        guard ProcessInfo.processInfo.environment["CM_PRIVATE_ORIGINAL_PACK_TEST"] == "1" else {
+            throw XCTSkip("Private original game resources are intentionally absent from public CI")
+        }
+        let app = XCUIApplication()
+        // Do not clear or replace the player's original level with a
+        // synthetic CI scene: the app imports the bundled private pack.
+        app.launch()
+        let play = app.buttons["cm.menu.play"]
+        XCTAssertTrue(play.waitForExistence(timeout: 35))
+        play.tap()
+
+        let title = app.staticTexts.matching(NSPredicate(
+            format: "label BEGINSWITH %@", "Original level 1:")).firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 30),
+                      "Private level 1 did not open from the bundled game pack")
+        let viewport = app.otherElements["cm.original.assembled-scene"]
+        XCTAssertTrue(viewport.waitForExistence(timeout: 15))
+        // The normal level is built exclusively from user-owned UCM files.
+        // A count of at least 25 visible original 3DO nodes makes a fallback
+        // test triangle or a missing-asset blank frame impossible to pass.
+        var modelCount = 0
+        var status = ""
+        for _ in 0..<15 {
+            status = (viewport.value as? String) ?? ""
+            if let expression = try? NSRegularExpression(
+                pattern: "originalUCM=(\\d+)"),
+               let match = expression.firstMatch(
+                in: status, range: NSRange(status.startIndex..., in: status)),
+               let range = Range(match.range(at: 1), in: status),
+               let value = Int(status[range]) {
+                modelCount = value
+            }
+            if modelCount >= 25 { break }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        XCTAssertGreaterThanOrEqual(modelCount, 25,
+            "Authentic first level did not load expected UCM meshes; \(status)")
+        attachScreenshot(app, named: "07-PRIVATE-original-professor-level-001")
+
+        let physics = app.switches["cm.original.quickplay-physics"]
+        XCTAssertTrue(physics.waitForExistence(timeout: 10))
+        physics.coordinate(withNormalizedOffset: CGVector(dx: 0.90, dy: 0.5)).tap()
+        XCTAssertEqual(physics.value as? String, "1",
+                       "Original scene physics failed to start")
+        attachScreenshot(app, named: "08-PRIVATE-original-professor-level-001-physics")
+    }
+
     /// Inspect only the SceneKit pixels, not the bright SwiftUI controls.
     /// The fixture's actual imported UCM mesh is ORANGE; the simulator-only
     /// reference SCNSphere is CYAN. A successful test must see BOTH: one
