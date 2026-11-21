@@ -1211,13 +1211,17 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
             guard let lever = switchLeverNodes[switchID],
                   let original = switchLeverRestAngles[switchID] else { return false }
-            let isOn: Bool
-            if flippedSwitchIDs.contains(switchID) {
-                flippedSwitchIDs.remove(switchID)
-                isOn = false
-            } else {
+            // The session is the source of truth for genuine switch
+            // positions. Reject taps while paused, rather than visually
+            // flipping a lever when the simulation cannot accept the input.
+            sessionLock.lock()
+            let nextState = session?.toggleOriginalSwitch(switchID)
+            sessionLock.unlock()
+            guard let isOn = nextState else { return false }
+            if isOn {
                 flippedSwitchIDs.insert(switchID)
-                isOn = true
+            } else {
+                flippedSwitchIDs.remove(switchID)
             }
             // The recovered lever has a real PC ROT x=1. We preserve the
             // original rest angle and provide only a modest prototype tilt
