@@ -1,7 +1,7 @@
 name: iOS simulator build
 on:
   push:
-    branches: [main]
+    branches: [main, work/original-3d-scene-batch]
   pull_request:
   workflow_dispatch:
 jobs:
@@ -41,10 +41,12 @@ jobs:
           xcrun simctl install "$DEVICE_ID" "$APP"
           xcrun simctl launch --terminate-running-process "$DEVICE_ID" "$BUNDLE_ID"
           sleep 8
-          xcrun simctl spawn "$DEVICE_ID" launchctl list | grep -F "$BUNDLE_ID" || echo "App launch command succeeded; process not found in launchctl list"
+          # A successful simctl launch alone does not prove the process stayed alive.
+          xcrun simctl spawn "$DEVICE_ID" launchctl list | grep -F "$BUNDLE_ID"
           mkdir -p /tmp/crazy-machines-screenshots
           xcrun simctl io "$DEVICE_ID" screenshot /tmp/crazy-machines-screenshots/iphone-launch.png
       - name: Run launch and navigation UI tests on the booted iPhone
+        if: github.event_name == 'pull_request'
         run: |
           set -o pipefail
           mkdir -p /tmp/crazy-machines-build-logs
