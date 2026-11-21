@@ -200,6 +200,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 guard role != (previousRoles[id] ?? .movable) else { continue }
                 for node in nodes {
                     guard let body = node.physicsBody else { continue }
+                    // Preserve the simulated pose when changing a moving
+                    // object into a fixed object or sensor. Otherwise SceneKit
+                    // may restore its original authored transform.
+                    if body.type == .dynamic && role != .movable {
+                        node.transform = node.presentation.transform
+                        body.clearAllForces()
+                        body.velocity = SCNVector3Zero
+                        body.angularVelocity = SCNVector4(0, 0, 0, 0)
+                    }
                     switch role {
                     case .fixed:
                         body.type = .static
