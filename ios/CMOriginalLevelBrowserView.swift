@@ -9,14 +9,6 @@ struct CMOriginalLevelBrowserView: View {
     @State private var errorMessage: String?
     @State private var selected: Int?
     @State private var previewModel: ModelPreviewSelection?
-    @State private var assembledScene: AssembledSelection?
-    @State private var physicsExperimentEnabled = false
-    @State private var physicsExperimentPaused = false
-    private struct AssembledSelection: Identifiable {
-        let document: CMOriginalSceneDocument
-        let id = UUID()
-    }
-
     private struct ModelPreviewSelection: Identifiable {
         let id = UUID()
         let name: String
@@ -61,26 +53,28 @@ struct CMOriginalLevelBrowserView: View {
                     }
                     ForEach(sorted, id: \.index) { document in
                         HStack {
+                            // Every authentic imported puzzle enters the SAME
+                            // player-facing 3D scene, not an inspect-only sheet.
                             NavigationLink {
-                                levelDetails(document)
+                                CMOriginalQuickPlayView(
+                                    document: document, assetDirectory: originalStorage
+                                )
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("\(document.index). \(document.title)")
-                                    Text("\(document.root.objectCount) object nodes · \(document.root.positionedObjectCount) positioned")
+                                    Text("\(document.root.objectCount) original objects")
                                         .font(.caption).foregroundStyle(.secondary)
                                 }
                             }
-                            Button {
-                                physicsExperimentEnabled = false
-                                physicsExperimentPaused = false
-                                assembledScene = AssembledSelection(document: document)
+                            .accessibilityIdentifier("cm.original.open-level-\(document.index)")
+                            NavigationLink {
+                                levelDetails(document)
                             } label: {
-                                Label("Open level \(document.index) in 3D", systemImage: "cube.transparent")
+                                Label("Level \(document.index) details", systemImage: "info.circle")
                                     .labelStyle(.iconOnly)
                                     .padding(8)
                             }
                             .buttonStyle(.borderless)
-                            .accessibilityIdentifier("cm.original.open-level-\(document.index)")
                         }
                     }
                 }
@@ -250,11 +244,15 @@ struct CMOriginalLevelBrowserView: View {
                     }
                 }
             }
-            Section("Assembled original 3D scene") {
-                Button("View original level in 3D") {
-                    assembledScene = AssembledSelection(document: document)
+            Section("Play original 3D level") {
+                NavigationLink {
+                    CMOriginalQuickPlayView(
+                        document: document, assetDirectory: originalStorage
+                    )
+                } label: {
+                    Label("Open original level \(document.index)", systemImage: "play.fill")
                 }
-                Text("Uses imported UCM meshes and original nested POS/ROT transforms. Missing models are omitted; original materials and physics are not yet supported.")
+                Text("Original geometry and CML transforms, with editable UNLOCKED parts. The physics solver is still experimental.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Original 3D models") {
@@ -324,50 +322,6 @@ struct CMOriginalLevelBrowserView: View {
             }
         }
         .navigationTitle("Level \(document.index)")
-        .sheet(item: $assembledScene) { selection in
-            NavigationStack {
-                VStack(spacing: 0) {
-                    Toggle("Experimental collisions (not original game physics)", isOn: $physicsExperimentEnabled)
-                        .font(.caption)
-                        .padding(.horizontal)
-                        .padding(.vertical, 8)
-                        .accessibilityIdentifier("cm.original.experimental-physics")
-                    if physicsExperimentEnabled {
-                        HStack {
-                            Button(physicsExperimentPaused ? "Resume simulation" : "Pause simulation") {
-                                physicsExperimentPaused.toggle()
-                            }
-                            .accessibilityIdentifier("cm.original.physics-pause")
-                            Spacer()
-                            Text("Approximate UCM collisions")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal)
-                        .padding(.bottom, 8)
-                    }
-                    CMOriginalAssembledSceneView(
-                        document: selection.document,
-                        assetDirectory: originalStorage,
-                        experimentalPhysics: physicsExperimentEnabled,
-                        physicsPaused: physicsExperimentPaused
-                    )
-                    // Rebuild the original scene when changing simulation
-                    // modes; otherwise SceneKit bodies are never created.
-                    .id("\(selection.id)-physics-\(physicsExperimentEnabled)")
-                }
-                .navigationTitle("Level \(selection.document.index) · 3D")
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Close") {
-                            physicsExperimentEnabled = false
-                            physicsExperimentPaused = false
-                            assembledScene = nil
-                        }
-                    }
-                }
-            }
-        }
         .sheet(item: $previewModel) { selection in
             NavigationStack {
                 CMOriginalModelPreview(modelURL: selection.url)
