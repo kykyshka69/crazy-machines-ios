@@ -265,6 +265,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var experimentalMotorDriveEnabled = false
         private var motorRotorObjectIDs = Set<String>()
         private var axleObjectIDs = Set<String>()
+        // Authentic PC conveyor children are linked through their scene-graph
+        // parentID, not through a guessed nearest wheel or motor.
+        private var originalTypesByID: [String: String] = [:]
+        private var conveyorWheelNodes: [String: SCNNode] = [:]
 
         func setExperimentalMotorDrive(_ enabled: Bool) {
             sessionLock.lock()
@@ -385,6 +389,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         func registerPhysicsNodes(in scene: SCNScene) {
             physicsNodesByObjectID.removeAll()
             appliedPhysicsRoles.removeAll()
+            conveyorWheelNodes.removeAll()
+            let originalObjects = session?.objects ?? []
+            originalTypesByID = Dictionary(
+                uniqueKeysWithValues: originalObjects.map { ($0.id, $0.type) }
+            )
             buoyantObjectIDs = Set(
                 (session?.objects ?? [])
                     .filter { $0.type == "tmo_balloon" }
@@ -424,6 +433,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     // A seesaw is still tipped by colliding objects.
                     body.isAffectedByGravity = false
                 }
+            }
+            // Each original conveyor has a distinct child tmo_belt_conveyer_wheel
+            // whose rotational velocity determines its belt movement. Never
+            // connect unrelated conveyors or activate a motionless wheel.
+            for part in originalObjects where part.type == "tmo_belt_conveyer_wheel" {
+                guard let parentID = part.parentID,
+                      originalTypesByID[parentID] == "tmo_belt_conveyer",
+                      let wheelNode = physicsNodesByObjectID[part.id]?.first,
+                      wheelNode.physicsBody != nil else { continue }
+                conveyorWheelNodes[parentID] = wheelNode
             }
         }
 
@@ -524,9 +543,97 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             applyPendingActions()
         }
 
+        /// Move a ball or crate along the ORIGINAL conveyor surface only
+        /// while its own authentic drive wheel is actually rotating.
+        ///
+        /// belt_conveyor_belt.ucm spans x=±0.59072 and tops out at y=0.08646;
+        /// belt_conveyor_wheel.ucm has radius approximately 0.09 in XY.
+        /// The local top-of-belt contact filter avoids pushing objects which
+        /// hit the underside or frame. SceneKit supplies the physical contact;
+        /// we do not manufacture conveyor motion or invent belt links.
+        private func transferConveyorMotion(_ contact: SCNPhysicsContact) {
+            let physicalA = physicalNode(for: contact.nodeA)
+            let physicalB = physicalNode(for: contact.nodeB)
+            guard let first = physicalA, let second = physicalB,
+                  first !== second,
+                  let aID = owningOriginalObjectID(for: first),
+                  let bID = owningOriginalObjectID(for: second) else { return }
+
+            let belt: SCNNode
+            let object: SCNNode
+            let conveyorID: String
+            if originalTypesByID[aID] == "tmo_belt_conveyer" {
+                belt = first
+                object = second
+                conveyorID = aID
+            } else if originalTypesByID[bID] == "tmo_belt_conveyer" {
+                belt = second
+                object = first
+                conveyorID = bID
+            } else {
+                return
+            }
+            guard let wheel = conveyorWheelNodes[conveyorID],
+                  let wheelBody = wheel.physicsBody,
+                  wheelBody.type == .dynamic,
+                  let objectBody = object.physicsBody,
+                  objectBody.type == .dynamic,
+                  let kind = originalTypesByID[
+                      owningOriginalObjectID(for: object) ?? ""
+                  ],
+                  !CMOriginalAxleParts.rotatingKinds.contains(kind)
+            else { return }
+
+            // The authored PC belt runs horizontally in its local XY plane.
+            // Only objects on its upper surface are transported. Convert the
+            // world contact position back to the original belt coordinates.
+            let local = belt.convertPosition(contact.contactPoint, from: nil)
+            guard local.x.isFinite, local.y.isFinite,
+                  abs(local.x) <= 0.65, local.y >= 0.0,
+                  local.y <= 0.23 else { return }
+
+            let spin = wheelBody.angularVelocity
+            let angularSpeed = Float(spin.z >= 0 ? 1 : -1) * spin.w
+            guard angularSpeed.isFinite, abs(angularSpeed) > 0.05 else { return }
+
+            // The top point of a positive-Z wheel moves toward local -X.
+            // The original conveyor's mirrored SCAL -1 is respected by
+            // converting its local tangent into world-space coordinates.
+            let tangent = belt.convertVector(SCNVector3(1, 0, 0), to: nil)
+            let length = sqrt(tangent.x * tangent.x + tangent.y * tangent.y)
+            guard length.isFinite, length > 0.00001 else { return }
+            let tx = tangent.x / length, ty = tangent.y / length
+            let beltSpeed = max(-2.0, min(2.0, -angularSpeed * 0.09))
+            let velocity = objectBody.velocity
+            let objectSpeed = velocity.x * tx + velocity.y * ty
+            let difference = beltSpeed - objectSpeed
+            guard difference.isFinite, abs(difference) > 0.01 else { return }
+
+            // Viscous tangential force, limited by available speed. This is
+            // an approximate SceneKit material interaction, not recovered
+            // Windows friction coefficients or electric motor torque.
+            let force = max(-8.0, min(8.0, difference * 3.0))
+                * Float(max(0.05, objectBody.mass))
+            objectBody.applyForce(
+                SCNVector3(tx * force, ty * force, 0),
+                asImpulse: false
+            )
+        }
+
+        func physicsWorld(_ world: SCNPhysicsWorld, didUpdate contact: SCNPhysicsContact) {
+            guard physicsEnabled else { return }
+            sessionLock.lock()
+            let running = session?.phase == .running
+            sessionLock.unlock()
+            if running { transferConveyorMotion(contact) }
+        }
+
         func physicsWorld(_ world: SCNPhysicsWorld, didBegin contact: SCNPhysicsContact) {
-            guard physicsEnabled,
-                  let physicalA = physicalNode(for: contact.nodeA),
+            guard physicsEnabled else { return }
+            // First contact often lasts just one physics frame. Apply the
+            // same authentic wheel-driven surface transfer immediately.
+            transferConveyorMotion(contact)
+            guard let physicalA = physicalNode(for: contact.nodeA),
                   let physicalB = physicalNode(for: contact.nodeB),
                   physicalA !== physicalB,
                   let a = owningOriginalObjectID(for: physicalA),
