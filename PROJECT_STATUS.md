@@ -1,6 +1,6 @@
 # Crazy Machines — iOS Port: verified project status
 
-Last evidence review: 2026-11-21 (GitHub `main`, baseline `fd3ceca6`; latest code change reviewed: `534b0ccc`).
+Last evidence review: 2026-11-21 (GitHub `main`; latest implementation commit `d0326376`, following baseline `fd3ceca6`).
 Primary goal: load and play the **original PC Crazy Machines puzzles on iPhone**. This is not yet a playable port.
 
 ## Verified work present in the repository
@@ -29,6 +29,15 @@ Primary goal: load and play the **original PC Crazy Machines puzzles on iPhone**
 - `534b0ccc`: repaired `.github/workflows/source-checks.yml` original-scene Swift compile command by including `ios/CMOriginalModelResolver.swift`, which the test imports.
 - **Check executed here:** an isolated Swift 6.2.1 (Linux) smoke compiled and passed whole-level collection with 3 original object owners, nested owner and mixed-case duplicates. **Not** a full Xcode/SceneKit run, and **not** a run of the complete repository test suite.
 - GitHub Actions results and the screenshot of an actual original level on an iPhone remain unverified.
+
+## Continued work — metadata-only original meshes and first-level access (2026-11-21)
+
+- `551fc230`: `CMOriginalModelResolver.metadataOnlyModelNames(in:)` distinguishes genuine `3DO` mesh nodes from model names preserved only in an object's metadata. Nested `tmo_*` objects are not accidentally assigned to the parent.
+- `7e651997`: the SceneKit assembly renders metadata-only original model references at the owner's transform, through the existing UCM loader. This is a **fallback** only: without an original `3DO` transform, placement precision cannot be guaranteed; explicit `3DO` geometry is not duplicated.
+- `b7093cb9`: Swift original-scene regression assertions cover explicit meshes, mixed-case duplicates, nested ownership, and metadata-only models.
+- `d0326376`: added a direct **3D view** navigation-bar action inside original level details so the first original level's preview is reachable without scrolling through all properties.
+- Local run: `swiftc` compiled and executed a **standalone Foundation-only reproduction of the new metadata fallback logic** against explicit, metadata-only, nested and casing fixtures (PASS). This did **not** execute the full repository tests, compile SceneKit/SwiftUI, or start the iPhone Simulator.
+- Device/simulator screenshots, CI job results, genuine first-level asset coverage, exact materials and gameplay parity: **not confirmed**.
 
 ## Priority blockers / work order
 
