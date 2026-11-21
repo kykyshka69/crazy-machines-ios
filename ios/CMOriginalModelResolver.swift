@@ -23,6 +23,29 @@ enum CMOriginalModelResolver {
         return result.filter { seen.insert($0.lowercased()).inserted }
     }
 
+    /// Collect all distinct UCM references for the whole original level.
+    /// modelNames(in:) deliberately excludes nested tmo_* owners; a level
+    /// browser must visit each owner rather than passing the root only.
+    static func allModelNames(in root: CMOriginalSceneDocument.Node) -> [String] {
+        var result: [String] = []
+        var seen = Set<String>()
+        func collect(_ names: [String]) {
+            for name in names where seen.insert(name.lowercased()).inserted {
+                result.append(name)
+            }
+        }
+        func visit(_ node: CMOriginalSceneDocument.Node) {
+            // The level's own helper meshes, if any, belong to the root.
+            // Each tmo_* owns its meshes independently of nested objects.
+            if node.name == "level" || node.name.hasPrefix("tmo_") {
+                collect(modelNames(in: node))
+            }
+            for child in node.children { visit(child) }
+        }
+        visit(root)
+        return result
+    }
+
     /// Index imported original meshes once for a whole level. Duplicate names
     /// remain ambiguous and are never resolved to an arbitrary file.
     struct AssetIndex {
