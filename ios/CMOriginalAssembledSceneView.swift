@@ -1111,6 +1111,29 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
                 let shapes: [SCNPhysicsShape] = meshes.compactMap { mesh in
                     guard let geometry = mesh.geometry else { return nil }
+                    if kind.hasPrefix("tmo_ball_") {
+                        // First-level original tennis, beach and basketball
+                        // UCMs all have spherical extents around the origin.
+                        // A SceneKit sphere is smoother and more stable than
+                        // a faceted convex hull of their low-poly visual UCMs.
+                        // Radius comes from the original mesh bounds; this
+                        // is still an approximate solver, not Windows physics.
+                        let (low, high) = mesh.boundingBox
+                        let dx = high.x - low.x
+                        let dy = high.y - low.y
+                        let dz = high.z - low.z
+                        let diameter = max(dx, dy, dz)
+                        let smallest = min(dx, dy, dz)
+                        if diameter.isFinite, diameter > 0,
+                           smallest > diameter * 0.85 {
+                            let sphere = SCNSphere(
+                                radius: CGFloat(diameter * 0.5)
+                            )
+                            return SCNPhysicsShape(geometry: sphere, options: [
+                                .type: SCNPhysicsShape.ShapeType.convexHull
+                            ])
+                        }
+                    }
                     if kind == "tmo_zone" {
                         // The authentic PC zone.ucm is a four-vertex plane
                         // with ZERO Z thickness. A 3D convex hull of that
