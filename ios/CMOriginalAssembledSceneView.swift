@@ -1115,6 +1115,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
                 let shape = SCNPhysicsShape(shapes: shapes, transforms: transforms)
                 let body = SCNPhysicsBody(type: .dynamic, shape: shape)
+                // Original puzzle coordinates lie on the XY gameplay plane;
+                // their 3D meshes are visual depth, not a license to drift
+                // sideways along Z or tumble around X/Y. Constrain the
+                // experimental SceneKit solver to 2.5D, like the PC layout.
+                // Keep authored Z positions and Z-axis rotations intact.
+                body.velocityFactor = SCNVector3(1, 1, 0)
+                body.angularVelocityFactor = SCNVector3(0, 0, 1)
                 body.mass = 1
                 body.friction = 0.6
                 body.restitution = 0.15
