@@ -30,12 +30,23 @@ struct CMOriginalQuickPlayView: View {
             if node.name.hasPrefix("tmo_") {
                 let id = "object-\(ordinal)"
                 ordinal += 1
-                switch node.name {
-                case "tmo_zone":
+                if node.name == "tmo_zone" {
+                    // Original capture zones use VALB 32/36. Detect contacts
+                    // but never let the zone fall as a solid object.
                     roles[id] = .sensor
-                case let name where name.hasPrefix("tmo_ball") || name == "tmo_crate":
-                    roles[id] = .movable
-                default:
+                } else if let raw = node.fields.first(where: { $0.hasPrefix("VALB ") }),
+                          let flags = Int(raw.dropFirst(5)
+                            .trimmingCharacters(in: .whitespaces)),
+                          flags >= 0 && flags <= 255 {
+                    // Recovered PC level metadata consistently distinguishes
+                    // moving bodies with bit 8: balls/crates=72, dominoes=8/72,
+                    // weights=72, balloons=104, etc. Fixed boards/pipes=64.
+                    // This is a cautious SceneKit mapping of original data,
+                    // NOT a reconstruction of the Windows physics engine.
+                    roles[id] = (flags & 8) != 0 ? .movable : .fixed
+                } else {
+                    // Missing/unrecognized metadata must not cause original
+                    // decorative/attachment objects to start falling.
                     roles[id] = .fixed
                 }
             }
