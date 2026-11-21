@@ -347,6 +347,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var manualHinges: [(joint: SCNPhysicsHingeJoint, marker: SCNNode)] = []
         var originalPositions: [String: SCNVector3] = [:]
 
+        // Original 3DO meshes can sit beneath any number of helper nodes.
+        // Find the nearest owning tmo_ transform instead of assuming a
+        // fixed mesh -> 3DO -> object hierarchy.
+        private func originalOwner(for node: SCNNode?) -> SCNNode? {
+            var current = node
+            while let candidate = current {
+                if candidate is CMOriginalPhysicsOwnerNode { return candidate }
+                current = candidate.parent
+            }
+            return nil
+        }
+
         @objc func resetSelected(_ gesture: UILongPressGestureRecognizer) {
             guard gesture.state == .began,
                   let view = gesture.view as? SCNView else { return }
@@ -383,7 +395,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             guard
                   let selected = highlighted,
                   view.hitTest(gesture.location(in: view), options: [.firstFoundOnly: true]).first?.node === selected,
-                  let owner = selected.parent?.parent,
+                  let owner = originalOwner(for: selected),
                   let identifier = owner.name,
                   let original = originalPositions[identifier] else { return }
             owner.position = original
@@ -417,7 +429,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       hit.node === selected else { return }
                 // Move the owning original object transform, not the 3DO
                 // reference wrapper. Keep nested model offsets intact.
-                guard let owner = selected.parent?.parent else { return }
+                guard let owner = originalOwner(for: selected) else { return }
                 dragging = owner
                 dragInitialPosition = owner.position
                 lastDragPoint = point
