@@ -56,7 +56,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         view.accessibilityHint = experimentalPhysics
             ? "Double tap two different parts to add a hinge. Tap with three fingers to cancel a pending endpoint or undo the last manual hinge. Long press a part to pin or unpin it."
             : (allowObjectPlacement
-               ? "Tap a part to select it, then drag the selected part to change its placement. Exit placement mode to run physics."
+               ? "Tap a part to select it. Drag with one finger to move, rotate with two fingers, or long-press to restore its original pose. Exit placement mode to run physics."
                : "Inspect the original imported parts using the camera controls.")
         view.accessibilityValue = physicsAccessibilityStatus
         // The SceneKit camera's one-finger pan conflicts with object dragging.
@@ -97,14 +97,22 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // Edited placements are sandbox-only and never modify the original
         // imported CML/JSON scene or UCM files.
         view.addGestureRecognizer(drag)
+        let rotate = UIRotationGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.rotateSelected(_:))
+        )
+        rotate.delegate = context.coordinator
+        rotate.isEnabled = allowObjectPlacement && !experimentalPhysics
+        view.addGestureRecognizer(rotate)
         let reset = UILongPressGestureRecognizer(target: context.coordinator,
                                                   action: #selector(Coordinator.resetSelected(_:)))
         reset.minimumPressDuration = 0.8
         // In inspection mode, long press resets a saved position; in physics
         // mode, it toggles a mesh between movable and fixed for diagnostics.
-        reset.isEnabled = experimentalPhysics
+        reset.isEnabled = experimentalPhysics || allowObjectPlacement
         view.addGestureRecognizer(reset)
         context.coordinator.storageKey = "cm.original.positions.\(document.sceneSHA256)"
+        context.coordinator.rotationStorageKey = "cm.original.rotations.\(document.sceneSHA256)"
         context.coordinator.physicsEnabled = experimentalPhysics
         context.coordinator.session = CMOriginalGameplaySession(document: document)
         if experimentalPhysics {
@@ -112,7 +120,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             if physicsPaused { context.coordinator.session?.pause() }
         }
         var originalPositions: [String: SCNVector3] = [:]
-        let scene = buildScene(originalPositions: &originalPositions)
+        var originalRotations: [String: SCNVector3] = [:]
+        let scene = buildScene(
+            originalPositions: &originalPositions,
+            originalRotations: &originalRotations
+        )
         if experimentalPhysics {
             scene.physicsWorld.gravity = SCNVector3(0, -9.8, 0)
         }
@@ -138,6 +150,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // Experimental physics must not change the user's saved inspection
         // coordinates. Physics mode never writes to that persistence store.
         context.coordinator.originalPositions = originalPositions
+        context.coordinator.originalRotations = originalRotations
         view.pointOfView = scene.rootNode.childNode(withName: "original-level-camera", recursively: false)
         return view
     }
@@ -352,7 +365,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var dragInitialPosition: SCNVector3?
         private var lastDragPoint: CGPoint?
         private var dragWasActive = false
+        private var rotationStartZ: Float?
         var storageKey = ""
+        var rotationStorageKey = ""
         var physicsEnabled = false
         private weak var pendingHingeEndpoint: SCNNode?
         private var pendingEndpointOriginalEmission: Any?
@@ -365,6 +380,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
         private var manualHinges: [(joint: SCNPhysicsHingeJoint, marker: SCNNode)] = []
         var originalPositions: [String: SCNVector3] = [:]
+        var originalRotations: [String: SCNVector3] = [:]
 
         // Original 3DO meshes can sit beneath any number of helper nodes.
         // Find the nearest owning tmo_ transform instead of assuming a
@@ -418,12 +434,22 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                   let identifier = owner.name,
                   let original = originalPositions[identifier] else { return }
             owner.position = original
+            if let originalAngles = originalRotations[identifier] {
+                owner.eulerAngles = originalAngles
+            }
             var positions = UserDefaults.standard.dictionary(forKey: storageKey) as? [String: [Double]] ?? [:]
             positions.removeValue(forKey: identifier)
             UserDefaults.standard.set(positions, forKey: storageKey)
+            var rotations = UserDefaults.standard.dictionary(forKey: rotationStorageKey)
+                as? [String: [Double]] ?? [:]
+            rotations.removeValue(forKey: identifier)
+            UserDefaults.standard.set(rotations, forKey: rotationStorageKey)
         }
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            if gestureRecognizer is UIRotationGestureRecognizer {
+                return highlighted != nil && !physicsEnabled
+            }
             guard gestureRecognizer is UIPanGestureRecognizer else { return true }
             guard let view = gestureRecognizer.view as? SCNView,
                   let selected = highlighted else { return false }
@@ -436,6 +462,41 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                                shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
             false
+        }
+
+        @objc func rotateSelected(_ gesture: UIRotationGestureRecognizer) {
+            // Placement changes the tmo_ object's own transform. Rendering
+            // and physics will inherit the original nested 3DO offsets.
+            guard !physicsEnabled,
+                  let selected = highlighted,
+                  let owner = originalOwner(for: selected) else { return }
+            switch gesture.state {
+            case .began:
+                rotationStartZ = owner.eulerAngles.z
+            case .changed:
+                guard let initial = rotationStartZ else { return }
+                let next = initial + Float(gesture.rotation)
+                if next.isFinite && abs(next) <= 100_000 {
+                    owner.eulerAngles.z = next
+                }
+            case .ended:
+                if let identifier = owner.name,
+                   identifier.hasPrefix("original-node-") {
+                    var saved = UserDefaults.standard.dictionary(forKey: rotationStorageKey)
+                        as? [String: [Double]] ?? [:]
+                    let angles = owner.eulerAngles
+                    saved[identifier] = [
+                        Double(angles.x), Double(angles.y), Double(angles.z)
+                    ]
+                    UserDefaults.standard.set(saved, forKey: rotationStorageKey)
+                }
+                rotationStartZ = nil
+            case .cancelled, .failed:
+                if let original = rotationStartZ { owner.eulerAngles.z = original }
+                rotationStartZ = nil
+            default:
+                break
+            }
         }
 
         @objc func dragSelected(_ gesture: UIPanGestureRecognizer) {
@@ -750,7 +811,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
     }
 
-    private func buildScene(originalPositions: inout [String: SCNVector3]) -> SCNScene {
+    private func buildScene(
+        originalPositions: inout [String: SCNVector3],
+        originalRotations: inout [String: SCNVector3]
+    ) -> SCNScene {
         let scene = SCNScene()
         var loadedMeshNodes: [SCNNode] = []
         // Resolve each original 3DO reference once per scene; levels reuse meshes.
@@ -800,6 +864,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
             transform.eulerAngles = parseRotation(item.rotationRelativeRaw ?? item.rotationRaw)
             originalPositions[identifier] = transform.position
+            originalRotations[identifier] = transform.eulerAngles
             parent.addChildNode(transform)
             if item.name.hasPrefix("tmo_"), let currentOwnerID {
                 objectRoots[currentOwnerID] = transform
@@ -906,6 +971,23 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       ) as? CMOriginalPhysicsOwnerNode else { continue }
                 owner.position = SCNVector3(
                     Float(components[0]), Float(components[1]), Float(components[2])
+                )
+            }
+            // Angles saved in the editor are applied before any SceneKit
+            // collision bodies are created. Only original tmo_ owners can
+            // be rotated; the authored CML/JSON and UCM never change.
+            let rotationKey = "cm.original.rotations.\(document.sceneSHA256)"
+            let savedRotations = UserDefaults.standard.dictionary(forKey: rotationKey)
+                as? [String: [Double]] ?? [:]
+            for (identifier, angles) in savedRotations {
+                guard identifier.hasPrefix("original-node-"),
+                      angles.count == 3,
+                      angles.allSatisfy({ $0.isFinite && abs($0) <= 100_000 }),
+                      let owner = scene.rootNode.childNode(
+                          withName: identifier, recursively: true
+                      ) as? CMOriginalPhysicsOwnerNode else { continue }
+                owner.eulerAngles = SCNVector3(
+                    Float(angles[0]), Float(angles[1]), Float(angles[2])
                 )
             }
         }
