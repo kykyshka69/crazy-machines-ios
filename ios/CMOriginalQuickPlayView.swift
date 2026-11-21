@@ -4,8 +4,13 @@ import SwiftUI
 /// All geometry/coordinates come from the user's PC game assets; this is not
 /// the original Windows game engine or a claim of reconstructed puzzle rules.
 struct CMOriginalQuickPlayView: View {
-    let document: CMOriginalSceneDocument
     let assetDirectory: URL
+    @State private var document: CMOriginalSceneDocument
+
+    init(document: CMOriginalSceneDocument, assetDirectory: URL) {
+        self.assetDirectory = assetDirectory
+        _document = State(initialValue: document)
+    }
 
     // Open an authentic scene at rest; users arrange original parts before
     // starting the approximate physics simulation, matching the PC play loop.
@@ -51,14 +56,56 @@ struct CMOriginalQuickPlayView: View {
         return count(document.root)
     }
 
+    /// Navigate between authentic, privately imported CML scene exports.
+    /// There are no synthetic fallback puzzles: missing or invalid levels
+    /// are not offered. User arrangements remain separate for each scene hash.
+    private func scene(at index: Int) -> CMOriginalSceneDocument? {
+        guard (1...102).contains(index) else { return nil }
+        let support = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let name = String(format: "level-%03d.json", index)
+        let url = support.appendingPathComponent("OriginalScenes", isDirectory: true)
+            .appendingPathComponent(name)
+        guard let data = try? Data(contentsOf: url),
+              let result = try? CMOriginalSceneDocument.read(data),
+              result.index == index else { return nil }
+        return result
+    }
+
+    private func changeLevel(by step: Int) {
+        guard let next = scene(at: document.index + step) else { return }
+        document = next
+        experimentalPhysics = false
+        physicsPaused = false
+        sceneRevision = UUID()
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Text("Original level \(document.index): \(document.title)")
+                Button {
+                    changeLevel(by: -1)
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .disabled(scene(at: document.index - 1) == nil)
+                .accessibilityLabel("Previous original level")
+                .accessibilityIdentifier("cm.original.quickplay-previous")
+
+                Text("Level \(document.index): \(document.title)")
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .center)
                     .accessibilityIdentifier("cm.original.quickplay-level")
-                Spacer(minLength: 0)
+
+                Button {
+                    changeLevel(by: 1)
+                } label: {
+                    Image(systemName: "chevron.right")
+                }
+                .disabled(scene(at: document.index + 1) == nil)
+                .accessibilityLabel("Next original level")
+                .accessibilityIdentifier("cm.original.quickplay-next")
                 Button("Levels") { showAllLevels = true }
                     .accessibilityIdentifier("cm.original.quickplay-levels")
             }
