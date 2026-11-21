@@ -1135,7 +1135,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             "to_wall_bricks": "wall_bricks",
             "to_wall_metal": "wall_metal",
             "to_wall_schist": "wall_schist",
-            "to_wall_paper": "wall_paper"
+            "to_wall_paper": "wall_paper",
+            "to_wall_brick": "wall_bricks",
+            "to_wall_wall_paper": "wall_paper"
         ]
         let textureName = sceneTextures[originalModelReference?.lowercased() ?? ""]
             ?? verifiedTextures[modelName]
