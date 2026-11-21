@@ -20,6 +20,7 @@ private struct CMGameHomeView: View {
     @State private var originalStartButton: UIImage?
     @State private var originalSelectButton: UIImage?
     @State private var hasOriginalStartscreenMeshes = false
+    @State private var importedOriginalAssetCount = 0
 
     private var assetDirectory: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -52,6 +53,7 @@ private struct CMGameHomeView: View {
                       shouldInterpolate: true, intent: .defaultIntent) else { return nil }
             return UIImage(cgImage: cgImage)
         }
+        importedOriginalAssetCount = files.filter { ["ucm", "tga"].contains($0.pathExtension.lowercased()) }.count
         let index = CMOriginalModelResolver.AssetIndex(directory: assetDirectory)
         hasOriginalStartscreenMeshes = index.resolve("startscreen_chalkboard_board") != nil
             || index.resolve("startscreen_chalkboard_frame") != nil
@@ -140,7 +142,9 @@ private struct CMGameHomeView: View {
                     .tint(.white)
                     .accessibilityIdentifier("cm.menu.files")
                     Spacer()
-                    Text("Original PC artwork and gameplay are not yet fully integrated.")
+                    Text(importedOriginalAssetCount == 0
+                         ? "Original PC resources are not installed in this iPhone app. Open Game files and import the extracted game folder."
+                         : "Imported original assets: \(importedOriginalAssetCount). Original startscreen composition is still being reconstructed.")
                         .font(.caption2)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.white.opacity(0.55))
