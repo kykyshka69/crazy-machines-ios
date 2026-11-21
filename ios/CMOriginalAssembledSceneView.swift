@@ -821,7 +821,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         if let cached = meshCache[url] {
                             geometry = cached
                         } else {
-                            geometry = try? Self.loadGeometry(url)
+                            geometry = try? Self.loadGeometry(url, assetDirectory: assetDirectory)
                             if let geometry {
                                 meshCache[url] = geometry
                             } else {
@@ -1073,7 +1073,48 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         return scene
     }
 
-    private static func loadGeometry(_ url: URL) throws -> SCNGeometry {
+    /// Texture names below are verified against the extracted PC model/texture audit.
+/// Do not guess a texture for meshes whose original material remains unknown.
+    private static let verifiedTextures: [String: String] = [
+        "pipe_straight": "pipe_straight", "arrow": "arrow",
+        "ball_basket": "ball_basket", "ball_beach": "ball_beach",
+        "ball_steel": "env_chrom", "ball_tt": "ball_tt",
+        "belt_gear": "belt_gear", "board": "board",
+        "boiler": "boiler", "bucket": "bucket",
+        "crate": "crate", "domino": "domino",
+        "element_bars_plank": "element_bars_pult",
+        "element_bars_pult": "element_bars_pult",
+        "hammer_body": "hammer", "heat_dynamite": "heat_dynamite",
+        "h_iron": "h_iron", "magnetic_permanent": "magnetic_permanent",
+        "power_lamp_base": "power_lamp",
+        "power_motor_rotor": "power_motor",
+        "power_plug": "power_plug", "power_solarcell": "power_solarcell",
+        "power_switch_lever": "power_switch",
+        "spring": "spring", "steam_body": "steam_body",
+        "steam_piston": "steam_body", "steam_pleul": "steam_body",
+        "steam_wheel": "steam_body", "switch_toggle": "switch_toggle",
+        "trunk": "trunk", "weight": "weight",
+        "wind_bellows": "wind_bellows",
+        "windmill_base": "windmill", "windmill_wings": "windmill"
+    ]
+
+    private static func originalTexture(for modelURL: URL, in directory: URL) -> CGImage? {
+        let modelName = modelURL.deletingPathExtension().lastPathComponent.lowercased()
+        guard let textureName = verifiedTextures[modelName] else { return nil }
+        let textureURL = directory.appendingPathComponent(textureName + ".tga")
+        guard let bytes = try? Data(contentsOf: textureURL),
+              let decoded = try? CMTGATexture(data: bytes),
+              let provider = CGDataProvider(data: decoded.rgba as CFData),
+              let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+        return CGImage(width: decoded.width, height: decoded.height,
+                       bitsPerComponent: 8, bitsPerPixel: 32,
+                       bytesPerRow: decoded.width * 4, space: colorSpace,
+                       bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
+                       provider: provider, decode: nil,
+                       shouldInterpolate: true, intent: .defaultIntent)
+    }
+
+    private static func loadGeometry(_ url: URL, assetDirectory: URL) throws -> SCNGeometry {
         let model = try CMUCMModel(data: Data(contentsOf: url))
         let raw = [UInt8](model.vertexData)
         func readFloat(_ offset: Int) -> Float {
@@ -1139,7 +1180,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                          bytesPerIndex: MemoryLayout<UInt16>.size)
         let geometry = SCNGeometry(sources: [source, normals, texcoords], elements: [element])
         let material = SCNMaterial()
-        material.diffuse.contents = UIColor(white: 0.78, alpha: 1)
+        material.diffuse.contents = originalTexture(for: url, in: assetDirectory)
+            ?? UIColor(white: 0.78, alpha: 1)
         material.isDoubleSided = true
         geometry.materials = [material]
         return geometry
