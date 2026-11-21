@@ -288,10 +288,25 @@ public struct CMOriginalGameplaySession {
         public let originalTargetIndex: Int
     }
 
+    /// Original electrical terminals are tmo_power_plug children. Their
+    /// integral VALF values are distinct TERMINAL IDENTIFIERS, not voltage
+    /// readings, wire connections or evidence that power is flowing.
+    /// 321 plugs occur in the recovered 102 PC levels; 272 have indexed
+    /// VALF identifiers and 49 are missing this field entirely.
+    public struct OriginalPowerTerminal: Equatable {
+        public let plugObjectID: String
+        public let originalTerminalNumber: Int?
+        public let deviceObjectID: String?
+        public let deviceType: String?
+        public let originalRelativePosition: [Double]?
+    }
+
     public let levelIndex: Int
     public let sceneSHA256: String
     public let objects: [Object]
     public let originalConnections: [OriginalConnection]
+    public let originalPowerTerminals: [OriginalPowerTerminal]
+    public let powerTerminalNumbersAreUnique: Bool
     private let validObjectIDs: Set<String>
     public private(set) var phase: Phase = .ready
     public private(set) var elapsedSimulationTime: TimeInterval = 0
@@ -376,6 +391,51 @@ public struct CMOriginalGameplaySession {
                 targetID: targetID, targetType: targetType,
                 originalTargetIndex: link.targetIndex
             )
+        }
+
+        let byID = Dictionary(uniqueKeysWithValues: collected.map { ($0.id, $0) })
+        originalPowerTerminals = collected.compactMap { plug in
+            guard plug.type == "tmo_power_plug" else { return nil }
+            // Only an integral, positive PC VALF number is a terminal ID.
+            // Other VALF fields belong to motors and lamp components and
+            // must NOT be interpreted as electrical connection endpoints.
+            var terminalNumber: Int?
+            if let raw = plug.fields["VALF"]?.first,
+               let number = Double(raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+               number.isFinite, number >= 1, number <= 100_000,
+               abs(number - number.rounded()) < 0.0001 {
+                terminalNumber = Int(number.rounded())
+            }
+
+            // Some power plug models sit below a tmo_mount_wood helper,
+            // rather than directly underneath their actual device.
+            // Follow the recovered hierarchy to the nearest PC power part;
+            // never attach to an arbitrary spatially-nearest motor.
+            var ancestorID = plug.parentID
+            var device: Object?
+            var hopCount = 0
+            while let id = ancestorID, let ancestor = byID[id],
+                  hopCount < 128 {
+                if ancestor.type.hasPrefix("tmo_power_"),
+                   ancestor.type != "tmo_power_plug" {
+                    device = ancestor
+                    break
+                }
+                ancestorID = ancestor.parentID
+                hopCount += 1
+            }
+            return OriginalPowerTerminal(
+                plugObjectID: plug.id,
+                originalTerminalNumber: terminalNumber,
+                deviceObjectID: device?.id,
+                deviceType: device?.type,
+                originalRelativePosition: plug.position
+            )
+        }
+        var seenTerminalNumbers = Set<Int>()
+        powerTerminalNumbersAreUnique = originalPowerTerminals.allSatisfy { terminal in
+            guard let number = terminal.originalTerminalNumber else { return true }
+            return seenTerminalNumbers.insert(number).inserted
         }
     }
 
