@@ -20,6 +20,9 @@ private final class CMOriginalObjectMeshNode: SCNNode {
 /// A physics owner retains its original transform identifier for reset and inspection.
 private final class CMOriginalPhysicsOwnerNode: SCNNode {
     var originalObjectID: String?
+    // Decoded directly from the PC level's tmo_ object field UNLOCKED 1.
+    // Only these pieces may be repositioned while solving the puzzle.
+    var isUnlockedInOriginalLevel = false
 
     override init() {
         super.init()
@@ -56,7 +59,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         view.accessibilityHint = experimentalPhysics
             ? "Double tap two different parts to add a hinge. Tap with three fingers to cancel a pending endpoint or undo the last manual hinge. Long press a part to pin or unpin it."
             : (allowObjectPlacement
-               ? "Tap an object to select it. Drag to move, twist two fingers to rotate, pinch to zoom, or long-press to reset that object."
+               ? "Only UNLOCKED parts from the original PC puzzle can be moved or rotated. Tap to select; drag, twist, or pinch to zoom."
                : "Inspect the original imported parts using the camera controls.")
         view.accessibilityValue = physicsAccessibilityStatus
         // The SceneKit camera's one-finger pan conflicts with object dragging.
@@ -456,14 +459,17 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             if gestureRecognizer is UIRotationGestureRecognizer {
-                return highlighted != nil && !physicsEnabled
+                return !physicsEnabled
+                    && originalOwner(for: highlighted)?.isUnlockedInOriginalLevel == true
             }
             if gestureRecognizer is UIPinchGestureRecognizer {
                 return !physicsEnabled
             }
             guard gestureRecognizer is UIPanGestureRecognizer else { return true }
             guard let view = gestureRecognizer.view as? SCNView,
-                  let selected = highlighted else { return false }
+                  let selected = highlighted,
+                  originalOwner(for: selected)?.isUnlockedInOriginalLevel == true
+            else { return false }
             let point = gestureRecognizer.location(in: view)
             // Do not steal camera gestures unless the finger begins directly
             // on the selected mesh.
@@ -501,7 +507,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // and physics will inherit the original nested 3DO offsets.
             guard !physicsEnabled,
                   let selected = highlighted,
-                  let owner = originalOwner(for: selected) else { return }
+                  let owner = originalOwner(for: selected),
+                  owner.isUnlockedInOriginalLevel else { return }
             switch gesture.state {
             case .began:
                 rotationStartZ = owner.eulerAngles.z
@@ -541,7 +548,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       hit.node === selected else { return }
                 // Move the owning original object transform, not the 3DO
                 // reference wrapper. Keep nested model offsets intact.
-                guard let owner = originalOwner(for: selected) else { return }
+                guard let owner = originalOwner(for: selected),
+                      owner.isUnlockedInOriginalLevel else { return }
                 dragging = owner
                 dragInitialPosition = owner.position
                 lastDragPoint = point
@@ -887,6 +895,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 ? CMOriginalPhysicsOwnerNode() : SCNNode()
             if let owner = transform as? CMOriginalPhysicsOwnerNode {
                 owner.originalObjectID = currentOwnerID
+                owner.isUnlockedInOriginalLevel = item.fields.contains("UNLOCKED 1")
             }
             let identifier = "original-node-\(nodeOrdinal)"
             nodeOrdinal += 1
