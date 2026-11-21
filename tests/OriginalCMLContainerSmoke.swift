@@ -114,6 +114,61 @@ struct OriginalCMLContainerSmoke {
         precondition(document.root.children[0].children[0].models == ["to_ball_tennis"])
         precondition(document.root.children[0].children[0].position == [1, 2, 3])
 
+        // The same native CML importer is used by both Play and Game files.
+        // Exercise every original index (1 through 102) with generated test
+        // records; proprietary PC levels are not present in these fixtures.
+        let unique = UUID().uuidString
+        let testRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cm-original-cml-install-\(unique)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: testRoot) }
+        let sceneFolder = testRoot.appendingPathComponent("OriginalScenes", isDirectory: true)
+        let fullLab = makeLab(count: 102)
+        let fakeDigest = String(repeating: "a", count: 64)
+        let initial = try CMOriginalLaboratorySceneInstaller.install(
+            fullLab, into: sceneFolder, sha256: { _ in fakeDigest })
+        precondition(initial.total == 102 && initial.installed == 102 && initial.existing == 0)
+        let firstSceneFile = sceneFolder.appendingPathComponent("level-001.json")
+        let lastSceneFile = sceneFolder.appendingPathComponent("level-102.json")
+        let firstScene = try CMOriginalSceneDocument.read(Data(contentsOf: firstSceneFile))
+        let lastScene = try CMOriginalSceneDocument.read(Data(contentsOf: lastSceneFile))
+        precondition(firstScene.index == 1 && lastScene.index == 102)
+        precondition(firstScene.root.objectCount == 1 && lastScene.root.objectCount == 1)
+        let again = try CMOriginalLaboratorySceneInstaller.install(
+            fullLab, into: sceneFolder, sha256: { _ in fakeDigest })
+        precondition(again.total == 102 && again.installed == 0 && again.existing == 102)
+
+        // Preflight every existing level before writing new files:
+        // a conflicting scene in the middle of the laboratory must not
+        // leave partially installed scenes 1 through 49 on this iPhone.
+        let conflictFolder = testRoot.appendingPathComponent("Conflicting", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: conflictFolder, withIntermediateDirectories: true)
+        let index50 = conflictFolder.appendingPathComponent("level-050.json")
+        var different = try JSONSerialization.jsonObject(
+            with: Data(contentsOf: firstSceneFile)) as! [String: Any]
+        different["index"] = 50
+        different["scene_sha256"] = String(repeating: "b", count: 64)
+        try JSONSerialization.data(withJSONObject: different).write(to: index50)
+        do {
+            _ = try CMOriginalLaboratorySceneInstaller.install(
+                fullLab, into: conflictFolder, sha256: { _ in fakeDigest })
+            preconditionFailure("Replaced an existing original scene in a 102-level import")
+        } catch CMOriginalLaboratorySceneInstaller.ImportError.invalid {}
+        let surviving = try FileManager.default.contentsOfDirectory(
+            at: conflictFolder, includingPropertiesForKeys: nil)
+        precondition(surviving.count == 1 && surviving[0].lastPathComponent == "level-050.json")
+
+        let emptyResult = try CMOriginalLaboratorySceneInstaller.install(
+            makeLab(count: 0), into: testRoot.appendingPathComponent("Empty"),
+            sha256: { _ in fakeDigest })
+        precondition(emptyResult.total == 0 && emptyResult.installed == 0)
+        do {
+            _ = try CMOriginalLaboratorySceneInstaller.install(
+                makeLab(count: 1), into: testRoot.appendingPathComponent("BadDigest"),
+                sha256: { _ in "invalid" })
+            preconditionFailure("Accepted an invalid original scene hash")
+        } catch CMOriginalLaboratorySceneInstaller.ImportError.invalid {}
+
         do {
             _ = try CMOriginalCMLContainer.read(makeLab(count: 1, badKey: true))
             preconditionFailure("Accepted an altered original CML key")
