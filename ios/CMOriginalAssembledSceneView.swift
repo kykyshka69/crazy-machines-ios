@@ -396,10 +396,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // Original 3DO meshes can sit beneath any number of helper nodes.
         // Find the nearest owning tmo_ transform instead of assuming a
         // fixed mesh -> 3DO -> object hierarchy.
-        private func originalOwner(for node: SCNNode?) -> SCNNode? {
+        private func originalOwner(for node: SCNNode?) -> CMOriginalPhysicsOwnerNode? {
             var current = node
             while let candidate = current {
-                if candidate is CMOriginalPhysicsOwnerNode { return candidate }
+                if let owner = candidate as? CMOriginalPhysicsOwnerNode { return owner }
                 current = candidate.parent
             }
             return nil
