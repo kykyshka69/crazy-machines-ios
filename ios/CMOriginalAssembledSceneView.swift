@@ -91,6 +91,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // Direct finger impulses are a diagnostic feature, not a Crazy Machines
     // gameplay action. Keep them disabled in the player-facing original levels.
     var diagnosticTapImpulses = false
+    // Opt-in mechanical drive for the 49 authentic PC motor rotors.
+    // The Windows electric-circuit rules are not yet decoded; do not
+    // automatically energize every motor when starting a puzzle.
+    var experimentalMotorDrive = false
     var configuredPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
     var configuredReactions: [CMOriginalGameplaySession.ReactionRule] = []
     var switchPressCount = 0
@@ -185,6 +189,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.rotationStorageKey = "cm.original.rotations.\(document.sceneSHA256)"
         context.coordinator.physicsEnabled = experimentalPhysics
         context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
+        context.coordinator.setExperimentalMotorDrive(experimentalMotorDrive)
         context.coordinator.session = CMOriginalGameplaySession(document: document)
         context.coordinator.onOriginalZoneContact = onOriginalZoneContact
         context.coordinator.onLinkedZoneContact = onLinkedZoneContact
@@ -236,6 +241,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onLinkedZoneContact = onLinkedZoneContact
         context.coordinator.onOriginalConnectionContact = onOriginalConnectionContact
         context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
+        context.coordinator.setExperimentalMotorDrive(experimentalMotorDrive)
         uiView.isPlaying = experimentalPhysics && !physicsPaused
         uiView.allowsCameraControl = !allowObjectPlacement || experimentalPhysics
         if experimentalPhysics {
@@ -256,6 +262,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var session: CMOriginalGameplaySession?
         private let sessionLock = NSLock()
         private var lastRendererTime: TimeInterval?
+        private var experimentalMotorDriveEnabled = false
+        private var motorRotorObjectIDs = Set<String>()
+
+        func setExperimentalMotorDrive(_ enabled: Bool) {
+            sessionLock.lock()
+            experimentalMotorDriveEnabled = enabled
+            sessionLock.unlock()
+        }
+
         var onOriginalZoneContact: ((String) -> Void)?
         var onLinkedZoneContact: ((String, String) -> Void)?
         var onOriginalConnectionContact: ((String, String) -> Void)?
@@ -374,6 +389,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     .filter { $0.type == "tmo_balloon" }
                     .map(\.id)
             )
+            // Use only original tmo_power_motor_rotor identifiers, not
+            // inferred nearby gear proximity or decorative motor meshes.
+            motorRotorObjectIDs = Set(
+                (session?.objects ?? [])
+                    .filter { $0.type == "tmo_power_motor_rotor" }
+                    .map(\.id)
+            )
             scene.rootNode.enumerateChildNodes { node, _ in
                 guard let body = node.physicsBody,
                       let id = self.physicsObjectID(for: node) else { return }
@@ -450,6 +472,31 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     let velocity = body.velocity
                     let upSpeed = min(2.0, velocity.y + Float(delta) * 1.25)
                     body.velocity = SCNVector3(velocity.x, upSpeed, velocity.z)
+                }
+            }
+            if experimentalMotorDriveEnabled {
+                // Ramp the physically simulated rotor toward a limited
+                // angular speed around its original Z axle. The driven
+                // authentic UCM teeth can then interact with other physics
+                // bodies, without a manually animated visual-only rotation.
+                //
+                // IMPORTANT: 3 rad/s is an EXPLICIT prototype setting,
+                // not a speed recovered from the Windows game. Electrical
+                // activation, torque curves and belt drive ratios remain
+                // unknown and must not be silently inferred from VALF 0.125.
+                let targetSpeed: Float = 3.0
+                let maxStep = Float(delta) * 9.0
+                for id in motorRotorObjectIDs {
+                    for node in physicsNodesByObjectID[id] ?? [] {
+                        guard let body = node.physicsBody,
+                              body.type == .dynamic else { continue }
+                        let rotation = body.angularVelocity
+                        let signedSpeed = rotation.z >= 0 ? rotation.w : -rotation.w
+                        let step = min(maxStep, max(-maxStep, targetSpeed - signedSpeed))
+                        let next = signedSpeed + step
+                        guard next.isFinite else { continue }
+                        body.angularVelocity = SCNVector4(0, 0, 1, next)
+                    }
                 }
             }
             session?.advance(by: delta)
