@@ -1078,7 +1078,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
         let normals = SCNGeometrySource(normals: normalVectors)
         let texcoords = SCNGeometrySource(textureCoordinates: uvVectors)
-        let indexData = model.indices.withUnsafeBytes { Data($0) }
+        // SceneKit's index buffer is explicitly little-endian, matching UCM.
+        // Do not serialize native UInt16 memory directly: its byte order is
+        // architecture-dependent and would invert indices on big-endian hosts.
+        var indexData = Data(capacity: model.indices.count * 2)
+        for index in model.indices {
+            indexData.append(UInt8(truncatingIfNeeded: index))
+            indexData.append(UInt8(truncatingIfNeeded: index >> 8))
+        }
         let element = SCNGeometryElement(data: indexData, primitiveType: .triangles,
                                          primitiveCount: model.triangleCount,
                                          bytesPerIndex: MemoryLayout<UInt16>.size)
