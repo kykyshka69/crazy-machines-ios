@@ -37,5 +37,10 @@ swiftc ios/CMOriginalCollisionProxy.swift tests/OriginalCollisionProxySmoke.swif
 # Portable regression for genuine PC conveyor surface coordinates.
 swiftc ios/CMOriginalConveyorContact.swift tests/OriginalConveyorContactSmoke.swift -o "$tmp/original-conveyor"
 "$tmp/original-conveyor"
+# Original first-level puzzle objective uses only evidence from PC CONNECTED_TO.
+swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
+  ios/CMOriginalFirstLevelRun.swift tests/OriginalFirstLevelRunSmoke.swift \
+  -o "$tmp/original-first-level"
+"$tmp/original-first-level"
 python3 -m unittest discover -s tools -p 'test_*.py'
 echo "Portable checks passed. iOS simulator build still requires Xcode/macOS."

@@ -157,6 +157,11 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
                       "Private level 1 did not open from the bundled game pack")
         let viewport = app.otherElements["cm.original.assembled-scene"]
         XCTAssertTrue(viewport.waitForExistence(timeout: 15))
+        let firstLevelProgress = app.staticTexts["cm.original.first-level-progress"]
+        XCTAssertTrue(firstLevelProgress.waitForExistence(timeout: 15),
+                      "Authentic first level did not expose the four linked targets")
+        XCTAssertEqual(firstLevelProgress.label, "0 / 4",
+                       "Original first-level prototype must start with zero deliveries")
         // The normal level is built exclusively from user-owned UCM files.
         // A count of at least 25 visible original 3DO nodes makes a fallback
         // test triangle or a missing-asset blank frame impossible to pass.

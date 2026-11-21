@@ -10,6 +10,7 @@ struct CMOriginalQuickPlayView: View {
     init(document: CMOriginalSceneDocument, assetDirectory: URL) {
         self.assetDirectory = assetDirectory
         _document = State(initialValue: document)
+        _firstLevelRun = State(initialValue: CMOriginalFirstLevelRun(document: document))
     }
 
     // Open an authentic scene at rest; users arrange original parts before
@@ -23,6 +24,8 @@ struct CMOriginalQuickPlayView: View {
     @State private var matchedZoneLinks = Set<String>()
     @State private var matchedMechanismLinks = Set<String>()
     @State private var flippedOriginalSwitchIDs = Set<String>()
+    @State private var firstLevelRun: CMOriginalFirstLevelRun?
+    @State private var showFirstLevelObjectiveDetails = false
 
     // Reconstruct the PC's explicit CONNECTED_TO references to tmo_zone.
     // The original 0-based indices refer to level_elements.children,
@@ -142,6 +145,8 @@ struct CMOriginalQuickPlayView: View {
     private func changeLevel(by step: Int) {
         guard let next = scene(at: document.index + step) else { return }
         document = next
+        firstLevelRun = CMOriginalFirstLevelRun(document: next)
+        showFirstLevelObjectiveDetails = false
         experimentalPhysics = false
         experimentalMotorDrive = false
         physicsPaused = false
@@ -149,6 +154,7 @@ struct CMOriginalQuickPlayView: View {
         matchedZoneLinks.removeAll()
         matchedMechanismLinks.removeAll()
         flippedOriginalSwitchIDs.removeAll()
+        firstLevelRun?.reset()
         sceneRevision = UUID()
     }
 
@@ -204,6 +210,15 @@ struct CMOriginalQuickPlayView: View {
                     }
                     if isOriginalTarget {
                         matchedZoneLinks.insert(sourceID + "|" + zoneID)
+                        // Level one's private, evidence-derived prototype
+                        // tracker is stricter than generic zone telemetry.
+                        // Store the outcome only after the fourth distinct
+                        // linked object reaches its actual target zone.
+                        if firstLevelRun?.recordContact(
+                            sourceID: sourceID, zoneID: zoneID) == true,
+                           let run = firstLevelRun, run.isSatisfied {
+                            UserDefaults.standard.set(true, forKey: run.storageKey)
+                        }
                     }
                 },
                 onOriginalConnectionContact: { sourceID, targetID in
@@ -235,6 +250,7 @@ struct CMOriginalQuickPlayView: View {
                         matchedZoneLinks.removeAll()
                         matchedMechanismLinks.removeAll()
                         flippedOriginalSwitchIDs.removeAll()
+                        firstLevelRun?.reset()
                         // Rebuild bodies only after changing scene physics mode.
                         sceneRevision = UUID()
                     }
@@ -251,6 +267,7 @@ struct CMOriginalQuickPlayView: View {
                     matchedZoneLinks.removeAll()
                     matchedMechanismLinks.removeAll()
                     flippedOriginalSwitchIDs.removeAll()
+                    firstLevelRun?.reset()
                     sceneRevision = UUID()
                 }
                 .accessibilityIdentifier("cm.original.quickplay-reset")
@@ -316,6 +333,7 @@ struct CMOriginalQuickPlayView: View {
                     matchedZoneLinks.removeAll()
                     matchedMechanismLinks.removeAll()
                     flippedOriginalSwitchIDs.removeAll()
+                    firstLevelRun?.reset()
                     sceneRevision = UUID()
                 }
                 .font(.caption.weight(.semibold))
@@ -323,6 +341,63 @@ struct CMOriginalQuickPlayView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
+
+            if let run = firstLevelRun {
+                VStack(alignment: .leading, spacing: 5) {
+                    // Keep the 3D viewport large enough for finger-driven
+                    // board placement. The four-item checklist is expandable
+                    // instead of permanently occupying half the iPhone screen.
+                    DisclosureGroup(
+                        isExpanded: $showFirstLevelObjectiveDetails
+                    ) {
+                        Text("Move the two UNLOCKED boards, start physics, and deliver each of the four original PC objects to its CONNECTED_TO zone.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        ForEach(run.targets) { target in
+                            HStack(spacing: 7) {
+                                Image(systemName: run.isDelivered(target)
+                                      ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(run.isDelivered(target)
+                                                     ? Color.green : Color.secondary)
+                                Text(target.displayName)
+                                    .font(.caption)
+                                Spacer()
+                            }
+                        }
+                        if UserDefaults.standard.bool(forKey: run.storageKey)
+                            && !run.isSatisfied {
+                            Text("Prototype goal reached in an earlier run.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Text("Level 1 deliveries")
+                                .font(.caption.weight(.semibold))
+                            Spacer(minLength: 5)
+                            Text("\(run.deliveredCount) / \(run.totalCount)")
+                                .font(.caption.monospacedDigit().weight(.semibold))
+                                .accessibilityIdentifier("cm.original.first-level-progress")
+                        }
+                    }
+                    ProgressView(value: Double(run.deliveredCount),
+                                 total: Double(run.totalCount))
+                    if run.isSatisfied {
+                        Text("Prototype target reached: four authentic linked-zone contacts. Original Windows victory logic is still unknown.")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.green)
+                            .accessibilityIdentifier("cm.original.first-level-prototype-complete")
+                        Button("Continue to original level 2") {
+                            changeLevel(by: 1)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("cm.original.first-level-next")
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .accessibilityIdentifier("cm.original.first-level-challenge")
+            }
 
             if experimentalPhysics && hasOriginalCaptureZone {
                 HStack(spacing: 8) {
