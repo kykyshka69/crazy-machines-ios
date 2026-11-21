@@ -83,31 +83,42 @@ enum CMOriginalModelResolver {
             filesByBaseName = index
         }
 
-        func resolve(_ modelName: String) -> URL? {
-            // Reject traversal and absolute paths before stripping Windows
-            // or POSIX directory components from a PC 3DO reference.
+        enum Resolution {
+            case found(URL)
+            case missing
+            case ambiguous
+            case invalidReference
+        }
+
+        /// Distinguish absent meshes from ambiguous filenames and unsafe
+        /// references so the iOS original-level audit is actionable.
+        func locate(_ modelName: String) -> Resolution {
             let normalized = modelName.replacingOccurrences(of: "\\", with: "/")
             let components = normalized.split(separator: "/", omittingEmptySubsequences: false)
             guard !normalized.hasPrefix("/"),
-                  !normalized.hasPrefix("//"),
                   !normalized.contains(":"),
+                  !normalized.contains(where: { $0.isNewline || $0 == "\0" }),
                   !components.contains(where: { $0 == "." || $0 == ".." }),
-                  let last = components.last, !last.isEmpty else { return nil }
+                  let last = components.last, !last.isEmpty else { return .invalidReference }
             let name = String(last)
             let ext = (name as NSString).pathExtension.lowercased()
-            guard ext.isEmpty || ext == "ucm" else { return nil }
+            guard ext.isEmpty || ext == "ucm" else { return .invalidReference }
             let base = (name as NSString).deletingPathExtension.lowercased()
-            guard !base.isEmpty else { return nil }
+            guard !base.isEmpty else { return .invalidReference }
             let matches = filesByBaseName[base] ?? []
-            if matches.count == 1 { return matches[0] }
-            if !matches.isEmpty { return nil }
-            // The original scene may reference a to_ model while the
-            // imported mesh omits the prefix. Do not infer the reverse:
-            // an unprefixed PC model must not silently resolve to a
-            // potentially different to_ mesh.
-            guard base.hasPrefix("to_"), base.count > 3 else { return nil }
-            let aliasMatches = filesByBaseName[String(base.dropFirst(3))] ?? []
-            return aliasMatches.count == 1 ? aliasMatches[0] : nil
+            if matches.count > 1 { return .ambiguous }
+            if let file = matches.first { return .found(file) }
+            // In the original metadata, to_foo may correspond to foo.ucm,
+            // but never silently map an unprefixed reference to to_foo.ucm.
+            guard base.hasPrefix("to_"), base.count > 3 else { return .missing }
+            let aliases = filesByBaseName[String(base.dropFirst(3))] ?? []
+            if aliases.count > 1 { return .ambiguous }
+            return aliases.first.map(Resolution.found) ?? .missing
+        }
+
+        func resolve(_ modelName: String) -> URL? {
+            if case .found(let url) = locate(modelName) { return url }
+            return nil
         }
     }
 
