@@ -315,6 +315,7 @@ struct CMOriginalQuickPlayView: View {
                     zoneContacts.removeAll()
                     matchedZoneLinks.removeAll()
                     matchedMechanismLinks.removeAll()
+                    flippedOriginalSwitchIDs.removeAll()
                     sceneRevision = UUID()
                 }
                 .font(.caption.weight(.semibold))

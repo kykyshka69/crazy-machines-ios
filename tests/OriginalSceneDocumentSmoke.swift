@@ -48,6 +48,29 @@ enum OriginalSceneDocumentSmoke {
             }
         }
         let doc = try CMOriginalSceneDocument.read(Data(json.utf8))
+        // Repeated PC fixtures have equal metadata and equal legacy node IDs.
+        // SwiftUI hierarchy identity must instead use their unique paths.
+        var repeatedRaw = try JSONSerialization.jsonObject(
+            with: Data(json.utf8)) as! [String: Any]
+        var repeatedRoot = repeatedRaw["root"] as! [String: Any]
+        let repeatedChild = (repeatedRoot["children"] as! [[String: Any]])[0]
+        repeatedRoot["children"] = [repeatedChild, repeatedChild, repeatedChild]
+        repeatedRaw["root"] = repeatedRoot
+        let repeatedDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: repeatedRaw))
+        precondition(repeatedDoc.root.children[0].id == repeatedDoc.root.children[1].id)
+        let outline = repeatedDoc.outlineRoot
+        precondition(outline.id == "0")
+        precondition(outline.children?.map(\.id) == ["0.0", "0.1", "0.2"])
+        precondition(outline.children?[0].children?.first?.id == "0.0.0")
+        precondition(outline.children?[1].children?.first?.id == "0.1.0")
+        precondition(doc.outlineRoot.children?.first?.id == "0.0")
+        precondition(doc.outlineRoot.children?.first?.children?.first?.children == nil)
+        let allOutlineIDs = (outline.children ?? []).flatMap { item in
+            [item.id] + (item.children ?? []).map(\.id)
+        }
+        precondition(Set(allOutlineIDs).count == allOutlineIDs.count)
+
         precondition(doc.root.positionRelative == [0, 0, 0])
         let board = doc.root.children[0]
         precondition(board.position == [1, 2, 3])

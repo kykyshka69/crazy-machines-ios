@@ -35,7 +35,7 @@ struct CMOriginalLevelBrowserView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Import JSON files exported from your original Professor Laboratory CML.")
+                    Text("Import an original PC laboratory (.cml) directly, or use previously exported JSON levels.")
                         .font(.caption)
                     Button("Import original levels") { importing = true }
                     Button("Import entire exported levels folder") { importingFolder = true }
@@ -51,7 +51,7 @@ struct CMOriginalLevelBrowserView: View {
                         ContentUnavailableView(
                             "No original levels imported",
                             systemImage: "square.stack.3d.up.slash",
-                            description: Text("Export the original CML levels to JSON on your computer, then import the files or their folder here.")
+                            description: Text("Import your original Professor Laboratory .cml file directly, or install a game pack in Original files.")
                         )
                     }
                     ForEach(sorted, id: \.index) { document in
@@ -177,8 +177,8 @@ struct CMOriginalLevelBrowserView: View {
                         if let models = entry.element.models, !models.isEmpty {
                             LabeledContent("3D models", value: models.joined(separator: ", "))
                         }
-                        ForEach(entry.element.fields, id: \.self) { field in
-                            Text(field).font(.caption.monospaced()).textSelection(.enabled)
+                        ForEach(Array(entry.element.fields.enumerated()), id: \.offset) { field in
+                            Text(field.element).font(.caption.monospaced()).textSelection(.enabled)
                         }
                     }
                 }
@@ -334,7 +334,8 @@ struct CMOriginalLevelBrowserView: View {
                 }
             }
             Section("Scene hierarchy") {
-                OutlineGroup([document.root], children: \.outlineChildren) { node in
+                OutlineGroup([document.outlineRoot], children: \.children) { entry in
+                    let node = entry.node
                     VStack(alignment: .leading, spacing: 3) {
                         Text(node.name).font(.system(.subheadline, design: .monospaced))
                         if let position = node.position {
