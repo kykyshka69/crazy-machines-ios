@@ -1407,6 +1407,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         "power_lamp_base": "power_lamp",
         "power_motor_rotor": "power_motor",
         "power_plug": "power_plug", "power_solarcell": "power_solarcell",
+        "power_switch_base": "power_switch",
         "power_switch_lever": "power_switch",
         "spring": "spring", "steam_body": "steam_body",
         "steam_piston": "steam_body", "steam_pleul": "steam_body",
