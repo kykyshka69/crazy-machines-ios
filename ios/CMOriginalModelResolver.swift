@@ -136,7 +136,13 @@ enum CMOriginalModelResolver {
                 // Additional original scene spelling variants of the same
                 // installed wall.ucm geometry (not invented replacements).
                 "to_wall_brick": "wall",
-                "to_wall_wall_paper": "wall"
+                "to_wall_wall_paper": "wall",
+                // Original tmo_power_switch contains a separate lever mesh,
+                // while the installed root UCM is named power_switch_base.
+                "to_power_switch": "power_switch_base",
+                // Pool-background levels reference the same rectangular wall
+                // geometry but no wall_pool UCM is present in the PC files.
+                "to_wall_pool": "wall"
             ]
             guard let originalName = originalAliases[base] else { return .missing }
             let originalMatches = filesByBaseName[originalName] ?? []
