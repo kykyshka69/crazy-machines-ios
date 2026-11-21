@@ -61,12 +61,12 @@ struct OriginalCMLContainerSmoke {
         header.append(Data(repeating: 0, count: 108))
         if count == 0 { return header }
 
-        let text = "level\r\n{\r\n}\r\n"
+        let text = "level\r\n{\r\nlevel_elements\r\n{\r\ntmo_ball_tennis\r\n{\r\nPOS 1, 2, 3\r\n3DO to_ball_tennis\r\n{\r\n}\r\n}\r\n}\r\n}\r\n"
         let uncompressed = Array(text.utf8).map(Int.init)
         let packed = packCodes(uncompressed + [4095])
         let payload = littleEndian(packed.count) + packed
         let title = "Сначала наведем порядок"
-        var name = title.data(using: .windowsCP1251)!
+        var name = CMOriginalWindows1251.encode(title)!
         name.append(Data(repeating: 0, count: 80 - name.count))
         for _ in 0..<count {
             header.append(encodeFrame(Data([1])))
@@ -88,6 +88,13 @@ struct OriginalCMLContainerSmoke {
                 frame, payloadLength: size)
             precondition(decoded == payload)
         }
+        precondition(CMOriginalWindows1251.encode("Привіт, ё Є Ї ї Ґ ґ №!") ==
+                     Data([0xCF, 0xF0, 0xE8, 0xE2, 0xB3, 0xF2, 0x2C, 0x20,
+                           0xB8, 0x20, 0xAA, 0x20, 0xAF, 0x20, 0xBF, 0x20,
+                           0xA5, 0x20, 0xB4, 0x20, 0xB9, 0x21]))
+        precondition(CMOriginalWindows1251.decode(Data([0xC0, 0xDF, 0xE0, 0xFF])) == "АЯая")
+        precondition(CMOriginalWindows1251.decode(Data([0x98])) == nil)
+        precondition(CMOriginalWindows1251.encode("🙂") == nil)
         let emptyLab = try CMOriginalCMLContainer.read(makeLab(count: 0))
         precondition(emptyLab.isEmpty)
         let records = try CMOriginalCMLContainer.read(makeLab(count: 2))
@@ -98,7 +105,14 @@ struct OriginalCMLContainerSmoke {
             "Сначала наведем порядок", "Сначала наведем порядок"
         ])
         let scene = try records[0].originalSceneText()
-        precondition(scene == "level\r\n{\r\n}\r\n")
+        precondition(scene.contains("tmo_ball_tennis"))
+        let json = try CMOriginalSceneTextParser.export(
+            scene, index: records[0].index, title: records[0].title,
+            sceneSHA256: String(repeating: "a", count: 64))
+        let document = try CMOriginalSceneDocument.read(json)
+        precondition(document.root.objectCount == 1)
+        precondition(document.root.children[0].children[0].models == ["to_ball_tennis"])
+        precondition(document.root.children[0].children[0].position == [1, 2, 3])
 
         do {
             _ = try CMOriginalCMLContainer.read(makeLab(count: 1, badKey: true))

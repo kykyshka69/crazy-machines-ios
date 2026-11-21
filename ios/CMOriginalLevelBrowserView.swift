@@ -460,7 +460,7 @@ struct CMOriginalLevelBrowserView: View {
             var prepared: [(url: URL, bytes: Data, hash: String, title: String)] = []
             for record in records {
                 let originalBytes = try CMOriginalLZW12.decodeLevelSection(record.payload)
-                guard let text = String(data: originalBytes, encoding: .windowsCP1251) else {
+                guard let text = CMOriginalWindows1251.decode(originalBytes) else {
                     throw CMOriginalCMLContainer.DecodeError.invalidText
                 }
                 let hash = SHA256.hash(data: originalBytes)

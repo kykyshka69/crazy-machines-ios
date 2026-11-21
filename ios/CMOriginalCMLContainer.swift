@@ -22,7 +22,7 @@ public enum CMOriginalCMLContainer {
         /// This does not infer puzzle objects, physics, or completion logic.
         public func originalSceneText() throws -> String {
             let source = try CMOriginalLZW12.decodeLevelSection(payload)
-            guard let text = String(data: source, encoding: .windowsCP1251),
+            guard let text = CMOriginalWindows1251.decode(source),
                   text.hasPrefix("level\r\n{") else {
                 throw DecodeError.invalidText
             }
@@ -122,7 +122,7 @@ public enum CMOriginalCMLContainer {
             }
             let rawName = try takeField(80)
             let nameBytes = Data(rawName.prefix(while: { $0 != 0 }))
-            guard let title = String(data: nameBytes, encoding: .windowsCP1251),
+            guard let title = CMOriginalWindows1251.decode(nameBytes),
                   !title.isEmpty, title.count <= 160 else {
                 throw DecodeError.invalidText
             }

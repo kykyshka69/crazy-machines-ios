@@ -27,7 +27,7 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalModelResolver.swift tests
 swiftc ios/CMOriginalLZW12.swift tests/OriginalLZW12Smoke.swift -o "$tmp/original-lzw"
 "$tmp/original-lzw"
 # Native CML decryption + scene export are portable Swift, not iOS-only stubs.
-swiftc ios/CMOriginalLZW12.swift ios/CMOriginalCMLContainer.swift tests/OriginalCMLContainerSmoke.swift -o "$tmp/original-cml"
+swiftc ios/CMOriginalLZW12.swift ios/CMOriginalWindows1251.swift ios/CMOriginalCMLContainer.swift ios/CMOriginalSceneDocument.swift ios/CMOriginalSceneTextParser.swift tests/OriginalCMLContainerSmoke.swift -o "$tmp/original-cml"
 "$tmp/original-cml"
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalSceneTextParser.swift tests/OriginalSceneTextParserSmoke.swift -o "$tmp/original-scene-text"
 "$tmp/original-scene-text"
