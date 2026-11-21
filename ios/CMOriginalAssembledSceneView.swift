@@ -1,6 +1,52 @@
 import SwiftUI
 import SceneKit
 
+/// Contact groups for 2.5D physics assembled from original PC objects.
+/// These are SceneKit simulation-layer choices, not Windows collision flags.
+/// An axle must touch other gears and balls but not the housing that holds it.
+private enum CMOriginalPhysicsLayers {
+    static let object = 1
+    static let axle = 2
+    static let housing = 4
+    static let zone = 8
+
+    static let housingKinds: Set<String> = [
+        "tmo_belt_conveyer",
+        "tmo_power_motor",
+        "tmo_power_generator",
+        "tmo_power_disrupter",
+        "tmo_windmill",
+        "tmo_hammer",
+        "tmo_belt_flag",
+        "tmo_heat_grill"
+    ]
+
+    static func category(for kind: String) -> Int {
+        if kind == "tmo_zone" { return zone }
+        if CMOriginalAxleParts.rotatingKinds.contains(kind) { return axle }
+        if housingKinds.contains(kind) { return housing }
+        return object
+    }
+
+    static func collisionMask(for category: Int) -> Int {
+        switch category {
+        case axle: return object | axle
+        case housing: return object
+        case zone: return 0
+        default: return object | axle | housing
+        }
+    }
+
+    static func contactMask(for category: Int) -> Int {
+        switch category {
+        case axle: return object | axle | zone
+        case housing: return object
+        case zone: return object | axle
+        default: return object | axle | housing | zone
+        }
+    }
+}
+
 /// Interactive assembly of authentic UCM meshes at original scene POS coordinates.
 /// Missing meshes are omitted and reported, never replaced with invented shapes.
 /// Preserve the original object identity without relying on unavailable SCNNode.userData.
@@ -276,17 +322,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     switch role {
                     case .fixed:
                         body.type = .static
-                        body.collisionBitMask = 1
-                        body.contactTestBitMask = 1
+                        body.collisionBitMask = CMOriginalPhysicsLayers.collisionMask(
+                            for: body.categoryBitMask)
                     case .movable:
                         body.type = .dynamic
-                        body.collisionBitMask = 1
-                        body.contactTestBitMask = 1
+                        body.collisionBitMask = CMOriginalPhysicsLayers.collisionMask(
+                            for: body.categoryBitMask)
                     case .sensor:
                         body.type = .kinematic
                         body.collisionBitMask = 0
-                        body.contactTestBitMask = 1
                     }
+                    body.contactTestBitMask = CMOriginalPhysicsLayers.contactMask(
+                        for: body.categoryBitMask)
                 }
             }
         }
@@ -1275,9 +1322,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 body.angularDamping = kind == "tmo_belt_gear" ? 0.07 : 0.1
                 body.restitution = 0.15
                 body.continuousCollisionDetectionThreshold = 0.001
-                body.categoryBitMask = 1
-                body.collisionBitMask = 1
-                body.contactTestBitMask = 1
+                // The original parent housing is a visual and physical
+                // fixture. Its nested roller or motor rotor must not collide
+                // against that same fixture: exclude housing from the axle's
+                // collision mask, but preserve ball-to-conveyor contact.
+                let layer = CMOriginalPhysicsLayers.category(for: kind)
+                body.categoryBitMask = layer
+                body.collisionBitMask = CMOriginalPhysicsLayers.collisionMask(
+                    for: layer)
+                body.contactTestBitMask = CMOriginalPhysicsLayers.contactMask(
+                    for: layer)
                 root.physicsBody = body
             }
 
