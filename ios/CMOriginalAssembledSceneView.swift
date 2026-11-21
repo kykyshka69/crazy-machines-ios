@@ -505,7 +505,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                           options: [.firstFoundOnly: true]).first?.node,
                   let body = physicalNode(for: node)?.physicsBody else { return }
             guard let first = pendingHingeEndpoint, first !== node,
-                  let firstBody = physicalNode(for: first)?.physicsBody else {
+                  let firstPhysical = physicalNode(for: first),
+                  let secondPhysical = physicalNode(for: node),
+                  firstPhysical !== secondPhysical,
+                  let firstBody = firstPhysical.physicsBody else {
                 clearPendingHingeEndpoint()
                 // Imported UCM geometries are cached and shared across
                 // instances. Give this endpoint its own geometry/materials
@@ -595,8 +598,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // Hinge anchors must be expressed in the rigid body's local
             // coordinate system, not in a clicked child mesh's coordinates.
             // A multi-mesh original object has its body on the tmo owner.
-            guard let firstPhysical = physicalNode(for: first),
-                  let secondPhysical = physicalNode(for: node) else { return }
             let anchorA = firstPhysical.presentation.convertPosition(anchor, from: nil)
             let anchorB = secondPhysical.presentation.convertPosition(anchor, from: nil)
             func unit(_ vector: SCNVector3) -> SCNVector3 {
