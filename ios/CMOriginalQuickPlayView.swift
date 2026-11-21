@@ -52,6 +52,13 @@ struct CMOriginalQuickPlayView: View {
                     // Original capture zones use VALB 32/36. Detect contacts
                     // but never let the zone fall as a solid object.
                     roles[id] = .sensor
+                } else if node.name == "tmo_rope_seesaw_lever" {
+                    // In the original CML this lever is a child of a fixed
+                    // seesaw support at POSREL 0,0,0. It has no VALB flag,
+                    // so the generic flag parser froze it. A world-anchored
+                    // hinge in the scene renderer lets it pivot on its PC
+                    // support and respond to falling objects.
+                    roles[id] = .movable
                 } else if let raw = node.fields.first(where: { $0.hasPrefix("VALB ") }),
                           let flags = Int(raw.dropFirst(5)
                             .trimmingCharacters(in: .whitespaces)),
