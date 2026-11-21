@@ -145,6 +145,33 @@ enum OriginalSceneDocumentSmoke {
                      ["to_board"])
 
 
+        // Verify the actual PC scene names resolve to the shared wall/ball
+        // meshes and case-insensitive original filenames. Fixtures are empty
+        // files because AssetIndex tests path resolution, not UCM decoding.
+        let assetDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cm-resolver-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: assetDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: assetDir) }
+        for name in ["wall.ucm", "ball.ucm", "crate.UCM", "zone.UCM",
+                     "belt_conveyor_roll2.ucm"] {
+            try Data("UCM1".utf8).write(to: assetDir.appendingPathComponent(name))
+        }
+        let originalMeshes = CMOriginalModelResolver.AssetIndex(directory: assetDir)
+        for original in ["to_wall_concrete", "to_wall_cork",
+                         "to_wall_bricks", "to_wall_metal",
+                         "to_wall_schist", "to_wall_paper"] {
+            precondition(originalMeshes.resolve(original)?.lastPathComponent == "wall.ucm")
+        }
+        for original in ["to_ball_tennis", "to_ball_billard"] {
+            precondition(originalMeshes.resolve(original)?.lastPathComponent == "ball.ucm")
+        }
+        precondition(originalMeshes.resolve("to_crate")?.lastPathComponent == "crate.UCM")
+        precondition(originalMeshes.resolve("to_zone")?.lastPathComponent == "zone.UCM")
+        precondition(originalMeshes.resolve("to_belt_conveyer_roll_small")?.lastPathComponent
+                     == "belt_conveyor_roll2.ucm")
+        precondition(originalMeshes.resolve("to_wall_brick") == nil)
+        precondition(originalMeshes.resolve("../wall.ucm") == nil)
+
         var session = CMOriginalGameplaySession(document: doc)
         precondition(session.objects.count == 1)
         precondition(session.objects[0].id == "object-0")
