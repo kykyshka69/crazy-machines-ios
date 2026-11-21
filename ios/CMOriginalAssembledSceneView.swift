@@ -541,7 +541,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 let fraction = next.truncatingRemainder(dividingBy: 1.0)
                 conveyorTextureOffsets[conveyorID] = fraction
                 beltMaterial.diffuse.contentsTransform = SCNMatrix4MakeTranslation(
-                    CGFloat(fraction), 0, 0
+                    fraction, 0, 0
                 )
             }
             if experimentalMotorDriveEnabled {
