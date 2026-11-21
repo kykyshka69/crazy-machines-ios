@@ -106,6 +106,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // A contact matching any exact CONNECTED_TO reference in the recovered
     // PC level (not only tmo_zone targets). This is observation, not victory.
     var onOriginalConnectionContact: ((String, String) -> Void)? = nil
+    // Reports a user-operated original PC power switch. This changes its
+    // actual lever mesh, NOT the unrecovered electrical connectivity.
+    var onOriginalSwitchToggle: ((String, Bool) -> Void)? = nil
 
     private var physicsAccessibilityStatus: String {
         let state = experimentalPhysics ? (physicsPaused ? "paused" : "running") : "off"
@@ -194,6 +197,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalZoneContact = onOriginalZoneContact
         context.coordinator.onLinkedZoneContact = onLinkedZoneContact
         context.coordinator.onOriginalConnectionContact = onOriginalConnectionContact
+        context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         if experimentalPhysics {
             context.coordinator.session?.start()
             if physicsPaused { context.coordinator.session?.pause() }
@@ -240,6 +244,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalZoneContact = onOriginalZoneContact
         context.coordinator.onLinkedZoneContact = onLinkedZoneContact
         context.coordinator.onOriginalConnectionContact = onOriginalConnectionContact
+        context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
         context.coordinator.setExperimentalMotorDrive(experimentalMotorDrive)
         uiView.isPlaying = experimentalPhysics && !physicsPaused
@@ -271,6 +276,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var conveyorWheelNodes: [String: SCNNode] = [:]
         private var conveyorBeltMaterials: [String: SCNMaterial] = [:]
         private var conveyorTextureOffsets: [String: Float] = [:]
+        private var switchLeverNodes: [String: SCNNode] = [:]
+        private var switchLeverRestAngles: [String: SCNVector3] = [:]
+        private var flippedSwitchIDs = Set<String>()
+        var onOriginalSwitchToggle: ((String, Bool) -> Void)?
 
         func setExperimentalMotorDrive(_ enabled: Bool) {
             sessionLock.lock()
@@ -394,6 +403,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             conveyorWheelNodes.removeAll()
             conveyorBeltMaterials.removeAll()
             conveyorTextureOffsets.removeAll()
+            switchLeverNodes.removeAll()
+            switchLeverRestAngles.removeAll()
+            flippedSwitchIDs.removeAll()
             let originalObjects = session?.objects ?? []
             originalTypesByID = Dictionary(
                 uniqueKeysWithValues: originalObjects.map { ($0.id, $0.type) }
@@ -418,7 +430,22 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                     .map(\.id)
             )
+            let switchByLeverID = Dictionary(uniqueKeysWithValues:
+                originalObjects.compactMap { part -> (String, String)? in
+                    guard part.type == "tmo_power_switch_lever",
+                          let parent = part.parentID,
+                          originalTypesByID[parent] == "tmo_power_switch"
+                    else { return nil }
+                    return (part.id, parent)
+                }
+            )
             scene.rootNode.enumerateChildNodes { node, _ in
+                if let owner = node as? CMOriginalPhysicsOwnerNode,
+                   let leverID = owner.originalObjectID,
+                   let switchID = switchByLeverID[leverID] {
+                    self.switchLeverNodes[switchID] = owner
+                    self.switchLeverRestAngles[switchID] = owner.eulerAngles
+                }
                 // Only the authentic conveyor-belt visual texture scrolls.
                 // Each belt has its own copied material, so separate
                 // conveyors can reverse or stop without affecting each other.
@@ -1157,6 +1184,52 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             manualHinges.append((joint: hinge, marker: marker))
         }
 
+        /// Flip the REAL imported PC tmo_power_switch_lever model on tap.
+        /// The switch's electrical consequences are intentionally NOT
+        /// inferred: original wire connections are not yet decoded.
+        private func flipOriginalPowerSwitch(_ hitNode: SCNNode?) -> Bool {
+            guard let objectID = owningOriginalObjectID(for: hitNode) else {
+                return false
+            }
+            let switchID: String
+            if originalTypesByID[objectID] == "tmo_power_switch" {
+                switchID = objectID
+            } else if originalTypesByID[objectID] == "tmo_power_switch_lever",
+                      let parent = session?.objects.first(
+                          where: { $0.id == objectID }
+                      )?.parentID,
+                      originalTypesByID[parent] == "tmo_power_switch" {
+                switchID = parent
+            } else {
+                return false
+            }
+            guard let lever = switchLeverNodes[switchID],
+                  let original = switchLeverRestAngles[switchID] else { return false }
+            let isOn: Bool
+            if flippedSwitchIDs.contains(switchID) {
+                flippedSwitchIDs.remove(switchID)
+                isOn = false
+            } else {
+                flippedSwitchIDs.insert(switchID)
+                isOn = true
+            }
+            // The recovered lever has a real PC ROT x=1. We preserve the
+            // original rest angle and provide only a modest prototype tilt
+            // for the alternate state, rather than invent an engine limit.
+            lever.removeAction(forKey: "original-switch")
+            let targetX = original.x + (isOn ? -0.6 : 0)
+            lever.runAction(
+                SCNAction.rotateTo(
+                    x: CGFloat(targetX), y: CGFloat(original.y),
+                    z: CGFloat(original.z), duration: 0.16,
+                    usesShortestUnitArc: true
+                ),
+                forKey: "original-switch"
+            )
+            onOriginalSwitchToggle?(switchID, isOn)
+            return true
+        }
+
         @objc func selectObject(_ gesture: UITapGestureRecognizer) {
             guard let view = gesture.view as? SCNView,
                   gesture.state == .ended, !dragWasActive else { return }
@@ -1174,6 +1247,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     sessionLock.unlock()
                     if hasRule { return }
                 }
+                // Preserve the player's genuine PC switch gesture while
+                // keeping the unrecovered electric circuit disconnected.
+                if flipOriginalPowerSwitch(node) { return }
                 // The PC player cannot kick balls by tapping them after
                 // starting the machine; allow this only in diagnostic mode.
                 guard diagnosticTapImpulses else { return }
