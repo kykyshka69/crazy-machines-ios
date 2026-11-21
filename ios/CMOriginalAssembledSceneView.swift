@@ -35,6 +35,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     let assetDirectory: URL
     var experimentalPhysics = false
     var physicsPaused = false
+    // Permits moving the original PC objects while the simulation is stopped.
+    // Defaults off for read-only inspectors and other embedded scene previews.
+    var allowObjectPlacement = false
     var diagnosticHinges = false
     var configuredPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
     var configuredReactions: [CMOriginalGameplaySession.ReactionRule] = []
@@ -52,9 +55,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         view.accessibilityLabel = "Original level 3D scene"
         view.accessibilityHint = experimentalPhysics
             ? "Double tap two different parts to add a hinge. Tap with three fingers to cancel a pending endpoint or undo the last manual hinge. Long press a part to pin or unpin it."
-            : "Inspect the original imported parts using the camera controls."
+            : (allowObjectPlacement
+               ? "Tap a part to select it, then drag the selected part to change its placement. Exit placement mode to run physics."
+               : "Inspect the original imported parts using the camera controls.")
         view.accessibilityValue = physicsAccessibilityStatus
-        view.allowsCameraControl = true
+        // The SceneKit camera's one-finger pan conflicts with object dragging.
+        // Disable it only while editing the imported puzzle arrangement.
+        view.allowsCameraControl = !allowObjectPlacement || experimentalPhysics
         view.autoenablesDefaultLighting = true
         view.antialiasingMode = .multisampling4X
         view.defaultCameraController.interactionMode = .orbitTurntable
@@ -86,7 +93,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         drag.minimumNumberOfTouches = 1
         drag.maximumNumberOfTouches = 1
         drag.delegate = context.coordinator
-        drag.isEnabled = false // Never rewrite authentic original level placement.
+        drag.isEnabled = allowObjectPlacement && !experimentalPhysics
+        // Edited placements are sandbox-only and never modify the original
+        // imported CML/JSON scene or UCM files.
         view.addGestureRecognizer(drag)
         let reset = UILongPressGestureRecognizer(target: context.coordinator,
                                                   action: #selector(Coordinator.resetSelected(_:)))
@@ -137,6 +146,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // SwiftUI updates pause state without reconstructing imported meshes
         // or losing the current simulated positions.
         uiView.isPlaying = experimentalPhysics && !physicsPaused
+        uiView.allowsCameraControl = !allowObjectPlacement || experimentalPhysics
         if experimentalPhysics {
             context.coordinator.setSessionPaused(physicsPaused)
             context.coordinator.configurePhysicsRoles(configuredPhysicsRoles)
@@ -878,6 +888,27 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
         walk(document.root, parent: scene.rootNode)
+
+        // Reapply user-edited positions to original object owners BEFORE
+        // creating collision shapes. The same edited arrangement must be
+        // used when switching from placement mode into physics mode.
+        // Never alter the original scene document or model files.
+        if allowObjectPlacement {
+            let key = "cm.original.positions.\(document.sceneSHA256)"
+            let saved = UserDefaults.standard.dictionary(forKey: key)
+                as? [String: [Double]] ?? [:]
+            for (identifier, components) in saved {
+                guard identifier.hasPrefix("original-node-"),
+                      components.count == 3,
+                      components.allSatisfy({ $0.isFinite && abs($0) <= 1_000_000 }),
+                      let owner = scene.rootNode.childNode(
+                          withName: identifier, recursively: true
+                      ) as? CMOriginalPhysicsOwnerNode else { continue }
+                owner.position = SCNVector3(
+                    Float(components[0]), Float(components[1]), Float(components[2])
+                )
+            }
+        }
         if experimentalPhysics {
             // Build one owner-level convex collision body per original object.
             // Each mesh shape is transformed into its owning tmo node's space;
