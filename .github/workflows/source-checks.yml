@@ -194,6 +194,15 @@ jobs:
           swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalModelResolver.swift tests/OriginalSceneDocumentSmoke.swift -o /tmp/cm-original-scene
           /tmp/cm-original-scene
 
+  original-asset-audit-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and test original UCM model integrity audit
+        run: |
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalModelResolver.swift ios/CMUCMModel.swift ios/CMOriginalAssetAudit.swift tests/OriginalAssetAuditSmoke.swift -o /tmp/cm-original-asset-audit
+          /tmp/cm-original-asset-audit
+
   ios-simulator-build:
     runs-on: macos-latest
     steps:
