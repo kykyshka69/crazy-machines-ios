@@ -390,7 +390,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 candidate = nil
             }
             let contactType: String?
-            if let candidate, reportedZoneContacts.insert(candidate).inserted {
+            // Only moving original objects should count as entering the
+            // collection zone. Fixed boards, decorative mounts and initial
+            // static overlaps are not completed gameplay interactions.
+            if let candidate,
+               session?.phase == .running,
+               session?.physicsRole(for: candidate) == .movable,
+               reportedZoneContacts.insert(candidate).inserted {
                 contactType = types[candidate]
             } else {
                 contactType = nil
