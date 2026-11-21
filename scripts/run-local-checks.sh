@@ -22,5 +22,8 @@ swiftc ios/CMPhysics2D.swift ios/CMPinJoint2D.swift tests/CMPinSmoke.swift -o "$
 # Verify authentic PC scene metadata and model ownership on Linux too.
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalModelResolver.swift tests/OriginalSceneDocumentSmoke.swift -o "$tmp/original-scenes"
 "$tmp/original-scenes"
+# Check on-device asset readiness with synthetic, legally distributable UCM bytes.
+swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalModelResolver.swift ios/CMUCMModel.swift ios/CMOriginalAssetAudit.swift tests/OriginalAssetAuditSmoke.swift -o "$tmp/original-asset-audit"
+"$tmp/original-asset-audit"
 python3 -m unittest discover -s tools -p 'test_*.py'
 echo "Portable checks passed. iOS simulator build still requires Xcode/macOS."
