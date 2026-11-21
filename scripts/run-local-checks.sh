@@ -31,5 +31,8 @@ swiftc ios/CMOriginalLZW12.swift ios/CMOriginalWindows1251.swift ios/CMOriginalC
 "$tmp/original-cml"
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalSceneTextParser.swift tests/OriginalSceneTextParserSmoke.swift -o "$tmp/original-scene-text"
 "$tmp/original-scene-text"
+# Validate off-origin UCM sphere and zone sensor proxies without an Apple SDK.
+swiftc ios/CMOriginalCollisionProxy.swift tests/OriginalCollisionProxySmoke.swift -o "$tmp/original-collision-proxies"
+"$tmp/original-collision-proxies"
 python3 -m unittest discover -s tools -p 'test_*.py'
 echo "Portable checks passed. iOS simulator build still requires Xcode/macOS."

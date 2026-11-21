@@ -1550,59 +1550,62 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     || kind == "tmo_mount_shear" {
                     continue
                 }
+                var proxyCenters: [SCNVector3] = []
                 let shapes: [SCNPhysicsShape] = meshes.compactMap { mesh in
                     guard let geometry = mesh.geometry else { return nil }
-                    if kind.hasPrefix("tmo_ball_") {
-                        // First-level original tennis, beach and basketball
-                        // UCMs all have spherical extents around the origin.
-                        // A SceneKit sphere is smoother and more stable than
-                        // a faceted convex hull of their low-poly visual UCMs.
-                        // Radius comes from the original mesh bounds; this
-                        // is still an approximate solver, not Windows physics.
-                        let (low, high) = mesh.boundingBox
-                        let dx = high.x - low.x
-                        let dy = high.y - low.y
-                        let dz = high.z - low.z
-                        let diameter = max(dx, dy, dz)
-                        let smallest = min(dx, dy, dz)
-                        if diameter.isFinite, diameter > 0,
-                           smallest > diameter * 0.85 {
-                            let sphere = SCNSphere(
-                                radius: CGFloat(diameter * 0.5)
-                            )
-                            return SCNPhysicsShape(geometry: sphere, options: [
-                                .type: SCNPhysicsShape.ShapeType.convexHull
-                            ])
-                        }
-                    }
-                    if kind == "tmo_zone" {
-                        // The authentic PC zone.ucm is a four-vertex plane
-                        // with ZERO Z thickness. A 3D convex hull of that
-                        // plane is degenerate and may never report ball/crate
-                        // contacts. Give the original XY capture area an
-                        // invisible sensor depth so 2.5D objects can overlap
-                        // it regardless of their original visible Z offset.
-                        // The original UCM stays untouched and remains the
-                        // only visible zone mesh.
-                        let (low, high) = mesh.boundingBox
-                        let width = CGFloat(max(0.001, high.x - low.x))
-                        let height = CGFloat(max(0.001, high.y - low.y))
-                        let depth: CGFloat = 0.6
-                        let sensor = SCNBox(
-                            width: width, height: height, length: depth,
-                            chamferRadius: 0
+                    let (low, high) = mesh.boundingBox
+                    let minimum = [low.x, low.y, low.z]
+                    let maximum = [high.x, high.y, high.z]
+                    if kind.hasPrefix("tmo_ball_"),
+                       let proxy = CMOriginalCollisionProxy.ball(
+                           low: minimum, high: maximum) {
+                        // Approximate round PC UCMs with smooth spheres.
+                        // The original geometry remains visible; the proxy's
+                        // center is applied to its collision transform below.
+                        proxyCenters.append(SCNVector3(
+                            proxy.center[0], proxy.center[1], proxy.center[2]))
+                        return SCNPhysicsShape(
+                            geometry: SCNSphere(radius: CGFloat(proxy.radius)),
+                            options: [.type: SCNPhysicsShape.ShapeType.convexHull]
                         )
-                        return SCNPhysicsShape(geometry: sensor, options: [
-                            .type: SCNPhysicsShape.ShapeType.boundingBox
-                        ])
                     }
+                    if kind == "tmo_zone",
+                       let proxy = CMOriginalCollisionProxy.zone(
+                           low: minimum, high: maximum) {
+                        // The authentic zero-thickness XY capture plane needs
+                        // an invisible contact sensor with modest Z depth.
+                        // Translate that box to the original UCM bounds center;
+                        // centering it at the 3DO pivot can miss the real zone.
+                        proxyCenters.append(SCNVector3(
+                            proxy.center[0], proxy.center[1], proxy.center[2]))
+                        return SCNPhysicsShape(
+                            geometry: SCNBox(
+                                width: CGFloat(proxy.width),
+                                height: CGFloat(proxy.height),
+                                length: CGFloat(proxy.depth),
+                                chamferRadius: 0
+                            ),
+                            options: [.type: SCNPhysicsShape.ShapeType.boundingBox]
+                        )
+                    }
+                    // A true UCM convex hull already contains vertex offsets.
+                    // Applying an extra center translation would move it twice.
+                    proxyCenters.append(SCNVector3Zero)
                     return SCNPhysicsShape(geometry: geometry, options: [
                         .type: SCNPhysicsShape.ShapeType.convexHull
                     ])
                 }
-                guard shapes.count == meshes.count else { continue }
-                let transforms = meshes.map { mesh in
-                    NSValue(scnMatrix4: mesh.convertTransform(SCNMatrix4Identity, to: root))
+                guard shapes.count == meshes.count,
+                      proxyCenters.count == meshes.count else { continue }
+                let transforms = zip(meshes, proxyCenters).map { mesh, center in
+                    // SCNSphere and SCNBox are centered at their own origin.
+                    // Apply the local mesh-bounds center BEFORE the nested
+                    // original 3DO POSREL/ROTREL/SCAL transform to the tmo_.
+                    let meshTransform = mesh.convertTransform(
+                        SCNMatrix4Identity, to: root)
+                    let centered = SCNMatrix4Mult(meshTransform,
+                        SCNMatrix4MakeTranslation(center.x, center.y, center.z))
+                    return NSValue(scnMatrix4: centered)
                 }
                 let shape = SCNPhysicsShape(shapes: shapes, transforms: transforms)
                 let body = SCNPhysicsBody(type: .dynamic, shape: shape)
