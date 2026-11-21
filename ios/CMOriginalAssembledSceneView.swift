@@ -902,6 +902,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // Keep each original tmo object's meshes together: a multi-part model
         // must not split into independently falling rigid bodies.
         var objectRoots: [String: SCNNode] = [:]
+        var objectTypes: [String: String] = [:]
         var objectMeshes: [String: [CMOriginalObjectMeshNode]] = [:]
 
         func walk(_ item: CMOriginalSceneDocument.Node, parent: SCNNode, ownerID: String? = nil) {
@@ -929,6 +930,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             parent.addChildNode(transform)
             if item.name.hasPrefix("tmo_"), let currentOwnerID {
                 objectRoots[currentOwnerID] = transform
+                objectTypes[currentOwnerID] = item.name
             }
 
             // A 3DO entry is a model reference, not an additional object transform.
@@ -1057,7 +1059,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // Each mesh shape is transformed into its owning tmo node's space;
             // nested tmo objects are kept separate by their distinct owner IDs.
             for (id, meshes) in objectMeshes where !meshes.isEmpty {
-                guard let root = objectRoots[id] else { continue }
+                guard let root = objectRoots[id],
+                      let kind = objectTypes[id] else { continue }
+                // The user's authentic CML levels contain 102 decorative
+                // backgrounds and 144 guidance arrows. They are drawn by
+                // the original game but are not puzzle collision obstacles.
+                // Do not manufacture invisible physics walls around them.
+                // Preserve tmo_zone: it is an original contact sensor.
+                if kind.hasPrefix("tmo_background_") || kind == "tmo_arrow" {
+                    continue
+                }
                 let shapes: [SCNPhysicsShape] = meshes.compactMap { mesh in
                     guard let geometry = mesh.geometry else { return nil }
                     return SCNPhysicsShape(geometry: geometry, options: [
