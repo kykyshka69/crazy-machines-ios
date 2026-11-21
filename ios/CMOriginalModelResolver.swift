@@ -132,7 +132,11 @@ enum CMOriginalModelResolver {
                 "to_wall_bricks": "wall",
                 "to_wall_metal": "wall",
                 "to_wall_schist": "wall",
-                "to_wall_paper": "wall"
+                "to_wall_paper": "wall",
+                // Additional original scene spelling variants of the same
+                // installed wall.ucm geometry (not invented replacements).
+                "to_wall_brick": "wall",
+                "to_wall_wall_paper": "wall"
             ]
             guard let originalName = originalAliases[base] else { return .missing }
             let originalMatches = filesByBaseName[originalName] ?? []
