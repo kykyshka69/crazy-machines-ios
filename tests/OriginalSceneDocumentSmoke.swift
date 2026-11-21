@@ -200,6 +200,53 @@ enum OriginalSceneDocumentSmoke {
         session.stop()
         session.reset()
         precondition(session.phase == .ready && session.elapsedSimulationTime == 0)
+        // Authentic electrical switches are distinct original objects.
+        // Their lever positions are gameplay state, not an assertion that
+        // the original circuit is wired or the motor has electric power.
+        var switchRaw = try JSONSerialization.jsonObject(
+            with: Data(json.utf8)) as! [String: Any]
+        var switchRoot = switchRaw["root"] as! [String: Any]
+        switchRoot["children"] = [
+            ["name": "tmo_power_switch", "fields": [],
+             "children": [["name": "tmo_power_switch_lever",
+                           "fields": [], "children": []]]],
+            ["name": "tmo_power_switch", "fields": [], "children": []],
+            ["name": "tmo_board", "fields": [], "children": []]
+        ] as [[String: Any]]
+        switchRaw["root"] = switchRoot
+        let switchDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: switchRaw))
+        var switches = CMOriginalGameplaySession(document: switchDoc)
+        precondition(switches.objects.map(\.type) == [
+            "tmo_power_switch", "tmo_power_switch_lever",
+            "tmo_power_switch", "tmo_board"
+        ])
+        precondition(switches.toggleOriginalSwitch("object-0") == nil)
+        switches.start()
+        precondition(switches.toggleOriginalSwitch("object-0") == true)
+        precondition(switches.originalSwitchStates == ["object-0": true])
+        precondition(switches.toggleOriginalSwitch("object-2") == true)
+        precondition(switches.originalSwitchStates.count == 2)
+        precondition(switches.toggleOriginalSwitch("object-0") == false)
+        precondition(switches.originalSwitchStates == ["object-2": true])
+        precondition(switches.toggleOriginalSwitch("object-1") == nil)
+        precondition(switches.toggleOriginalSwitch("object-3") == nil)
+        precondition(switches.toggleOriginalSwitch("not-an-object") == nil)
+        switches.pause()
+        precondition(switches.toggleOriginalSwitch("object-2") == nil)
+        precondition(switches.originalSwitchStates == ["object-2": true])
+        switches.resume()
+        precondition(switches.toggleOriginalSwitch("object-2") == false)
+        precondition(switches.originalSwitchStates.isEmpty)
+        precondition(switches.toggleOriginalSwitch("object-2") == true)
+        switches.stop()
+        precondition(switches.toggleOriginalSwitch("object-2") == nil)
+        switches.start()
+        precondition(switches.originalSwitchStates.isEmpty)
+        precondition(switches.toggleOriginalSwitch("object-0") == true)
+        switches.reset()
+        precondition(switches.originalSwitchStates.isEmpty)
+
         // Two distinct imported objects generate two activation transitions
         // on first contact, but repeated contacts do not re-activate them.
         var raw = try JSONSerialization.jsonObject(with: Data(json.utf8)) as! [String: Any]
