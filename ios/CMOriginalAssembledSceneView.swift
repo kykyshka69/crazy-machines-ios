@@ -1087,10 +1087,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             let distance = span * 2.5
             camera.camera?.zNear = max(0.001, Double(span) * 0.001)
             camera.camera?.zFar = max(10, Double(distance + span * 3))
-            camera.position = SCNVector3(center.x, center.y, center.z + distance)
+            // Verified from the user's original PC UCM geometry:
+            // wall.ucm lies at z=+0.6 and its visible normals face -Z,
+            // while balls/boards are around z=0. Placing the camera at +Z
+            // puts the background IN FRONT and occludes authentic puzzles.
+            camera.position = SCNVector3(center.x, center.y, center.z - distance)
             camera.look(at: center)
         } else {
-            camera.position = SCNVector3(0, 0, 10)
+            camera.position = SCNVector3(0, 0, -10)
         }
         scene.rootNode.addChildNode(camera)
         return scene
