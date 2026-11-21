@@ -1145,7 +1145,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                        shouldInterpolate: true, intent: .defaultIntent)
     }
 
-    private static func loadGeometry(_ url: URL, assetDirectory: URL) throws -> SCNGeometry {
+    static func loadGeometry(_ url: URL, assetDirectory: URL) throws -> SCNGeometry {
         let model = try CMUCMModel(data: Data(contentsOf: url))
         let raw = [UInt8](model.vertexData)
         func readFloat(_ offset: Int) -> Float {
