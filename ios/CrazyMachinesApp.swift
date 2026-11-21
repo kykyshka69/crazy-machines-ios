@@ -18,7 +18,6 @@ private struct CMGameHomeView: View {
     @State private var showResources = false
     @State private var originalBackdrop: UIImage?
     @State private var originalStartButton: UIImage?
-    @State private var originalSelectButton: UIImage?
     @State private var hasOriginalStartscreenMeshes = false
     @State private var importedOriginalAssetCount = 0
 
@@ -59,7 +58,6 @@ private struct CMGameHomeView: View {
             || index.resolve("startscreen_chalkboard_frame") != nil
         originalBackdrop = image("startscreen_chalk")
         originalStartButton = image("startscreen_note_start")
-        originalSelectButton = image("startscreen_note_select")
     }
 
     var body: some View {
@@ -125,18 +123,9 @@ private struct CMGameHomeView: View {
                     Button {
                         showResources = true
                     } label: {
-                        if let originalSelectButton {
-                            Image(uiImage: originalSelectButton)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxWidth: 320, maxHeight: 100)
-                                .frame(maxWidth: .infinity)
-                                .accessibilityLabel("Game files")
-                        } else {
-                            Label("Game files", systemImage: "archivebox")
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                        }
+                        Label("Game files", systemImage: "archivebox")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
                     }
                     .buttonStyle(.bordered)
                     .tint(.white)
@@ -153,6 +142,9 @@ private struct CMGameHomeView: View {
                 .frame(maxWidth: 520)
             }
             .onAppear(perform: loadOriginalMenuArt)
+            .onChange(of: showResources) { _, presented in
+                if !presented { loadOriginalMenuArt() }
+            }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $showLevels) {
                 CMOriginalLevelBrowserView()
