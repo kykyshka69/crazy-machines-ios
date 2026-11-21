@@ -42,6 +42,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // Defaults off for read-only inspectors and other embedded scene previews.
     var allowObjectPlacement = false
     var diagnosticHinges = false
+    // Direct finger impulses are a diagnostic feature, not a Crazy Machines
+    // gameplay action. Keep them disabled in the player-facing original levels.
+    var diagnosticTapImpulses = false
     var configuredPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
     var configuredReactions: [CMOriginalGameplaySession.ReactionRule] = []
     var switchPressCount = 0
@@ -60,7 +63,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         view.accessibilityIdentifier = "cm.original.assembled-scene"
         view.accessibilityLabel = "Original level 3D scene"
         view.accessibilityHint = experimentalPhysics
-            ? "Double tap two different parts to add a hinge. Tap with three fingers to cancel a pending endpoint or undo the last manual hinge. Long press a part to pin or unpin it."
+            ? (diagnosticHinges
+               ? "Diagnostic mode: double tap two parts for a hinge, or long-press to change their physics type."
+               : "Original puzzle is running. Pause, stop or restart the experiment; parts cannot be rearranged during motion.")
             : (allowObjectPlacement
                ? "Only UNLOCKED parts from the original PC puzzle can be moved or rotated. Tap to select; drag, twist, or pinch to zoom."
                : "Inspect the original imported parts using the camera controls.")
@@ -80,9 +85,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                          action: #selector(Coordinator.selectObject(_:)))
         tap.cancelsTouchesInView = false
         view.addGestureRecognizer(tap)
-        // Double-tap two different physical meshes to connect them while
-        // the simulation is running; single-tap retains impulse behavior.
-        if experimentalPhysics {
+        // Joint creation belongs to the optional diagnostic inspector only.
+        // Player-facing PC puzzles must not allow inventing extra hinges.
+        if experimentalPhysics && diagnosticHinges {
             let connect = UITapGestureRecognizer(target: context.coordinator,
                                                   action: #selector(Coordinator.selectHingeEndpoint(_:)))
             connect.numberOfTapsRequired = 2
@@ -122,11 +127,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         reset.minimumPressDuration = 0.8
         // In inspection mode, long press resets a saved position; in physics
         // mode, it toggles a mesh between movable and fixed for diagnostics.
-        reset.isEnabled = experimentalPhysics || allowObjectPlacement
+        reset.isEnabled = allowObjectPlacement && !experimentalPhysics
+            || experimentalPhysics && diagnosticHinges
         view.addGestureRecognizer(reset)
         context.coordinator.storageKey = "cm.original.positions.\(document.sceneSHA256)"
         context.coordinator.rotationStorageKey = "cm.original.rotations.\(document.sceneSHA256)"
         context.coordinator.physicsEnabled = experimentalPhysics
+        context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
         context.coordinator.session = CMOriginalGameplaySession(document: document)
         context.coordinator.onOriginalZoneContact = onOriginalZoneContact
         if experimentalPhysics {
@@ -420,6 +427,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var storageKey = ""
         var rotationStorageKey = ""
         var physicsEnabled = false
+        var diagnosticTapImpulses = false
         private weak var pendingHingeEndpoint: SCNNode?
         private var pendingEndpointOriginalEmission: Any?
         private func clearPendingHingeEndpoint() {
@@ -842,6 +850,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     sessionLock.unlock()
                     if hasRule { return }
                 }
+                // The PC player cannot kick balls by tapping them after
+                // starting the machine; allow this only in diagnostic mode.
+                guard diagnosticTapImpulses else { return }
                 // Apply the experimental impulse at the actual touched surface
                 // rather than the center of mass. Off-center taps can now
                 // generate torque, allowing rotational collision experiments.
