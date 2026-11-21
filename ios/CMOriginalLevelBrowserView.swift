@@ -251,6 +251,18 @@ struct CMOriginalLevelBrowserView: View {
             }
         }
         .navigationTitle("Level \(document.index)")
+        // Keep the first authentic 3D preview reachable without scrolling
+        // through a long list of original object properties.
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    assembledScene = AssembledSelection(document: document)
+                } label: {
+                    Label("3D view", systemImage: "cube")
+                }
+                .accessibilityIdentifier("cm.original.open-3d")
+            }
+        }
         .sheet(item: $assembledScene) { selection in
             NavigationStack {
                 VStack(spacing: 0) {
