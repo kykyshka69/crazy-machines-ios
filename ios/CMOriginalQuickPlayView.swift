@@ -59,6 +59,13 @@ struct CMOriginalQuickPlayView: View {
                     // hinge in the scene renderer lets it pivot on its PC
                     // support and respond to falling objects.
                     roles[id] = .movable
+                } else if node.name == "tmo_belt_gear" {
+                    // 101 authentic PC gears lack VALB yet are designed to
+                    // rotate around their fixed 3D centers. Their original
+                    // belt_gear.ucm mesh has symmetric XY bounds ±0.19632,
+                    // so pin the physics body on the local origin rather
+                    // than treating its wheel as a static obstacle.
+                    roles[id] = .movable
                 } else if let raw = node.fields.first(where: { $0.hasPrefix("VALB ") }),
                           let flags = Int(raw.dropFirst(5)
                             .trimmingCharacters(in: .whitespaces)),
