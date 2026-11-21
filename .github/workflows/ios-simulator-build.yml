@@ -4,10 +4,15 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+# Keep one active iPhone simulator verification per PR or branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   simulator:
     runs-on: macos-latest
-    timeout-minutes: 60
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - name: Print selected Xcode and SDKs
@@ -28,6 +33,7 @@ jobs:
           mkdir -p /tmp/crazy-machines-build-logs
           xcodebuild -project CrazyMachinesIOS.xcodeproj -scheme CrazyMachinesIOS -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/crazy-machines-derived CODE_SIGNING_ALLOWED=NO build 2>&1 | tee /tmp/crazy-machines-build-logs/xcodebuild.log
       - name: Boot iPhone simulator and capture actual launch screen
+        timeout-minutes: 8
         run: |
           set -euo pipefail
           xcrun simctl list devices available
@@ -41,10 +47,13 @@ jobs:
           xcrun simctl install "$DEVICE_ID" "$APP"
           xcrun simctl launch --terminate-running-process "$DEVICE_ID" "$BUNDLE_ID"
           sleep 8
-          xcrun simctl spawn "$DEVICE_ID" launchctl list | grep -F "$BUNDLE_ID" || echo "App launch command succeeded; process not found in launchctl list"
+          # A successful simctl launch alone does not prove the process stayed alive.
+          xcrun simctl spawn "$DEVICE_ID" launchctl list | grep -F "$BUNDLE_ID"
           mkdir -p /tmp/crazy-machines-screenshots
           xcrun simctl io "$DEVICE_ID" screenshot /tmp/crazy-machines-screenshots/iphone-launch.png
       - name: Run launch and navigation UI tests on the booted iPhone
+        if: github.event_name == 'pull_request'
+        timeout-minutes: 22
         run: |
           set -o pipefail
           mkdir -p /tmp/crazy-machines-build-logs

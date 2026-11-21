@@ -33,6 +33,28 @@ public struct CMOriginalGameplaySession {
     public private(set) var activations: [Activation] = []
     public private(set) var activatedObjectIDs: Set<String> = []
 
+    /// Player-operated positions of genuine original PC switch objects.
+    /// A switch being ON does not imply current, wires or motor power:
+    /// the original electrical network has not yet been recovered.
+    public private(set) var originalSwitchStates: [String: Bool] = [:]
+
+    /// Toggle an imported PC switch independently of experimental reactions.
+    /// Return nil for an unknown object, a non-switch or a paused/stopped run.
+    /// This permits multiple switches to retain separate positions.
+    @discardableResult
+    public mutating func toggleOriginalSwitch(_ id: String) -> Bool? {
+        guard phase == .running,
+              objects.contains(where: { $0.id == id && $0.type == "tmo_power_switch" })
+        else { return nil }
+        let isOn = !(originalSwitchStates[id] ?? false)
+        if isOn {
+            originalSwitchStates[id] = true
+        } else {
+            originalSwitchStates.removeValue(forKey: id)
+        }
+        return isOn
+    }
+
     public var contactedGoalObjectIDs: Set<String> {
         let goals = Set(annotatedGoalObjects.map(\.id))
         return activatedObjectIDs.intersection(goals)
@@ -276,9 +298,37 @@ public struct CMOriginalGameplaySession {
         return true
     }
 
+    /// Exact object-to-object reference from the original PC level field
+    /// CONNECTED_TO N. N is a zero-based index into level_elements.children,
+    /// NOT into the flattened scene hierarchy or the physics body array.
+    /// It describes an original link but does not, by itself, prove victory.
+    public struct OriginalConnection: Equatable {
+        public let sourceID: String
+        public let sourceType: String
+        public let targetID: String
+        public let targetType: String
+        public let originalTargetIndex: Int
+    }
+
+    /// Original electrical terminals are tmo_power_plug children. Their
+    /// integral VALF values are distinct TERMINAL IDENTIFIERS, not voltage
+    /// readings, wire connections or evidence that power is flowing.
+    /// 321 plugs occur in the recovered 102 PC levels; 272 have indexed
+    /// VALF identifiers and 49 are missing this field entirely.
+    public struct OriginalPowerTerminal: Equatable {
+        public let plugObjectID: String
+        public let originalTerminalNumber: Int?
+        public let deviceObjectID: String?
+        public let deviceType: String?
+        public let originalRelativePosition: [Double]?
+    }
+
     public let levelIndex: Int
     public let sceneSHA256: String
     public let objects: [Object]
+    public let originalConnections: [OriginalConnection]
+    public let originalPowerTerminals: [OriginalPowerTerminal]
+    public let powerTerminalNumbersAreUnique: Bool
     private let validObjectIDs: Set<String>
     public private(set) var phase: Phase = .ready
     public private(set) var elapsedSimulationTime: TimeInterval = 0
@@ -288,8 +338,11 @@ public struct CMOriginalGameplaySession {
         sceneSHA256 = document.sceneSHA256
         var collected: [Object] = []
         var ordinal = 0
+        var elementObjectIDs: [Int: String] = [:]
+        var pendingConnections: [(source: String, targetIndex: Int)] = []
 
-        func visit(_ node: CMOriginalSceneDocument.Node, parentObjectID: String?) {
+        func visit(_ node: CMOriginalSceneDocument.Node,
+                   parentObjectID: String?, elementIndex: Int? = nil) {
             var owner = parentObjectID
             if node.name.hasPrefix("tmo_") {
                 // Preorder indices are stable for a given exported scene and
@@ -297,6 +350,14 @@ public struct CMOriginalGameplaySession {
                 let id = "object-\(ordinal)"
                 ordinal += 1
                 owner = id
+                if let elementIndex {
+                    elementObjectIDs[elementIndex] = id
+                }
+                for raw in node.originalFieldValues["CONNECTED_TO"] ?? [] {
+                    if let index = Int(raw), index >= 0 {
+                        pendingConnections.append((source: id, targetIndex: index))
+                    }
+                }
                 // Preserve every original 3DO belonging to this object,
                 // including models below helper transforms in older exports.
                 // A nested tmo_* starts a different original object.
@@ -328,11 +389,76 @@ public struct CMOriginalGameplaySession {
                     parentID: parentObjectID
                 ))
             }
-            for child in node.children { visit(child, parentObjectID: owner) }
+            if node.name == "level_elements" {
+                for (index, child) in node.children.enumerated() {
+                    visit(child, parentObjectID: owner, elementIndex: index)
+                }
+            } else {
+                for child in node.children {
+                    visit(child, parentObjectID: owner)
+                }
+            }
         }
         visit(document.root, parentObjectID: nil)
         objects = collected
         validObjectIDs = Set(collected.map(\.id))
+        let types = Dictionary(uniqueKeysWithValues:
+            collected.map { ($0.id, $0.type) })
+        originalConnections = pendingConnections.compactMap { link in
+            guard let targetID = elementObjectIDs[link.targetIndex],
+                  let sourceType = types[link.source],
+                  let targetType = types[targetID] else { return nil }
+            return OriginalConnection(
+                sourceID: link.source, sourceType: sourceType,
+                targetID: targetID, targetType: targetType,
+                originalTargetIndex: link.targetIndex
+            )
+        }
+
+        let byID = Dictionary(uniqueKeysWithValues: collected.map { ($0.id, $0) })
+        originalPowerTerminals = collected.compactMap { plug in
+            guard plug.type == "tmo_power_plug" else { return nil }
+            // Only an integral, positive PC VALF number is a terminal ID.
+            // Other VALF fields belong to motors and lamp components and
+            // must NOT be interpreted as electrical connection endpoints.
+            var terminalNumber: Int?
+            if let raw = plug.fields["VALF"]?.first,
+               let number = Double(raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+               number.isFinite, number >= 1, number <= 100_000,
+               abs(number - number.rounded()) < 0.0001 {
+                terminalNumber = Int(number.rounded())
+            }
+
+            // Some power plug models sit below a tmo_mount_wood helper,
+            // rather than directly underneath their actual device.
+            // Follow the recovered hierarchy to the nearest PC power part;
+            // never attach to an arbitrary spatially-nearest motor.
+            var ancestorID = plug.parentID
+            var device: Object?
+            var hopCount = 0
+            while let id = ancestorID, let ancestor = byID[id],
+                  hopCount < 128 {
+                if ancestor.type.hasPrefix("tmo_power_"),
+                   ancestor.type != "tmo_power_plug" {
+                    device = ancestor
+                    break
+                }
+                ancestorID = ancestor.parentID
+                hopCount += 1
+            }
+            return OriginalPowerTerminal(
+                plugObjectID: plug.id,
+                originalTerminalNumber: terminalNumber,
+                deviceObjectID: device?.id,
+                deviceType: device?.type,
+                originalRelativePosition: plug.position
+            )
+        }
+        var seenTerminalNumbers = Set<Int>()
+        powerTerminalNumbersAreUnique = originalPowerTerminals.allSatisfy { terminal in
+            guard let number = terminal.originalTerminalNumber else { return true }
+            return seenTerminalNumbers.insert(number).inserted
+        }
     }
 
     public var annotatedGoalObjects: [Object] {
@@ -342,6 +468,7 @@ public struct CMOriginalGameplaySession {
     public mutating func start() {
         guard phase == .ready || phase == .stopped else { return }
         elapsedSimulationTime = 0
+        originalSwitchStates.removeAll()
         recentContacts.removeAll()
         contactCounts.removeAll()
         activations.removeAll()
@@ -373,6 +500,7 @@ public struct CMOriginalGameplaySession {
 
     public mutating func reset() {
         elapsedSimulationTime = 0
+        originalSwitchStates.removeAll()
         recentContacts.removeAll()
         contactCounts.removeAll()
         activations.removeAll()
@@ -384,4 +512,27 @@ public struct CMOriginalGameplaySession {
 
     /// Intentionally no inferred 'completed' phase: GOAL 1 alone does not
     /// tell us how the original puzzle decides success.
+}
+
+
+// Mechanism identities recovered from the user's authentic CML scene graphs.
+// These types carry UCM geometry centered on their local XY pivot and must
+// be allowed to SPIN, even when their original VALB field is absent.
+// Motion is not automatically driven: electricity, steam and belt power
+// transmission are not yet reconstructed from the Windows game.
+enum CMOriginalAxleParts {
+    static let rotatingKinds: Set<String> = [
+        "tmo_belt_gear",
+        "tmo_belt_conveyer_wheel",
+        "tmo_belt_conveyer_roll_big",
+        "tmo_belt_conveyer_roll_small",
+        "tmo_power_motor_rotor",
+        "tmo_power_generator_rotor",
+        "tmo_power_disrupter_wheel",
+        "tmo_steam_wheel",
+        "tmo_windmill_wheel",
+        "tmo_hammer_wheel",
+        "tmo_belt_flag_wheel",
+        "tmo_heat_grill_wheel"
+    ]
 }

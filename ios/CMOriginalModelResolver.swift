@@ -23,6 +23,58 @@ enum CMOriginalModelResolver {
         return result.filter { seen.insert($0.lowercased()).inserted }
     }
 
+    /// Model-only fallbacks are rendered at the owning transform ONLY when
+    /// there is no explicit 3DO node for that model anywhere beneath the
+    /// owner. Original 3DO children can live under POSREL/ROTREL helpers;
+    /// rendering their parent's flattened models list would create a second,
+    /// incorrectly positioned mesh and duplicate its collision shape.
+    /// Nested tmo_ objects have their own independent model ownership.
+    static func fallbackModelNames(in node: CMOriginalSceneDocument.Node) -> [String] {
+        var explicitModels = Set<String>()
+        func visit(_ current: CMOriginalSceneDocument.Node) {
+            if current.name.hasPrefix("3DO ") {
+                explicitModels.insert(String(current.name.dropFirst(4)).lowercased())
+            }
+            for child in current.children where !child.name.hasPrefix("tmo_") {
+                visit(child)
+            }
+        }
+        visit(node)
+        var seen = Set<String>()
+        return (node.models ?? []).filter { name in
+            let key = name.lowercased()
+            return !explicitModels.contains(key) && seen.insert(key).inserted
+        }
+    }
+
+    /// Enumerate references across the entire level, including nested tmo_
+    /// objects. Use modelNames(in:) instead for one object's own meshes.
+    static func allModelNames(in root: CMOriginalSceneDocument.Node) -> [String] {
+        var names: [String] = []
+        var seen = Set<String>()
+        func visit(_ node: CMOriginalSceneDocument.Node) {
+            if node.name.hasPrefix("tmo_") {
+                for name in modelNames(in: node) {
+                    if seen.insert(name.lowercased()).inserted { names.append(name) }
+                }
+            } else {
+                // Root and non-object helpers may also carry mesh references.
+                if let models = node.models {
+                    for name in models where seen.insert(name.lowercased()).inserted {
+                        names.append(name)
+                    }
+                }
+                if node.name.hasPrefix("3DO ") {
+                    let name = String(node.name.dropFirst(4))
+                    if seen.insert(name.lowercased()).inserted { names.append(name) }
+                }
+            }
+            for child in node.children { visit(child) }
+        }
+        visit(root)
+        return names
+    }
+
     /// Index imported original meshes once for a whole level. Duplicate names
     /// remain ambiguous and are never resolved to an arbitrary file.
     struct AssetIndex {
@@ -42,31 +94,89 @@ enum CMOriginalModelResolver {
             filesByBaseName = index
         }
 
+        enum Resolution {
+            case found(URL)
+            case missing
+            case ambiguous
+            case invalidReference
+        }
+
         func resolve(_ modelName: String) -> URL? {
+            if case .found(let url) = resolution(for: modelName) { return url }
+            return nil
+        }
+
+        func resolution(for modelName: String) -> Resolution {
             // Reject traversal and absolute paths before stripping Windows
             // or POSIX directory components from a PC 3DO reference.
             let normalized = modelName.replacingOccurrences(of: "\\", with: "/")
             let components = normalized.split(separator: "/", omittingEmptySubsequences: false)
             guard !normalized.hasPrefix("/"),
-                  !normalized.hasPrefix("//"),
                   !normalized.contains(":"),
-                  !components.contains(where: { $0 == "." || $0 == ".." }),
-                  let last = components.last, !last.isEmpty else { return nil }
+                  !normalized.contains("\0"),
+                  !normalized.contains("\n"),
+                  !normalized.contains("\r"),
+                  !components.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." }),
+                  let last = components.last, !last.isEmpty else { return .invalidReference }
             let name = String(last)
             let ext = (name as NSString).pathExtension.lowercased()
-            guard ext.isEmpty || ext == "ucm" else { return nil }
+            guard ext.isEmpty || ext == "ucm" else { return .invalidReference }
             let base = (name as NSString).deletingPathExtension.lowercased()
-            guard !base.isEmpty else { return nil }
+            guard !base.isEmpty, base != ".", base != "..",
+                  !base.contains("\0"), !base.contains("\n"), !base.contains("\r") else { return .invalidReference }
             let matches = filesByBaseName[base] ?? []
-            if matches.count == 1 { return matches[0] }
-            if !matches.isEmpty { return nil }
+            if matches.count == 1 { return .found(matches[0]) }
+            if !matches.isEmpty { return .ambiguous }
             // The original scene may reference a to_ model while the
             // imported mesh omits the prefix. Do not infer the reverse:
             // an unprefixed PC model must not silently resolve to a
             // potentially different to_ mesh.
-            guard base.hasPrefix("to_"), base.count > 3 else { return nil }
+            guard base.hasPrefix("to_"), base.count > 3 else { return .missing }
             let aliasMatches = filesByBaseName[String(base.dropFirst(3))] ?? []
-            return aliasMatches.count == 1 ? aliasMatches[0] : nil
+            if aliasMatches.count == 1 { return .found(aliasMatches[0]) }
+            if !aliasMatches.isEmpty { return .ambiguous }
+
+            // Some game-authored scene names differ from the original
+            // installed UCM basenames. These exact pairs were checked against
+            // the user's recovered PC resources; avoid fuzzy model matching.
+            let originalAliases: [String: String] = [
+                "to_belt_conveyer_belt": "belt_conveyor_belt",
+                "to_belt_conveyer_wheel": "belt_conveyor_wheel",
+                "to_belt_conveyer_roll_big": "belt_conveyor_roll1",
+                "to_belt_conveyer_roll_small": "belt_conveyor_roll2",
+                "to_pipe_corner": "pipe_90",
+                "to_power_motor_body": "power_motor_base",
+                "to_power_generator_body": "power_generator_base",
+                // The PC ships shared wall/ball geometry with per-type shaders.
+                // The named wall/ball textures are preserved by the renderer.
+                "to_ball_tennis": "ball",
+                "to_ball_billard": "ball",
+                // The PC archive contains heat_cannon_ball.tga but no
+                // heat_cannon_ball.ucm. Reuse the game's own generic ball
+                // geometry for this projectile, respecting the SCAL 0.35
+                // authored by the original scene's 3DO reference.
+                "to_heat_cannon_ball": "ball",
+                "to_wall_concrete": "wall",
+                "to_wall_cork": "wall",
+                "to_wall_bricks": "wall",
+                "to_wall_metal": "wall",
+                "to_wall_schist": "wall",
+                "to_wall_paper": "wall",
+                // Additional original scene spelling variants of the same
+                // installed wall.ucm geometry (not invented replacements).
+                "to_wall_brick": "wall",
+                "to_wall_wall_paper": "wall",
+                // Original tmo_power_switch contains a separate lever mesh,
+                // while the installed root UCM is named power_switch_base.
+                "to_power_switch": "power_switch_base",
+                // Pool-background levels reference the same rectangular wall
+                // geometry but no wall_pool UCM is present in the PC files.
+                "to_wall_pool": "wall"
+            ]
+            guard let originalName = originalAliases[base] else { return .missing }
+            let originalMatches = filesByBaseName[originalName] ?? []
+            if originalMatches.count == 1 { return .found(originalMatches[0]) }
+            return originalMatches.isEmpty ? .missing : .ambiguous
         }
     }
 

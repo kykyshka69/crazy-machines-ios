@@ -66,6 +66,27 @@ public struct CMOriginalSceneDocument: Decodable {
         }
     }
 
+    /// A hierarchy identity is its position in the imported scene tree,
+    /// not its PC node name or field values. Original levels contain repeated
+    /// tmo_* fixtures with identical metadata; SwiftUI OutlineGroup must
+    /// never merge siblings simply because their fields match.
+    public struct HierarchyEntry: Identifiable {
+        public let id: String
+        public let node: Node
+        public let children: [HierarchyEntry]?
+    }
+
+    public var outlineRoot: HierarchyEntry {
+        func build(_ node: Node, path: String) -> HierarchyEntry {
+            let children: [HierarchyEntry]? = node.children.isEmpty ? nil :
+                node.children.enumerated().map { index, child in
+                    build(child, path: path + "." + String(index))
+                }
+            return HierarchyEntry(id: path, node: node, children: children)
+        }
+        return build(root, path: "0")
+    }
+
     /// A conservative inventory for rebuilding original gameplay.
     /// These are scene facts, not inferred physics or victory rules.
     public struct GameplayInventory {

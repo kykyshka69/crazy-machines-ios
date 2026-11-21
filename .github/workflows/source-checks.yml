@@ -6,6 +6,14 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Cancel obsolete runs as soon as the PR receives a newer commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Source checks run ONLY Linux tests. Avoid three redundant macOS jobs:
+# iOS build, real iPhone UI navigation and Swift syntax parsing already run
+# together in ios-simulator-build.yml on the same PR SHA.
 jobs:
   python-unit-tests:
     runs-on: ubuntu-latest
@@ -167,15 +175,6 @@ jobs:
           swiftc ios/CMUCMModel.swift ios/CMPreviewFixture.swift tests/PreviewFixtureSmoke.swift -o /tmp/cm-preview-smoke
           /tmp/cm-preview-smoke
 
-  swift-syntax:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Show toolchain
-        run: swiftc --version
-      - name: Parse iOS Swift source
-        run: swiftc -frontend -parse ios/*.swift
-
   level-document-runtime:
     runs-on: ubuntu-latest
     steps:
@@ -191,85 +190,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Compile and validate original scene JSON with Swift
         run: |
-          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift tests/OriginalSceneDocumentSmoke.swift -o /tmp/cm-original-scene
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalModelResolver.swift ios/CMOriginalGameplaySession.swift tests/OriginalSceneDocumentSmoke.swift -o /tmp/cm-original-scene
           /tmp/cm-original-scene
-
-  ios-simulator-build:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install XcodeGen
-        run: brew install xcodegen
-      - name: Generate iOS Xcode project
-        run: xcodegen generate --spec project.yml
-      - name: Build unsigned iPhone Simulator app
-        run: |
-          xcodebuild -project CrazyMachinesIOS.xcodeproj \
-            -scheme CrazyMachinesIOS \
-            -configuration Debug \
-            -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath /tmp/cm-ios-derived \
-            CODE_SIGNING_ALLOWED=NO build
-      - name: Boot iPhone simulator and launch actual application
-        run: |
-          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; ids=[v["udid"] for group in d.values() for v in group if v["name"].startswith("iPhone") and v["state"]=="Shutdown"]; print(ids[0] if ids else "")')
-          test -n "$DEVICE_ID" || { echo "No available iPhone simulator"; exit 1; }
-          xcrun simctl boot "$DEVICE_ID"
-          xcrun simctl bootstatus "$DEVICE_ID" -b
-          xcrun simctl install "$DEVICE_ID" /tmp/cm-ios-derived/Build/Products/Debug-iphonesimulator/CrazyMachinesIOS.app
-          xcrun simctl launch --terminate-running-process "$DEVICE_ID" org.crazymachines.port
-          sleep 5
-          xcrun simctl io "$DEVICE_ID" screenshot /tmp/cm-ios-launch.png
-          test -s /tmp/cm-ios-launch.png
-      - name: Upload actual simulator launch screenshot
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: CrazyMachinesIOS-launch-screenshot
-          path: /tmp/cm-ios-launch.png
-          if-no-files-found: error
-          retention-days: 14
-      - name: Upload built simulator application
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: CrazyMachinesIOS-simulator-app
-          path: /tmp/cm-ios-derived/Build/Products/Debug-iphonesimulator/CrazyMachinesIOS.app
-          if-no-files-found: error
-          retention-days: 14
-      - name: Archive simulator build diagnostics on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-build-diagnostics
-          path: |
-            /tmp/cm-ios-derived/Logs/Build
-            /tmp/cm-ios-derived/Build/Intermediates.noindex
-          if-no-files-found: warn
-
-  ios-ui-smoke:
-    runs-on: macos-latest
-    timeout-minutes: 35
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install XcodeGen
-        run: brew install xcodegen
-      - name: Generate Xcode project
-        run: xcodegen generate --spec project.yml
-      - name: Run real iPhone UI navigation test
-        run: |
-          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; ids=[v["udid"] for group in d.values() for v in group if v["name"].startswith("iPhone")]; print(ids[0] if ids else "")')
-          test -n "$DEVICE_ID" || { echo "No available iPhone simulator"; exit 1; }
-          xcodebuild -project CrazyMachinesIOS.xcodeproj -scheme CrazyMachinesIOS \
-            -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE_ID" \
-            -derivedDataPath /tmp/cm-ui-derived CODE_SIGNING_ALLOWED=NO \
-            -resultBundlePath /tmp/cm-ui-tests.xcresult test
-      - name: Upload UI test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: CrazyMachinesIOS-ui-test-results
-          path: /tmp/cm-ui-tests.xcresult
-          if-no-files-found: ignore
-          retention-days: 14

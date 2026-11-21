@@ -21,6 +21,26 @@ swiftc ios/CMPhysics2D.swift ios/CMPinJoint2D.swift tests/CMPinSmoke.swift -o "$
 "$tmp/pins"
 # Verify authentic PC scene metadata and model ownership on Linux too.
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalModelResolver.swift tests/OriginalSceneDocumentSmoke.swift -o "$tmp/original-scenes"
+swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalModelResolver.swift tests/OriginalModelResolverSmoke.swift -o "$tmp/model-resolution"
+"$tmp/model-resolution"
 "$tmp/original-scenes"
+swiftc ios/CMOriginalLZW12.swift tests/OriginalLZW12Smoke.swift -o "$tmp/original-lzw"
+"$tmp/original-lzw"
+# Native CML decryption + scene export are portable Swift, not iOS-only stubs.
+swiftc ios/CMOriginalLZW12.swift ios/CMOriginalWindows1251.swift ios/CMOriginalCMLContainer.swift ios/CMOriginalSceneDocument.swift ios/CMOriginalSceneTextParser.swift ios/CMOriginalLaboratorySceneInstaller.swift ios/CMOriginalPackScenePlanner.swift tests/OriginalCMLContainerSmoke.swift -o "$tmp/original-cml"
+"$tmp/original-cml"
+swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalSceneTextParser.swift tests/OriginalSceneTextParserSmoke.swift -o "$tmp/original-scene-text"
+"$tmp/original-scene-text"
+# Validate off-origin UCM sphere and zone sensor proxies without an Apple SDK.
+swiftc ios/CMOriginalCollisionProxy.swift tests/OriginalCollisionProxySmoke.swift -o "$tmp/original-collision-proxies"
+"$tmp/original-collision-proxies"
+# Portable regression for genuine PC conveyor surface coordinates.
+swiftc ios/CMOriginalConveyorContact.swift tests/OriginalConveyorContactSmoke.swift -o "$tmp/original-conveyor"
+"$tmp/original-conveyor"
+# Original first-level puzzle objective uses only evidence from PC CONNECTED_TO.
+swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
+  ios/CMOriginalPhysicsRolePlanner.swift ios/CMOriginalFirstLevelRun.swift \
+  tests/OriginalFirstLevelRunSmoke.swift -o "$tmp/original-first-level"
+"$tmp/original-first-level"
 python3 -m unittest discover -s tools -p 'test_*.py'
 echo "Portable checks passed. iOS simulator build still requires Xcode/macOS."

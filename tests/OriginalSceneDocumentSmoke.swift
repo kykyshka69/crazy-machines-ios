@@ -29,7 +29,7 @@ enum OriginalSceneDocumentSmoke {
         for (key, value) in [
             ("models", [String(repeating: "x", count: 513)] as Any),
             ("models", Array(repeating: "model", count: 257) as Any),
-            ("models", ["to_board\\nmalformed"] as Any),
+            ("models", ["to_board\nmalformed"] as Any),
             ("rotation_raw", String(repeating: "r", count: 4097) as Any),
             ("goal_raw", String(repeating: "g", count: 257) as Any)
         ] {
@@ -48,6 +48,29 @@ enum OriginalSceneDocumentSmoke {
             }
         }
         let doc = try CMOriginalSceneDocument.read(Data(json.utf8))
+        // Repeated PC fixtures have equal metadata and equal legacy node IDs.
+        // SwiftUI hierarchy identity must instead use their unique paths.
+        var repeatedRaw = try JSONSerialization.jsonObject(
+            with: Data(json.utf8)) as! [String: Any]
+        var repeatedRoot = repeatedRaw["root"] as! [String: Any]
+        let repeatedChild = (repeatedRoot["children"] as! [[String: Any]])[0]
+        repeatedRoot["children"] = [repeatedChild, repeatedChild, repeatedChild]
+        repeatedRaw["root"] = repeatedRoot
+        let repeatedDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: repeatedRaw))
+        precondition(repeatedDoc.root.children[0].id == repeatedDoc.root.children[1].id)
+        let outline = repeatedDoc.outlineRoot
+        precondition(outline.id == "0")
+        precondition(outline.children?.map(\.id) == ["0.0", "0.1", "0.2"])
+        precondition(outline.children?[0].children?.first?.id == "0.0.0")
+        precondition(outline.children?[1].children?.first?.id == "0.1.0")
+        precondition(doc.outlineRoot.children?.first?.id == "0.0")
+        precondition(doc.outlineRoot.children?.first?.children?.first?.children == nil)
+        let allOutlineIDs = (outline.children ?? []).flatMap { item in
+            [item.id] + (item.children ?? []).map(\.id)
+        }
+        precondition(Set(allOutlineIDs).count == allOutlineIDs.count)
+
         precondition(doc.root.positionRelative == [0, 0, 0])
         let board = doc.root.children[0]
         precondition(board.position == [1, 2, 3])
@@ -123,6 +146,56 @@ enum OriginalSceneDocumentSmoke {
         precondition(separateSession.objects[1].parentID == "object-0")
         precondition(CMOriginalModelResolver.modelNames(in: nestedObjectDoc.root.children[0]).isEmpty)
         precondition(CMOriginalModelResolver.modelNames(in: nestedObjectDoc.root.children[0].children[0]) == ["to_board"])
+        precondition(CMOriginalModelResolver.allModelNames(in: nestedObjectDoc.root) == ["to_board"])
+        precondition(CMOriginalModelResolver.allModelNames(in: mixedCaseDoc.root) == ["TO_BOARD"])
+        // The level-wide inventory must include sibling objects and root
+        // references, while the per-object inventory stays owner-scoped.
+        var siblingsRaw = try JSONSerialization.jsonObject(with: Data(json.utf8)) as! [String: Any]
+        var siblingsRoot = siblingsRaw["root"] as! [String: Any]
+        var siblingsChildren = siblingsRoot["children"] as! [[String: Any]]
+        siblingsRoot["models"] = ["level_mesh"]
+        siblingsChildren.append([
+            "name": "tmo_wheel", "fields": [],
+            "children": [["name": "3DO to_wheel", "fields": [], "children": []]]
+        ])
+        siblingsRoot["children"] = siblingsChildren
+        siblingsRaw["root"] = siblingsRoot
+        let siblingsDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: siblingsRaw))
+        precondition(CMOriginalModelResolver.allModelNames(in: siblingsDoc.root) ==
+                     ["level_mesh", "to_board", "to_wheel"])
+        precondition(CMOriginalModelResolver.modelNames(in: siblingsDoc.root.children[0]) ==
+                     ["to_board"])
+
+
+        // Verify the actual PC scene names resolve to the shared wall/ball
+        // meshes and case-insensitive original filenames. Fixtures are empty
+        // files because AssetIndex tests path resolution, not UCM decoding.
+        let assetDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cm-resolver-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: assetDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: assetDir) }
+        for name in ["wall.ucm", "ball.ucm", "crate.UCM", "zone.UCM",
+                     "belt_conveyor_roll2.ucm"] {
+            try Data("UCM1".utf8).write(to: assetDir.appendingPathComponent(name))
+        }
+        let originalMeshes = CMOriginalModelResolver.AssetIndex(directory: assetDir)
+        for original in ["to_wall_concrete", "to_wall_cork",
+                         "to_wall_bricks", "to_wall_metal",
+                         "to_wall_schist", "to_wall_paper"] {
+            precondition(originalMeshes.resolve(original)?.lastPathComponent == "wall.ucm")
+        }
+        for original in ["to_ball_tennis", "to_ball_billard"] {
+            precondition(originalMeshes.resolve(original)?.lastPathComponent == "ball.ucm")
+        }
+        precondition(originalMeshes.resolve("to_crate")?.lastPathComponent == "crate.UCM")
+        precondition(originalMeshes.resolve("to_zone")?.lastPathComponent == "zone.UCM")
+        precondition(originalMeshes.resolve("to_belt_conveyer_roll_small")?.lastPathComponent
+                     == "belt_conveyor_roll2.ucm")
+        precondition(originalMeshes.resolve("to_wall_brick")?.lastPathComponent == "wall.ucm")
+        precondition(originalMeshes.resolve("to_wall_wall_paper")?.lastPathComponent == "wall.ucm")
+        precondition(originalMeshes.resolve("to_wall_nonexistent") == nil)
+        precondition(originalMeshes.resolve("../wall.ucm") == nil)
 
         var session = CMOriginalGameplaySession(document: doc)
         precondition(session.objects.count == 1)
@@ -150,6 +223,53 @@ enum OriginalSceneDocumentSmoke {
         session.stop()
         session.reset()
         precondition(session.phase == .ready && session.elapsedSimulationTime == 0)
+        // Authentic electrical switches are distinct original objects.
+        // Their lever positions are gameplay state, not an assertion that
+        // the original circuit is wired or the motor has electric power.
+        var switchRaw = try JSONSerialization.jsonObject(
+            with: Data(json.utf8)) as! [String: Any]
+        var switchRoot = switchRaw["root"] as! [String: Any]
+        switchRoot["children"] = [
+            ["name": "tmo_power_switch", "fields": [],
+             "children": [["name": "tmo_power_switch_lever",
+                           "fields": [], "children": []]]],
+            ["name": "tmo_power_switch", "fields": [], "children": []],
+            ["name": "tmo_board", "fields": [], "children": []]
+        ] as [[String: Any]]
+        switchRaw["root"] = switchRoot
+        let switchDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: switchRaw))
+        var switches = CMOriginalGameplaySession(document: switchDoc)
+        precondition(switches.objects.map(\.type) == [
+            "tmo_power_switch", "tmo_power_switch_lever",
+            "tmo_power_switch", "tmo_board"
+        ])
+        precondition(switches.toggleOriginalSwitch("object-0") == nil)
+        switches.start()
+        precondition(switches.toggleOriginalSwitch("object-0") == true)
+        precondition(switches.originalSwitchStates == ["object-0": true])
+        precondition(switches.toggleOriginalSwitch("object-2") == true)
+        precondition(switches.originalSwitchStates.count == 2)
+        precondition(switches.toggleOriginalSwitch("object-0") == false)
+        precondition(switches.originalSwitchStates == ["object-2": true])
+        precondition(switches.toggleOriginalSwitch("object-1") == nil)
+        precondition(switches.toggleOriginalSwitch("object-3") == nil)
+        precondition(switches.toggleOriginalSwitch("not-an-object") == nil)
+        switches.pause()
+        precondition(switches.toggleOriginalSwitch("object-2") == nil)
+        precondition(switches.originalSwitchStates == ["object-2": true])
+        switches.resume()
+        precondition(switches.toggleOriginalSwitch("object-2") == false)
+        precondition(switches.originalSwitchStates.isEmpty)
+        precondition(switches.toggleOriginalSwitch("object-2") == true)
+        switches.stop()
+        precondition(switches.toggleOriginalSwitch("object-2") == nil)
+        switches.start()
+        precondition(switches.originalSwitchStates.isEmpty)
+        precondition(switches.toggleOriginalSwitch("object-0") == true)
+        switches.reset()
+        precondition(switches.originalSwitchStates.isEmpty)
+
         // Two distinct imported objects generate two activation transitions
         // on first contact, but repeated contacts do not re-activate them.
         var raw = try JSONSerialization.jsonObject(with: Data(json.utf8)) as! [String: Any]
