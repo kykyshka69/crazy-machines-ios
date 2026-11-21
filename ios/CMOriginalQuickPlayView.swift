@@ -18,6 +18,7 @@ struct CMOriginalQuickPlayView: View {
     @State private var physicsPaused = false
     @State private var sceneRevision = UUID()
     @State private var showAllLevels = false
+    @State private var zoneContacts: [String: Int] = [:]
 
     /// An explicit experimental starting configuration for the imported PC
     /// scene. SceneKit physics is not the original Windows solver. The roles
@@ -67,6 +68,13 @@ struct CMOriginalQuickPlayView: View {
         return count(document.root)
     }
 
+    private var hasOriginalCaptureZone: Bool {
+        func containsZone(_ node: CMOriginalSceneDocument.Node) -> Bool {
+            node.name == "tmo_zone" || node.children.contains(where: containsZone)
+        }
+        return containsZone(document.root)
+    }
+
     /// Navigate between authentic, privately imported CML scene exports.
     /// There are no synthetic fallback puzzles: missing or invalid levels
     /// are not offered. User arrangements remain separate for each scene hash.
@@ -88,6 +96,7 @@ struct CMOriginalQuickPlayView: View {
         document = next
         experimentalPhysics = false
         physicsPaused = false
+        zoneContacts.removeAll()
         sceneRevision = UUID()
     }
 
@@ -129,7 +138,11 @@ struct CMOriginalQuickPlayView: View {
                 experimentalPhysics: experimentalPhysics,
                 physicsPaused: physicsPaused,
                 allowObjectPlacement: true,
-                configuredPhysicsRoles: experimentalPhysicsRoles
+                configuredPhysicsRoles: experimentalPhysicsRoles,
+                onOriginalZoneContact: { type in
+                    // Callback is posted to the main thread by SceneKit bridge.
+                    zoneContacts[type, default: 0] += 1
+                }
             )
             .id(sceneRevision)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -139,6 +152,7 @@ struct CMOriginalQuickPlayView: View {
                     .font(.caption)
                     .onChange(of: experimentalPhysics) { _, _ in
                         physicsPaused = false
+                        zoneContacts.removeAll()
                         // Rebuild bodies only after changing scene physics mode.
                         sceneRevision = UUID()
                     }
@@ -151,6 +165,7 @@ struct CMOriginalQuickPlayView: View {
                 }
                 Button("Restart") {
                     physicsPaused = false
+                    zoneContacts.removeAll()
                     sceneRevision = UUID()
                 }
                 .accessibilityIdentifier("cm.original.quickplay-reset")
@@ -182,6 +197,7 @@ struct CMOriginalQuickPlayView: View {
                     )
                     experimentalPhysics = false
                     physicsPaused = false
+                    zoneContacts.removeAll()
                     sceneRevision = UUID()
                 }
                 .font(.caption.weight(.semibold))
@@ -189,6 +205,21 @@ struct CMOriginalQuickPlayView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
+
+            if experimentalPhysics && hasOriginalCaptureZone {
+                HStack(spacing: 8) {
+                    Image(systemName: "scope")
+                    Text("Objects touching original collection zone: \(zoneContacts.values.reduce(0, +))")
+                        .accessibilityIdentifier("cm.original.zone-contact-count")
+                    Spacer()
+                }
+                .font(.caption.weight(.medium))
+                .padding(.horizontal, 14)
+                Text("Real 3D contact detection only. Original PC victory rules are not yet decoded.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 14)
+            }
 
             Text(experimentalPhysics
                  ? "Experimental SceneKit collisions, not the original game's physics."
