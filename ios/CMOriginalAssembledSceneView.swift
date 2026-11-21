@@ -127,8 +127,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         reset.minimumPressDuration = 0.8
         // In inspection mode, long press resets a saved position; in physics
         // mode, it toggles a mesh between movable and fixed for diagnostics.
-        reset.isEnabled = allowObjectPlacement && !experimentalPhysics
-            || experimentalPhysics && diagnosticHinges
+        reset.isEnabled = (allowObjectPlacement && !experimentalPhysics)
+            || (experimentalPhysics && diagnosticHinges)
         view.addGestureRecognizer(reset)
         context.coordinator.storageKey = "cm.original.positions.\(document.sceneSHA256)"
         context.coordinator.rotationStorageKey = "cm.original.rotations.\(document.sceneSHA256)"
@@ -180,6 +180,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // SwiftUI updates pause state without reconstructing imported meshes
         // or losing the current simulated positions.
         context.coordinator.onOriginalZoneContact = onOriginalZoneContact
+        context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
         uiView.isPlaying = experimentalPhysics && !physicsPaused
         uiView.allowsCameraControl = !allowObjectPlacement || experimentalPhysics
         if experimentalPhysics {
