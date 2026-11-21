@@ -2035,6 +2035,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             originalModelReference: originalModelReference
         ) ?? UIColor(white: 0.78, alpha: 1)
         material.isDoubleSided = true
+        #if DEBUG && targetEnvironment(simulator)
+        // The CI-only copyright-free triangle tests whether SceneKit really
+        // rasterizes a UCM mesh. Constant orange illumination avoids false
+        // black frames caused by imported/synthetic face normals or lighting
+        // settings; this branch does not affect ANY authentic PC material.
+        if modelURL.deletingPathExtension().lastPathComponent.lowercased()
+            == "cm_ci_triangle" {
+            material.lightingModel = .constant
+            material.diffuse.contents = UIColor.orange
+            material.emission.contents = UIColor.orange
+        }
+        #endif
         geometry.materials = [material]
         return geometry
     }

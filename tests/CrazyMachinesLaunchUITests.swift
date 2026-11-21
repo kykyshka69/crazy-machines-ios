@@ -90,9 +90,17 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
                       "The imported 3D UCM viewport is blank, even though the level opened")
         attachScreenshot(app, named: "05-imported-original-3D-SceneKit-fixture")
 
-        physics.tap()
+        // XCUI reports both a wrapper Switch and its native UISwitch.
+        // Tapping the wrapper's center can hit only its label and leave the
+        // native control OFF. Tap the real right-hand control instead.
+        physics.coordinate(withNormalizedOffset: CGVector(dx: 0.90, dy: 0.5)).tap()
+        let isRunning = (physics.value as? String) == "1"
+        XCTAssertTrue(isRunning,
+                      "Tapping the visible switch must enable experimental physics")
+        guard isRunning else { return }
         XCTAssertTrue(pause.waitForExistence(timeout: 10),
                       "Pause must appear after enabling physics")
+        guard pause.exists else { return }
         attachScreenshot(app, named: "05b-running-3D-SceneKit-fixture")
         pause.tap()
         XCTAssertTrue(pause.label.contains("Resume"),
