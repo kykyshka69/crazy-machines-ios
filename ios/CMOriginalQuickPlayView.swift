@@ -171,7 +171,7 @@ struct CMOriginalQuickPlayView: View {
                     if isOriginalTarget {
                         matchedZoneLinks.insert(sourceID + "|" + zoneID)
                     }
-                }
+                },
                 onOriginalConnectionContact: { sourceID, targetID in
                     let key = sourceID + "|" + targetID
                     if originalMechanismConnections.contains(where: {
@@ -179,7 +179,7 @@ struct CMOriginalQuickPlayView: View {
                     }) {
                         matchedMechanismLinks.insert(key)
                     }
-                },
+                }
             )
             .id(sceneRevision)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
