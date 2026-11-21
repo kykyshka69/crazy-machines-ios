@@ -1426,6 +1426,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         let sceneTextures: [String: String] = [
             "to_ball_tennis": "ball_tennis",
             "to_ball_billard": "ball_billard",
+            "to_heat_cannon_ball": "heat_cannon_ball",
             "to_wall_concrete": "wall_concrete",
             "to_wall_cork": "wall_cork",
             "to_wall_bricks": "wall_bricks",
