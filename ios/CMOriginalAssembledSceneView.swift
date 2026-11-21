@@ -504,10 +504,19 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                   let node = view.hitTest(gesture.location(in: view),
                                           options: [.firstFoundOnly: true]).first?.node,
                   let body = physicalNode(for: node)?.physicsBody else { return }
-            guard let first = pendingHingeEndpoint, first !== node,
+            if let first = pendingHingeEndpoint {
+                // A second tap on the same mesh or another mesh belonging
+                // to the same rigid body is not a new hinge endpoint.
+                // Preserve the pending selection so the user can still
+                // choose a different original object.
+                guard first !== node,
+                      let firstPhysical = physicalNode(for: first),
+                      let secondPhysical = physicalNode(for: node),
+                      firstPhysical !== secondPhysical else { return }
+            }
+            guard let first = pendingHingeEndpoint,
                   let firstPhysical = physicalNode(for: first),
                   let secondPhysical = physicalNode(for: node),
-                  firstPhysical !== secondPhysical,
                   let firstBody = firstPhysical.physicsBody else {
                 clearPendingHingeEndpoint()
                 // Imported UCM geometries are cached and shared across
