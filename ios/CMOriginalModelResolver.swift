@@ -110,7 +110,24 @@ enum CMOriginalModelResolver {
             guard base.hasPrefix("to_"), base.count > 3 else { return .missing }
             let aliasMatches = filesByBaseName[String(base.dropFirst(3))] ?? []
             if aliasMatches.count == 1 { return .found(aliasMatches[0]) }
-            return aliasMatches.isEmpty ? .missing : .ambiguous
+            if !aliasMatches.isEmpty { return .ambiguous }
+
+            // Seven game-authored scene names differ from the original
+            // installed UCM basenames. These exact pairs were checked against
+            // the user's recovered PC resources; avoid fuzzy model matching.
+            let originalAliases: [String: String] = [
+                "to_belt_conveyer_belt": "belt_conveyor_belt",
+                "to_belt_conveyer_wheel": "belt_conveyor_wheel",
+                "to_belt_conveyer_roll_big": "belt_conveyor_roll1",
+                "to_belt_conveyer_roll_small": "belt_conveyor_roll2",
+                "to_pipe_corner": "pipe_90",
+                "to_power_motor_body": "power_motor_base",
+                "to_power_generator_body": "power_generator_base"
+            ]
+            guard let originalName = originalAliases[base] else { return .missing }
+            let originalMatches = filesByBaseName[originalName] ?? []
+            if originalMatches.count == 1 { return .found(originalMatches[0]) }
+            return originalMatches.isEmpty ? .missing : .ambiguous
         }
     }
 
