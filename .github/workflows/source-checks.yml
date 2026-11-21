@@ -6,6 +6,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Cancel obsolete runs as soon as the PR receives a newer commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   python-unit-tests:
     runs-on: ubuntu-latest
