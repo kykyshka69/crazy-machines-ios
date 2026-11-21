@@ -1268,7 +1268,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 body.velocityFactor = SCNVector3(1, 1, 0)
                 body.angularVelocityFactor = SCNVector3(0, 0, 1)
                 body.mass = 1
-                body.friction = 0.6
+                // Original steel gear teeth transmit tangential motion,
+                // rather than behaving like low-friction sliding discs.
+                // SceneKit friction remains approximate PC physics.
+                body.friction = kind == "tmo_belt_gear" ? 0.92 : 0.6
+                body.angularDamping = kind == "tmo_belt_gear" ? 0.07 : 0.1
                 body.restitution = 0.15
                 body.continuousCollisionDetectionThreshold = 0.001
                 body.categoryBitMask = 1
@@ -1288,11 +1292,21 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // camera-space or world-space coordinates. The parent retains
             // the original authored world position, even if an UNLOCKED
             // seesaw was rearranged before starting the experiment.
-            for (id, kind) in objectTypes where kind == "tmo_rope_seesaw_lever" {
-                guard let lever = objectRoots[id],
-                      let body = lever.physicsBody,
-                      let base = lever.parent as? CMOriginalPhysicsOwnerNode,
-                      base.originalObjectID != nil else { continue }
+            for (id, kind) in objectTypes
+                where kind == "tmo_rope_seesaw_lever" || kind == "tmo_belt_gear" {
+                guard let wheel = objectRoots[id],
+                      let body = wheel.physicsBody else { continue }
+                if kind == "tmo_rope_seesaw_lever" {
+                    // Only attach levers which really belong to the PC's
+                    // fixed seesaw support, not an unrelated 3DO helper.
+                    guard let base = wheel.parent as? CMOriginalPhysicsOwnerNode,
+                          base.originalObjectID != nil else { continue }
+                }
+                // The authentic belt_gear.ucm is centered on (0,0) in XY
+                // with ±0.19632 bounds. Its original gear-to-gear spacing
+                // is 0.376, leaving meshing teeth at each neighbour.
+                // A fixed-position Z-axis hinge allows collisions to
+                // transfer rotation without moving gears off their pins.
                 let pin = SCNPhysicsHingeJoint(
                     body: body,
                     axis: SCNVector3(0, 0, 1),
