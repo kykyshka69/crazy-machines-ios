@@ -14,9 +14,14 @@ struct CrazyMachinesApp: App {
 }
 
 private struct CMGameHomeView: View {
-    private struct OriginalQuickPlaySelection: Identifiable {
+    // SwiftUI's navigationDestination(item:) requires a Hashable item.
+    // Original scene documents themselves are intentionally not Hashable.
+    private struct OriginalQuickPlaySelection: Identifiable, Hashable {
         let id = UUID()
         let document: CMOriginalSceneDocument
+
+        static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+        func hash(into hasher: inout Hasher) { hasher.combine(id) }
     }
 
     /// The first original laboratory level exists only after importing the
