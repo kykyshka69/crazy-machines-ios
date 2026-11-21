@@ -747,7 +747,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         let assetIndex = CMOriginalModelResolver.AssetIndex(directory: assetDirectory)
         var resolvedModels: [String: URL] = [:]
         var missingModels = Set<String>()
-        var meshCache: [URL: SCNGeometry] = [:]
+        var meshCache: [String: SCNGeometry] = [:]
         // Avoid reparsing a corrupt UCM every time it is referenced.
         var invalidMeshes = Set<URL>()
         // Physics trials must always begin at the authentic imported positions,
@@ -817,12 +817,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 if let url = modelURL {
                     if !invalidMeshes.contains(url) {
                         let geometry: SCNGeometry?
-                        if let cached = meshCache[url] {
+                        // One original UCM shape can have several PC
+                        // material variants (e.g. cork and concrete walls).
+                        let cacheKey = url.path + "|" + name.lowercased()
+                        if let cached = meshCache[cacheKey] {
                             geometry = cached
                         } else {
-                            geometry = try? Self.loadGeometry(url, assetDirectory: assetDirectory)
+                            geometry = try? Self.loadGeometry(
+                                url, assetDirectory: assetDirectory,
+                                originalModelReference: name
+                            )
                             if let geometry {
-                                meshCache[url] = geometry
+                                meshCache[cacheKey] = geometry
                             } else {
                                 invalidMeshes.insert(url)
                             }
@@ -1115,9 +1121,25 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         "windmill_base": "windmill", "windmill_wings": "windmill"
     ]
 
-    private static func originalTexture(for modelURL: URL, in directory: URL) -> CGImage? {
+    private static func originalTexture(
+        for modelURL: URL, in directory: URL,
+        originalModelReference: String? = nil
+    ) -> CGImage? {
         let modelName = modelURL.deletingPathExtension().lastPathComponent.lowercased()
-        guard let textureName = verifiedTextures[modelName] else { return nil }
+        // Verified original PC shader names for shared ball/wall geometry.
+        let sceneTextures: [String: String] = [
+            "to_ball_tennis": "ball_tennis",
+            "to_ball_billard": "ball_billard",
+            "to_wall_concrete": "wall_concrete",
+            "to_wall_cork": "wall_cork",
+            "to_wall_bricks": "wall_bricks",
+            "to_wall_metal": "wall_metal",
+            "to_wall_schist": "wall_schist",
+            "to_wall_paper": "wall_paper"
+        ]
+        let textureName = sceneTextures[originalModelReference?.lowercased() ?? ""]
+            ?? verifiedTextures[modelName]
+        guard let textureName else { return nil }
         // Original Windows asset paths are case-insensitive; the iPhone
         // sandbox is not. Resolve the real imported filename rather than
         // assuming its spelling matches the shader's lowercase name.
@@ -1145,7 +1167,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                        shouldInterpolate: true, intent: .defaultIntent)
     }
 
-    static func loadGeometry(_ url: URL, assetDirectory: URL) throws -> SCNGeometry {
+    static func loadGeometry(
+        _ url: URL, assetDirectory: URL,
+        originalModelReference: String? = nil
+    ) throws -> SCNGeometry {
         let model = try CMUCMModel(data: Data(contentsOf: url))
         let raw = [UInt8](model.vertexData)
         func readFloat(_ offset: Int) -> Float {
@@ -1211,8 +1236,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                          bytesPerIndex: MemoryLayout<UInt16>.size)
         let geometry = SCNGeometry(sources: [source, normals, texcoords], elements: [element])
         let material = SCNMaterial()
-        material.diffuse.contents = originalTexture(for: url, in: assetDirectory)
-            ?? UIColor(white: 0.78, alpha: 1)
+        material.diffuse.contents = originalTexture(
+            for: url, in: assetDirectory,
+            originalModelReference: originalModelReference
+        ) ?? UIColor(white: 0.78, alpha: 1)
         material.isDoubleSided = true
         geometry.materials = [material]
         return geometry
