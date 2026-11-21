@@ -3,6 +3,7 @@ import XCTest
 final class CrazyMachinesLaunchUITests: XCTestCase {
     private func launchHome() -> XCUIApplication {
         let app = XCUIApplication()
+        app.launchArguments = ["--cm-ci-clear-original-scene"]
         app.launch()
         XCTAssertTrue(app.buttons["cm.menu.play"].waitForExistence(timeout: 20))
         XCTAssertTrue(app.buttons["cm.menu.files"].exists)
@@ -43,6 +44,44 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
             "Original level import did not present the iOS document picker"
         )
         attachScreenshot(app, named: "04-original-level-document-picker")
+    }
+
+    func testReal3DNavigationWithSyntheticImportedScene() {
+        // This is an explicit non-proprietary test fixture. It proves that
+        // the production pack parser, original-scene document loader, UCM
+        // model resolver and SceneKit screen can be opened in the simulator.
+        // It does NOT prove authentic PC puzzle physics is implemented.
+        let app = XCUIApplication()
+        app.launchArguments = ["--cm-ci-install-original-scene"]
+        app.launch()
+
+        let play = app.buttons["cm.menu.play"]
+        XCTAssertTrue(play.waitForExistence(timeout: 25), "App never reached its home menu")
+        play.tap()
+
+        let actualSceneTitle = app.staticTexts["Original level 1: CM synthetic CI 3D scene"]
+        XCTAssertTrue(
+            actualSceneTitle.waitForExistence(timeout: 20),
+            "Play did not navigate to the 3D scene populated from imported UCM data"
+        )
+        let physics = app.switches["cm.original.quickplay-physics"]
+        XCTAssertTrue(physics.exists, "3D physics controls are not accessible")
+        let pause = app.buttons["cm.original.quickplay-pause"]
+        XCTAssertTrue(pause.waitForExistence(timeout: 10))
+        attachScreenshot(app, named: "05-imported-original-3D-SceneKit-fixture")
+
+        pause.tap()
+        XCTAssertTrue(app.buttons["cm.original.quickplay-pause"].label.contains("Resume"))
+        app.buttons["cm.original.quickplay-reset"].tap()
+        XCTAssertTrue(app.buttons["cm.original.quickplay-pause"].waitForExistence(timeout: 10))
+
+        app.buttons["cm.original.quickplay-levels"].tap()
+        XCTAssertTrue(
+            app.buttons["Import original levels"].waitForExistence(timeout: 15),
+            "3D scene did not open the original level browser"
+        )
+        XCTAssertTrue(app.staticTexts["1 original levels loaded"].exists)
+        attachScreenshot(app, named: "06-imported-scene-level-browser")
     }
 
     private func attachScreenshot(_ app: XCUIApplication, named name: String) {
