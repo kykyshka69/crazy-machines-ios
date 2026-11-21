@@ -1293,7 +1293,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // the original authored world position, even if an UNLOCKED
             // seesaw was rearranged before starting the experiment.
             for (id, kind) in objectTypes
-                where kind == "tmo_rope_seesaw_lever" || kind == "tmo_belt_gear" {
+                where kind == "tmo_rope_seesaw_lever"
+                    || CMOriginalAxleParts.rotatingKinds.contains(kind) {
                 guard let wheel = objectRoots[id],
                       let body = wheel.physicsBody else { continue }
                 if kind == "tmo_rope_seesaw_lever" {
@@ -1302,11 +1303,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     guard let base = wheel.parent as? CMOriginalPhysicsOwnerNode,
                           base.originalObjectID != nil else { continue }
                 }
-                // The authentic belt_gear.ucm is centered on (0,0) in XY
-                // with ±0.19632 bounds. Its original gear-to-gear spacing
-                // is 0.376, leaving meshing teeth at each neighbour.
-                // A fixed-position Z-axis hinge allows collisions to
-                // transfer rotation without moving gears off their pins.
+                // Verified authentic PC UCMs place these rotor pivots
+                // within a few thousandths of their XY origin. Use the
+                // original per-object POS/POSREL, not a manufactured pivot:
+                // gear teeth, conveyor rollers and generator rotors remain
+                // centered on their original axle while collisions can
+                // transfer angular motion.
+                //
+                // This is PASSIVE rotation, not simulated electric power:
+                // original motor activation and belt drive ratios still
+                // require reconstruction.
                 let pin = SCNPhysicsHingeJoint(
                     body: body,
                     axis: SCNVector3(0, 0, 1),
