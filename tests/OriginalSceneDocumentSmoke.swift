@@ -51,6 +51,7 @@ enum OriginalSceneDocumentSmoke {
         // The root is not a model owner: whole-level browsing must visit tmo_*.
         precondition(CMOriginalModelResolver.modelNames(in: doc.root).isEmpty)
         precondition(CMOriginalModelResolver.allModelNames(in: doc.root) == ["to_board"])
+        precondition(CMOriginalModelResolver.metadataOnlyModelNames(in: doc.root.children[0]).isEmpty)
         precondition(doc.root.positionRelative == [0, 0, 0])
         let board = doc.root.children[0]
         precondition(board.position == [1, 2, 3])
@@ -104,6 +105,7 @@ enum OriginalSceneDocumentSmoke {
             JSONSerialization.data(withJSONObject: nestedRaw))
         let mixedCaseSession = CMOriginalGameplaySession(document: mixedCaseDoc)
         precondition(CMOriginalModelResolver.allModelNames(in: mixedCaseDoc.root) == ["TO_BOARD"])
+        precondition(CMOriginalModelResolver.metadataOnlyModelNames(in: mixedCaseDoc.root.children[0]).isEmpty)
         precondition(mixedCaseSession.objects[0].models == ["TO_BOARD"])
         // A model inside a separate nested tmo_ cannot be attributed to
         // the parent object.
@@ -174,6 +176,10 @@ enum OriginalSceneDocumentSmoke {
             JSONSerialization.data(withJSONObject: raw))
         // All original objects must be counted in the level's UCM inventory.
         precondition(CMOriginalModelResolver.allModelNames(in: twoObjectDoc.root) == ["to_board", "to_target"])
+        // The second object has metadata but no 3DO child; the renderer must
+        // include it without duplicating the first object's explicit mesh.
+        precondition(CMOriginalModelResolver.metadataOnlyModelNames(in: twoObjectDoc.root.children[0]).isEmpty)
+        precondition(CMOriginalModelResolver.metadataOnlyModelNames(in: twoObjectDoc.root.children[1]) == ["to_target"])
         var contactSession = CMOriginalGameplaySession(document: twoObjectDoc)
         precondition(contactSession.objects.count == 2)
         precondition(contactSession.annotatedGoalObjects.map(\.id) == ["object-1"])
