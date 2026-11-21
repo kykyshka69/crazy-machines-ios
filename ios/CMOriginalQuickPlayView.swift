@@ -42,54 +42,12 @@ struct CMOriginalQuickPlayView: View {
         originalConnections.filter { $0.targetType != "tmo_zone" }
     }
 
-    /// An explicit experimental starting configuration for the imported PC
-    /// scene. SceneKit physics is not the original Windows solver. The roles
-    /// below are provisional object-category choices, not recovered engine
-    /// behavior. They prevent the scenery from falling with the balls.
+    /// Each physical role is assigned using the SAME authoritative object
+    /// registry as SceneKit bodies and CONNECTED_TO links. Nested mount
+    /// objects must not make the object IDs drift.
     private var experimentalPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] {
-        var ordinal = 0
-        var roles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
-        func walk(_ node: CMOriginalSceneDocument.Node) {
-            if node.name.hasPrefix("tmo_") {
-                let id = "object-\(ordinal)"
-                ordinal += 1
-                if node.name == "tmo_zone" {
-                    // Original capture zones use VALB 32/36. Detect contacts
-                    // but never let the zone fall as a solid object.
-                    roles[id] = .sensor
-                } else if node.name == "tmo_rope_seesaw_lever" {
-                    // In the original CML this lever is a child of a fixed
-                    // seesaw support at POSREL 0,0,0. It has no VALB flag,
-                    // so the generic flag parser froze it. A world-anchored
-                    // hinge in the scene renderer lets it pivot on its PC
-                    // support and respond to falling objects.
-                    roles[id] = .movable
-                } else if CMOriginalAxleParts.rotatingKinds.contains(node.name) {
-                    // Real axle-mounted PC meshes (gears, conveyor rollers,
-                    // motor/generator rotors) need angular freedom. Original
-                    // electric and steam drive activation is not yet decoded;
-                    // these parts spin only in response to physical forces.
-                    roles[id] = .movable
-                } else if let raw = node.fields.first(where: { $0.hasPrefix("VALB ") }),
-                          let flags = Int(raw.dropFirst(5)
-                            .trimmingCharacters(in: .whitespaces)),
-                          flags >= 0 && flags <= 255 {
-                    // Recovered PC level metadata consistently distinguishes
-                    // moving bodies with bit 8: balls/crates=72, dominoes=8/72,
-                    // weights=72, balloons=104, etc. Fixed boards/pipes=64.
-                    // This is a cautious SceneKit mapping of original data,
-                    // NOT a reconstruction of the Windows physics engine.
-                    roles[id] = (flags & 8) != 0 ? .movable : .fixed
-                } else {
-                    // Missing/unrecognized metadata must not cause original
-                    // decorative/attachment objects to start falling.
-                    roles[id] = .fixed
-                }
-            }
-            for child in node.children { walk(child) }
-        }
-        walk(document.root)
-        return roles
+        CMOriginalPhysicsRolePlanner.roles(
+            for: CMOriginalGameplaySession(document: document))
     }
 
     /// Identifies parts the original PC level explicitly lets the player
