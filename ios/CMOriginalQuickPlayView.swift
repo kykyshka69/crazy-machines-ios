@@ -15,6 +15,7 @@ struct CMOriginalQuickPlayView: View {
     // Open an authentic scene at rest; users arrange original parts before
     // starting the approximate physics simulation, matching the PC play loop.
     @State private var experimentalPhysics = false
+    @State private var experimentalMotorDrive = false
     @State private var physicsPaused = false
     @State private var sceneRevision = UUID()
     @State private var showAllLevels = false
@@ -98,6 +99,14 @@ struct CMOriginalQuickPlayView: View {
         return count(document.root)
     }
 
+    private var hasOriginalMotor: Bool {
+        func containsMotor(_ node: CMOriginalSceneDocument.Node) -> Bool {
+            node.name == "tmo_power_motor_rotor"
+                || node.children.contains(where: containsMotor)
+        }
+        return containsMotor(document.root)
+    }
+
     private var hasOriginalCaptureZone: Bool {
         func containsZone(_ node: CMOriginalSceneDocument.Node) -> Bool {
             node.name == "tmo_zone" || node.children.contains(where: containsZone)
@@ -125,6 +134,7 @@ struct CMOriginalQuickPlayView: View {
         guard let next = scene(at: document.index + step) else { return }
         document = next
         experimentalPhysics = false
+        experimentalMotorDrive = false
         physicsPaused = false
         zoneContacts.removeAll()
         matchedZoneLinks.removeAll()
@@ -170,6 +180,7 @@ struct CMOriginalQuickPlayView: View {
                 experimentalPhysics: experimentalPhysics,
                 physicsPaused: physicsPaused,
                 allowObjectPlacement: true,
+                experimentalMotorDrive: experimentalMotorDrive,
                 configuredPhysicsRoles: experimentalPhysicsRoles,
                 onOriginalZoneContact: { type in
                     // Callback is posted to the main thread by SceneKit bridge.
@@ -200,7 +211,8 @@ struct CMOriginalQuickPlayView: View {
             HStack(spacing: 12) {
                 Toggle("Run experimental physics", isOn: $experimentalPhysics)
                     .font(.caption)
-                    .onChange(of: experimentalPhysics) { _, _ in
+                    .onChange(of: experimentalPhysics) { _, newValue in
+                        if !newValue { experimentalMotorDrive = false }
                         physicsPaused = false
                         zoneContacts.removeAll()
                         matchedZoneLinks.removeAll()
@@ -227,6 +239,23 @@ struct CMOriginalQuickPlayView: View {
             .padding(.horizontal, 14)
             .padding(.top, 10)
 
+            if experimentalPhysics && hasOriginalMotor {
+                HStack(spacing: 8) {
+                    Toggle("Experimental motor drive", isOn: $experimentalMotorDrive)
+                        .font(.caption.weight(.medium))
+                        .accessibilityIdentifier("cm.original.motor-drive")
+                    Text("prototype")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 14)
+                Text("Applies controlled rotation to original PC motor rotors. Electrical wiring and original motor speed are not yet decoded.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 14)
+                    .accessibilityIdentifier("cm.original.motor-drive-note")
+            }
+
             HStack(spacing: 10) {
                 if !experimentalPhysics {
                     VStack(alignment: .leading, spacing: 3) {
@@ -250,6 +279,7 @@ struct CMOriginalQuickPlayView: View {
                         forKey: "cm.original.rotations.\(document.sceneSHA256)"
                     )
                     experimentalPhysics = false
+                    experimentalMotorDrive = false
                     physicsPaused = false
                     zoneContacts.removeAll()
                     matchedZoneLinks.removeAll()
