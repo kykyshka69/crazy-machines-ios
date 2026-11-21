@@ -28,3 +28,21 @@ open the first authentic scene without manually importing hundreds of files:
 If the pack is not bundled, use **Game files → Install original game pack
 (102 levels)** in the running application to import the private pack from
 the Files app. No original files are packaged in the public CI builds.
+
+## Import original levels directly from a PC laboratory
+
+If you have extracted the original `data/models`, `data/textures`,
+and `data/labs` but do not have pre-exported JSON levels, build the
+private pack with a literal `-` as the second argument:
+
+```bash
+python3 tools/build_original_asset_pack.py EXTRACTED_INSTALLATION - CrazyMachines_Original_102Levels.cmassets
+```
+
+This smaller pack contains 160 UCM models, 181 TGA textures and the
+original laboratory files. On import, the iOS app validates and decodes
+the Professor Laboratory CML into playable 102 level documents before
+writing any files to the user's app sandbox. A pack with pre-exported
+JSON scenes still imports those exact 102 documents unchanged.
+
+Keep `.cmassets` private: game resources must not be pushed to GitHub.

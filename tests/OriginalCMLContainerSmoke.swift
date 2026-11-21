@@ -158,6 +158,27 @@ struct OriginalCMLContainerSmoke {
             at: conflictFolder, includingPropertiesForKeys: nil)
         precondition(surviving.count == 1 && surviving[0].lastPathComponent == "level-050.json")
 
+        // An original CMASSET1 containing CML but NO pre-exported JSON
+        // must still make all 102 original scenes available to the game.
+        // Reuse independently encoded non-proprietary CML records here.
+        let planned = try CMOriginalPackScenePlanner.prepare(
+            laboratories: [
+                (name: "Professor.cml", bytes: fullLab),
+                (name: "Empty.cml", bytes: makeLab(count: 0))
+            ], sha256: { _ in fakeDigest })
+        precondition(planned.count == 102)
+        precondition(planned.first?.name == "level-001.json")
+        precondition(planned.last?.name == "level-102.json")
+                let preparedFirst = try CMOriginalSceneDocument.read(planned[0].bytes)
+        let preparedLast = try CMOriginalSceneDocument.read(planned[101].bytes)
+        precondition(preparedFirst.index == 1 && preparedLast.index == 102)
+        do {
+            _ = try CMOriginalPackScenePlanner.prepare(
+                laboratories: [(name: "bad.cml", bytes: Data([1, 2, 3]))],
+                sha256: { _ in fakeDigest })
+            preconditionFailure("Malformed CML pack was staged")
+        } catch CMOriginalCMLContainer.DecodeError.invalidHeader {}
+
         let emptyResult = try CMOriginalLaboratorySceneInstaller.install(
             makeLab(count: 0), into: testRoot.appendingPathComponent("Empty"),
             sha256: { _ in fakeDigest })

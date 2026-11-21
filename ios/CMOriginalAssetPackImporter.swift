@@ -118,6 +118,36 @@ enum CMOriginalAssetPackImporter {
             throw PackError.invalid("Trailing bytes after original game pack")
         }
 
+        // Some genuine PC installations have only the encrypted Professor
+        // Laboratory .cml and the UCM/TGA assets. Decode 102 scenes BEFORE
+        // writing the pack so importing them on iPhone works without a
+        // separate desktop JSON export. Existing packs containing scene JSON
+        // (including the user's 445-entry original pack) retain their exact
+        // bytes and are never re-exported from CML.
+        if levels == 0 {
+            let labs = entries.filter { $0.kind == "cml" }.map {
+                (name: $0.name, bytes: $0.bytes)
+            }
+            if !labs.isEmpty {
+                let prepared = try CMOriginalPackScenePlanner.prepare(
+                    laboratories: labs,
+                    sha256: { scene in
+                        SHA256.hash(data: scene)
+                            .map { String(format: "%02x", $0) }.joined()
+                    }
+                )
+                for item in prepared {
+                    guard names.insert(item.name.lowercased()).inserted else {
+                        throw PackError.invalid(
+                            "Conflicting decoded original level: \(item.name)")
+                    }
+                    entries.append(Entry(name: item.name,
+                                         kind: "json", bytes: item.bytes))
+                    levels += 1
+                }
+            }
+        }
+
         let support = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let original = support.appendingPathComponent("OriginalGame", isDirectory: true)
@@ -137,15 +167,24 @@ enum CMOriginalAssetPackImporter {
         }
         var installed = 0
         var existing = 0
-        for entry in entries {
-            let folder = entry.kind == "json" ? scenes : original
-            let target = folder.appendingPathComponent(entry.name)
-            if FileManager.default.fileExists(atPath: target.path) {
-                existing += 1
-            } else {
-                try entry.bytes.write(to: target, options: .atomic)
-                installed += 1
+        var written: [URL] = []
+        do {
+            for entry in entries {
+                let folder = entry.kind == "json" ? scenes : original
+                let target = folder.appendingPathComponent(entry.name)
+                if FileManager.default.fileExists(atPath: target.path) {
+                    existing += 1
+                } else {
+                    try entry.bytes.write(to: target, options: .atomic)
+                    written.append(target)
+                    installed += 1
+                }
             }
+        } catch {
+            // A disk-full or other write failure must not strand a partial
+            // 102-level import. Never remove pre-existing original files.
+            for path in written { try? FileManager.default.removeItem(at: path) }
+            throw error
         }
         return Result(installed: installed, existing: existing,
                       models: models, textures: textures, levels: levels)

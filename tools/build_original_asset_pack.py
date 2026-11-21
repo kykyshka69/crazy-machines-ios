@@ -3,9 +3,12 @@
 
 Usage:
     python tools/build_original_asset_pack.py EXTRACTED_INSTALLATION EXPORTED_SCENES OUTPUT.cmassets
+    python tools/build_original_asset_pack.py EXTRACTED_INSTALLATION - OUTPUT.cmassets
 
 EXTRACTED_INSTALLATION must contain data/models, data/textures, data/labs.
 EXPORTED_SCENES should contain the 102 private level-###.json exports.
+Use '-' instead of EXPORTED_SCENES to ship only original UCM/TGA/CML;
+the iPhone app then decodes all 102 Professor Laboratory scenes on-device.
 Never commit or publicly redistribute the generated proprietary resource pack.
 """
 import argparse
@@ -17,17 +20,20 @@ from pathlib import Path
 EXTENSIONS = {".ucm", ".tga", ".cml"}
 
 
-def build(installed: Path, scenes: Path, output: Path) -> dict:
+def build(installed: Path, scenes: Path | None, output: Path) -> dict:
     files = [
         p for p in installed.rglob("*")
         if p.is_file() and p.suffix.lower() in EXTENSIONS
     ]
-    levels = sorted(scenes.glob("level-*.json"))
-    if len(files) != 343 or len(levels) != 102:
+    levels = sorted(scenes.glob("level-*.json")) if scenes is not None else []
+    if len(files) != 343 or (scenes is not None and len(levels) != 102):
         raise ValueError(
             f"Unexpected resource count: {len(files)} game files, "
-            f"{len(levels)} scenes; expected 343 and 102"
+            f"{len(levels)} scenes; expected 343 and " +
+            ("102 JSON scenes" if scenes is not None else "CML-only import")
         )
+    if scenes is None and not any(p.suffix.lower() == ".cml" for p in files):
+        raise ValueError("CML-only import requires original laboratory .cml files")
     entries = sorted(files, key=lambda p: p.name.lower()) + levels
     names = [p.name.lower() for p in entries]
     if len(set(names)) != len(entries):
@@ -93,7 +99,8 @@ def main() -> None:
     parser.add_argument("scene_json_directory", type=Path)
     parser.add_argument("output", type=Path)
     args = parser.parse_args()
-    print(build(args.original_installation, args.scene_json_directory, args.output))
+    scenes = None if str(args.scene_json_directory) == "-" else args.scene_json_directory
+    print(build(args.original_installation, scenes, args.output))
 
 
 if __name__ == "__main__":
