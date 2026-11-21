@@ -53,6 +53,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalZoneContact: ((String) -> Void)? = nil
     // Exact IDs of the source object and the original capture zone it touched.
     var onLinkedZoneContact: ((String, String) -> Void)? = nil
+    // A contact matching any exact CONNECTED_TO reference in the recovered
+    // PC level (not only tmo_zone targets). This is observation, not victory.
+    var onOriginalConnectionContact: ((String, String) -> Void)? = nil
 
     private var physicsAccessibilityStatus: String {
         let state = experimentalPhysics ? (physicsPaused ? "paused" : "running") : "off"
@@ -139,6 +142,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.session = CMOriginalGameplaySession(document: document)
         context.coordinator.onOriginalZoneContact = onOriginalZoneContact
         context.coordinator.onLinkedZoneContact = onLinkedZoneContact
+        context.coordinator.onOriginalConnectionContact = onOriginalConnectionContact
         if experimentalPhysics {
             context.coordinator.session?.start()
             if physicsPaused { context.coordinator.session?.pause() }
@@ -184,6 +188,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // or losing the current simulated positions.
         context.coordinator.onOriginalZoneContact = onOriginalZoneContact
         context.coordinator.onLinkedZoneContact = onLinkedZoneContact
+        context.coordinator.onOriginalConnectionContact = onOriginalConnectionContact
         context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
         uiView.isPlaying = experimentalPhysics && !physicsPaused
         uiView.allowsCameraControl = !allowObjectPlacement || experimentalPhysics
@@ -207,7 +212,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var lastRendererTime: TimeInterval?
         var onOriginalZoneContact: ((String) -> Void)?
         var onLinkedZoneContact: ((String, String) -> Void)?
+        var onOriginalConnectionContact: ((String, String) -> Void)?
         private var reportedZoneContacts = Set<String>()
+        private var reportedOriginalConnections = Set<String>()
         private var physicsNodesByObjectID: [String: [SCNNode]] = [:]
         // All 46 original balloon objects are identified by their PC tmo_
         // type. Only the 45 with VALB's movable bit will actually float;
@@ -418,6 +425,23 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // physics node. Resolve both owners before attributing contacts.
             sessionLock.lock()
             session?.recordContact(a, b, impulse: Double(contact.collisionImpulse))
+            // CONNECTED_TO refers to another original level element, not
+            // necessarily a tmo_zone. Report exact linked contact pairs:
+            // 67 originals point to capture zones; the other 13 point to
+            // crates, buckets, cages, the pocket lamp and the board.
+            // Do not count generic collisions as original puzzle progress.
+            var newlyObservedConnections: [(String, String)] = []
+            if session?.phase == .running {
+                for link in session?.originalConnections ?? [] {
+                    guard (link.sourceID == a && link.targetID == b)
+                           || (link.sourceID == b && link.targetID == a)
+                    else { continue }
+                    let key = link.sourceID + "|" + link.targetID
+                    if reportedOriginalConnections.insert(key).inserted {
+                        newlyObservedConnections.append((link.sourceID, link.targetID))
+                    }
+                }
+            }
             // Original PC 'tmo_zone' nodes are collection areas. Notify the
             // UI of ACTUAL SceneKit contacts, not of inferred puzzle victory.
             // Report each object only once for this simulation run.
@@ -452,12 +476,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 contactIDs = nil
             }
             sessionLock.unlock()
-            if let contactType, let contactIDs {
-                // SceneKit invokes contact delegates on a renderer thread.
-                // Update only the SwiftUI HUD on the main queue.
+            // Never mutate SwiftUI state from the SceneKit renderer thread.
+            if contactType != nil || !newlyObservedConnections.isEmpty {
                 DispatchQueue.main.async { [weak self] in
-                    self?.onOriginalZoneContact?(contactType)
-                    self?.onLinkedZoneContact?(contactIDs.0, contactIDs.1)
+                    if let contactType, let contactIDs {
+                        self?.onOriginalZoneContact?(contactType)
+                        self?.onLinkedZoneContact?(contactIDs.0, contactIDs.1)
+                    }
+                    for (sourceID, targetID) in newlyObservedConnections {
+                        self?.onOriginalConnectionContact?(sourceID, targetID)
+                    }
                 }
             }
         }
