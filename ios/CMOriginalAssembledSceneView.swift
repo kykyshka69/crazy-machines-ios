@@ -514,11 +514,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       let secondPhysical = physicalNode(for: node),
                       firstPhysical !== secondPhysical else { return }
             }
-            guard let first = pendingHingeEndpoint,
-                  let firstPhysical = physicalNode(for: first),
-                  let secondPhysical = physicalNode(for: node),
-                  let firstBody = firstPhysical.physicsBody else {
-                clearPendingHingeEndpoint()
+            guard let first = pendingHingeEndpoint else {
+                // First tap: retain a visible endpoint until another body is chosen.
                 // Imported UCM geometries are cached and shared across
                 // instances. Give this endpoint its own geometry/materials
                 // before tinting it, or every copy of the part turns cyan.
@@ -532,6 +529,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 node.geometry?.firstMaterial?.emission.contents = UIColor.systemCyan
                 return
             }
+            guard let firstPhysical = physicalNode(for: first),
+                  let secondPhysical = physicalNode(for: node),
+                  let firstBody = firstPhysical.physicsBody else {
+                clearPendingHingeEndpoint()
+                return
+            }
+            // Both endpoints exist and belong to distinct rigid bodies.
+            // Keep the first endpoint highlighted until all validation passes.
             clearPendingHingeEndpoint()
             // A world-space midpoint gives a reproducible test connection.
             // This is not a recovered original-game joint.
