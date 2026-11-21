@@ -112,7 +112,7 @@ enum CMOriginalModelResolver {
             if aliasMatches.count == 1 { return .found(aliasMatches[0]) }
             if !aliasMatches.isEmpty { return .ambiguous }
 
-            // Seven game-authored scene names differ from the original
+            // Some game-authored scene names differ from the original
             // installed UCM basenames. These exact pairs were checked against
             // the user's recovered PC resources; avoid fuzzy model matching.
             let originalAliases: [String: String] = [
@@ -122,7 +122,17 @@ enum CMOriginalModelResolver {
                 "to_belt_conveyer_roll_small": "belt_conveyor_roll2",
                 "to_pipe_corner": "pipe_90",
                 "to_power_motor_body": "power_motor_base",
-                "to_power_generator_body": "power_generator_base"
+                "to_power_generator_body": "power_generator_base",
+                // The PC ships shared wall/ball geometry with per-type shaders.
+                // The named wall/ball textures are preserved by the renderer.
+                "to_ball_tennis": "ball",
+                "to_ball_billard": "ball",
+                "to_wall_concrete": "wall",
+                "to_wall_cork": "wall",
+                "to_wall_bricks": "wall",
+                "to_wall_metal": "wall",
+                "to_wall_schist": "wall",
+                "to_wall_paper": "wall"
             ]
             guard let originalName = originalAliases[base] else { return .missing }
             let originalMatches = filesByBaseName[originalName] ?? []
