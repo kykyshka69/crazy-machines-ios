@@ -56,7 +56,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         view.accessibilityHint = experimentalPhysics
             ? "Double tap two different parts to add a hinge. Tap with three fingers to cancel a pending endpoint or undo the last manual hinge. Long press a part to pin or unpin it."
             : (allowObjectPlacement
-               ? "Tap a part to select it. Drag with one finger to move, rotate with two fingers, or long-press to restore its original pose. Exit placement mode to run physics."
+               ? "Tap an object to select it. Drag to move, twist two fingers to rotate, pinch to zoom, or long-press to reset that object."
                : "Inspect the original imported parts using the camera controls.")
         view.accessibilityValue = physicsAccessibilityStatus
         // The SceneKit camera's one-finger pan conflicts with object dragging.
@@ -104,6 +104,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         rotate.delegate = context.coordinator
         rotate.isEnabled = allowObjectPlacement && !experimentalPhysics
         view.addGestureRecognizer(rotate)
+        let pinch = UIPinchGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.zoomCamera(_:))
+        )
+        pinch.delegate = context.coordinator
+        pinch.isEnabled = allowObjectPlacement && !experimentalPhysics
+        view.addGestureRecognizer(pinch)
         let reset = UILongPressGestureRecognizer(target: context.coordinator,
                                                   action: #selector(Coordinator.resetSelected(_:)))
         reset.minimumPressDuration = 0.8
@@ -366,6 +373,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var lastDragPoint: CGPoint?
         private var dragWasActive = false
         private var rotationStartZ: Float?
+        private var pinchStartFieldOfView: CGFloat?
         var storageKey = ""
         var rotationStorageKey = ""
         var physicsEnabled = false
@@ -450,6 +458,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             if gestureRecognizer is UIRotationGestureRecognizer {
                 return highlighted != nil && !physicsEnabled
             }
+            if gestureRecognizer is UIPinchGestureRecognizer {
+                return !physicsEnabled
+            }
             guard gestureRecognizer is UIPanGestureRecognizer else { return true }
             guard let view = gestureRecognizer.view as? SCNView,
                   let selected = highlighted else { return false }
@@ -462,6 +473,27 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                                shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
             false
+        }
+
+        @objc func zoomCamera(_ gesture: UIPinchGestureRecognizer) {
+            guard !physicsEnabled,
+                  let view = gesture.view as? SCNView,
+                  let camera = view.pointOfView?.camera else { return }
+            switch gesture.state {
+            case .began:
+                pinchStartFieldOfView = camera.fieldOfView
+            case .changed:
+                guard let initial = pinchStartFieldOfView, gesture.scale > 0 else { return }
+                let requested = initial / gesture.scale
+                guard requested.isFinite else { return }
+                // Preserve the camera's authored placement and orientation;
+                // only change its framing while editing the imported puzzle.
+                camera.fieldOfView = min(95, max(15, requested))
+            case .ended, .cancelled, .failed:
+                pinchStartFieldOfView = nil
+            default:
+                break
+            }
         }
 
         @objc func rotateSelected(_ gesture: UIRotationGestureRecognizer) {
