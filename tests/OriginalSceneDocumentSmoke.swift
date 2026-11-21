@@ -48,6 +48,9 @@ enum OriginalSceneDocumentSmoke {
             }
         }
         let doc = try CMOriginalSceneDocument.read(Data(json.utf8))
+        // The root is not a model owner: whole-level browsing must visit tmo_*.
+        precondition(CMOriginalModelResolver.modelNames(in: doc.root).isEmpty)
+        precondition(CMOriginalModelResolver.allModelNames(in: doc.root) == ["to_board"])
         precondition(doc.root.positionRelative == [0, 0, 0])
         let board = doc.root.children[0]
         precondition(board.position == [1, 2, 3])
@@ -100,6 +103,7 @@ enum OriginalSceneDocumentSmoke {
         let mixedCaseDoc = try CMOriginalSceneDocument.read(
             JSONSerialization.data(withJSONObject: nestedRaw))
         let mixedCaseSession = CMOriginalGameplaySession(document: mixedCaseDoc)
+        precondition(CMOriginalModelResolver.allModelNames(in: mixedCaseDoc.root) == ["TO_BOARD"])
         precondition(mixedCaseSession.objects[0].models == ["TO_BOARD"])
         // A model inside a separate nested tmo_ cannot be attributed to
         // the parent object.
@@ -116,6 +120,7 @@ enum OriginalSceneDocumentSmoke {
             JSONSerialization.data(withJSONObject: nestedRaw))
         precondition(nestedObjectDoc.gameplayInventory.objectsWithoutModels["tmo_board"] == 1)
         precondition(nestedObjectDoc.gameplayInventory.objectsWithoutModels["tmo_child"] == nil)
+        precondition(CMOriginalModelResolver.allModelNames(in: nestedObjectDoc.root) == ["to_board"])
         let separateSession = CMOriginalGameplaySession(document: nestedObjectDoc)
         precondition(separateSession.objects.count == 2)
         precondition(separateSession.objects[0].models.isEmpty)
@@ -167,6 +172,8 @@ enum OriginalSceneDocumentSmoke {
         raw["root"] = root
         let twoObjectDoc = try CMOriginalSceneDocument.read(
             JSONSerialization.data(withJSONObject: raw))
+        // All original objects must be counted in the level's UCM inventory.
+        precondition(CMOriginalModelResolver.allModelNames(in: twoObjectDoc.root) == ["to_board", "to_target"])
         var contactSession = CMOriginalGameplaySession(document: twoObjectDoc)
         precondition(contactSession.objects.count == 2)
         precondition(contactSession.annotatedGoalObjects.map(\.id) == ["object-1"])
