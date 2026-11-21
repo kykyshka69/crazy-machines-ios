@@ -33,9 +33,13 @@ private struct CMGameHomeView: View {
         guard let data = try? Data(contentsOf: sceneURL),
               let document = try? CMOriginalSceneDocument.read(data) else { return false }
         let index = CMOriginalModelResolver.AssetIndex(directory: assetDirectory)
-        let resolved = CMOriginalModelResolver.allModelNames(in: document.root)
-            .contains { index.resolve($0) != nil }
-        guard resolved else { return false }
+        // A single visible mesh is not enough to call an original PC level
+        // ready. Missing parts can silently break all subsequent mechanics.
+        let modelNames = CMOriginalModelResolver.allModelNames(in: document.root)
+        guard !modelNames.isEmpty,
+              modelNames.allSatisfy({ index.resolve($0) != nil }) else {
+            return false
+        }
         quickPlaySelection = OriginalQuickPlaySelection(document: document)
         return true
     }
