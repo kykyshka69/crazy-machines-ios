@@ -1,6 +1,6 @@
 # Crazy Machines — iOS Port: verified project status
 
-Last evidence review: 2026-11-21 (GitHub `main`, baseline `fd3ceca6`).
+Last evidence review: 2026-11-21 (GitHub `main`, baseline `fd3ceca6`; latest code change reviewed: `534b0ccc`).
 Primary goal: load and play the **original PC Crazy Machines puzzles on iPhone**. This is not yet a playable port.
 
 ## Verified work present in the repository
@@ -21,9 +21,18 @@ Primary goal: load and play the **original PC Crazy Machines puzzles on iPhone**
 - Actual iOS SDK compilation, real-device installation, original textures/material mapping, complete puzzle physics, win/next-level transitions, save/audio and IPA delivery remain unverified or incomplete.
 - Original game binaries/assets are deliberately **not committed**; imported from a user's licensed copy.
 
+## Implemented fixes after the baseline (2026-11-21)
+
+- `5d721eeb`: added `CMOriginalModelResolver.allModelNames(in:)` to collect models across all original level objects rather than incorrectly treating only the `level` root as their owner.
+- `44614dc2`: original level browser now uses the whole-level inventory in both **Original 3D asset readiness** and **Original 3D models**.
+- `8a48712d`: regression checks added to `tests/OriginalSceneDocumentSmoke.swift` for root-only, nested, mixed-case, and two-object model inventories.
+- `534b0ccc`: repaired `.github/workflows/source-checks.yml` original-scene Swift compile command by including `ios/CMOriginalModelResolver.swift`, which the test imports.
+- **Check executed here:** an isolated Swift 6.2.1 (Linux) smoke compiled and passed whole-level collection with 3 original object owners, nested owner and mixed-case duplicates. **Not** a full Xcode/SceneKit run, and **not** a run of the complete repository test suite.
+- GitHub Actions results and the screenshot of an actual original level on an iPhone remain unverified.
+
 ## Priority blockers / work order
 
-1. Fix and test the **original level's model inventory** in `CMOriginalLevelBrowserView`: the current UI passes the root `level` node to `CMOriginalModelResolver.modelNames(in:)`, which intentionally skips child `tmo_*` objects. The inventory may incorrectly show zero meshes even when the level contains many. Keep object-local resolution semantics and add an explicit whole-level collector.
+1. **DONE IN CODE, AWAITING APP/CI VERIFICATION:** the original level model inventory now calls `CMOriginalModelResolver.allModelNames(in:)`; this collects UCM references from nested `tmo_*` owners, preserves object-local resolution, and de-duplicates case-insensitively. UI readiness and per-level preview selection use it. Regression assertions added, CI Swift compiler inputs corrected. Verify in the actual iOS level browser with user-owned original assets.
 2. Confirm the first *real* exported level's full mesh coverage: which referenced UCM models resolve, which are missing/ambiguous and whether transforms are consistent.
 3. Finish materials/UV binding and level rendering parity, then demonstrate an actual first-level screenshot from the iPhone Simulator.
 4. Implement and validate original puzzle-specific object physics and win/failure logic; do not replace with generic toy physics and claim gameplay parity.
