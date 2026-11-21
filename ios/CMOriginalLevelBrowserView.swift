@@ -60,14 +60,27 @@ struct CMOriginalLevelBrowserView: View {
                         )
                     }
                     ForEach(sorted, id: \.index) { document in
-                        NavigationLink {
-                            levelDetails(document)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("\(document.index). \(document.title)")
-                                Text("\(document.root.objectCount) object nodes · \(document.root.positionedObjectCount) positioned")
-                                    .font(.caption).foregroundStyle(.secondary)
+                        HStack {
+                            NavigationLink {
+                                levelDetails(document)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("\(document.index). \(document.title)")
+                                    Text("\(document.root.objectCount) object nodes · \(document.root.positionedObjectCount) positioned")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
                             }
+                            Button {
+                                physicsExperimentEnabled = false
+                                physicsExperimentPaused = false
+                                assembledScene = AssembledSelection(document: document)
+                            } label: {
+                                Label("Open level \(document.index) in 3D", systemImage: "cube.transparent")
+                                    .labelStyle(.iconOnly)
+                                    .padding(8)
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityIdentifier("cm.original.open-level-\(document.index)")
                         }
                     }
                 }
