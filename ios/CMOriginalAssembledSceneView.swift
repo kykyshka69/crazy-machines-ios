@@ -51,6 +51,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // SceneKit collision telemetry for authentic PC capture zones.
     // This does NOT assert that the Windows level completion condition is met.
     var onOriginalZoneContact: ((String) -> Void)? = nil
+    // Exact IDs of the source object and the original capture zone it touched.
+    var onLinkedZoneContact: ((String, String) -> Void)? = nil
 
     private var physicsAccessibilityStatus: String {
         let state = experimentalPhysics ? (physicsPaused ? "paused" : "running") : "off"
@@ -136,6 +138,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
         context.coordinator.session = CMOriginalGameplaySession(document: document)
         context.coordinator.onOriginalZoneContact = onOriginalZoneContact
+        context.coordinator.onLinkedZoneContact = onLinkedZoneContact
         if experimentalPhysics {
             context.coordinator.session?.start()
             if physicsPaused { context.coordinator.session?.pause() }
@@ -180,6 +183,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // SwiftUI updates pause state without reconstructing imported meshes
         // or losing the current simulated positions.
         context.coordinator.onOriginalZoneContact = onOriginalZoneContact
+        context.coordinator.onLinkedZoneContact = onLinkedZoneContact
         context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
         uiView.isPlaying = experimentalPhysics && !physicsPaused
         uiView.allowsCameraControl = !allowObjectPlacement || experimentalPhysics
@@ -202,6 +206,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private let sessionLock = NSLock()
         private var lastRendererTime: TimeInterval?
         var onOriginalZoneContact: ((String) -> Void)?
+        var onLinkedZoneContact: ((String, String) -> Void)?
         private var reportedZoneContacts = Set<String>()
         private var physicsNodesByObjectID: [String: [SCNNode]] = [:]
         // All 46 original balloon objects are identified by their PC tmo_
@@ -420,31 +425,39 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 uniqueKeysWithValues: (session?.objects ?? []).map { ($0.id, $0.type) }
             )
             let candidate: String?
+            let zoneID: String?
             if types[a] == "tmo_zone" && types[b] != "tmo_zone" {
                 candidate = b
+                zoneID = a
             } else if types[b] == "tmo_zone" && types[a] != "tmo_zone" {
                 candidate = a
+                zoneID = b
             } else {
                 candidate = nil
+                zoneID = nil
             }
             let contactType: String?
-            // Only moving original objects should count as entering the
-            // collection zone. Fixed boards, decorative mounts and initial
-            // static overlaps are not completed gameplay interactions.
-            if let candidate,
+            let contactIDs: (String, String)?
+            // Each source-zone pair counts once. Original puzzles may have
+            // multiple zones, and a random zone must not count as the
+            // CONNECTED_TO target encoded by the Windows scene.
+            if let candidate, let zoneID,
                session?.phase == .running,
                session?.physicsRole(for: candidate) == .movable,
-               reportedZoneContacts.insert(candidate).inserted {
+               reportedZoneContacts.insert(candidate + "|" + zoneID).inserted {
                 contactType = types[candidate]
+                contactIDs = (candidate, zoneID)
             } else {
                 contactType = nil
+                contactIDs = nil
             }
             sessionLock.unlock()
-            if let contactType {
-                // SCNPhysicsContactDelegate is not guaranteed to execute on
-                // the main thread. SwiftUI state may only change on main.
+            if let contactType, let contactIDs {
+                // SceneKit invokes contact delegates on a renderer thread.
+                // Update only the SwiftUI HUD on the main queue.
                 DispatchQueue.main.async { [weak self] in
                     self?.onOriginalZoneContact?(contactType)
+                    self?.onLinkedZoneContact?(contactIDs.0, contactIDs.1)
                 }
             }
         }
