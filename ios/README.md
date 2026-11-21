@@ -5,3 +5,26 @@ Files: `CMUCMModel.swift`, `CMShaders.metal`, `CMMetalPipeline.swift`, `CMSceneR
 Create an iOS SwiftUI Xcode app target, add all five files, and show `CMSceneView()` in the app's root view. Add a locally owned UCM model as `sample.ucm` in the app bundle, and an uncompressed true-color TGA as `sample.tga` to render it.
 
 No game assets are checked in. A white 1×1 texture is used only when sample.tga is absent. This is a single texture smoke test, not the original shader-to-model material binding. Lighting is approximate, model transforms are uncalibrated, and the original material/physics/gameplay systems are not implemented. Compilation on an Apple SDK and actual iPhone rendering still require verification.
+
+
+## Private build using the original 102-level game pack
+
+The original PC game resources are **not** in this repository and must not
+be committed or redistributed. To build a *local* iPhone application that can
+open the first authentic scene without manually importing hundreds of files:
+
+1. Obtain your own extracted `CrazyMachines_Original_102Levels.cmassets` file.
+2. Copy it to `ios/CrazyMachines_Original_102Levels.cmassets` in your local
+   checkout. The `*.cmassets` Git ignore rule prevents committing the file.
+3. Run `xcodegen generate --spec project.yml`. XcodeGen adds the custom
+   resource under the `ios` sources directory to the app's Resources phase.
+4. Build and run on an iPhone/iOS simulator. On first launch, the app checks
+   for a bundled pack, imports its validated original models/textures/scenes
+   into its own Application Support directory, and shows the home menu.
+5. Tap **Play** to open the authentic first scene in 3D if its models resolve.
+   The built-in experimental SceneKit physics is **not** the original Windows
+   engine and cannot yet reproduce complete original puzzle gameplay.
+
+If the pack is not bundled, use **Game files → Install original game pack
+(102 levels)** in the running application to import the private pack from
+the Files app. No original files are packaged in the public CI builds.
