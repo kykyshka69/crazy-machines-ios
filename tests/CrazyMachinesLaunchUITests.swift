@@ -1,37 +1,87 @@
 import XCTest
 
 final class CrazyMachinesLaunchUITests: XCTestCase {
-    func testOriginalLevelFileImporterOpens() {
+    private func launchHome() -> XCUIApplication {
         let app = XCUIApplication()
+        app.launchArguments = ["--cm-ci-clear-original-scene"]
         app.launch()
+        XCTAssertTrue(app.buttons["cm.menu.play"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["cm.menu.files"].exists)
+        return app
+    }
+
+    func testHomeMenuAndCapture() {
+        let app = launchHome()
+        attachScreenshot(app, named: "01-game-home")
+    }
+
+    func testPlayOpensOriginalLevelBrowser() {
+        let app = launchHome()
+        app.buttons["cm.menu.play"].tap()
+        XCTAssertTrue(app.buttons["Import original levels"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["Import entire exported levels folder"].exists)
+        attachScreenshot(app, named: "02-original-levels")
+    }
+
+    func testGameFilesOpensOriginalResources() {
+        let app = launchHome()
+        app.buttons["cm.menu.files"].tap()
+        XCTAssertTrue(app.buttons["Import original game files"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["Import entire extracted models folder"].exists)
+        attachScreenshot(app, named: "03-original-files")
+    }
+
+    func testOriginalLevelFileImporterOpens() {
+        let app = launchHome()
+        app.buttons["cm.menu.play"].tap()
         let importButton = app.buttons["Import original levels"]
-        XCTAssertTrue(importButton.waitForExistence(timeout: 20))
+        XCTAssertTrue(importButton.waitForExistence(timeout: 15))
         importButton.tap()
-        // A real iOS document picker must appear, not just an inert import button.
         let picker = app.navigationBars["Browse"]
         let cancel = app.buttons["Cancel"]
         XCTAssertTrue(
             picker.waitForExistence(timeout: 15) || cancel.waitForExistence(timeout: 5),
             "Original level import did not present the iOS document picker"
         )
-        let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = "03-original-level-document-picker"
-        attachment.lifetime = .keepAlways
-        add(attachment)
+        attachScreenshot(app, named: "04-original-level-document-picker")
     }
 
-    func testCaptureBothOriginalGameScreens() {
+    func testReal3DNavigationWithSyntheticImportedScene() {
+        // This is an explicit non-proprietary test fixture. It proves that
+        // the production pack parser, original-scene document loader, UCM
+        // model resolver and SceneKit screen can be opened in the simulator.
+        // It does NOT prove authentic PC puzzle physics is implemented.
         let app = XCUIApplication()
+        app.launchArguments = ["--cm-ci-install-original-scene"]
         app.launch()
-        let levels = app.tabBars.buttons["Original levels"]
-        let files = app.tabBars.buttons["Original files"]
-        XCTAssertTrue(levels.waitForExistence(timeout: 20))
-        XCTAssertTrue(app.buttons["Import original levels"].waitForExistence(timeout: 10))
-        attachScreenshot(app, named: "01-original-levels")
-        XCTAssertTrue(files.exists)
-        files.tap()
-        XCTAssertTrue(app.buttons["Import original game files"].waitForExistence(timeout: 10))
-        attachScreenshot(app, named: "02-original-files")
+
+        let play = app.buttons["cm.menu.play"]
+        XCTAssertTrue(play.waitForExistence(timeout: 25), "App never reached its home menu")
+        play.tap()
+
+        let actualSceneTitle = app.staticTexts["Original level 1: CM synthetic CI 3D scene"]
+        XCTAssertTrue(
+            actualSceneTitle.waitForExistence(timeout: 20),
+            "Play did not navigate to the 3D scene populated from imported UCM data"
+        )
+        let physics = app.switches["cm.original.quickplay-physics"]
+        XCTAssertTrue(physics.exists, "3D physics controls are not accessible")
+        let pause = app.buttons["cm.original.quickplay-pause"]
+        XCTAssertTrue(pause.waitForExistence(timeout: 10))
+        attachScreenshot(app, named: "05-imported-original-3D-SceneKit-fixture")
+
+        pause.tap()
+        XCTAssertTrue(app.buttons["cm.original.quickplay-pause"].label.contains("Resume"))
+        app.buttons["cm.original.quickplay-reset"].tap()
+        XCTAssertTrue(app.buttons["cm.original.quickplay-pause"].waitForExistence(timeout: 10))
+
+        app.buttons["cm.original.quickplay-levels"].tap()
+        XCTAssertTrue(
+            app.buttons["Import original levels"].waitForExistence(timeout: 15),
+            "3D scene did not open the original level browser"
+        )
+        XCTAssertTrue(app.staticTexts["1 original levels loaded"].exists)
+        attachScreenshot(app, named: "06-imported-scene-level-browser")
     }
 
     private func attachScreenshot(_ app: XCUIApplication, named name: String) {
@@ -39,59 +89,5 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
-    }
-
-    func testOriginalLevelsImportControlsWithoutBundledAssets() {
-        let app = XCUIApplication()
-        app.launch()
-        let originalLevels = app.tabBars.buttons["Original levels"]
-        XCTAssertTrue(originalLevels.waitForExistence(timeout: 20))
-        XCTAssertTrue(originalLevels.isSelected)
-        XCTAssertTrue(app.buttons["Import original levels"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["Import entire exported levels folder"].exists)
-    }
-
-    func testOriginalLevelsEmptyOrImportedCountIsVisible() {
-        let app = XCUIApplication()
-        app.launch()
-        let originalLevels = app.tabBars.buttons["Original levels"]
-        XCTAssertTrue(originalLevels.waitForExistence(timeout: 20))
-        let countLabel = app.staticTexts.matching(
-            NSPredicate(format: "label MATCHES %@", "[0-9]+ original levels loaded")
-        ).firstMatch
-        XCTAssertTrue(countLabel.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Original puzzles"].exists)
-    }
-
-    func testOriginalResourcesImportControlsWithoutBundledAssets() {
-        let app = XCUIApplication()
-        app.launch()
-        let originalFiles = app.tabBars.buttons["Original files"]
-        XCTAssertTrue(originalFiles.waitForExistence(timeout: 20))
-        originalFiles.tap()
-        XCTAssertTrue(app.staticTexts["Original Crazy Machines resources"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["Import original game files"].exists)
-        XCTAssertTrue(app.buttons["Import entire extracted models folder"].exists)
-        // Simulator data can survive between runs: do not assume the
-        // original-resource library is empty on every launch.
-        let importedSection = app.staticTexts.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "Imported files (")
-        ).firstMatch
-        XCTAssertTrue(importedSection.exists)
-    }
-
-    func testOnlyOriginalGameTabsAreExposed() {
-        let app = XCUIApplication()
-        app.launch()
-        let originalLevels = app.tabBars.buttons["Original levels"]
-        let originalFiles = app.tabBars.buttons["Original files"]
-        XCTAssertTrue(originalLevels.waitForExistence(timeout: 20))
-        XCTAssertTrue(originalFiles.exists)
-        XCTAssertFalse(app.tabBars.buttons["Playground"].exists)
-        XCTAssertFalse(app.tabBars.buttons["3D Preview"].exists)
-        originalFiles.tap()
-        XCTAssertTrue(originalFiles.isSelected)
-        originalLevels.tap()
-        XCTAssertTrue(originalLevels.isSelected)
     }
 }

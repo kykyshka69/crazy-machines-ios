@@ -20,3 +20,6 @@ private_assets/
 ios/sample.ucm
 ios/sample.tga
 ios/sample_model_name.txt
+
+# Private, user-owned original game asset packs (never commit)
+*.cmassets

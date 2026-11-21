@@ -1,22 +1,16 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import CryptoKit
 
 /// Browse actual user-exported original levels without simulating invented physics.
 struct CMOriginalLevelBrowserView: View {
     @State private var importing = false
     @State private var importingFolder = false
+    @State private var importingCML = false
     @State private var documents: [CMOriginalSceneDocument] = []
     @State private var errorMessage: String?
     @State private var selected: Int?
     @State private var previewModel: ModelPreviewSelection?
-    @State private var assembledScene: AssembledSelection?
-    @State private var physicsExperimentEnabled = false
-    @State private var physicsExperimentPaused = false
-    private struct AssembledSelection: Identifiable {
-        let document: CMOriginalSceneDocument
-        let id = UUID()
-    }
-
     private struct ModelPreviewSelection: Identifiable {
         let id = UUID()
         let name: String
@@ -41,10 +35,11 @@ struct CMOriginalLevelBrowserView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Import JSON files exported from your original Professor Laboratory CML.")
+                    Text("Import an original PC laboratory (.cml) directly, or use previously exported JSON levels.")
                         .font(.caption)
                     Button("Import original levels") { importing = true }
                     Button("Import entire exported levels folder") { importingFolder = true }
+                    Button("Import original PC laboratory (.cml)") { importingCML = true }
                     if let errorMessage {
                         Text(errorMessage).foregroundStyle(.red).font(.caption)
                     }
@@ -56,18 +51,33 @@ struct CMOriginalLevelBrowserView: View {
                         ContentUnavailableView(
                             "No original levels imported",
                             systemImage: "square.stack.3d.up.slash",
-                            description: Text("Export the original CML levels to JSON on your computer, then import the files or their folder here.")
+                            description: Text("Import your original Professor Laboratory .cml file directly, or install a game pack in Original files.")
                         )
                     }
                     ForEach(sorted, id: \.index) { document in
-                        NavigationLink {
-                            levelDetails(document)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("\(document.index). \(document.title)")
-                                Text("\(document.root.objectCount) object nodes · \(document.root.positionedObjectCount) positioned")
-                                    .font(.caption).foregroundStyle(.secondary)
+                        HStack {
+                            // Every authentic imported puzzle enters the SAME
+                            // player-facing 3D scene, not an inspect-only sheet.
+                            NavigationLink {
+                                CMOriginalQuickPlayView(
+                                    document: document, assetDirectory: originalStorage
+                                )
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("\(document.index). \(document.title)")
+                                    Text("\(document.root.objectCount) original objects")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
                             }
+                            .accessibilityIdentifier("cm.original.open-level-\(document.index)")
+                            NavigationLink {
+                                levelDetails(document)
+                            } label: {
+                                Label("Level \(document.index) details", systemImage: "info.circle")
+                                    .labelStyle(.iconOnly)
+                                    .padding(8)
+                            }
+                            .buttonStyle(.borderless)
                         }
                     }
                 }
@@ -106,6 +116,15 @@ struct CMOriginalLevelBrowserView: View {
                     }
                     jsonFiles.sort { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
                     importDocuments(jsonFiles)
+                }
+            }
+            .fileImporter(isPresented: $importingCML,
+                          allowedContentTypes: [UTType(filenameExtension: "cml") ?? .data]) { result in
+                switch result {
+                case .failure(let error):
+                    errorMessage = error.localizedDescription
+                case .success(let url):
+                    importOriginalLaboratory(url)
                 }
             }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.json],
@@ -158,8 +177,8 @@ struct CMOriginalLevelBrowserView: View {
                         if let models = entry.element.models, !models.isEmpty {
                             LabeledContent("3D models", value: models.joined(separator: ", "))
                         }
-                        ForEach(entry.element.fields, id: \.self) { field in
-                            Text(field).font(.caption.monospaced()).textSelection(.enabled)
+                        ForEach(Array(entry.element.fields.enumerated()), id: \.offset) { field in
+                            Text(field.element).font(.caption.monospaced()).textSelection(.enabled)
                         }
                     }
                 }
@@ -173,30 +192,121 @@ struct CMOriginalLevelBrowserView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Original 3D asset readiness") {
-                let names = CMOriginalModelResolver.modelNames(in: document.root)
+                let names = CMOriginalModelResolver.allModelNames(in: document.root)
                 let assets = CMOriginalModelResolver.AssetIndex(directory: originalStorage)
-                let available = names.filter { assets.resolve($0) != nil }
-                let missing = names.filter { assets.resolve($0) == nil }
+                let available = names.filter {
+                    if case .found = assets.resolution(for: $0) { return true }
+                    return false
+                }
+                let missing = names.filter {
+                    if case .missing = assets.resolution(for: $0) { return true }
+                    return false
+                }
+                let ambiguous = names.filter {
+                    if case .ambiguous = assets.resolution(for: $0) { return true }
+                    return false
+                }
+                let invalid = names.filter {
+                    if case .invalidReference = assets.resolution(for: $0) { return true }
+                    return false
+                }
                 LabeledContent("Referenced original meshes", value: "\(names.count)")
                 LabeledContent("Resolved original UCM files", value: "\(available.count)")
                 LabeledContent("Missing original UCM files", value: "\(missing.count)")
+                LabeledContent("Ambiguous original UCM files", value: "\(ambiguous.count)")
+                LabeledContent("Invalid original model references", value: "\(invalid.count)")
+                if !missing.isEmpty || !ambiguous.isEmpty || !invalid.isEmpty {
+                    let report = [
+                        "Crazy Machines — original 3D asset report",
+                        "Level: \(document.index) — \(document.title)",
+                        "Resolved: \(available.count) / \(names.count)",
+                        "",
+                        "Missing UCM models (\(missing.count)):",
+                        missing.isEmpty ? "(none)" : missing.joined(separator: "\n"),
+                        "",
+                        "Ambiguous UCM models (\(ambiguous.count)):",
+                        ambiguous.isEmpty ? "(none)" : ambiguous.joined(separator: "\n"),
+                        "",
+                        "Invalid original references (\(invalid.count)):",
+                        invalid.isEmpty ? "(none)" : invalid.joined(separator: "\n")
+                    ].joined(separator: "\n")
+                    ShareLink(item: report) {
+                        Label("Share missing-model report", systemImage: "square.and.arrow.up")
+                    }
+                }
                 if !missing.isEmpty {
-                    Text("These are original model references, not substitute objects. Import matching UCM files from your PC installation.")
+                    Text("Import matching original UCM files from your PC installation.")
                         .font(.caption).foregroundStyle(.secondary)
                     ForEach(missing, id: \.self) { name in
                         Text(name).font(.caption.monospaced()).textSelection(.enabled)
                     }
                 }
-            }
-            Section("Assembled original 3D scene") {
-                Button("View original level in 3D") {
-                    assembledScene = AssembledSelection(document: document)
+                if !ambiguous.isEmpty {
+                    Text("Multiple imported UCM files match these names. Remove duplicate basenames before rendering.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    ForEach(ambiguous, id: \.self) { name in
+                        Text(name).font(.caption.monospaced()).textSelection(.enabled)
+                    }
                 }
-                Text("Uses imported UCM meshes and original nested POS/ROT transforms. Missing models are omitted; original materials and physics are not yet supported.")
+                if !invalid.isEmpty {
+                    Text("These original model references contain unsupported paths or names.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    ForEach(invalid, id: \.self) { name in
+                        Text(name).font(.caption.monospaced()).textSelection(.enabled)
+                    }
+                }
+            }
+            Section("Original PC electrical terminals") {
+                let session = CMOriginalGameplaySession(document: document)
+                let terminals = session.originalPowerTerminals
+                let indexed = terminals.filter { $0.originalTerminalNumber != nil }
+                if terminals.isEmpty {
+                    Text("No original tmo_power_plug terminals in this puzzle.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    LabeledContent("Original terminals", value: "\(terminals.count)")
+                    LabeledContent("Numbered VALF terminals", value: "\(indexed.count)")
+                    LabeledContent("Unnumbered PC terminals",
+                                   value: "\(terminals.count - indexed.count)")
+                    LabeledContent("Terminal IDs",
+                                   value: session.powerTerminalNumbersAreUnique
+                                     ? "Unique in this level" : "Duplicate values")
+                    ForEach(terminals, id: \.plugObjectID) { terminal in
+                        DisclosureGroup(
+                            terminal.originalTerminalNumber.map { "Terminal #\($0)" }
+                                ?? "Unnumbered terminal"
+                        ) {
+                            LabeledContent(
+                                "Original device",
+                                value: terminal.deviceType ?? "Unresolved PC owner"
+                            )
+                            if let location = terminal.originalRelativePosition {
+                                Text("POSREL " + location.map {
+                                    String(format: "%.5f", $0)
+                                }.joined(separator: ", "))
+                                    .font(.caption.monospaced())
+                                    .textSelection(.enabled)
+                            }
+                        }
+                    }
+                    Text("The original VALF number identifies a plug, not its wire, voltage, or switch state. The original electrical wiring has not yet been decoded; this screen does not invent connections.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Section("Play original 3D level") {
+                NavigationLink {
+                    CMOriginalQuickPlayView(
+                        document: document, assetDirectory: originalStorage
+                    )
+                } label: {
+                    Label("Open original level \(document.index)", systemImage: "play.fill")
+                }
+                Text("Original geometry and CML transforms, with editable UNLOCKED parts. The physics solver is still experimental.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Original 3D models") {
-                let names = CMOriginalModelResolver.modelNames(in: document.root)
+                let names = CMOriginalModelResolver.allModelNames(in: document.root)
                 let assets = CMOriginalModelResolver.AssetIndex(directory: originalStorage)
                 if names.isEmpty {
                     Text("No 3DO references in this level")
@@ -207,13 +317,25 @@ struct CMOriginalLevelBrowserView: View {
                             previewModel = ModelPreviewSelection(name: name, url: url)
                         }
                     } else {
-                        Text(name + " — import matching .ucm file")
-                            .foregroundStyle(.secondary)
+                        switch assets.resolution(for: name) {
+                        case .missing:
+                            Text(name + " — import matching .ucm file")
+                                .foregroundStyle(.secondary)
+                        case .ambiguous:
+                            Text(name + " — duplicate UCM filenames; resolve ambiguity")
+                                .foregroundStyle(.secondary)
+                        case .invalidReference:
+                            Text(name + " — invalid original model reference")
+                                .foregroundStyle(.secondary)
+                        case .found:
+                            EmptyView()
+                        }
                     }
                 }
             }
             Section("Scene hierarchy") {
-                OutlineGroup([document.root], children: \.outlineChildren) { node in
+                OutlineGroup([document.outlineRoot], children: \.children) { entry in
+                    let node = entry.node
                     VStack(alignment: .leading, spacing: 3) {
                         Text(node.name).font(.system(.subheadline, design: .monospaced))
                         if let position = node.position {
@@ -251,50 +373,6 @@ struct CMOriginalLevelBrowserView: View {
             }
         }
         .navigationTitle("Level \(document.index)")
-        .sheet(item: $assembledScene) { selection in
-            NavigationStack {
-                VStack(spacing: 0) {
-                    Toggle("Experimental collisions (not original game physics)", isOn: $physicsExperimentEnabled)
-                        .font(.caption)
-                        .padding(.horizontal)
-                        .padding(.vertical, 8)
-                        .accessibilityIdentifier("cm.original.experimental-physics")
-                    if physicsExperimentEnabled {
-                        HStack {
-                            Button(physicsExperimentPaused ? "Resume simulation" : "Pause simulation") {
-                                physicsExperimentPaused.toggle()
-                            }
-                            .accessibilityIdentifier("cm.original.physics-pause")
-                            Spacer()
-                            Text("Approximate UCM collisions")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal)
-                        .padding(.bottom, 8)
-                    }
-                    CMOriginalAssembledSceneView(
-                        document: selection.document,
-                        assetDirectory: originalStorage,
-                        experimentalPhysics: physicsExperimentEnabled,
-                        physicsPaused: physicsExperimentPaused
-                    )
-                    // Rebuild the original scene when changing simulation
-                    // modes; otherwise SceneKit bodies are never created.
-                    .id("\(selection.id)-physics-\(physicsExperimentEnabled)")
-                }
-                .navigationTitle("Level \(selection.document.index) · 3D")
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Close") {
-                            physicsExperimentEnabled = false
-                            physicsExperimentPaused = false
-                            assembledScene = nil
-                        }
-                    }
-                }
-            }
-        }
         .sheet(item: $previewModel) { selection in
             NavigationStack {
                 CMOriginalModelPreview(modelURL: selection.url)
@@ -356,6 +434,36 @@ struct CMOriginalLevelBrowserView: View {
         }
         visit(root)
         return result
+    }
+
+    /// Native CML import shares the same verified installer as Game files.
+    /// Re-importing the same laboratory is idempotent; incompatible on-device
+    /// level numbers are preserved rather than silently overwritten.
+    private func importOriginalLaboratory(_ url: URL) {
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+        do {
+            let attributes = try url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+            guard attributes.isRegularFile == true,
+                  let size = attributes.fileSize,
+                  size >= 256, size <= 32 * 1024 * 1024 else {
+                errorMessage = "Original CML file has an invalid size"
+                return
+            }
+            let data = try Data(contentsOf: url)
+            let result = try CMOriginalLaboratorySceneInstaller.install(
+                data, into: sceneStorage
+            ) { original in
+                SHA256.hash(data: original)
+                    .map { String(format: "%02x", $0) }.joined()
+            }
+            reloadSavedScenes()
+            errorMessage = result.total == 0
+                ? "This original laboratory contains no puzzles"
+                : "Imported \(result.installed) original PC puzzles (\(result.existing) already installed)"
+        } catch {
+            errorMessage = "Unable to import original CML: \(error.localizedDescription)"
+        }
     }
 
     private func reloadSavedScenes() {

@@ -1,11 +1,13 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import CryptoKit
 
 /// Imports user-owned original Windows game resources into the iOS app sandbox.
-/// The separate Original levels tab displays locally exported original scenes; physics is not yet playable.
+/// Imported PC laboratories are decoded into the same original levels used by Play.
 struct CMOriginalResourcesView: View {
     @State private var importing = false
     @State private var importingFolder = false
+    @State private var importingPack = false
     @State private var selectedCML: ResourceEntry?
     @State private var selectedProbe: CMOriginalCMLProbe?
     @State private var entries: [ResourceEntry] = []
@@ -24,16 +26,25 @@ struct CMOriginalResourcesView: View {
             .appendingPathComponent("OriginalGame", isDirectory: true)
     }
 
+    private var sceneStorage: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("OriginalScenes", isDirectory: true)
+    }
+
     var body: some View {
         NavigationStack {
             List {
                 Section {
                     Text("Original Crazy Machines resources")
                         .font(.headline)
-                    Text("Original CML decoding and private scene export are available through the project tools. Import the exported JSON scenes in Original levels; original physics is not playable yet.")
+                    Text("Install your private CrazyMachines_Original_102Levels.cmassets pack to load 160 original models, 181 textures and all 102 original level scenes at once. Original game physics is still being reconstructed.")
                         .font(.caption)
+                    Button("Install original game pack (102 levels)") { importingPack = true }
+                        .accessibilityIdentifier("cm.original.import-pack")
                     Button("Import original game files") { importing = true }
                     Button("Import entire extracted models folder") { importingFolder = true }
+                    Button("Decode levels from saved CML files") { decodeSavedLaboratories() }
+                        .accessibilityIdentifier("cm.original.decode-saved-cml")
                     Text(message).font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Imported files (\(entries.count))") {
@@ -77,6 +88,27 @@ struct CMOriginalResourcesView: View {
             }
 
             .onAppear(perform: reload)
+            .fileImporter(isPresented: $importingPack, allowedContentTypes: [.item]) { result in
+                switch result {
+                case .success(let url):
+                    let access = url.startAccessingSecurityScopedResource()
+                    defer { if access { url.stopAccessingSecurityScopedResource() } }
+                    guard url.pathExtension.lowercased() == "cmassets" else {
+                        message = "Select the CrazyMachines_Original_102Levels.cmassets file."
+                        return
+                    }
+                    do {
+                        let data = try Data(contentsOf: url, options: .mappedIfSafe)
+                        let report = try CMOriginalAssetPackImporter.install(data)
+                        reload()
+                        message = "Installed \(report.installed) files (\(report.existing) already present). \(report.models) original 3D models, \(report.textures) textures and \(report.levels) authentic scenes. Open Play to view levels."
+                    } catch {
+                        message = "Original game pack import failed: \(error.localizedDescription)"
+                    }
+                case .failure(let error):
+                    message = "Original game pack selection failed: \(error.localizedDescription)"
+                }
+            }
             .fileImporter(isPresented: $importingFolder, allowedContentTypes: [.folder]) { result in
                 switch result {
                 case .success(let folder):
@@ -147,6 +179,54 @@ struct CMOriginalResourcesView: View {
         importFiles(files)
     }
 
+    /// Make the original laboratory playable in the level browser after
+    /// importing it from Game files, or when restoring a previously saved CML.
+    private func decodeLaboratories(_ urls: [URL]) -> (installed: Int, total: Int, errors: [String]) {
+        var installed = 0
+        var total = 0
+        var errors: [String] = []
+        for url in urls {
+            do {
+                let attributes = try url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+                guard attributes.isRegularFile == true,
+                      let size = attributes.fileSize,
+                      size >= 256, size <= 32 * 1024 * 1024 else {
+                    throw CMOriginalLaboratorySceneInstaller.ImportError.invalid(
+                        "Invalid CML file size"
+                    )
+                }
+                let contents = try Data(contentsOf: url)
+                let result = try CMOriginalLaboratorySceneInstaller.install(
+                    contents, into: sceneStorage
+                ) { sceneBytes in
+                    SHA256.hash(data: sceneBytes)
+                        .map { String(format: "%02x", $0) }.joined()
+                }
+                installed += result.installed
+                total += result.total
+            } catch {
+                errors.append("\(url.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+        return (installed, total, errors)
+    }
+
+    private func decodeSavedLaboratories() {
+        let stored = (try? FileManager.default.contentsOfDirectory(
+            at: storage, includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        )) ?? []
+        let cml = stored.filter { $0.pathExtension.lowercased() == "cml" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        guard !cml.isEmpty else {
+            message = "No original CML laboratory found. Import the extracted PC game files first."
+            return
+        }
+        let result = decodeLaboratories(cml)
+        message = "Decoded \(result.installed) new level scenes (\(result.total) records checked)." +
+            (result.errors.isEmpty ? "" : " Errors: \(result.errors.joined(separator: "; "))")
+    }
+
     private func importFiles(_ urls: [URL]) {
         do {
             try FileManager.default.createDirectory(at: storage, withIntermediateDirectories: true)
@@ -156,6 +236,7 @@ struct CMOriginalResourcesView: View {
         }
         var imported = 0
         var rejected = 0
+        var importedLaboratories: [URL] = []
         for url in urls {
             let access = url.startAccessingSecurityScopedResource()
             defer { if access { url.stopAccessingSecurityScopedResource() } }
@@ -181,17 +262,24 @@ struct CMOriginalResourcesView: View {
                 let destination = storage.appendingPathComponent(url.lastPathComponent)
                 // Never silently overwrite a different original file with the same name.
                 if FileManager.default.fileExists(atPath: destination.path) {
-                    if (try? Data(contentsOf: destination)) == data { continue }
+                    if (try? Data(contentsOf: destination)) == data {
+                        if ext == "cml" { importedLaboratories.append(destination) }
+                        continue
+                    }
                     rejected += 1
                     continue
                 }
                 try data.write(to: destination, options: .atomic)
+                if ext == "cml" { importedLaboratories.append(destination) }
                 imported += 1
             } catch {
                 rejected += 1
             }
         }
         reload()
-        message = "Imported \(imported) original files; skipped \(rejected)."
+        let scenes = decodeLaboratories(importedLaboratories)
+        message = "Imported \(imported) original files; skipped \(rejected). " +
+            "Decoded \(scenes.installed) new level scenes (\(scenes.total) records checked)." +
+            (scenes.errors.isEmpty ? "" : " CML errors: \(scenes.errors.joined(separator: "; "))")
     }
 }
