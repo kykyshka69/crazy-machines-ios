@@ -47,6 +47,8 @@ private struct CMGameHomeView: View {
     @State private var originalStartButton: UIImage?
     @State private var hasOriginalStartscreenMeshes = false
     @State private var importedOriginalAssetCount = 0
+    @State private var bundledOriginalAssetsChecked = false
+    @State private var bundledAssetError: String?
 
     private var assetDirectory: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -85,6 +87,31 @@ private struct CMGameHomeView: View {
             || index.resolve("startscreen_chalkboard_frame") != nil
         originalBackdrop = image("startscreen_chalk")
         originalStartButton = image("startscreen_note_start")
+    }
+
+    /// A private local iOS build can include the user's original asset pack.
+    /// It is imported once into the same sandbox as the document picker.
+    /// The public source repository never contains copyrighted game files.
+    private func installBundledAssetsIfNeeded() {
+        guard !bundledOriginalAssetsChecked else { return }
+        bundledOriginalAssetsChecked = true
+        guard let pack = Bundle.main.url(
+            forResource: "CrazyMachines_Original_102Levels",
+            withExtension: "cmassets"
+        ) else { return }
+
+        let support = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let firstScene = support.appendingPathComponent("OriginalScenes/level-001.json")
+        if FileManager.default.fileExists(atPath: firstScene.path) {
+            return
+        }
+        do {
+            let data = try Data(contentsOf: pack, options: .mappedIfSafe)
+            _ = try CMOriginalAssetPackImporter.install(data)
+        } catch {
+            bundledAssetError = "Bundled original resources could not be installed: \(error.localizedDescription)"
+        }
     }
 
     var body: some View {
@@ -158,6 +185,12 @@ private struct CMGameHomeView: View {
                     .tint(.white)
                     .accessibilityIdentifier("cm.menu.files")
                     Spacer()
+                    if let bundledAssetError {
+                        Text(bundledAssetError)
+                            .font(.caption2)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                    }
                     Text(importedOriginalAssetCount == 0
                          ? "Original PC resources are not installed in this iPhone app. Open Game files and import the extracted game folder."
                          : "Imported original assets: \(importedOriginalAssetCount). Original startscreen composition is still being reconstructed.")
@@ -168,7 +201,10 @@ private struct CMGameHomeView: View {
                 .padding(28)
                 .frame(maxWidth: 520)
             }
-            .onAppear(perform: loadOriginalMenuArt)
+            .onAppear {
+                installBundledAssetsIfNeeded()
+                loadOriginalMenuArt()
+            }
             .onChange(of: showResources) { _, presented in
                 if !presented { loadOriginalMenuArt() }
             }
