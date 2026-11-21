@@ -40,6 +40,17 @@ struct CMOriginalQuickPlayView: View {
         return roles
     }
 
+    /// Identifies parts the original PC level explicitly lets the player
+    /// rearrange. This is a recovered CML rule, not a guessed object category.
+    private var originalEditablePartCount: Int {
+        func count(_ node: CMOriginalSceneDocument.Node) -> Int {
+            let own = node.name.hasPrefix("tmo_")
+                && node.fields.contains("UNLOCKED 1") ? 1 : 0
+            return own + node.children.reduce(0) { $0 + count($1) }
+        }
+        return count(document.root)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
@@ -91,9 +102,14 @@ struct CMOriginalQuickPlayView: View {
 
             HStack(spacing: 10) {
                 if !experimentalPhysics {
-                    Label("Tap to select · drag · twist to rotate · pinch to zoom.", systemImage: "hand.draw")
-                        .font(.caption.weight(.medium))
-                        .accessibilityIdentifier("cm.original.quickplay-arrange-hint")
+                    VStack(alignment: .leading, spacing: 3) {
+                        Label("\(originalEditablePartCount) movable PC puzzle pieces", systemImage: "hand.draw")
+                            .font(.caption.weight(.medium))
+                        Text("Tap to select · drag to move · twist to rotate · pinch to zoom")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityIdentifier("cm.original.quickplay-arrange-hint")
                 } else {
                     Text("Stop physics to return to object placement.")
                         .font(.caption)
