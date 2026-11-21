@@ -127,6 +127,11 @@ enum CMOriginalModelResolver {
                 // The named wall/ball textures are preserved by the renderer.
                 "to_ball_tennis": "ball",
                 "to_ball_billard": "ball",
+                // The PC archive contains heat_cannon_ball.tga but no
+                // heat_cannon_ball.ucm. Reuse the game's own generic ball
+                // geometry for this projectile, respecting the SCAL 0.35
+                // authored by the original scene's 3DO reference.
+                "to_heat_cannon_ball": "ball",
                 "to_wall_concrete": "wall",
                 "to_wall_cork": "wall",
                 "to_wall_bricks": "wall",
