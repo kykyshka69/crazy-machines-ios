@@ -650,8 +650,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             let marker = SCNNode(geometry: SCNSphere(radius: 0.08))
             marker.name = "manual-hinge-anchor"
             marker.geometry?.firstMaterial?.diffuse.contents = UIColor.systemGreen
-            marker.position = anchor
-            scene.rootNode.addChildNode(marker)
+            // The diagnostic marker is visual only. Parent it to the first
+            // rigid body so it follows a moving hinge instead of remaining
+            // frozen at its creation-time world coordinate.
+            marker.position = firstPhysical.convertPosition(anchor, from: nil)
+            firstPhysical.addChildNode(marker)
             manualHinges.append((joint: hinge, marker: marker))
         }
 
