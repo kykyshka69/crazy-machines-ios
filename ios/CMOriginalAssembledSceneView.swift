@@ -274,6 +274,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // parentID, not through a guessed nearest wheel or motor.
         private var originalTypesByID: [String: String] = [:]
         private var conveyorWheelNodes: [String: SCNNode] = [:]
+        // The exact original UCM belt surface is offset from its housing.
+        private var conveyorBeltNodes: [String: SCNNode] = [:]
         private var conveyorBeltMaterials: [String: SCNMaterial] = [:]
         private var conveyorTextureOffsets: [String: Float] = [:]
         private var switchLeverNodes: [String: SCNNode] = [:]
@@ -407,6 +409,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             physicsNodesByObjectID.removeAll()
             appliedPhysicsRoles.removeAll()
             conveyorWheelNodes.removeAll()
+            conveyorBeltNodes.removeAll()
             conveyorBeltMaterials.removeAll()
             conveyorTextureOffsets.removeAll()
             switchLeverNodes.removeAll()
@@ -460,6 +463,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                    let ownerID = mesh.originalObjectID,
                    let material = mesh.geometry?.firstMaterial {
                     self.conveyorBeltMaterials[ownerID] = material
+                    self.conveyorBeltNodes[ownerID] = mesh
                     material.diffuse.wrapS = .repeat
                 }
                 guard let body = node.physicsBody,
@@ -626,21 +630,19 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                   let aID = owningOriginalObjectID(for: first),
                   let bID = owningOriginalObjectID(for: second) else { return }
 
-            let belt: SCNNode
             let object: SCNNode
             let conveyorID: String
             if originalTypesByID[aID] == "tmo_belt_conveyer" {
-                belt = first
                 object = second
                 conveyorID = aID
             } else if originalTypesByID[bID] == "tmo_belt_conveyer" {
-                belt = second
                 object = first
                 conveyorID = bID
             } else {
                 return
             }
             guard let wheel = conveyorWheelNodes[conveyorID],
+                  let beltMesh = conveyorBeltNodes[conveyorID],
                   let wheelBody = wheel.physicsBody,
                   wheelBody.type == .dynamic,
                   let objectBody = object.physicsBody,
@@ -651,40 +653,24 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                   !CMOriginalAxleParts.rotatingKinds.contains(kind)
             else { return }
 
-            // The authored PC belt runs horizontally in its local XY plane.
-            // Only objects on its upper surface are transported. Convert the
-            // world contact position back to the original belt coordinates.
-            let local = belt.convertPosition(contact.contactPoint, from: nil)
-            guard local.x.isFinite, local.y.isFinite,
-                  abs(local.x) <= 0.65, local.y >= 0.0,
-                  local.y <= 0.23 else { return }
-
+            // The physical root represents the compound housing, but actual
+            // contact must be tested in the belt's original 3DO coordinates.
+            // This preserves nested POSREL/ROTREL and mirrored SCAL values.
+            let local = beltMesh.convertPosition(contact.contactPoint, from: nil)
+            let (low, high) = beltMesh.boundingBox
+            let tangent = beltMesh.convertVector(SCNVector3(1, 0, 0), to: nil)
             let spin = wheelBody.angularVelocity
-            let angularSpeed = Float(spin.z >= 0 ? 1 : -1) * spin.w
-            guard angularSpeed.isFinite, abs(angularSpeed) > 0.05 else { return }
-
-            // The top point of a positive-Z wheel moves toward local -X.
-            // The original conveyor's mirrored SCAL -1 is respected by
-            // converting its local tangent into world-space coordinates.
-            let tangent = belt.convertVector(SCNVector3(1, 0, 0), to: nil)
-            let length = sqrt(tangent.x * tangent.x + tangent.y * tangent.y)
-            guard length.isFinite, length > 0.00001 else { return }
-            let tx = tangent.x / length, ty = tangent.y / length
-            let beltSpeed = max(-2.0, min(2.0, -angularSpeed * 0.09))
             let velocity = objectBody.velocity
-            let objectSpeed = velocity.x * tx + velocity.y * ty
-            let difference = beltSpeed - objectSpeed
-            guard difference.isFinite, abs(difference) > 0.01 else { return }
-
-            // Viscous tangential force, limited by available speed. This is
-            // an approximate SceneKit material interaction, not recovered
-            // Windows friction coefficients or electric motor torque.
-            let force = max(-8.0, min(8.0, difference * 3.0))
-                * Float(max(0.05, objectBody.mass))
-            objectBody.applyForce(
-                SCNVector3(tx * force, ty * force, 0),
-                asImpulse: false
-            )
+            guard let force = CMOriginalConveyorContact.surfaceForce(
+                localX: local.x, localY: local.y,
+                beltMinX: low.x, beltMaxX: high.x, beltTopY: high.y,
+                wheelAngularSpeed: spin.z * spin.w,
+                tangentX: tangent.x, tangentY: tangent.y,
+                objectVelocityX: velocity.x, objectVelocityY: velocity.y,
+                mass: Float(objectBody.mass)
+            ) else { return }
+            objectBody.applyForce(SCNVector3(force.x, force.y, 0),
+                                  asImpulse: false)
         }
 
         func physicsWorld(_ world: SCNPhysicsWorld, didUpdate contact: SCNPhysicsContact) {
@@ -697,6 +683,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
         func physicsWorld(_ world: SCNPhysicsWorld, didBegin contact: SCNPhysicsContact) {
             guard physicsEnabled else { return }
+            // A pending SceneKit callback may arrive immediately after Pause.
+            // Do not move a body or credit a contact outside running phase.
+            sessionLock.lock()
+            let running = session?.phase == .running
+            sessionLock.unlock()
+            guard running else { return }
             // First contact often lasts just one physics frame. Apply the
             // same authentic wheel-driven surface transfer immediately.
             transferConveyorMotion(contact)

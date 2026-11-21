@@ -34,5 +34,8 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalSceneTextParser.swift tes
 # Validate off-origin UCM sphere and zone sensor proxies without an Apple SDK.
 swiftc ios/CMOriginalCollisionProxy.swift tests/OriginalCollisionProxySmoke.swift -o "$tmp/original-collision-proxies"
 "$tmp/original-collision-proxies"
+# Portable regression for genuine PC conveyor surface coordinates.
+swiftc ios/CMOriginalConveyorContact.swift tests/OriginalConveyorContactSmoke.swift -o "$tmp/original-conveyor"
+"$tmp/original-conveyor"
 python3 -m unittest discover -s tools -p 'test_*.py'
 echo "Portable checks passed. iOS simulator build still requires Xcode/macOS."
