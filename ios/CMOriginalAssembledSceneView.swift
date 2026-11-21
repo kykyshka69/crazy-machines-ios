@@ -2040,7 +2040,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // rasterizes a UCM mesh. Constant orange illumination avoids false
         // black frames caused by imported/synthetic face normals or lighting
         // settings; this branch does not affect ANY authentic PC material.
-        if modelURL.deletingPathExtension().lastPathComponent.lowercased()
+        if url.deletingPathExtension().lastPathComponent.lowercased()
             == "cm_ci_triangle" {
             material.lightingModel = .constant
             material.diffuse.contents = UIColor.orange
