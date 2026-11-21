@@ -33,6 +33,28 @@ public struct CMOriginalGameplaySession {
     public private(set) var activations: [Activation] = []
     public private(set) var activatedObjectIDs: Set<String> = []
 
+    /// Player-operated positions of genuine original PC switch objects.
+    /// A switch being ON does not imply current, wires or motor power:
+    /// the original electrical network has not yet been recovered.
+    public private(set) var originalSwitchStates: [String: Bool] = [:]
+
+    /// Toggle an imported PC switch independently of experimental reactions.
+    /// Return nil for an unknown object, a non-switch or a paused/stopped run.
+    /// This permits multiple switches to retain separate positions.
+    @discardableResult
+    public mutating func toggleOriginalSwitch(_ id: String) -> Bool? {
+        guard phase == .running,
+              objects.contains(where: { $0.id == id && $0.type == "tmo_power_switch" })
+        else { return nil }
+        let isOn = !(originalSwitchStates[id] ?? false)
+        if isOn {
+            originalSwitchStates[id] = true
+        } else {
+            originalSwitchStates.removeValue(forKey: id)
+        }
+        return isOn
+    }
+
     public var contactedGoalObjectIDs: Set<String> {
         let goals = Set(annotatedGoalObjects.map(\.id))
         return activatedObjectIDs.intersection(goals)
@@ -446,6 +468,7 @@ public struct CMOriginalGameplaySession {
     public mutating func start() {
         guard phase == .ready || phase == .stopped else { return }
         elapsedSimulationTime = 0
+        originalSwitchStates.removeAll()
         recentContacts.removeAll()
         contactCounts.removeAll()
         activations.removeAll()
@@ -477,6 +500,7 @@ public struct CMOriginalGameplaySession {
 
     public mutating func reset() {
         elapsedSimulationTime = 0
+        originalSwitchStates.removeAll()
         recentContacts.removeAll()
         contactCounts.removeAll()
         activations.removeAll()
