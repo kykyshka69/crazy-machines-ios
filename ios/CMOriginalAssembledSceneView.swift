@@ -1276,6 +1276,30 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 body.contactTestBitMask = 1
                 root.physicsBody = body
             }
+
+            // Recover the original seesaw's central pin. In PC level data,
+            // tmo_rope_seesaw_lever is a child of tmo_rope_seesaw and its
+            // POSREL is exactly (0, 0, 0). The authentic rope_seesaw.ucm
+            // geometry is centered around this pivot. The previous code
+            // froze the beam, so balls could never tip it.
+            //
+            // The single-body SceneKit hinge pins a body to world space.
+            // Its axis and anchor are LOCAL to the lever's own node, not
+            // camera-space or world-space coordinates. The parent retains
+            // the original authored world position, even if an UNLOCKED
+            // seesaw was rearranged before starting the experiment.
+            for (id, kind) in objectTypes where kind == "tmo_rope_seesaw_lever" {
+                guard let lever = objectRoots[id],
+                      let body = lever.physicsBody,
+                      let base = lever.parent as? CMOriginalPhysicsOwnerNode,
+                      base.originalObjectID != nil else { continue }
+                let pin = SCNPhysicsHingeJoint(
+                    body: body,
+                    axis: SCNVector3(0, 0, 1),
+                    anchor: SCNVector3Zero
+                )
+                scene.physicsWorld.addBehavior(pin)
+            }
         }
         // Frame actual transformed mesh bounds, not just object origins.
         // A long board can extend far beyond its POS coordinate.
