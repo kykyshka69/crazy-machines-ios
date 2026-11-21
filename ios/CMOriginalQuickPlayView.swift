@@ -19,6 +19,15 @@ struct CMOriginalQuickPlayView: View {
     @State private var sceneRevision = UUID()
     @State private var showAllLevels = false
     @State private var zoneContacts: [String: Int] = [:]
+    @State private var matchedZoneLinks = Set<String>()
+
+    // Reconstruct the PC's explicit CONNECTED_TO references to tmo_zone.
+    // The original 0-based indices refer to level_elements.children,
+    // not the nested SceneKit hierarchy. GOAL is not a victory rule.
+    private var originalZoneConnections: [CMOriginalGameplaySession.OriginalConnection] {
+        CMOriginalGameplaySession(document: document).originalConnections
+            .filter { $0.targetType == "tmo_zone" }
+    }
 
     /// An explicit experimental starting configuration for the imported PC
     /// scene. SceneKit physics is not the original Windows solver. The roles
@@ -97,6 +106,7 @@ struct CMOriginalQuickPlayView: View {
         experimentalPhysics = false
         physicsPaused = false
         zoneContacts.removeAll()
+        matchedZoneLinks.removeAll()
         sceneRevision = UUID()
     }
 
@@ -142,6 +152,16 @@ struct CMOriginalQuickPlayView: View {
                 onOriginalZoneContact: { type in
                     // Callback is posted to the main thread by SceneKit bridge.
                     zoneContacts[type, default: 0] += 1
+                },
+                onLinkedZoneContact: { sourceID, zoneID in
+                    // Only a contact with the source object's OWN original
+                    // CONNECTED_TO zone counts as a recovered objective.
+                    let isOriginalTarget = originalZoneConnections.contains {
+                        $0.sourceID == sourceID && $0.targetID == zoneID
+                    }
+                    if isOriginalTarget {
+                        matchedZoneLinks.insert(sourceID + "|" + zoneID)
+                    }
                 }
             )
             .id(sceneRevision)
@@ -153,6 +173,7 @@ struct CMOriginalQuickPlayView: View {
                     .onChange(of: experimentalPhysics) { _, _ in
                         physicsPaused = false
                         zoneContacts.removeAll()
+                        matchedZoneLinks.removeAll()
                         // Rebuild bodies only after changing scene physics mode.
                         sceneRevision = UUID()
                     }
@@ -166,6 +187,7 @@ struct CMOriginalQuickPlayView: View {
                 Button("Restart") {
                     physicsPaused = false
                     zoneContacts.removeAll()
+                        matchedZoneLinks.removeAll()
                     sceneRevision = UUID()
                 }
                 .accessibilityIdentifier("cm.original.quickplay-reset")
@@ -198,6 +220,7 @@ struct CMOriginalQuickPlayView: View {
                     experimentalPhysics = false
                     physicsPaused = false
                     zoneContacts.removeAll()
+                        matchedZoneLinks.removeAll()
                     sceneRevision = UUID()
                 }
                 .font(.caption.weight(.semibold))
@@ -215,6 +238,20 @@ struct CMOriginalQuickPlayView: View {
                 }
                 .font(.caption.weight(.medium))
                 .padding(.horizontal, 14)
+                if !originalZoneConnections.isEmpty {
+                    let total = originalZoneConnections.count
+                    let recorded = matchedZoneLinks.count
+                    Text("Original linked zone targets: \(recorded) / \(total)")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 14)
+                        .accessibilityIdentifier("cm.original.linked-zone-progress")
+                    if recorded == total {
+                        Text("Every explicitly linked object contacted its own zone. Original Windows completion rules are still under reconstruction.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 14)
+                    }
+                }
                 if !zoneContacts.isEmpty {
                     // Report the actual object kinds seen by the original
                     // capture-zone sensor, not an invented win condition.
