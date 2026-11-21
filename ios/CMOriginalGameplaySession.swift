@@ -276,9 +276,22 @@ public struct CMOriginalGameplaySession {
         return true
     }
 
+    /// Exact object-to-object reference from the original PC level field
+    /// CONNECTED_TO N. N is a zero-based index into level_elements.children,
+    /// NOT into the flattened scene hierarchy or the physics body array.
+    /// It describes an original link but does not, by itself, prove victory.
+    public struct OriginalConnection: Equatable {
+        public let sourceID: String
+        public let sourceType: String
+        public let targetID: String
+        public let targetType: String
+        public let originalTargetIndex: Int
+    }
+
     public let levelIndex: Int
     public let sceneSHA256: String
     public let objects: [Object]
+    public let originalConnections: [OriginalConnection]
     private let validObjectIDs: Set<String>
     public private(set) var phase: Phase = .ready
     public private(set) var elapsedSimulationTime: TimeInterval = 0
@@ -288,8 +301,11 @@ public struct CMOriginalGameplaySession {
         sceneSHA256 = document.sceneSHA256
         var collected: [Object] = []
         var ordinal = 0
+        var elementObjectIDs: [Int: String] = [:]
+        var pendingConnections: [(source: String, targetIndex: Int)] = []
 
-        func visit(_ node: CMOriginalSceneDocument.Node, parentObjectID: String?) {
+        func visit(_ node: CMOriginalSceneDocument.Node,
+                   parentObjectID: String?, elementIndex: Int? = nil) {
             var owner = parentObjectID
             if node.name.hasPrefix("tmo_") {
                 // Preorder indices are stable for a given exported scene and
@@ -297,6 +313,14 @@ public struct CMOriginalGameplaySession {
                 let id = "object-\(ordinal)"
                 ordinal += 1
                 owner = id
+                if let elementIndex {
+                    elementObjectIDs[elementIndex] = id
+                }
+                for raw in node.originalFieldValues["CONNECTED_TO"] ?? [] {
+                    if let index = Int(raw), index >= 0 {
+                        pendingConnections.append((source: id, targetIndex: index))
+                    }
+                }
                 // Preserve every original 3DO belonging to this object,
                 // including models below helper transforms in older exports.
                 // A nested tmo_* starts a different original object.
@@ -328,11 +352,31 @@ public struct CMOriginalGameplaySession {
                     parentID: parentObjectID
                 ))
             }
-            for child in node.children { visit(child, parentObjectID: owner) }
+            if node.name == "level_elements" {
+                for (index, child) in node.children.enumerated() {
+                    visit(child, parentObjectID: owner, elementIndex: index)
+                }
+            } else {
+                for child in node.children {
+                    visit(child, parentObjectID: owner)
+                }
+            }
         }
         visit(document.root, parentObjectID: nil)
         objects = collected
         validObjectIDs = Set(collected.map(\.id))
+        let types = Dictionary(uniqueKeysWithValues:
+            collected.map { ($0.id, $0.type) })
+        originalConnections = pendingConnections.compactMap { link in
+            guard let targetID = elementObjectIDs[link.targetIndex],
+                  let sourceType = types[link.source],
+                  let targetType = types[targetID] else { return nil }
+            return OriginalConnection(
+                sourceID: link.source, sourceType: sourceType,
+                targetID: targetID, targetType: targetType,
+                originalTargetIndex: link.targetIndex
+            )
+        }
     }
 
     public var annotatedGoalObjects: [Object] {
