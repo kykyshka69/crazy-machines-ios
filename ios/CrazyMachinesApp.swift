@@ -17,38 +17,43 @@ private struct CMGameHomeView: View {
     @State private var showLevels = false
     @State private var showResources = false
     @State private var originalBackdrop: UIImage?
+    @State private var originalStartButton: UIImage?
+    @State private var originalSelectButton: UIImage?
 
     private var assetDirectory: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("OriginalGame", isDirectory: true)
     }
 
-    private func loadOriginalBackdrop() {
-        // Use only an actual imported PC menu/background asset. Never
-        // present a guessed gameplay texture as the original title screen.
-        let accepted = Set(["menu", "mainmenu", "main_menu", "menu_background",
-                            "menubackground", "title", "title_screen", "titlescreen"])
+    /// These filenames are from the audited original PC texture inventory.
+    /// The PC startscreen is a 3D scene, so these are genuine menu surfaces,
+    /// not a fabricated full-screen image of the original scene.
+    private func loadOriginalMenuArt() {
         let files = (try? FileManager.default.contentsOfDirectory(
             at: assetDirectory, includingPropertiesForKeys: [.isRegularFileKey],
             options: [.skipsHiddenFiles]
         )) ?? []
-        for url in files.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-            guard url.pathExtension.lowercased() == "tga",
-                  accepted.contains(url.deletingPathExtension().lastPathComponent.lowercased()),
-                  let data = try? Data(contentsOf: url),
+        func image(_ name: String) -> UIImage? {
+            let matches = files.filter {
+                $0.pathExtension.lowercased() == "tga"
+                    && $0.deletingPathExtension().lastPathComponent.lowercased() == name
+            }
+            guard matches.count == 1,
+                  let data = try? Data(contentsOf: matches[0]),
                   let tga = try? CMTGATexture(data: data),
                   let provider = CGDataProvider(data: tga.rgba as CFData),
                   let space = CGColorSpace(name: CGColorSpace.sRGB),
-                  let image = CGImage(width: tga.width, height: tga.height,
-                                      bitsPerComponent: 8, bitsPerPixel: 32,
-                                      bytesPerRow: tga.width * 4, space: space,
-                                      bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
-                                      provider: provider, decode: nil,
-                                      shouldInterpolate: true, intent: .defaultIntent) else { continue }
-            originalBackdrop = UIImage(cgImage: image)
-            return
+                  let cgImage = CGImage(width: tga.width, height: tga.height,
+                      bitsPerComponent: 8, bitsPerPixel: 32,
+                      bytesPerRow: tga.width * 4, space: space,
+                      bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
+                      provider: provider, decode: nil,
+                      shouldInterpolate: true, intent: .defaultIntent) else { return nil }
+            return UIImage(cgImage: cgImage)
         }
-        originalBackdrop = nil
+        originalBackdrop = image("startscreen_chalk")
+        originalStartButton = image("startscreen_note_start")
+        originalSelectButton = image("startscreen_note_select")
     }
 
     var body: some View {
@@ -88,10 +93,19 @@ private struct CMGameHomeView: View {
                     Button {
                         showLevels = true
                     } label: {
-                        Label("Play", systemImage: "play.fill")
-                            .font(.title3.bold())
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
+                        if let originalStartButton {
+                            Image(uiImage: originalStartButton)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxWidth: 320, maxHeight: 100)
+                                .frame(maxWidth: .infinity)
+                                .accessibilityLabel("Play")
+                        } else {
+                            Label("Play", systemImage: "play.fill")
+                                .font(.title3.bold())
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                        }
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.orange)
@@ -100,9 +114,18 @@ private struct CMGameHomeView: View {
                     Button {
                         showResources = true
                     } label: {
-                        Label("Game files", systemImage: "archivebox")
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
+                        if let originalSelectButton {
+                            Image(uiImage: originalSelectButton)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxWidth: 320, maxHeight: 100)
+                                .frame(maxWidth: .infinity)
+                                .accessibilityLabel("Game files")
+                        } else {
+                            Label("Game files", systemImage: "archivebox")
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                        }
                     }
                     .buttonStyle(.bordered)
                     .tint(.white)
@@ -116,7 +139,7 @@ private struct CMGameHomeView: View {
                 .padding(28)
                 .frame(maxWidth: 520)
             }
-            .onAppear(perform: loadOriginalBackdrop)
+            .onAppear(perform: loadOriginalMenuArt)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $showLevels) {
                 CMOriginalLevelBrowserView()
