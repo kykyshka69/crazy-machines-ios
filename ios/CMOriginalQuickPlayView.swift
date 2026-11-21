@@ -22,6 +22,7 @@ struct CMOriginalQuickPlayView: View {
     @State private var zoneContacts: [String: Int] = [:]
     @State private var matchedZoneLinks = Set<String>()
     @State private var matchedMechanismLinks = Set<String>()
+    @State private var flippedOriginalSwitchIDs = Set<String>()
 
     // Reconstruct the PC's explicit CONNECTED_TO references to tmo_zone.
     // The original 0-based indices refer to level_elements.children,
@@ -99,6 +100,14 @@ struct CMOriginalQuickPlayView: View {
         return count(document.root)
     }
 
+    private var hasOriginalSwitch: Bool {
+        func contains(_ node: CMOriginalSceneDocument.Node) -> Bool {
+            node.name == "tmo_power_switch"
+                || node.children.contains(where: contains)
+        }
+        return contains(document.root)
+    }
+
     private var hasOriginalMotor: Bool {
         func containsMotor(_ node: CMOriginalSceneDocument.Node) -> Bool {
             node.name == "tmo_power_motor_rotor"
@@ -139,6 +148,7 @@ struct CMOriginalQuickPlayView: View {
         zoneContacts.removeAll()
         matchedZoneLinks.removeAll()
         matchedMechanismLinks.removeAll()
+        flippedOriginalSwitchIDs.removeAll()
         sceneRevision = UUID()
     }
 
@@ -203,6 +213,13 @@ struct CMOriginalQuickPlayView: View {
                     }) {
                         matchedMechanismLinks.insert(key)
                     }
+                },
+                onOriginalSwitchToggle: { switchID, isOn in
+                    if isOn {
+                        flippedOriginalSwitchIDs.insert(switchID)
+                    } else {
+                        flippedOriginalSwitchIDs.remove(switchID)
+                    }
                 }
             )
             .id(sceneRevision)
@@ -217,6 +234,7 @@ struct CMOriginalQuickPlayView: View {
                         zoneContacts.removeAll()
                         matchedZoneLinks.removeAll()
                         matchedMechanismLinks.removeAll()
+                        flippedOriginalSwitchIDs.removeAll()
                         // Rebuild bodies only after changing scene physics mode.
                         sceneRevision = UUID()
                     }
@@ -232,12 +250,25 @@ struct CMOriginalQuickPlayView: View {
                     zoneContacts.removeAll()
                     matchedZoneLinks.removeAll()
                     matchedMechanismLinks.removeAll()
+                    flippedOriginalSwitchIDs.removeAll()
                     sceneRevision = UUID()
                 }
                 .accessibilityIdentifier("cm.original.quickplay-reset")
             }
             .padding(.horizontal, 14)
             .padding(.top, 10)
+
+            if experimentalPhysics && hasOriginalSwitch {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Original switch levers flipped: \(flippedOriginalSwitchIDs.count)")
+                        .font(.caption.weight(.medium))
+                        .accessibilityIdentifier("cm.original.switch-toggles")
+                    Text("Tap an original switch in the 3D scene to move its lever. The original wiring is still unknown, so this does not automatically power a motor.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 14)
+            }
 
             if experimentalPhysics && hasOriginalMotor {
                 HStack(spacing: 8) {
