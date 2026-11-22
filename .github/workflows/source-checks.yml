@@ -46,6 +46,15 @@ jobs:
           swiftc ios/CMOriginalCMLProbe.swift tests/CMOriginalCMLProbeSmoke.swift -o /tmp/cm-cml-probe
           /tmp/cm-cml-probe
 
+  native-cml-scenes-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode original CML frame and LZW scenes natively in Swift
+        run: |
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalSHA256.swift ios/CMOriginalCMLDecoder.swift ios/CMOriginalCMLStorage.swift tests/CMOriginalCMLDecoderSmoke.swift -o /tmp/cm-native-cml
+          /tmp/cm-native-cml
+
   portable-swift-runtime:
     runs-on: ubuntu-latest
     steps:
