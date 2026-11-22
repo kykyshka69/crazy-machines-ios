@@ -106,7 +106,8 @@ enum CMOriginalCMLDecoderSmoke {
         precondition(first.root.children[0].goalRaw == "1")
         precondition(first.sceneSHA256 ==
             CMOriginalSHA256.digest(raw).map { String(format: "%02x", $0) }.joined())
-        precondition(try CMOriginalCMLDecoder.decode(syntheticLab(recordCount: 0)).isEmpty)
+        let emptyLaboratory = try CMOriginalCMLDecoder.decode(syntheticLab(recordCount: 0))
+        precondition(emptyLaboratory.isEmpty)
 
         var corrupted = Array(lab)
         corrupted[0] ^= 0x80
