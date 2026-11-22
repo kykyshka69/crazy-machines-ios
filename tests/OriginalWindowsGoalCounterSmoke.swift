@@ -72,8 +72,9 @@ struct OriginalWindowsGoalCounterSmoke {
             fatalError("CONNECTED_TO-only level must be tracked")
         }
         precondition(connectedOnly.totalRequired == 1)
-        precondition(CMOriginalWindowsGoalCounter(session:
-            CMOriginalGameplaySession(document: try doc(goal: false, connection: false))) == nil)
+        let empty = try doc(goal: false, connection: false)
+        precondition(CMOriginalWindowsGoalCounter(
+            session: CMOriginalGameplaySession(document: empty)) == nil)
         print("Original Win32 GOAL/CONNECTED_TO two-channel level-completion counter passed")
     }
 }
