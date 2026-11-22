@@ -16,13 +16,28 @@ public enum CMOriginalWindowsElectricalGoals {
         solarRayContributionsByDeviceID: [String: [Float]] = [:],
         // Actual generator channel-0 GOAL depends on its rotor command,
         // not a voltage from an adjacent device.
-        generatorRotorCommandsByDeviceID: [String: Float] = [:]
+        generatorRotorCommandsByDeviceID: [String: Float] = [:],
+        // Original whistle receives steam from a real physical pressure
+        // component, NOT an electrical cable or ordinary collision.
+        steamPressureByObjectID: [String: Float] = [:]
     ) -> Set<String> {
         var active = Set<String>()
         for object in session.objects {
             guard object.goalAnnotation == "1"
                     || object.fields["GOAL"]?.contains("1") == true
             else { continue }
+            // Native x87 0x44C7DF tests only the C0 less-than flag,
+            // so the original steam-whistle GOAL includes pressure = 1.
+            // This channel is entirely separate from electrical voltage.
+            if object.type == "tmo_pipe_whistle" {
+                if let steam = steamPressureByObjectID[object.id],
+                   CMOriginalWindowsSteamWhistle.triggersGoal(
+                        steamPower: steam
+                   ) {
+                    active.insert(object.id)
+                }
+                continue
+            }
             // Photometric solar power and electrical receiver power are
             // separate channels; a battery connected to a solar cell must
             // not fabricate sunshine or its GOAL event.
