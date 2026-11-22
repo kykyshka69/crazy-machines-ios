@@ -266,7 +266,10 @@ struct CMOriginalQuickPlayView: View {
                     changeLevel(by: -1)
                 } label: {
                     Image(systemName: "chevron.left")
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 .disabled(scene(at: document.index - 1) == nil)
                 .accessibilityLabel("Previous original level")
                 .accessibilityIdentifier("cm.original.quickplay-previous")
@@ -281,7 +284,10 @@ struct CMOriginalQuickPlayView: View {
                     changeLevel(by: 1)
                 } label: {
                     Image(systemName: "chevron.right")
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 .disabled(scene(at: document.index + 1) == nil)
                 .accessibilityLabel("Next original level")
                 .accessibilityIdentifier("cm.original.quickplay-next")
