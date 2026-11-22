@@ -131,7 +131,7 @@ swiftc ios/CMOriginalWindowsSwitchContactGate.swift tests/OriginalWindowsSwitchC
 "$tmp/original-win32-switch-contacts"
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   ios/CMOriginalWindowsSwitchContactGate.swift ios/CMOriginalWindowsSolarSignal.swift \
-  ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsSwitchContactGate.swift ios/CMOriginalWindowsPowerScalar.swift \
+  ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsPowerScalar.swift \
   ios/CMOriginalWindowsPowerDisrupter.swift tests/OriginalWindowsSwitchCircuitSmoke.swift \
   -o "$tmp/original-switch-circuit"
 "$tmp/original-switch-circuit"
