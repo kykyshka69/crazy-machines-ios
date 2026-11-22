@@ -29,6 +29,7 @@ struct CMOriginalQuickPlayView: View {
         _firstLevelRun = State(initialValue: CMOriginalFirstLevelRun(document: document))
         _secondLevelRun = State(initialValue: CMOriginalSecondLevelRun(document: document))
         _thirdLevelRun = State(initialValue: CMOriginalThirdLevelRun(document: document))
+        _fourthLevelRun = State(initialValue: CMOriginalFourthLevelRun(document: document))
     }
 
     // Open an authentic scene at rest; users arrange original parts before
@@ -49,6 +50,7 @@ struct CMOriginalQuickPlayView: View {
     @State private var firstLevelRun: CMOriginalFirstLevelRun?
     @State private var secondLevelRun: CMOriginalSecondLevelRun?
     @State private var thirdLevelRun: CMOriginalThirdLevelRun?
+    @State private var fourthLevelRun: CMOriginalFourthLevelRun?
     @State private var showFirstLevelObjectiveDetails = false
 
     // Reconstruct the PC's explicit CONNECTED_TO references to tmo_zone.
@@ -127,6 +129,7 @@ struct CMOriginalQuickPlayView: View {
         firstLevelRun = CMOriginalFirstLevelRun(document: next)
         secondLevelRun = CMOriginalSecondLevelRun(document: next)
         thirdLevelRun = CMOriginalThirdLevelRun(document: next)
+        fourthLevelRun = CMOriginalFourthLevelRun(document: next)
         showFirstLevelObjectiveDetails = false
         experimentalPhysics = false
         experimentalMotorDrive = false
@@ -139,6 +142,7 @@ struct CMOriginalQuickPlayView: View {
         firstLevelRun?.reset()
         secondLevelRun?.reset()
                         thirdLevelRun?.reset()
+                        fourthLevelRun?.reset()
         canUndoPlacement = false
         sceneRevision = UUID()
     }
@@ -233,6 +237,13 @@ struct CMOriginalQuickPlayView: View {
                            let run = secondLevelRun, run.isSatisfied {
                             UserDefaults.standard.set(true, forKey: run.storageKey)
                         }
+                    }
+                },
+                onOriginalBucketCapture: { ballID, bucketID in
+                    if fourthLevelRun?.recordCapture(
+                        ballID: ballID, bucketID: bucketID
+                    ) == true, let run = fourthLevelRun {
+                        UserDefaults.standard.set(true, forKey: run.storageKey)
                     }
                 },
                 onOriginalSwitchToggle: { switchID, isOn in
@@ -366,9 +377,34 @@ struct CMOriginalQuickPlayView: View {
                         }
                     }
                     .padding(10)
+                } else if let run = fourthLevelRun {
+                    HStack(spacing: 8) {
+                        Label(
+                            run.isSatisfied ? "Ball inside GOAL bucket"
+                                : "Level 4: ball → original bucket",
+                            systemImage: run.isSatisfied
+                                ? "checkmark.seal.fill" : "scope"
+                        )
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 8)
+                        .background(.regularMaterial, in: Capsule())
+                        .accessibilityIdentifier("cm.original.fourth-level-hud")
+                        if run.isSatisfied {
+                            Button {
+                                changeLevel(by: 1)
+                            } label: {
+                                Label("Level 5", systemImage: "arrow.right")
+                            }
+                            .font(.caption.weight(.semibold))
+                            .buttonStyle(.borderedProminent)
+                            .disabled(scene(at: document.index + 1) == nil)
+                            .accessibilityIdentifier("cm.original.fourth-level-next")
+                        }
+                    }
+                    .padding(10)
                 } else {
-                    // Professor scenes beyond the three evidence-backed
-                    // prototypes also need an always-visible gameplay HUD.
+                    // Higher original scenes retain factual object HUDs.
                     // Every value below is derived from the actual imported
                     // CML scene and observed SceneKit contacts; none is a
                     // guessed Windows victory condition.
@@ -413,6 +449,7 @@ struct CMOriginalQuickPlayView: View {
                         firstLevelRun?.reset()
         secondLevelRun?.reset()
                         thirdLevelRun?.reset()
+                        fourthLevelRun?.reset()
                         // Rebuild bodies only after changing scene physics mode.
                         canUndoPlacement = false
                         sceneRevision = UUID()
@@ -433,6 +470,7 @@ struct CMOriginalQuickPlayView: View {
                     firstLevelRun?.reset()
         secondLevelRun?.reset()
                         thirdLevelRun?.reset()
+                        fourthLevelRun?.reset()
                     canUndoPlacement = false
                     sceneRevision = UUID()
                 }
@@ -522,6 +560,7 @@ struct CMOriginalQuickPlayView: View {
                     firstLevelRun?.reset()
         secondLevelRun?.reset()
                         thirdLevelRun?.reset()
+                        fourthLevelRun?.reset()
                     canUndoPlacement = false
                     sceneRevision = UUID()
                 }
@@ -531,6 +570,19 @@ struct CMOriginalQuickPlayView: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
 
+            if let run = fourthLevelRun {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Level 4: original tennis ball into GOAL bucket")
+                        .font(.caption.weight(.semibold))
+                    Text("Move the genuine UNLOCKED magnet and start physics. The tennis ball must enter the bucket, not touch its outside. This is an experimental iPhone objective, not a verified Windows victory rule.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                    Text(run.isSatisfied ? "Captured" : "Not captured")
+                        .font(.caption.monospacedDigit().weight(.semibold))
+                        .accessibilityIdentifier("cm.original.fourth-level-progress")
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+            }
             if let run = thirdLevelRun {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Level 3: five original crate → zone links")

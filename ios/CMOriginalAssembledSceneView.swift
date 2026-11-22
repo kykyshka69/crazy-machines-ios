@@ -142,6 +142,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // A contact matching any exact CONNECTED_TO reference in the recovered
     // PC level (not only tmo_zone targets). This is observation, not victory.
     var onOriginalConnectionContact: ((String, String) -> Void)? = nil
+    var onOriginalBucketCapture: ((String, String) -> Void)? = nil
     // Reports a user-operated original PC power switch. This changes its
     // actual lever mesh, NOT the unrecovered electrical connectivity.
     var onOriginalSwitchToggle: ((String, Bool) -> Void)? = nil
@@ -375,6 +376,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalZoneContact = onOriginalZoneContact
         context.coordinator.onLinkedZoneContact = onLinkedZoneContact
         context.coordinator.onOriginalConnectionContact = onOriginalConnectionContact
+        context.coordinator.onOriginalBucketCapture = onOriginalBucketCapture
+        context.coordinator.fourthLevelRun = CMOriginalFourthLevelRun(document: document)
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         if experimentalPhysics {
             context.coordinator.session?.start()
@@ -465,6 +468,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalZoneContact = onOriginalZoneContact
         context.coordinator.onLinkedZoneContact = onLinkedZoneContact
         context.coordinator.onOriginalConnectionContact = onOriginalConnectionContact
+        context.coordinator.onOriginalBucketCapture = onOriginalBucketCapture
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
         context.coordinator.onCanUndoPlacementChange = onCanUndoPlacementChange
@@ -521,6 +525,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var experimentalMagnetismEnabled = false
         private var magneticSourceIDs = Set<String>()
         private var magneticTargetIDs = Set<String>()
+        var fourthLevelRun: CMOriginalFourthLevelRun?
+        var onOriginalBucketCapture: ((String, String) -> Void)?
+        private weak var fourthBallMesh: CMOriginalObjectMeshNode?
+        private weak var fourthBucketMesh: CMOriginalObjectMeshNode?
+        private var fourthBallCaptured = false
         private var motorRotorObjectIDs = Set<String>()
         private var axleObjectIDs = Set<String>()
         // Authentic PC conveyor children are linked through their scene-graph
@@ -677,6 +686,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             switchLeverNodes.removeAll()
             switchLeverRestAngles.removeAll()
             flippedSwitchIDs.removeAll()
+            fourthBallCaptured = false
+            fourthBallMesh = nil
+            fourthBucketMesh = nil
             let originalObjects = session?.objects ?? []
             originalTypesByID = Dictionary(
                 uniqueKeysWithValues: originalObjects.map { ($0.id, $0.type) }
@@ -716,6 +728,17 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
             )
             scene.rootNode.enumerateChildNodes { node, _ in
+                if let mesh = node as? CMOriginalObjectMeshNode,
+                   let goal = self.fourthLevelRun {
+                    if mesh.originalObjectID == goal.ballID,
+                       mesh.name?.lowercased() == "to_ball_tennis" {
+                        self.fourthBallMesh = mesh
+                    }
+                    if mesh.originalObjectID == goal.bucketID,
+                       mesh.name?.lowercased() == "to_bucket" {
+                        self.fourthBucketMesh = mesh
+                    }
+                }
                 if let owner = node as? CMOriginalPhysicsOwnerNode,
                    let leverID = owner.originalObjectID,
                    let switchID = switchByLeverID[leverID] {
@@ -908,6 +931,44 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         func renderer(_ renderer: SCNSceneRenderer, didSimulatePhysicsAtTime time: TimeInterval) {
             guard physicsEnabled else { return }
             applyPendingActions()
+            // The original fourth scene has a GOAL-marked bucket, but no
+            // explicit CONNECTED_TO. Observe original UCM geometry after
+            // each simulated step; touching its outside never scores.
+            guard !fourthBallCaptured,
+                  let goal = fourthLevelRun,
+                  let ballMesh = fourthBallMesh,
+                  let bucketMesh = fourthBucketMesh,
+                  physicsNodesByObjectID[goal.ballID]?.first?.physicsBody?.type == .dynamic
+            else { return }
+            sessionLock.lock()
+            let running = session?.phase == .running
+            sessionLock.unlock()
+            guard running else { return }
+            let (low, high) = bucketMesh.boundingBox
+            guard let panels = CMOriginalBucketCollisionProxy.panels(
+                low: [low.x, low.y, low.z],
+                high: [high.x, high.y, high.z]
+            ) else { return }
+            let (ballLow, ballHigh) = ballMesh.boundingBox
+            let radius = (ballHigh.x - ballLow.x) * 0.5
+            guard radius.isFinite && radius > 0 else { return }
+            let ballCenter = SCNVector3(
+                (ballLow.x + ballHigh.x) * 0.5,
+                (ballLow.y + ballHigh.y) * 0.5,
+                (ballLow.z + ballHigh.z) * 0.5
+            )
+            let ballWorld = ballMesh.presentation.convertPosition(ballCenter, to: nil)
+            let bucketLocal = bucketMesh.presentation.convertPosition(
+                ballWorld, from: nil)
+            if CMOriginalBucketCollisionProxy.containsBall(
+                x: bucketLocal.x, y: bucketLocal.y,
+                radius: radius, panels: panels
+            ) {
+                fourthBallCaptured = true
+                DispatchQueue.main.async { [weak self] in
+                    self?.onOriginalBucketCapture?(goal.ballID, goal.bucketID)
+                }
+            }
         }
 
         /// Move a ball or crate along the ORIGINAL conveyor surface only

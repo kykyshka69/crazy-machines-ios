@@ -32,6 +32,17 @@ struct OriginalBucketCollisionProxySmoke {
         let rimY = left.center[1] + left.size[1] * 0.5
         let floorTop = floor.center[1] + floor.size[1] * 0.5
         precondition(rimY - floorTop > ballRadius * 2)
+        // Interior detection uses genuine sphere radius, not screen pixels.
+        precondition(CMOriginalBucketCollisionProxy.containsBall(
+            x: 0, y: 0.03, radius: ballRadius, panels: panels))
+        for (x, y) in [(Float(0.16), Float(0.03)),
+                       (Float(0), Float(0.3)),
+                       (Float(0), Float(-0.2))] {
+            precondition(!CMOriginalBucketCollisionProxy.containsBall(
+                x: x, y: y, radius: ballRadius, panels: panels))
+        }
+        precondition(!CMOriginalBucketCollisionProxy.containsBall(
+            x: .nan, y: 0, radius: ballRadius, panels: panels))
         // Degenerate and malicious bounds never create unstable physics.
         precondition(CMOriginalBucketCollisionProxy.panels(
             low: [0, 0, 0], high: [0, 1, 1]) == nil)

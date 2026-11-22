@@ -13,6 +13,26 @@ enum CMOriginalBucketCollisionProxy {
         let size: [Float]
     }
 
+    /// The ball's full UCM cross-section must be inside the hollow bucket,
+    /// not merely contacting its exterior walls, handle or rim.
+    static func containsBall(
+        x: Float, y: Float, radius: Float, panels: [Panel]
+    ) -> Bool {
+        guard [x, y, radius].allSatisfy(\.isFinite),
+              radius > 0, radius < 1,
+              panels.count == 3 else { return false }
+        let floor = panels[0], left = panels[1], right = panels[2]
+        let innerLeft = left.center[0] + left.size[0] * 0.5
+        let innerRight = right.center[0] - right.size[0] * 0.5
+        let floorTop = floor.center[1] + floor.size[1] * 0.5
+        let rimTop = left.center[1] + left.size[1] * 0.5
+        let tolerance: Float = 0.004
+        return x - radius >= innerLeft - tolerance
+            && x + radius <= innerRight + tolerance
+            && y - radius >= floorTop - tolerance
+            && y + radius <= rimTop + tolerance
+    }
+
     static func panels(low: [Float], high: [Float]) -> [Panel]? {
         guard low.count == 3, high.count == 3,
               low.allSatisfy(\.isFinite), high.allSatisfy(\.isFinite),

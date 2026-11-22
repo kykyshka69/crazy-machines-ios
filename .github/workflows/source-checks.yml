@@ -235,3 +235,12 @@ jobs:
         run: |
           swiftc ios/CMOriginalBucketCollisionProxy.swift tests/OriginalBucketCollisionProxySmoke.swift -o /tmp/cm-original-bucket
           /tmp/cm-original-bucket
+
+  original-fourth-level-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify original level-four goal metadata and capture tracker
+        run: |
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalFourthLevelRun.swift tests/OriginalFourthLevelRunSmoke.swift -o /tmp/cm-fourth
+          /tmp/cm-fourth
