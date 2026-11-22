@@ -2786,6 +2786,51 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         }
                     }
                 }
+                // The genuine tmo_rope_cage is a tapered OPEN cup with
+                // a decorative handle. A single convex hull makes a roof,
+                // physically preventing the imported ball from reaching
+                // its native 0.1-radius Test/Catch target. Reconstruct only
+                // the lower floor and two slanted sides from original
+                // rope_cage.UCM vertex bounds. This remains a provisional
+                // collision adapter, not the recovered Windows physics mesh.
+                if shapes.isEmpty, kind == "tmo_rope_cage",
+                   let cageMesh = meshes.first(where: {
+                       $0.name?.lowercased() == "to_rope_cage"
+                   }) {
+                    let (low, high) = cageMesh.boundingBox
+                    if let panels = CMOriginalCageCollisionProxy.panels(
+                        low: [low.x, low.y, low.z],
+                        high: [high.x, high.y, high.z]
+                    ) {
+                        let base = cageMesh.convertTransform(
+                            SCNMatrix4Identity, to: root
+                        )
+                        for panel in panels {
+                            let geometry = SCNBox(
+                                width: CGFloat(panel.size[0]),
+                                height: CGFloat(panel.size[1]),
+                                length: CGFloat(panel.size[2]),
+                                chamferRadius: 0
+                            )
+                            shapes.append(SCNPhysicsShape(
+                                geometry: geometry,
+                                options: [.type: SCNPhysicsShape.ShapeType.boundingBox]
+                            ))
+                            let offset = SCNMatrix4MakeTranslation(
+                                panel.center[0], panel.center[1],
+                                panel.center[2]
+                            )
+                            let tilt = SCNMatrix4MakeRotation(
+                                panel.rotationZ, 0, 0, 1
+                            )
+                            transforms.append(NSValue(scnMatrix4:
+                                SCNMatrix4Mult(
+                                    SCNMatrix4Mult(base, offset), tilt
+                                )
+                            ))
+                        }
+                    }
+                }
                 if shapes.isEmpty {
                     var proxyCenters: [SCNVector3] = []
                     shapes = meshes.compactMap { mesh in
