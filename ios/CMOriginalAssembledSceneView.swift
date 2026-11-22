@@ -149,8 +149,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalBucketCapture: ((String, String) -> Void)? = nil
     // Reports a user-operated original PC power switch. This changes its
     // actual lever mesh, NOT the unrecovered electrical connectivity.
-    var onOriginalPowerPlugTap: ((String) -> Void)? = nil
     var onOriginalGeneratorSignal: ((String, Float) -> Void)? = nil
+    var onOriginalPowerPlugTap: ((String) -> Void)? = nil
     var onOriginalSwitchToggle: ((String, Bool) -> Void)? = nil
 
     private var physicsAccessibilityStatus: String {
