@@ -226,3 +226,12 @@ jobs:
         run: |
           swiftc ios/CMOriginalMagneticAttraction.swift tests/OriginalMagneticAttractionSmoke.swift -o /tmp/cm-original-magnet
           /tmp/cm-original-magnet
+
+  original-bucket-collision-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify real original UCM bucket is open and collision-safe
+        run: |
+          swiftc ios/CMOriginalBucketCollisionProxy.swift tests/OriginalBucketCollisionProxySmoke.swift -o /tmp/cm-original-bucket
+          /tmp/cm-original-bucket

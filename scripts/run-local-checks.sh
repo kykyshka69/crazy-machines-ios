@@ -59,5 +59,8 @@ swiftc ios/CMOriginalPlacementHistory.swift tests/OriginalPlacementHistorySmoke.
 "$tmp/original-undo"
 swiftc ios/CMOriginalMagneticAttraction.swift tests/OriginalMagneticAttractionSmoke.swift -o "$tmp/original-magnet"
 "$tmp/original-magnet"
+# Build actual level-four container collider from measured original UCM bounds.
+swiftc ios/CMOriginalBucketCollisionProxy.swift tests/OriginalBucketCollisionProxySmoke.swift -o "$tmp/original-bucket"
+"$tmp/original-bucket"
 python3 -m unittest discover -s tools -p 'test_*.py'
 echo "Portable checks passed. iOS simulator build still requires Xcode/macOS."

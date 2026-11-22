@@ -2097,8 +2097,52 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     || kind == "tmo_mount_shear" {
                     continue
                 }
-                var proxyCenters: [SCNVector3] = []
-                let shapes: [SCNPhysicsShape] = meshes.compactMap { mesh in
+                // The real PC bucket is hollow. Its visual UCM extends
+                // above the rim into a handle, and a full convex hull seals
+                // the opening. That prevented level 4's original tennis
+                // ball from ever entering the GOAL-marked bucket.
+                //
+                // Preserve the original to_bucket UCM for rendering and use
+                // three local collision panels for the floor and side walls.
+                // Omit to_dummy_bounding from bucket collision; it is an
+                // original helper triangle and not a solid obstacle.
+                var shapes: [SCNPhysicsShape] = []
+                var transforms: [NSValue] = []
+                if kind == "tmo_bucket",
+                   let bucketMesh = meshes.first(where: {
+                       $0.name?.lowercased() == "to_bucket"
+                   }) {
+                    let (low, high) = bucketMesh.boundingBox
+                    if let panels = CMOriginalBucketCollisionProxy.panels(
+                        low: [low.x, low.y, low.z],
+                        high: [high.x, high.y, high.z]
+                    ) {
+                        let base = bucketMesh.convertTransform(
+                            SCNMatrix4Identity, to: root
+                        )
+                        for panel in panels {
+                            let bounds = SCNBox(
+                                width: CGFloat(panel.size[0]),
+                                height: CGFloat(panel.size[1]),
+                                length: CGFloat(panel.size[2]),
+                                chamferRadius: 0
+                            )
+                            shapes.append(SCNPhysicsShape(
+                                geometry: bounds,
+                                options: [.type: SCNPhysicsShape.ShapeType.boundingBox]
+                            ))
+                            let offset = SCNMatrix4MakeTranslation(
+                                panel.center[0], panel.center[1], panel.center[2]
+                            )
+                            transforms.append(NSValue(scnMatrix4:
+                                SCNMatrix4Mult(base, offset)
+                            ))
+                        }
+                    }
+                }
+                if shapes.isEmpty {
+                    var proxyCenters: [SCNVector3] = []
+                    shapes = meshes.compactMap { mesh in
                     guard let geometry = mesh.geometry else { return nil }
                     let (low, high) = mesh.boundingBox
                     let minimum = [low.x, low.y, low.z]
@@ -2142,17 +2186,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         .type: SCNPhysicsShape.ShapeType.convexHull
                     ])
                 }
-                guard shapes.count == meshes.count,
-                      proxyCenters.count == meshes.count else { continue }
-                let transforms = zip(meshes, proxyCenters).map { mesh, center in
-                    // SCNSphere and SCNBox are centered at their own origin.
-                    // Apply the local mesh-bounds center BEFORE the nested
-                    // original 3DO POSREL/ROTREL/SCAL transform to the tmo_.
-                    let meshTransform = mesh.convertTransform(
-                        SCNMatrix4Identity, to: root)
-                    let centered = SCNMatrix4Mult(meshTransform,
-                        SCNMatrix4MakeTranslation(center.x, center.y, center.z))
-                    return NSValue(scnMatrix4: centered)
+                    guard shapes.count == meshes.count,
+                          proxyCenters.count == meshes.count else { continue }
+                    transforms = zip(meshes, proxyCenters).map { mesh, center in
+                        // SCNSphere and SCNBox are centered at their origin.
+                        // Apply the local mesh-bounds midpoint BEFORE the
+                        // original nested 3DO transform.
+                        let meshTransform = mesh.convertTransform(
+                            SCNMatrix4Identity, to: root)
+                        let centered = SCNMatrix4Mult(meshTransform,
+                            SCNMatrix4MakeTranslation(center.x, center.y, center.z))
+                        return NSValue(scnMatrix4: centered)
+                    }
                 }
                 let shape = SCNPhysicsShape(shapes: shapes, transforms: transforms)
                 let body = SCNPhysicsBody(type: .dynamic, shape: shape)
