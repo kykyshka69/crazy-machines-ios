@@ -457,6 +457,16 @@ struct CMOriginalQuickPlayView: View {
                     disrupterAnglesByDeviceID[disrupterID] = wheelAngle
                     creditExperimentalElectricGoals()
                 },
+                onOriginalGeneratorSignal: { generatorID, rotorSpeed in
+                    guard experimentalPhysics && !physicsPaused else { return }
+                    generatorRotorSpeedsByDeviceID[generatorID] = rotorSpeed
+                    if CMOriginalWindowsPowerScalar.generatorTriggersGoal(
+                        rotor: rotorSpeed) {
+                        _ = windowsGoalCounter?.recordGoalEvent(
+                            objectID: generatorID, simulationRunning: true)
+                    }
+                    creditExperimentalElectricGoals()
+                },
                 onOriginalWindmillSignal: { windmillID, measuredRotorSpeed in
                     guard experimentalPhysics && !physicsPaused else { return }
                     windmillRotorSpeedsByDeviceID[windmillID] =
@@ -468,16 +478,6 @@ struct CMOriginalQuickPlayView: View {
                         _ = windowsGoalCounter?.recordGoalEvent(
                             objectID: windmillID, simulationRunning: true)
                     }
-                },
-                onOriginalGeneratorSignal: { generatorID, rotorSpeed in
-                    guard experimentalPhysics && !physicsPaused else { return }
-                    generatorRotorSpeedsByDeviceID[generatorID] = rotorSpeed
-                    if CMOriginalWindowsPowerScalar.generatorTriggersGoal(
-                        rotor: rotorSpeed) {
-                        _ = windowsGoalCounter?.recordGoalEvent(
-                            objectID: generatorID, simulationRunning: true)
-                    }
-                    creditExperimentalElectricGoals()
                 },
                 onOriginalPowerPlugTap: { plugID in
                     guard !experimentalPhysics else { return }
