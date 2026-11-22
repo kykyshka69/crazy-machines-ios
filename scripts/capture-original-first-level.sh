@@ -31,7 +31,7 @@ screenshots="$output/screenshots"
 # Prefer the authentic CML path: this validates against the Python
 # reference decoder but REQUIRES the app to decode level one natively.
 # A previously exported JSON remains supported for legacy debugging.
-if [[ "${scene_file,,}" == *.cml ]]; then
+if [[ "$scene_file" == *.[cC][mM][lL] ]]; then
   python3 "$repo_root/tools/stage_original_cml_for_iphone.py" \
     "$scene_file" "$models_folder" --output-dir "$stage_dir"
 else
