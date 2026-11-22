@@ -49,6 +49,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         let view = SCNView(frame: .zero)
         view.backgroundColor = UIColor(white: 0.09, alpha: 1)
         view.accessibilityIdentifier = "cm.original.assembled-scene"
+        view.isAccessibilityElement = true
         view.accessibilityLabel = "Original level 3D scene"
         view.accessibilityHint = experimentalPhysics
             ? "Double tap two different parts to add a hinge. Tap with three fingers to cancel a pending endpoint or undo the last manual hinge. Long press a part to pin or unpin it."
@@ -108,6 +109,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             scene.physicsWorld.gravity = SCNVector3(0, -9.8, 0)
         }
         view.scene = scene
+        // Expose the number of genuinely loaded UCM meshes. The original
+        // level screenshot test must reject an empty SceneKit view rather
+        // than quietly capturing a blank canvas.
+        func countOriginalMeshes(_ node: SCNNode) -> Int {
+            (node is CMOriginalObjectMeshNode ? 1 : 0) +
+                node.childNodes.reduce(0) { $0 + countOriginalMeshes($1) }
+        }
+        context.coordinator.renderedOriginalMeshCount = countOriginalMeshes(scene.rootNode)
+        view.accessibilityValue = physicsAccessibilityStatus +
+            "; rendered-original-meshes:\(context.coordinator.renderedOriginalMeshCount)"
         context.coordinator.initializeSwitchPressCount(switchPressCount)
         if experimentalPhysics {
             context.coordinator.registerPhysicsNodes(in: scene)
@@ -142,9 +153,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             context.coordinator.configurePhysicsRoles(configuredPhysicsRoles)
             context.coordinator.pressConfiguredSwitchIfNeeded(switchPressCount)
         }
+        let sceneStatus = physicsAccessibilityStatus +
+            "; rendered-original-meshes:\(context.coordinator.renderedOriginalMeshCount)"
         uiView.accessibilityValue = context.coordinator.selectedModelName.map {
-            physicsAccessibilityStatus + "; selected original model: " + $0
-        } ?? physicsAccessibilityStatus
+            sceneStatus + "; selected original model: " + $0
+        } ?? sceneStatus
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -152,6 +165,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     final class Coordinator: NSObject, UIGestureRecognizerDelegate, SCNPhysicsContactDelegate, SCNSceneRendererDelegate {
         private weak var highlighted: SCNNode?
         var selectedModelName: String?
+        var renderedOriginalMeshCount = 0
         var session: CMOriginalGameplaySession?
         private let sessionLock = NSLock()
         private var lastRendererTime: TimeInterval?
