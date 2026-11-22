@@ -3,7 +3,7 @@
 # Does not upload copyrighted assets to GitHub or generate synthetic screenshots.
 set -euo pipefail
 if [[ $# -ne 2 ]]; then
-  echo "Usage: $0 /private/level-001.json /private/original-ucm-folder" >&2
+  echo "Usage: $0 /private/Professor-Laboratory.cml-or-level-001.json /private/original-ucm-folder" >&2
   exit 2
 fi
 if [[ "$(uname -s)" != "Darwin" ]]; then
@@ -28,8 +28,16 @@ derived_dir="$output/DerivedData"
 result_bundle="$output/FirstOriginalLevel.xcresult"
 screenshots="$output/screenshots"
 
-python3 "$repo_root/tools/stage_original_first_level.py" \
-  "$scene_file" "$models_folder" --output-dir "$stage_dir"
+# Prefer the authentic CML path: this validates against the Python
+# reference decoder but REQUIRES the app to decode level one natively.
+# A previously exported JSON remains supported for legacy debugging.
+if [[ "${scene_file,,}" == *.cml ]]; then
+  python3 "$repo_root/tools/stage_original_cml_for_iphone.py" \
+    "$scene_file" "$models_folder" --output-dir "$stage_dir"
+else
+  python3 "$repo_root/tools/stage_original_first_level.py" \
+    "$scene_file" "$models_folder" --output-dir "$stage_dir"
+fi
 
 device_id="$(printenv CM_SIMULATOR_UDID 2>/dev/null || true)"
 if [[ -z "$device_id" ]]; then
@@ -67,7 +75,11 @@ xcrun simctl install "$device_id" "$app"
 app_data="$(xcrun simctl get_app_container "$device_id" org.crazymachines.port data)"
 support="$app_data/Library/Application Support"
 mkdir -p "$support/OriginalScenes" "$support/OriginalGame"
-cp "$stage_dir/OriginalScenes/level-001.json" "$support/OriginalScenes/level-001.json"
+# On the native CML path there is intentionally NO pre-exported JSON.
+# The iPhone app itself must decode the seeded original .cml.
+if [[ -f "$stage_dir/OriginalScenes/level-001.json" ]]; then
+  cp "$stage_dir/OriginalScenes/level-001.json" "$support/OriginalScenes/level-001.json"
+fi
 cp -R "$stage_dir/OriginalGame/." "$support/OriginalGame/"
 
 xctestrun="$(find "$derived_dir/Build/Products" -maxdepth 1 \
