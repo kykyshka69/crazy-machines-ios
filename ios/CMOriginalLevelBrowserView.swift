@@ -5,6 +5,8 @@ import UniformTypeIdentifiers
 struct CMOriginalLevelBrowserView: View {
     @State private var importing = false
     @State private var importingFolder = false
+    @State private var importingCML = false
+    @State private var decodingCML = false
     @State private var documents: [CMOriginalSceneDocument] = []
     @State private var errorMessage: String?
     @State private var selected: Int?
@@ -43,6 +45,9 @@ struct CMOriginalLevelBrowserView: View {
                 Section {
                     Text("Import JSON files exported from your original Professor Laboratory CML.")
                         .font(.caption)
+                    Button("Import original CML laboratory") { importingCML = true }
+                        .disabled(decodingCML)
+                    if decodingCML { ProgressView("Decoding original CML levels") }
                     Button("Import original levels") { importing = true }
                     Button("Import entire exported levels folder") { importingFolder = true }
                     if let errorMessage {
@@ -116,6 +121,14 @@ struct CMOriginalLevelBrowserView: View {
                     errorMessage = error.localizedDescription
                 case .success(let urls):
                     importDocuments(urls)
+                }
+            }
+            .fileImporter(isPresented: $importingCML, allowedContentTypes: [.item]) { result in
+                switch result {
+                case .failure(let error):
+                    errorMessage = error.localizedDescription
+                case .success(let url):
+                    importOriginalCML(url)
                 }
             }
         }
@@ -360,6 +373,46 @@ struct CMOriginalLevelBrowserView: View {
         }
         visit(root)
         return result
+    }
+
+    /// Import the original Windows laboratory directly on iPhone. There is
+    /// no longer a requirement to run a separate JSON exporter on a computer.
+    private func importOriginalCML(_ url: URL) {
+        guard !decodingCML else { return }
+        let access = url.startAccessingSecurityScopedResource()
+        defer { if access { url.stopAccessingSecurityScopedResource() } }
+        do {
+            guard url.pathExtension.lowercased() == "cml",
+                  let attributes = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+                  attributes.isRegularFile == true, let size = attributes.fileSize,
+                  (256...64 * 1024 * 1024).contains(size) else {
+                errorMessage = "Choose an original .cml laboratory file (up to 64 MB)."
+                return
+            }
+            let bytes = try Data(contentsOf: url)
+            guard bytes.count == size else { throw CMOriginalCMLDecoder.DecodeError.truncated }
+            let destination = sceneStorage
+            decodingCML = true
+            Task.detached(priority: .userInitiated) {
+                do {
+                    let levels = try CMOriginalCMLDecoder.decode(bytes)
+                    let decodedCount = levels.count
+                    let result = try CMOriginalCMLStorage.save(levels, to: destination)
+                    await MainActor.run {
+                        reloadSavedScenes()
+                        errorMessage = "Decoded \(decodedCount) original puzzles; saved \(result.saved), already imported \(result.alreadyPresent), conflicts \(result.conflicting)."
+                        decodingCML = false
+                    }
+                } catch {
+                    await MainActor.run {
+                        errorMessage = "Could not decode original CML: \(error)"
+                        decodingCML = false
+                    }
+                }
+            }
+        } catch {
+            errorMessage = "Cannot read original CML: \(error.localizedDescription)"
+        }
     }
 
     private func reloadSavedScenes() {
