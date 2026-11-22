@@ -79,6 +79,35 @@ private final class CMOriginalPhysicsOwnerNode: SCNNode {
     }
 }
 
+ 
+/// Reuse immutable, decoded SceneKit UCM geometry across original levels.
+/// 102 Professor scenes reference only a much smaller set of source meshes;
+/// the previous per-scene cache re-parsed the same UCM on every Next tap.
+/// Never cache mutable physics nodes or author transforms. Highlights and
+/// moving conveyor materials are copied per instance by the scene builder.
+/// NSCache can discard entries under iOS memory pressure.
+private enum CMOriginalSharedGeometryCache {
+    static let geometries: NSCache<NSString, SCNGeometry> = {
+        let cache = NSCache<NSString, SCNGeometry>()
+        cache.countLimit = 72
+        // An approximate upper bound: the decoded vertex arrays and SceneKit
+        // sources can occupy several times the on-disk UCM byte count.
+        cache.totalCostLimit = 48 * 1024 * 1024
+        return cache
+    }()
+
+    static func key(for url: URL, modelReference: String) -> NSString {
+        // Original PC material variants can share one UCM file while using
+        // different textures. Do not collapse them by filename alone.
+        (url.standardizedFileURL.path + "|" + modelReference) as NSString
+    }
+
+    static func cost(for url: URL) -> Int {
+        let bytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        return max(1, bytes * 4)
+    }
+}
+
 struct CMOriginalAssembledSceneView: UIViewRepresentable {
     let document: CMOriginalSceneDocument
     let assetDirectory: URL
@@ -1625,7 +1654,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     ) -> SCNScene {
         let scene = SCNScene()
         var loadedMeshNodes: [SCNNode] = []
-        // Resolve each original 3DO reference once per scene; levels reuse meshes.
+        // Resolve original file paths per scene, but reuse parsed UCM geometry
+        // across neighboring Professor levels via a bounded shared cache.
         let assetIndex = CMOriginalModelResolver.AssetIndex(directory: assetDirectory)
         // Build a single case-insensitive TGA index for this entire scene.
         // Every reused original UCM/wall material sees the same decoded image
@@ -1767,8 +1797,17 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         let geometry: SCNGeometry?
                         // One original UCM shape can have several PC
                         // material variants (e.g. cork and concrete walls).
-                        let cacheKey = url.path + "|" + name.lowercased()
-                        if let cached = meshCache[cacheKey] {
+                        let cacheKey = CMOriginalSharedGeometryCache.key(
+                            for: url, modelReference: name)
+                        let localKey = cacheKey as String
+                        if let cached = meshCache[localKey] {
+                            geometry = cached
+                        } else if let cached = CMOriginalSharedGeometryCache
+                            .geometries.object(forKey: cacheKey) {
+                            // A different original level can reuse the exact
+                            // UCM vertices, materials and verified TGA image.
+                            // No original transforms or physics are shared.
+                            meshCache[localKey] = cached
                             geometry = cached
                         } else {
                             geometry = try? Self.loadGeometry(
@@ -1776,7 +1815,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                 originalModelReference: name
                             )
                             if let geometry {
-                                meshCache[cacheKey] = geometry
+                                meshCache[localKey] = geometry
+                                CMOriginalSharedGeometryCache.geometries.setObject(
+                                    geometry, forKey: cacheKey,
+                                    cost: CMOriginalSharedGeometryCache.cost(for: url))
                             } else {
                                 invalidMeshes.insert(url)
                             }
