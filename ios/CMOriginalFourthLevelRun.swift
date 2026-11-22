@@ -15,7 +15,9 @@ public struct CMOriginalFourthLevelRun {
         let scene = CMOriginalGameplaySession(document: document)
         let balls = scene.objects.filter { $0.type == "tmo_ball_tennis" }
         let buckets = scene.objects.filter {
-            $0.type == "tmo_bucket" && $0.goalAnnotation == "1"
+            $0.type == "tmo_bucket"
+                && ($0.goalAnnotation == "1"
+                    || ($0.fields["GOAL"] ?? []).contains("1"))
         }
         let magnets = scene.objects.filter {
             $0.type == "tmo_magnetic_permanent"
