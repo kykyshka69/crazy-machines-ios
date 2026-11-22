@@ -2247,6 +2247,19 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         return cache.image(named: name)
     }
 
+    // Backward-compatible entry point for other original-UCM screens such
+    // as the authentic startscreen. The gameplay scene uses its own shared
+    // texture cache; independent previews may construct a local cache.
+    static func loadGeometry(
+        _ url: URL, assetDirectory: URL,
+        originalModelReference: String? = nil
+    ) throws -> SCNGeometry {
+        try loadGeometry(
+            url, textureCache: OriginalTextureCache(directory: assetDirectory),
+            originalModelReference: originalModelReference
+        )
+    }
+
     private static func loadGeometry(
         _ url: URL, textureCache: OriginalTextureCache,
         originalModelReference: String? = nil
