@@ -1069,10 +1069,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     lastCameraPanPoint = point
                     return
                 }
-                // Project a point on the camera's own forward axis. Using a
-                // common projection depth converts a screen-space movement
-                // into a true world-space translation at any scene scale.
-                let focus = camera.presentation.convertPosition(
+                // Project the authored scene center, NOT a point one unit
+                // in front of the lens. At real puzzle scale a near-camera
+                // plane makes even large finger swipes barely move the view.
+                // The invisible target is fixed in scene space and does not
+                // change the imported models, camera orbit or physics.
+                let focus = view.scene?.rootNode.childNode(
+                    withName: "original-level-framing-target", recursively: false
+                )?.presentation.worldPosition ?? camera.presentation.convertPosition(
                     SCNVector3(0, 0, -1), to: nil
                 )
                 let depth = view.projectPoint(focus).z
@@ -2096,10 +2100,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             floor.physicsBody = SCNPhysicsBody.static()
             scene.rootNode.addChildNode(floor)
         }
+        // This invisible transform defines the puzzle plane for accurate
+        // two-finger camera panning at any original UCM geometry scale.
+        let framingTarget = SCNNode()
+        framingTarget.name = "original-level-framing-target"
         if hasBounds {
             let center = SCNVector3((lower.x + upper.x) / 2,
                                     (lower.y + upper.y) / 2,
                                     (lower.z + upper.z) / 2)
+            framingTarget.position = center
             let span = max(upper.x - lower.x, upper.y - lower.y,
                            upper.z - lower.z, 0.1)
             // Adapt clipping planes to the actual scene size. A fixed far
@@ -2124,6 +2133,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             camera.position = SCNVector3(0, 0, -10)
             camera.eulerAngles = SCNVector3(0, Float.pi, 0)
         }
+        scene.rootNode.addChildNode(framingTarget)
         scene.rootNode.addChildNode(camera)
         return scene
     }
