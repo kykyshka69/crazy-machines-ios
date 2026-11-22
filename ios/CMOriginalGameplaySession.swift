@@ -78,19 +78,9 @@ public struct CMOriginalGameplaySession {
         })
     }
 
-    /// Toggle an imported PC switch independently of experimental reactions.
-    /// Return nil for an unknown object, a non-switch or a paused/stopped run.
-    /// This permits multiple switches to retain separate positions.
-    @discardableResult
-    /// Verified original Windows click handler at 0x434A9A..0x434AE6:
-    /// tmo_light_pocketlamp toggles the physical component at +0xEC
-    /// between exact 0 and 1. It is a genuine light-source switch, not
-    /// an inference from a nearby object or a fabricated solar ray.
-    /// Native +0xF0 GOAL comparison remains a separate unverified input.
-    /// Win32 input handler 0x434903 first checks interaction flag 0x10,
-    /// then 0x4349A0 selects candles and blowtorches and flips +0xEC.
-    /// Native 0x434A56 compares +0xEC with +0xF0 to decide GOAL;
-    /// +0xF0 must be independently observed before crediting a puzzle.
+    /// Win32 0x434903 checks interaction flag 0x10; 0x4349A0 then
+    /// toggles candle/dynamic candle/blowtorch source +0xEC.
+    /// The native +0xF0 GOAL comparison is a SEPARATE condition.
     @discardableResult
     public mutating func toggleOriginalHeatSource(_ id: String) -> Bool? {
         guard phase == .running,
@@ -111,6 +101,9 @@ public struct CMOriginalGameplaySession {
         return next
     }
 
+    /// Authentic Win32 0x434A9A..0x434AE6: pocketlamp +0xEC 0<->1.
+    /// Its native +0xF0 GOAL comparison is not inferred from the tap.
+    @discardableResult
     public mutating func toggleOriginalPocketLamp(_ id: String) -> Bool? {
         guard phase == .running,
               objects.contains(where: {
@@ -125,6 +118,10 @@ public struct CMOriginalGameplaySession {
         return next
     }
 
+    /// Tap the imported PC electrical switch only in running phase.
+    /// This optional circuit prototype does not fabricate Win32 +0xEC/+0xC8
+    /// contacts or a native GOAL event.
+    @discardableResult
     public mutating func toggleOriginalSwitch(_ id: String) -> Bool? {
         guard phase == .running,
               objects.contains(where: { $0.id == id && $0.type == "tmo_power_switch" })
