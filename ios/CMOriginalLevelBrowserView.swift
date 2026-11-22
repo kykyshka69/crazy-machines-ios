@@ -43,7 +43,7 @@ struct CMOriginalLevelBrowserView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Import JSON files exported from your original Professor Laboratory CML.")
+                    Text("Import the original Professor Laboratory .cml directly, or previously exported JSON scenes.")
                         .font(.caption)
                     Button("Import original CML laboratory") { importingCML = true }
                         .disabled(decodingCML)
@@ -61,7 +61,7 @@ struct CMOriginalLevelBrowserView: View {
                         ContentUnavailableView(
                             "No original levels imported",
                             systemImage: "square.stack.3d.up.slash",
-                            description: Text("Export the original CML levels to JSON on your computer, then import the files or their folder here.")
+                            description: Text("Import the original Professor Laboratory .cml or exported level JSON files to see the genuine puzzles.")
                         )
                     }
                     ForEach(sorted, id: \.index) { document in
