@@ -220,13 +220,15 @@ struct OriginalFirstLevelRunSmoke {
             String(repeating: "c", count: 64)))
         second.reset()
         precondition(!second.isSatisfied)
-        precondition(CMOriginalSecondLevelRun(
-            document: try secondDocument(level: 3)) == nil)
-        precondition(CMOriginalSecondLevelRun(
-            document: try secondDocument(targetIsZone: true)) == nil)
-        precondition(CMOriginalSecondLevelRun(
-            document: try secondDocument(editableDominoes: 2)) == nil)
+        // XCTest's precondition is a non-throwing autoclosure; construct
+        // the failing signatures outside it so Swift 6 can typecheck.
+        let wrongLevel = try secondDocument(level: 3)
+        let wrongSecondTarget = try secondDocument(targetIsZone: true)
+        let missingDomino = try secondDocument(editableDominoes: 2)
+        precondition(CMOriginalSecondLevelRun(document: wrongLevel) == nil)
+        precondition(CMOriginalSecondLevelRun(document: wrongSecondTarget) == nil)
+        precondition(CMOriginalSecondLevelRun(document: missingDomino) == nil)
 
-        print("Original levels 1 and 2 four-linked-object delivery objective: OK")
+        print("Original linked-object prototypes for levels 1 and 2: OK")
     }
 }

@@ -12,6 +12,7 @@ import struct
 
 TEST_NAME = "testPrivateOriginalLevelOneWhenOptedIn"
 ATTACHMENT_NAME = "07-PRIVATE-original-professor-level-001"
+ATTACHMENT_NAME_LEVEL_TWO = "09-PRIVATE-original-professor-level-002"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
@@ -27,7 +28,7 @@ def validate_summary(summary):
         raise ValueError("real first-level UI test was not the sole passing test")
 
 
-def find_exact_attachment(manifest, export_directory):
+def find_exact_attachment(manifest, export_directory, attachment_name=ATTACHMENT_NAME):
     """Require the exact named attachment from the exact original-level UI test."""
     if not isinstance(manifest, list):
         raise ValueError("invalid Xcode attachment manifest")
@@ -47,7 +48,7 @@ def find_exact_attachment(manifest, export_directory):
             name = item.get("suggestedHumanReadableName", "")
             if not isinstance(name, str):
                 continue
-            if name != ATTACHMENT_NAME and not name.startswith(ATTACHMENT_NAME + "_"):
+            if name != attachment_name and not name.startswith(attachment_name + "_"):
                 continue
             exported = item.get("exportedFileName", "")
             if not isinstance(exported, str):
@@ -79,12 +80,15 @@ def validate_png(path):
         raise ValueError("named first-level screenshot contains no PNG image payload")
 
 
-def select_screenshot(export_directory, summary, destination):
+def select_screenshot(export_directory, summary, destination,
+                      attachment_name=ATTACHMENT_NAME):
     export_directory = Path(export_directory)
     destination = Path(destination)
     validate_summary(summary)
     manifest = json.loads((export_directory / "manifest.json").read_text(encoding="utf-8"))
-    source = find_exact_attachment(manifest, export_directory)
+    if attachment_name not in (ATTACHMENT_NAME, ATTACHMENT_NAME_LEVEL_TWO):
+        raise ValueError("unknown authentic first/second level screenshot name")
+    source = find_exact_attachment(manifest, export_directory, attachment_name)
     validate_png(source)
     if destination.resolve() == source.resolve():
         return source
@@ -100,10 +104,13 @@ def main():
     parser.add_argument("--attachments-dir", required=True, type=Path)
     parser.add_argument("--summary", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--attachment-name", default=ATTACHMENT_NAME,
+                        choices=[ATTACHMENT_NAME, ATTACHMENT_NAME_LEVEL_TWO])
     args = parser.parse_args()
     try:
         summary = json.loads(args.summary.read_text(encoding="utf-8"))
-        output = select_screenshot(args.attachments_dir, summary, args.output)
+        output = select_screenshot(args.attachments_dir, summary, args.output,
+                                   args.attachment_name)
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
         parser.exit(2, "Authentic first-level capture not confirmed: " + str(exc) + "\n")
     print(output)

@@ -82,8 +82,14 @@ python3 tools/select_first_level_screenshot.py \
   --attachments-dir "$output/attachments" \
   --summary "$output/test-summary.json" \
   --output "$output/REAL-original-professor-level-001.png"
+python3 tools/select_first_level_screenshot.py \
+  --attachments-dir "$output/attachments" \
+  --summary "$output/test-summary.json" \
+  --attachment-name 09-PRIVATE-original-professor-level-002 \
+  --output "$output/REAL-original-professor-level-002.png"
 
-echo "Verified genuine original level-one XCTest screenshot:"
+echo "Verified genuine original Professor level-one and level-two screenshots:"
 echo "$output/REAL-original-professor-level-001.png"
+echo "$output/REAL-original-professor-level-002.png"
 echo "Private test log: $output/xcodebuild.log"
 echo "Private result: $output/PrivateOriginalLevel.xcresult"

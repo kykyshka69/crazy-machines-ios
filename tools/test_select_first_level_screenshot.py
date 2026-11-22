@@ -6,7 +6,8 @@ import tempfile
 import unittest
 
 from select_first_level_screenshot import (
-    ATTACHMENT_NAME, TEST_NAME, select_screenshot, validate_summary
+    ATTACHMENT_NAME, ATTACHMENT_NAME_LEVEL_TWO, TEST_NAME,
+    select_screenshot, validate_summary
 )
 
 GOOD_SUMMARY = dict(totalTestCount=1, passedTests=1, failedTests=0, skippedTests=0)
@@ -36,6 +37,30 @@ class SelectFirstLevelScreenshotTests(unittest.TestCase):
     def test_selects_named_attachment_not_first_png(self):
         self.assertEqual(select_screenshot(self.path, GOOD_SUMMARY, self.output), self.output)
         self.assertEqual(self.output.read_bytes(), (self.path / "right.png").read_bytes())
+
+    def test_can_select_exact_original_second_level_capture(self):
+        self.record["attachments"][1]["suggestedHumanReadableName"] = (
+            ATTACHMENT_NAME_LEVEL_TWO)
+        self.write_manifest([self.record])
+        self.assertEqual(
+            select_screenshot(
+                self.path, GOOD_SUMMARY, self.output,
+                ATTACHMENT_NAME_LEVEL_TWO),
+            self.output)
+        self.assertEqual(
+            self.output.read_bytes(),
+            (self.path / "right.png").read_bytes())
+
+    def test_rejects_synthetic_or_unknown_level_name(self):
+        self.record["attachments"][1]["suggestedHumanReadableName"] = (
+            "08-synthetic-original-level-two-navigation")
+        self.write_manifest([self.record])
+        with self.assertRaisesRegex(ValueError, "unknown authentic"):
+            select_screenshot(self.path, GOOD_SUMMARY, self.output,
+                              "08-synthetic-original-level-two-navigation")
+        with self.assertRaisesRegex(ValueError, "exactly one"):
+            select_screenshot(self.path, GOOD_SUMMARY, self.output,
+                              ATTACHMENT_NAME_LEVEL_TWO)
 
     def test_rejects_skipped_test(self):
         with self.assertRaisesRegex(ValueError, "not the sole passing"):

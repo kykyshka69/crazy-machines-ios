@@ -1,5 +1,13 @@
 # Crazy Machines — original iOS port: working branch
 
+## New gameplay step: second original level + private two-level capture (2026-11-22)
+
+- The active branch's `c939d84` introduces `CMOriginalSecondLevelRun` for evidence-based basket→crate contact. This is grounded in the original Professor level 2 scene's `CONNECTED_TO 17` resolving to `tmo_crate` and exactly 3 UNLOCKED dominoes, *not* a generic goal-zone counter.
+- The iOS Quick Play screen shows 0/1 → 1/1 after the exact matching scene physics contact and offers Level 3 when available. A copyright-free 3D fixture tests this contact plus navigation to a synthetic third scene, separately from the already-verified level 1 → 2 test.
+- `c939d84` **Source checks and unsigned physical-iPhone compilation succeeded**. Portable checks failed **in the newly authored Swift smoke test**, not in the iOS app code: `try secondDocument(...)` was inside the nonthrowing `precondition` autoclosure. A follow-up source change constructs those throwing documents first and then checks their results. The iPhone Simulator UI test result for this commit was not confirmed at this handoff.
+- The owner's private 445-entry `.cmassets` contains an authentic `level-002.json` with **66 original 3DO instances**. The opt-in local macOS private XCTest now verifies at least 60 rendered UCM nodes, the real 0/1 basketball-to-crate relationship and attaches an authentic second-level screenshot in addition to level 1.
+- The existing strict `xcresulttool` screenshot selector was extended to select either exact **private** first-level or private second-level attachment. The local private capture script now exports both screenshots without uploading original PC media to public GitHub. **Neither private test nor its screenshots have yet run on macOS with the user-owned pack.**
+
 ## Original second-level prototype: basket → crate (2026-11-22)
 
 - The [iPhone 17 Pro Simulator run 45016273503](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45016273503) passed fully for `b9c55b0`: **7 XCTest cases, 6 passed, 1 opt-in private test skipped, 0 failures**. The real SceneKit synthetic fixture completed **four distinct zone deliveries**, revealed the first-level Continue button, and navigated successfully to imported level 2.

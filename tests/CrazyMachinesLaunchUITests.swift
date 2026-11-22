@@ -312,6 +312,42 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         XCTAssertEqual(physics.value as? String, "1",
                        "Original scene physics failed to start")
         attachScreenshot(app, named: "08-PRIVATE-original-professor-level-001-physics")
+
+        // Private follow-on: verify authentic Professor level 2 can actually
+        // open with the owner's original meshes and the basket->crate rule.
+        // This is deliberately excluded from public CI because proprietary
+        // artwork must not be uploaded as a GitHub artifact.
+        let next = app.buttons["cm.original.quickplay-next"]
+        XCTAssertTrue(next.waitForExistence(timeout: 15))
+        XCTAssertTrue(next.isEnabled,
+                      "Bundled private pack is missing original level 2")
+        next.tap()
+        let secondTitle = app.staticTexts.matching(NSPredicate(
+            format: "label BEGINSWITH %@", "Original level 2:")).firstMatch
+        XCTAssertTrue(secondTitle.waitForExistence(timeout: 35),
+                      "Authentic Professor level 2 failed to open")
+        let secondProgress = app.staticTexts["cm.original.second-level-progress"]
+        XCTAssertTrue(secondProgress.waitForExistence(timeout: 20),
+                      "Original level 2 basketball-to-crate relationship was not loaded")
+        XCTAssertEqual(secondProgress.label, "0 / 1")
+        var secondCount = 0
+        var secondStatus = ""
+        for _ in 0..<20 {
+            secondStatus = (viewport.value as? String) ?? ""
+            if let expression = try? NSRegularExpression(
+                pattern: "originalUCM=(\\d+)"),
+               let match = expression.firstMatch(
+                in: secondStatus, range: NSRange(secondStatus.startIndex..., in: secondStatus)),
+               let range = Range(match.range(at: 1), in: secondStatus),
+               let value = Int(secondStatus[range]) {
+                secondCount = value
+            }
+            if secondCount >= 60 { break }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        XCTAssertGreaterThanOrEqual(secondCount, 60,
+            "Authentic original level 2 has 66 UCM instances; \(secondStatus)")
+        attachScreenshot(app, named: "09-PRIVATE-original-professor-level-002")
     }
 
     /// Inspect only the SceneKit pixels, not the bright SwiftUI controls.
