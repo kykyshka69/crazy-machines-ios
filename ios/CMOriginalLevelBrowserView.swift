@@ -8,7 +8,18 @@ struct CMOriginalLevelBrowserView: View {
     @State private var importingFolder = false
     @State private var importingCML = false
     @State private var decodingCML = false
-    @State private var documents: [CMOriginalSceneDocument] = []
+    // Keep only compact titles/counts in the browse screen. Retaining 102
+    // decoded nested PC object trees while navigating into SceneKit doubles
+    // memory use; read the selected document only when the user opens it.
+    private struct OriginalLevelListing: Identifiable {
+        let index: Int
+        let title: String
+        let objectCount: Int
+        let url: URL
+        var id: Int { index }
+    }
+
+    @State private var documents: [OriginalLevelListing] = []
     @State private var errorMessage: String?
     @State private var selected: Int?
     @State private var previewModel: ModelPreviewSelection?
@@ -26,10 +37,6 @@ struct CMOriginalLevelBrowserView: View {
     private var sceneStorage: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("OriginalScenes", isDirectory: true)
-    }
-
-    private var sorted: [CMOriginalSceneDocument] {
-        documents.sorted { $0.index < $1.index }
     }
 
     var body: some View {
@@ -57,26 +64,42 @@ struct CMOriginalLevelBrowserView: View {
                             description: Text("Import your original Professor Laboratory .cml file directly, or install a game pack in Original files.")
                         )
                     }
-                    ForEach(sorted, id: \.index) { document in
+                    ForEach(documents) { entry in
                         HStack {
-                            // Every authentic imported puzzle enters the SAME
-                            // player-facing 3D scene, not an inspect-only sheet.
+                            // Load the original nested JSON hierarchy only
+                            // when this level is opened, not for all 102 rows.
                             NavigationLink {
-                                CMOriginalQuickPlayView(
-                                    document: document, assetDirectory: originalStorage
-                                )
+                                if let document = sceneDocument(for: entry) {
+                                    CMOriginalQuickPlayView(
+                                        document: document, assetDirectory: originalStorage
+                                    )
+                                } else {
+                                    ContentUnavailableView(
+                                        "Original scene unavailable",
+                                        systemImage: "exclamationmark.triangle",
+                                        description: Text("Reimport this original PC level.")
+                                    )
+                                }
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("\(document.index). \(document.title)")
-                                    Text("\(document.root.objectCount) original objects")
+                                    Text("\(entry.index). \(entry.title)")
+                                    Text("\(entry.objectCount) original objects")
                                         .font(.caption).foregroundStyle(.secondary)
                                 }
                             }
-                            .accessibilityIdentifier("cm.original.open-level-\(document.index)")
+                            .accessibilityIdentifier("cm.original.open-level-\(entry.index)")
                             NavigationLink {
-                                levelDetails(document)
+                                if let document = sceneDocument(for: entry) {
+                                    levelDetails(document)
+                                } else {
+                                    ContentUnavailableView(
+                                        "Original scene unavailable",
+                                        systemImage: "exclamationmark.triangle",
+                                        description: Text("Reimport this original PC level.")
+                                    )
+                                }
                             } label: {
-                                Label("Level \(document.index) details", systemImage: "info.circle")
+                                Label("Level \(entry.index) details", systemImage: "info.circle")
                                     .labelStyle(.iconOnly)
                                     .padding(8)
                             }
@@ -495,6 +518,19 @@ struct CMOriginalLevelBrowserView: View {
         }
     }
 
+    /// Revalidate a selected original scene because its file can change
+    /// after the level list was populated (for example through Files).
+    private func sceneDocument(for entry: OriginalLevelListing) -> CMOriginalSceneDocument? {
+        guard let attributes = try? entry.url.resourceValues(
+                  forKeys: [.isRegularFileKey, .fileSizeKey]),
+              attributes.isRegularFile == true,
+              let size = attributes.fileSize, size > 0, size <= 8_000_000,
+              let data = try? Data(contentsOf: entry.url, options: [.mappedIfSafe]),
+              let document = try? CMOriginalSceneDocument.read(data),
+              document.index == entry.index else { return nil }
+        return document
+    }
+
     private func reloadSavedScenes() {
         guard let urls = try? FileManager.default.contentsOfDirectory(
             at: sceneStorage, includingPropertiesForKeys: nil,
@@ -505,7 +541,7 @@ struct CMOriginalLevelBrowserView: View {
             documents = []
             return
         }
-        var loaded: [Int: CMOriginalSceneDocument] = [:]
+        var loaded: [Int: OriginalLevelListing] = [:]
         // Stable ordering prevents duplicate level indices from resolving
         // differently between launches when the filesystem enumeration varies.
         let sortedURLs = urls.sorted {
@@ -520,7 +556,9 @@ struct CMOriginalLevelBrowserView: View {
             // Do not silently replace a previously loaded scene when two
             // saved JSON files declare the same original level number.
             if loaded[document.index] == nil {
-                loaded[document.index] = document
+                loaded[document.index] = OriginalLevelListing(
+                    index: document.index, title: document.title,
+                    objectCount: document.root.objectCount, url: url)
             }
         }
         documents = loaded.values.sorted { $0.index < $1.index }
