@@ -139,6 +139,44 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         attachScreenshot(app, named: "06-imported-scene-level-browser")
     }
 
+    func testLinkedZoneContactActuallyAdvancesFirstLevelPrototype() {
+        // This is fully synthetic and contains no proprietary PC art.
+        // Crucially it tests an ACTUAL falling SceneKit body contacting an
+        // original-style tmo_zone with an exact CONNECTED_TO link. A physics
+        // toggle alone cannot make this test pass.
+        let app = XCUIApplication()
+        app.launchArguments = ["--cm-ci-install-linked-zone-fixture"]
+        app.launch()
+        let play = app.buttons["cm.menu.play"]
+        XCTAssertTrue(play.waitForExistence(timeout: 25))
+        play.tap()
+        XCTAssertTrue(
+            app.staticTexts["Original level 1: CM synthetic CI 3D contacts"]
+                .waitForExistence(timeout: 20),
+            "The linked-zone scene did not enter the real 3D player"
+        )
+        let progress = app.staticTexts["cm.original.first-level-progress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 15),
+                      "The evidence-based four-object challenge was not detected")
+        XCTAssertEqual(progress.label, "0 / 4",
+                       "No synthetic source has been delivered before physics runs")
+        let physics = app.switches["cm.original.quickplay-physics"]
+        XCTAssertTrue(physics.waitForExistence(timeout: 10))
+        physics.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertEqual(physics.value as? String, "1",
+                       "SceneKit did not start the experimental physics step")
+        let delivery = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label MATCHES %@", "[1-4] / 4"),
+            object: progress
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [delivery], timeout: 20), .completed,
+            "A real SceneKit ball/zone collision never reached the linked " +
+            "source/target callback; last progress: \(progress.label)"
+        )
+        attachScreenshot(app, named: "07-synthetic-linked-zone-contact-proved")
+    }
+
     func testPrivateOriginalLevelOneWhenOptedIn() throws {
         // This test is opt-in because the user's original game files are
         // copyrighted and MUST NOT enter public GitHub Actions artifacts.
