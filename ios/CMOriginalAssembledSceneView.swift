@@ -127,11 +127,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         guard let scene else { return "; scene=missing" }
         var meshes = 0
         var originalMeshes = 0
+        var visualGlowBillboards = 0
         var diagnosticMarkers = 0
         scene.rootNode.enumerateChildNodes { node, _ in
             guard node.geometry != nil else { return }
             meshes += 1
             if node is CMOriginalObjectMeshNode { originalMeshes += 1 }
+            if node.name?.hasPrefix("original-effect-glow-") == true {
+                visualGlowBillboards += 1
+            }
             if node.name == "cm-ci-render-calibration" {
                 diagnosticMarkers += 1
             }
@@ -142,6 +146,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         let forward = camera?.convertVector(
             SCNVector3(0, 0, -1), to: nil) ?? SCNVector3Zero
         return "; sceneMeshes=\(meshes); originalUCM=\(originalMeshes)" +
+            "; glowBillboards=\(visualGlowBillboards)" +
             "; calibration=\(diagnosticMarkers); camera=" +
             "\(position.x),\(position.y),\(position.z)" +
             "; forward=\(forward.x),\(forward.y),\(forward.z)"
@@ -1672,6 +1677,40 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
             // A 3DO entry is a model reference, not an additional object transform.
             func attachOriginalModel(_ name: String) {
+                // A subset of 3DO references in 48 original PC levels are
+                // additive visual effects rather than real UCM meshes.
+                // Use ONLY the exact TGA mappings verified against the
+                // owner's 181 original textures. Do not add these planes to
+                // objectMeshes or loadedMeshNodes: they must never collide,
+                // modify camera framing, or count as original UCM geometry.
+                if let effect = CMOriginalEffectBillboard.specification(for: name) {
+                    guard let image = textureCache.image(named: effect.textureName)
+                    else {
+                        missingModels.insert(name)
+                        return
+                    }
+                    let plane = SCNPlane(
+                        width: CGFloat(effect.width),
+                        height: CGFloat(effect.height)
+                    )
+                    let material = SCNMaterial()
+                    material.lightingModel = .constant
+                    material.diffuse.contents = image
+                    // The PC's source glow images are 24-bit RGB with dark
+                    // edges. Additive blending treats those black edges as
+                    // transparent instead of drawing opaque black squares.
+                    material.blendMode = .add
+                    material.isDoubleSided = true
+                    material.writesToDepthBuffer = false
+                    material.readsFromDepthBuffer = true
+                    plane.materials = [material]
+                    let billboard = SCNNode(geometry: plane)
+                    billboard.name = "original-effect-glow-" + name.lowercased()
+                    billboard.constraints = [SCNBillboardConstraint(freeAxes: .all)]
+                    billboard.renderingOrder = 10
+                    transform.addChildNode(billboard)
+                    return
+                }
                 // Preserve exact spelling: distinct UCM assets can differ only
                 // by case, and the resolver gives exact names precedence.
                 let modelKey = name

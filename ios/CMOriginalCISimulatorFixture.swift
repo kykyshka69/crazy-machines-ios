@@ -44,6 +44,12 @@ enum CMOriginalCISimulatorFixture {
         let solidModel = originalStorage.appendingPathComponent("cm_ci_solid.ucm")
         try? FileManager.default.removeItem(at: fixtureModel)
         try? FileManager.default.removeItem(at: solidModel)
+        let syntheticGlow = originalStorage.appendingPathComponent("light_glow.tga")
+        if let data = try? Data(contentsOf: syntheticGlow),
+           data == makeSyntheticGlowTGA() {
+            // Never remove a user's real light_glow.tga.
+            try? FileManager.default.removeItem(at: syntheticGlow)
+        }
         // Remove only exact synthetic scenes; NEVER delete imported PC
         // levels (including a real level 2) during CI fixture cleanup.
         for filename in ["level-001.json", "level-002.json", "level-003.json", "level-004.json"] {
@@ -127,6 +133,26 @@ enum CMOriginalCISimulatorFixture {
         return data
     }
 
+    private static func makeSyntheticGlowTGA() -> Data {
+        // Uncompressed 4x4 BGR24, black perimeter + white center.
+        // Copyright-free test texture; matches the original glow format,
+        // never the user's proprietary TGA pixels.
+        var data = Data(repeating: 0, count: 18)
+        data[2] = 2
+        data[12] = 4
+        data[14] = 4
+        data[16] = 24
+        data[17] = 0x20
+        for y in 0..<4 {
+            for x in 0..<4 {
+                let intensity: UInt8 =
+                    (x == 1 || x == 2) && (y == 1 || y == 2) ? 180 : 0
+                data.append(contentsOf: [intensity, intensity, intensity])
+            }
+        }
+        return data
+    }
+
     private static func makeScene() throws -> Data {
         let root: [String: Any] = [
             "name": "level", "fields": [],
@@ -135,7 +161,12 @@ enum CMOriginalCISimulatorFixture {
                 "fields": ["POS 0, 0, 0"],
                 "position": [0.0, 0.0, 0.0],
                 "models": ["cm_ci_triangle"],
-                "children": []
+                "children": [[
+                    "name": "3DO to_candle_glow",
+                    "fields": ["POSREL 0.25, 0.4, -0.2"],
+                    "position_relative": [0.25, 0.4, -0.2],
+                    "children": []
+                ]]
             ]]
         ]
         let scene: [String: Any] = [
@@ -320,6 +351,7 @@ enum CMOriginalCISimulatorFixture {
             ]
             : [
                 ("cm_ci_triangle.ucm", makeModel()),
+                ("light_glow.tga", makeSyntheticGlowTGA()),
                 ("level-001.json", try makeScene())
             ]
         appendU32(UInt32(files.count), to: &contents)

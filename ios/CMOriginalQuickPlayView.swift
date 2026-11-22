@@ -458,7 +458,9 @@ struct CMOriginalQuickPlayView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
-                .accessibilityIdentifier("cm.original.third-level-challenge")
+                // Keep the inner progress label's own accessibility ID.
+                // Applying an ID to this container overrides child IDs in
+                // UIKit's accessibility tree on iPhone Simulator.
             }
 
             if let run = secondLevelRun {
@@ -479,7 +481,9 @@ struct CMOriginalQuickPlayView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
-                .accessibilityIdentifier("cm.original.second-level-challenge")
+                // Keep the inner progress label's own accessibility ID.
+                // Applying an ID to this container overrides child IDs in
+                // UIKit's accessibility tree on iPhone Simulator.
             }
 
             if let run = firstLevelRun {

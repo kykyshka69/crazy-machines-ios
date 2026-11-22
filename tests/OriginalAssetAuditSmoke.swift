@@ -23,6 +23,18 @@ enum OriginalAssetAuditSmoke {
         return data
     }
 
+    private static func validGlowTGA() -> Data {
+        // Synthetic 2x2 RGB image, no proprietary texture data.
+        var bytes = Data(repeating: 0, count: 18 + 2 * 2 * 3)
+        bytes[2] = 2      // uncompressed RGB TGA
+        bytes[12] = 2     // width
+        bytes[14] = 2     // height
+        bytes[16] = 24    // BGR24
+        bytes[17] = 0x20  // top-left origin
+        for i in 18..<bytes.count { bytes[i] = 140 }
+        return bytes
+    }
+
     static func main() throws {
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("cm-original-asset-audit-" + UUID().uuidString,
@@ -52,6 +64,44 @@ enum OriginalAssetAuditSmoke {
         precondition(empty.entries.isEmpty && !empty.allReady)
         let ready = CMOriginalAssetAudit.inspect(modelNames: ["to_ball"], directory: folder)
         precondition(ready.allReady)
+
+        // Real Windows levels contain five 3DO names that are visual
+        // billboards, not mesh geometry. They must be audited against their
+        // matching TGA instead of requiring a nonexistent UCM.
+        let missingGlow = CMOriginalAssetAudit.inspect(
+            modelNames: ["to_candle_glow"], directory: folder)
+        precondition(missingGlow.entries.first?.status == .missing)
+        try validGlowTGA().write(
+            to: folder.appendingPathComponent("light_glow.tga"))
+        let twoGlows = CMOriginalAssetAudit.inspect(
+            modelNames: ["to_candle_glow", "to_power_lamp_bulb_bb"],
+            directory: folder)
+        precondition(twoGlows.allReady && twoGlows.readyCount == 2)
+        precondition(twoGlows.entries.allSatisfy {
+            $0.fileName == "light_glow.tga" &&
+                $0.vertices == 0 && $0.triangles == 0
+        })
+        let stillMissing = CMOriginalAssetAudit.inspect(
+            modelNames: ["to_light_pocketlamp_glow"], directory: folder)
+        precondition(stillMissing.entries.first?.status == .missing)
+        try Data([0, 1, 2]).write(
+            to: folder.appendingPathComponent("light_pocketlamp_glow.tga"))
+        let badGlow = CMOriginalAssetAudit.inspect(
+            modelNames: ["to_light_pocketlamp_glow"], directory: folder)
+        precondition(badGlow.entries.first?.status == .invalidTexture)
+        try validGlowTGA().write(
+            to: folder.appendingPathComponent("light_pocketlamp_glow.tga"))
+        let goodGlow = CMOriginalAssetAudit.inspect(
+            modelNames: ["to_light_pocketlamp_glow"], directory: folder)
+        precondition(goodGlow.allReady)
+        let conventionalMesh = CMOriginalAssetAudit.inspect(
+            modelNames: ["to_ball", "to_candle_glow"], directory: folder)
+        precondition(conventionalMesh.allReady)
+        // Arbitrary made-up glowing names remain unresolved, not silently
+        // treated as valid visual effects with invented physics.
+        let unknown = CMOriginalAssetAudit.inspect(
+            modelNames: ["to_fake_glow"], directory: folder)
+        precondition(unknown.entries[0].status == .missing)
 
         #if os(Linux)
         // Linux CI has a case-sensitive filesystem: two spellings of the

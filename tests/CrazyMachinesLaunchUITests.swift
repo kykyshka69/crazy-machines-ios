@@ -220,16 +220,20 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
                 .waitForExistence(timeout: 20),
             "Original-style second puzzle could not be opened"
         )
-        let progress = app.staticTexts["cm.original.second-level-progress"]
+        // The permanent HUD is always visible above the SceneKit board.
+        // Previously the test queried a diagnostics label nested inside a
+        // VStack whose accessibility ID masked its child IDs on iOS.
+        let progress = app.staticTexts["cm.original.second-level-hud"]
         XCTAssertTrue(progress.waitForExistence(timeout: 15),
-                      "Second level basket-to-crate link not detected")
-        XCTAssertEqual(progress.label, "0 / 1")
+                      "Second-level basket-to-crate HUD not present")
+        XCTAssertEqual(progress.label, "Basket → crate: 0/1")
         let physics = app.switches["cm.original.quickplay-physics"]
         XCTAssertTrue(physics.waitForExistence(timeout: 10))
         physics.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         XCTAssertEqual(physics.value as? String, "1")
         let hit = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "label == %@", "1 / 1"),
+            predicate: NSPredicate(
+                format: "label == %@", "Basket → crate: 1/1"),
             object: progress
         )
         XCTAssertEqual(
@@ -270,16 +274,16 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
             app.staticTexts["Original level 3: CM synthetic CI level 3"]
                 .waitForExistence(timeout: 20))
 
-        let progress = app.staticTexts["cm.original.third-level-progress"]
+        let progress = app.staticTexts["cm.original.third-level-hud"]
         XCTAssertTrue(progress.waitForExistence(timeout: 15),
-                      "Authentic five-crate original link signature not detected")
-        XCTAssertEqual(progress.label, "0 / 5")
+                      "Third-level five-crate HUD not present")
+        XCTAssertEqual(progress.label, "Crates: 0/5")
         let physics = app.switches["cm.original.quickplay-physics"]
         XCTAssertTrue(physics.waitForExistence(timeout: 10))
         physics.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         XCTAssertEqual(physics.value as? String, "1")
         let fiveContacts = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "label == %@", "5 / 5"),
+            predicate: NSPredicate(format: "label == %@", "Crates: 5/5"),
             object: progress
         )
         XCTAssertEqual(
