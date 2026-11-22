@@ -153,6 +153,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalGeneratorSignal: ((String, Float) -> Void)? = nil
     var onOriginalPowerPlugTap: ((String) -> Void)? = nil
     var onOriginalSwitchToggle: ((String, Bool) -> Void)? = nil
+    // Contact pairs from the actual imported PC switch lever and striker.
+    // This reports a physical event; it does not invent Win32 +0xEC/+0xC8
+    // component scalars or energize the unverified electrical network.
+    var onOriginalSwitchContact: ((CMOriginalSwitchContactMapper.Hit) -> Void)? = nil
 
     private var physicsAccessibilityStatus: String {
         let state = experimentalPhysics ? (physicsPaused ? "paused" : "running") : "off"
@@ -388,6 +392,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalBucketCapture = onOriginalBucketCapture
         context.coordinator.fourthLevelRun = CMOriginalFourthLevelRun(document: document)
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
+        context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
         context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
         context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal
@@ -482,6 +487,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalConnectionContact = onOriginalConnectionContact
         context.coordinator.onOriginalBucketCapture = onOriginalBucketCapture
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
+        context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
         context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
         context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal
@@ -580,7 +586,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var switchLeverNodes: [String: SCNNode] = [:]
         private var switchLeverRestAngles: [String: SCNVector3] = [:]
         private var flippedSwitchIDs = Set<String>()
+        private var switchContacts: CMOriginalSwitchContactMapper?
         var onOriginalSwitchToggle: ((String, Bool) -> Void)?
+        var onOriginalSwitchContact: ((CMOriginalSwitchContactMapper.Hit) -> Void)?
 
         func setExperimentalMotorDrive(_ enabled: Bool) {
             sessionLock.lock()
@@ -732,6 +740,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             fourthBallMesh = nil
             fourthBucketMesh = nil
             let originalObjects = session?.objects ?? []
+            switchContacts = CMOriginalSwitchContactMapper(objects: originalObjects.map {
+                .init(id: $0.id, type: $0.type, parentID: $0.parentID)
+            })
             originalTypesByID = Dictionary(
                 uniqueKeysWithValues: originalObjects.map { ($0.id, $0.type) }
             )
@@ -1180,6 +1191,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // physics node. Resolve both owners before attributing contacts.
             sessionLock.lock()
             session?.recordContact(a, b, impulse: Double(contact.collisionImpulse))
+            // Map actual SceneKit collision owners back to an original PC
+            // tmo_power_switch_lever, never an adjacent housing or base.
+            let leverHit = switchContacts?.beginContact(
+                a, b, impulse: Double(contact.collisionImpulse),
+                aIsMovable: session?.physicsRole(for: a) == .movable,
+                bIsMovable: session?.physicsRole(for: b) == .movable
+            )
             // CONNECTED_TO refers to another original level element, not
             // necessarily a tmo_zone. Report exact linked contact pairs:
             // 67 originals point to capture zones; the other 13 point to
@@ -1238,7 +1256,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
             sessionLock.unlock()
             // Never mutate SwiftUI state from the SceneKit renderer thread.
-            if contactType != nil || !newlyObservedConnections.isEmpty {
+            if contactType != nil || !newlyObservedConnections.isEmpty
+                || leverHit != nil {
                 DispatchQueue.main.async { [weak self] in
                     if let contactType, let contactIDs {
                         self?.onOriginalZoneContact?(contactType)
@@ -1255,9 +1274,24 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     for (sourceID, targetID) in newlyObservedConnections {
                         self?.onOriginalConnectionContact?(sourceID, targetID)
                     }
+                    if let leverHit {
+                        self?.onOriginalSwitchContact?(leverHit)
+                    }
                 }
             }
         }
+
+        func physicsWorld(_ world: SCNPhysicsWorld, didEnd contact: SCNPhysicsContact) {
+            guard physicsEnabled,
+                  let a = owningOriginalObjectID(
+                      for: physicalNode(for: contact.nodeA)),
+                  let b = owningOriginalObjectID(
+                      for: physicalNode(for: contact.nodeB)) else { return }
+            sessionLock.lock()
+            switchContacts?.endContact(a, b)
+            sessionLock.unlock()
+        }
+
         private var originalEmission: Any?
         private weak var dragging: SCNNode?
         private var dragInitialPosition: SCNVector3?
