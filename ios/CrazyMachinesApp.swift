@@ -32,14 +32,14 @@ private struct CMGameHomeView: View {
         let sceneURL = support.appendingPathComponent("OriginalScenes/level-001.json")
         guard let data = try? Data(contentsOf: sceneURL),
               let document = try? CMOriginalSceneDocument.read(data) else { return false }
-        let index = CMOriginalModelResolver.AssetIndex(directory: assetDirectory)
-        // A single visible mesh is not enough to call an original PC level
-        // ready. Missing parts can silently break all subsequent mechanics.
+        // Filenames alone are not proof of usable original geometry.
+        // Parse each referenced UCM before offering Quick Play so a damaged
+        // original asset pack cannot open a blank first puzzle.
         let modelNames = CMOriginalModelResolver.allModelNames(in: document.root)
-        guard !modelNames.isEmpty,
-              modelNames.allSatisfy({ index.resolve($0) != nil }) else {
-            return false
-        }
+        let readiness = CMOriginalAssetAudit.inspect(
+            modelNames: modelNames, directory: assetDirectory
+        )
+        guard readiness.allReady else { return false }
         quickPlaySelection = OriginalQuickPlaySelection(document: document)
         return true
     }
@@ -117,8 +117,9 @@ private struct CMGameHomeView: View {
         if let saved = try? Data(contentsOf: firstScene),
            let document = try? CMOriginalSceneDocument.read(saved) {
             let names = CMOriginalModelResolver.allModelNames(in: document.root)
-            let index = CMOriginalModelResolver.AssetIndex(directory: assetDirectory)
-            if !names.isEmpty && names.allSatisfy({ index.resolve($0) != nil }) {
+            if CMOriginalAssetAudit.inspect(
+                modelNames: names, directory: assetDirectory
+            ).allReady {
                 return
             }
         }
