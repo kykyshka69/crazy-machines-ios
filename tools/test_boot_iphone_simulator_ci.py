@@ -71,6 +71,23 @@ class SimulatorCIRegression(unittest.TestCase):
         self.assertIn((["xcrun", "simctl", "bootstatus", "new", "-b"], 130),
                       runner.calls)
 
+    def test_does_not_query_global_booted_list_after_ready(self):
+        # The shared CoreSimulator list command can hang even though the
+        # selected iPhone's targeted bootstatus has already succeeded.
+        class BrokenGlobalList(FakeSimulator):
+            def __call__(self, argv, **kwargs):
+                if argv[2:] == ["list", "devices", "booted", "-j"]:
+                    raise subprocess.TimeoutExpired(argv, timeout=kwargs["timeout"])
+                return super().__call__(argv, **kwargs)
+        runner = BrokenGlobalList(make_devices(
+            ("iPhone 17 Pro", "ready", "Shutdown", True)
+        ))
+        self.assertEqual(boot_iphone(runner=runner), "ready")
+        self.assertFalse(any(
+            command[2:] == ["list", "devices", "booted", "-j"]
+            for command, _ in runner.calls
+        ))
+
     def test_timeout_tries_second_phone(self):
         runner = FakeSimulator(make_devices(("iPhone 17", "a", "Shutdown", True),
                                              ("iPhone 18", "b", "Shutdown", True)),

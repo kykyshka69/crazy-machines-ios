@@ -73,12 +73,11 @@ def boot_iphone(*, runner=subprocess.run, max_attempts=2,
                 execute(["xcrun", "simctl", "boot", udid], runner=runner, timeout=45)
             execute(["xcrun", "simctl", "bootstatus", udid, "-b"],
                     runner=runner, timeout=130)
-            live = execute(["xcrun", "simctl", "list", "devices", "booted", "-j"],
-                           runner=runner, timeout=20)
-            running = {d[0] for d in iphone_candidates(json.loads(live))
-                       if d[2] == "Booted"}
-            if udid not in running:
-                raise SimulatorBootError("simulator no longer reports Booted")
+            # A successful targeted bootstatus -b call already confirms
+            # that THIS device finished booting. Re-querying the global
+            # CoreSimulator device list may hang even after the chosen
+            # iPhone is ready (observed in CI run 45001077011).
+            # Let the subsequent install/launch step prove usability.
             return udid
         except (SimulatorBootError, json.JSONDecodeError) as error:
             print("Boot failed: %s" % error, file=sys.stderr)
