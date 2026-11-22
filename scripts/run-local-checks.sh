@@ -136,6 +136,10 @@ swiftc ios/CMOriginalWindowsBeamRegion.swift ios/CMOriginalWindowsBeamFactory.sw
 "$tmp/original-pocketlamp"
 # Original Windows GOAL dispatcher SHA gate; no private EXE in public CI.
 python3 -m unittest discover -s tools -p 'test_audit_windows_goal_calls.py'
+# Native steam source pressure and >=1.0 whistle GOAL boundary.
+swiftc ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsSteamWhistle.swift \
+  tests/OriginalWindowsSteamWhistleSmoke.swift -o "$tmp/original-whistle-goal"
+"$tmp/original-whistle-goal"
 # Original native pocketlamp click toggles +0xEC; never invent beam/GOAL.
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   tests/OriginalWindowsPocketLampStateSmoke.swift -o "$tmp/original-pocketlamp-click"

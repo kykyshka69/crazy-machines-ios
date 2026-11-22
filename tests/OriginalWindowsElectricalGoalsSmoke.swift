@@ -20,14 +20,16 @@ struct OriginalWindowsElectricalGoalsSmoke {
                     object("tmo_power_lamp", goal: false),
                     object("tmo_power_motor"),
                     object("tmo_power_generator"),
-                    object("tmo_power_generator", goal: false)
+                    object("tmo_power_generator", goal: false),
+                    object("tmo_pipe_whistle"),
+                    object("tmo_pipe_whistle", goal: false)
                 ]]
             ]]
         ]
         let document = try CMOriginalSceneDocument.read(
             JSONSerialization.data(withJSONObject: root))
         let session = CMOriginalGameplaySession(document: document)
-        precondition(session.objects.count == 9)
+        precondition(session.objects.count == 11)
         let ids = session.objects.map(\.id)
         let powered = [ids[0]: Float(10), ids[1]: Float(3),
                        ids[2]: Float(1.5), ids[3]: Float(10),
@@ -71,6 +73,21 @@ struct OriginalWindowsElectricalGoalsSmoke {
         precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
             session: session, powerByDeviceID: [:],
             generatorRotorCommandsByDeviceID: [ids[7]: .nan]).isEmpty)
+        // Only a real steam-source +0x40 can credit a whistle.
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [ids[9]: 10]).isEmpty)
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            steamPressureByObjectID: [ids[9]: 1]) == [ids[9]])
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            steamPressureByObjectID: [ids[9]: 0.99999]).isEmpty)
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            steamPressureByObjectID: [ids[9]: .nan]).isEmpty)
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            steamPressureByObjectID: [ids[10]: 2]).isEmpty)
         print("Recovered Win32 GOAL: lamp, lightning, bell, motor abs(-power)>0.5 and generator abs(rotor)>1; no switch tap")
     }
 }

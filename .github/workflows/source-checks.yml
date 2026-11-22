@@ -335,6 +335,15 @@ jobs:
         run: |
           python3 -m unittest discover -s tools -p 'test_audit_windows_goal_calls.py'
 
+  original-win32-steam-whistle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify original steam GOAL threshold inclusive equality
+        run: |
+          swiftc ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsSteamWhistle.swift tests/OriginalWindowsSteamWhistleSmoke.swift -o /tmp/cm-win32-whistle
+          /tmp/cm-win32-whistle
+
   original-win32-pocketlamp-switch:
     runs-on: ubuntu-latest
     steps:
