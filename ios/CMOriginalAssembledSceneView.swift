@@ -1031,21 +1031,23 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             if gestureRecognizer is UIPinchGestureRecognizer {
                 return !physicsEnabled
             }
-            // Two-finger camera movement must not require a selected part;
-            // single-finger object dragging still checks the unlocked owner.
+            // Two-finger camera panning works without a selected part.
+            // One-finger dragging can start immediately on ANY authentic
+            // UNLOCKED object; a preliminary selection tap is unnecessary.
             if let pan = gestureRecognizer as? UIPanGestureRecognizer,
                pan.minimumNumberOfTouches == 2 {
                 return !physicsEnabled
             }
             guard gestureRecognizer is UIPanGestureRecognizer else { return true }
-            guard let view = gestureRecognizer.view as? SCNView,
-                  let selected = highlighted,
-                  originalOwner(for: selected)?.isUnlockedInOriginalLevel == true
+            guard !physicsEnabled,
+                  let view = gestureRecognizer.view as? SCNView,
+                  let hit = view.hitTest(
+                    gestureRecognizer.location(in: view),
+                    options: [.firstFoundOnly: true]
+                  ).first,
+                  originalOwner(for: hit.node)?.isUnlockedInOriginalLevel == true
             else { return false }
-            let point = gestureRecognizer.location(in: view)
-            // Do not steal camera gestures unless the finger begins directly
-            // on the selected mesh.
-            return view.hitTest(point, options: [.firstFoundOnly: true]).first?.node === selected
+            return true
         }
 
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
@@ -1172,13 +1174,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             let point = gesture.location(in: view)
             switch gesture.state {
             case .began:
-                guard let selected = highlighted,
+                guard !physicsEnabled,
                       let hit = view.hitTest(point, options: [.firstFoundOnly: true]).first,
-                      hit.node === selected else { return }
-                // Move the owning original object transform, not the 3DO
-                // reference wrapper. Keep nested model offsets intact.
-                guard let owner = originalOwner(for: selected),
+                      let owner = originalOwner(for: hit.node),
                       owner.isUnlockedInOriginalLevel else { return }
+                // Select the dragged original UCM for consistent tint and
+                // VoiceOver feedback. Never move a locked or decorative mesh.
+                highlightOriginalMesh(hit.node, in: view)
+                // Move the owning original object transform, not its 3DO
+                // wrapper; keep every nested model offset intact.
                 dragging = owner
                 dragInitialPosition = owner.position
                 lastDragPoint = point
@@ -1502,6 +1506,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                 at: contact, asImpulse: true)
                 return
             }
+            highlightOriginalMesh(node, in: view)
+        }
+
+        /// Shared tap/drag selection path. One original UCM instance gets
+        /// the highlight, while cached geometry used by siblings stays intact.
+        private func highlightOriginalMesh(_ node: SCNNode?, in view: SCNView) {
             if let previous = highlighted, let material = previous.geometry?.firstMaterial {
                 material.emission.contents = originalEmission
             }
@@ -1533,6 +1543,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 objectType.map { "Original object type: " + $0 },
                 objectID.map { "Object ID: " + $0 }
             ].compactMap { $0 }.joined(separator: "; ")
+
         }
     }
 
