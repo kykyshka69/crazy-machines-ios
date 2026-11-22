@@ -208,3 +208,12 @@ jobs:
           /tmp/cm-original-scene
           swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalLevelDocumentCache.swift tests/OriginalSceneCacheSmoke.swift -o /tmp/cm-original-scene-cache
           /tmp/cm-original-scene-cache
+
+  original-placement-undo-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify bounded original-piece Undo history
+        run: |
+          swiftc ios/CMOriginalPlacementHistory.swift tests/OriginalPlacementHistorySmoke.swift -o /tmp/cm-placement-undo
+          /tmp/cm-placement-undo

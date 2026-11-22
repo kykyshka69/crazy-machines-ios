@@ -38,6 +38,8 @@ struct CMOriginalQuickPlayView: View {
     @State private var physicsPaused = false
     @State private var sceneRevision = UUID()
     @State private var cameraResetRevision = 0
+    @State private var undoPlacementRevision = 0
+    @State private var canUndoPlacement = false
     @State private var showAllLevels = false
     @State private var zoneContacts: [String: Int] = [:]
     @State private var matchedZoneLinks = Set<String>()
@@ -129,6 +131,7 @@ struct CMOriginalQuickPlayView: View {
         firstLevelRun?.reset()
         secondLevelRun?.reset()
                         thirdLevelRun?.reset()
+        canUndoPlacement = false
         sceneRevision = UUID()
     }
 
@@ -170,6 +173,8 @@ struct CMOriginalQuickPlayView: View {
                 experimentalPhysics: experimentalPhysics,
                 physicsPaused: physicsPaused,
                 cameraResetRevision: cameraResetRevision,
+                undoPlacementRevision: undoPlacementRevision,
+                onCanUndoPlacementChange: { canUndoPlacement = $0 },
                 allowObjectPlacement: true,
                 experimentalMotorDrive: experimentalMotorDrive,
                 configuredPhysicsRoles: experimentalPhysicsRoles,
@@ -370,6 +375,7 @@ struct CMOriginalQuickPlayView: View {
         secondLevelRun?.reset()
                         thirdLevelRun?.reset()
                         // Rebuild bodies only after changing scene physics mode.
+                        canUndoPlacement = false
                         sceneRevision = UUID()
                     }
                     .accessibilityIdentifier("cm.original.quickplay-physics")
@@ -388,6 +394,7 @@ struct CMOriginalQuickPlayView: View {
                     firstLevelRun?.reset()
         secondLevelRun?.reset()
                         thirdLevelRun?.reset()
+                    canUndoPlacement = false
                     sceneRevision = UUID()
                 }
                 .accessibilityIdentifier("cm.original.quickplay-reset")
@@ -439,6 +446,14 @@ struct CMOriginalQuickPlayView: View {
                         .font(.caption)
                 }
                 Spacer(minLength: 6)
+                Button {
+                    undoPlacementRevision &+= 1
+                } label: {
+                    Label("Undo", systemImage: "arrow.uturn.backward")
+                }
+                .font(.caption.weight(.semibold))
+                .disabled(!canUndoPlacement || experimentalPhysics)
+                .accessibilityIdentifier("cm.original.quickplay-undo")
                 Button("Original layout") {
                     UserDefaults.standard.removeObject(
                         forKey: "cm.original.positions.\(document.sceneSHA256)"
@@ -456,6 +471,7 @@ struct CMOriginalQuickPlayView: View {
                     firstLevelRun?.reset()
         secondLevelRun?.reset()
                         thirdLevelRun?.reset()
+                    canUndoPlacement = false
                     sceneRevision = UUID()
                 }
                 .font(.caption.weight(.semibold))

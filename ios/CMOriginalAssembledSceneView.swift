@@ -116,6 +116,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // Incrementing this value recenters the camera without rebuilding the
     // original geometry or resetting the player's saved arrangement.
     var cameraResetRevision = 0
+    // Undo one saved move or rotation without resetting all other pieces.
+    var undoPlacementRevision = 0
+    var onCanUndoPlacementChange: ((Bool) -> Void)? = nil
     // Permits moving the original PC objects while the simulation is stopped.
     // Defaults off for read-only inspectors and other embedded scene previews.
     var allowObjectPlacement = false
@@ -351,6 +354,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         reset.isEnabled = (allowObjectPlacement && !experimentalPhysics)
             || (experimentalPhysics && diagnosticHinges)
         view.addGestureRecognizer(reset)
+        context.coordinator.lastUndoPlacementRevision = undoPlacementRevision
+        context.coordinator.onCanUndoPlacementChange = onCanUndoPlacementChange
         context.coordinator.storageKey = "cm.original.positions.\(document.sceneSHA256)"
         context.coordinator.rotationStorageKey = "cm.original.rotations.\(document.sceneSHA256)"
         context.coordinator.physicsEnabled = experimentalPhysics
@@ -460,7 +465,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalConnectionContact = onOriginalConnectionContact
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
+        context.coordinator.onCanUndoPlacementChange = onCanUndoPlacementChange
         context.coordinator.setExperimentalMotorDrive(experimentalMotorDrive)
+        if context.coordinator.lastUndoPlacementRevision != undoPlacementRevision {
+            context.coordinator.lastUndoPlacementRevision = undoPlacementRevision
+            context.coordinator.undoPlacement(in: uiView)
+        }
         // A paused experiment must still display its current 3D frame.
         // Freezing SceneKit's renderer would also prevent camera updates.
         uiView.isPlaying = true
@@ -1039,6 +1049,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var lastCameraPanPoint: CGPoint?
         private var dragWasActive = false
         private var rotationStartZ: Float?
+        private var rotationBeforePose: CMOriginalPlacementHistory.Pose?
+        private var dragBeforePose: CMOriginalPlacementHistory.Pose?
+        private var placementHistory = CMOriginalPlacementHistory()
+        var onCanUndoPlacementChange: ((Bool) -> Void)?
+        var lastUndoPlacementRevision = 0
         private var pinchStartFieldOfView: CGFloat?
         var initialCameraTransform: SCNMatrix4?
         var initialCameraFieldOfView: CGFloat?
@@ -1059,6 +1074,64 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var manualHinges: [(joint: SCNPhysicsHingeJoint, marker: SCNNode)] = []
         var originalPositions: [String: SCNVector3] = [:]
         var originalRotations: [String: SCNVector3] = [:]
+
+        private func placementPose(of owner: SCNNode) -> CMOriginalPlacementHistory.Pose? {
+            guard let id = owner.name else { return nil }
+            let position = owner.position
+            let angles = owner.eulerAngles
+            return CMOriginalPlacementHistory.Pose(
+                identifier: id,
+                position: [Double(position.x), Double(position.y), Double(position.z)],
+                rotation: [Double(angles.x), Double(angles.y), Double(angles.z)]
+            )
+        }
+
+        private func notifyCanUndoPlacement() {
+            // updateUIView may perform an Undo while SwiftUI is rendering.
+            // Deliver the button-state update on the next main-queue turn.
+            let available = placementHistory.canUndo
+            DispatchQueue.main.async { [weak self] in
+                self?.onCanUndoPlacementChange?(available)
+            }
+        }
+
+        private func recordPlacement(before: CMOriginalPlacementHistory.Pose?,
+                                     owner: SCNNode) {
+            guard let before, let after = placementPose(of: owner),
+                  placementHistory.record(before: before, after: after) else {
+                return
+            }
+            notifyCanUndoPlacement()
+        }
+
+        func undoPlacement(in view: SCNView) {
+            guard !physicsEnabled, let previous = placementHistory.undo() else { return }
+            guard let owner = view.scene?.rootNode.childNode(
+                withName: previous.identifier, recursively: true
+            ) as? CMOriginalPhysicsOwnerNode,
+                  owner.isUnlockedInOriginalLevel else {
+                placementHistory.clear()
+                notifyCanUndoPlacement()
+                return
+            }
+            owner.position = SCNVector3(
+                Float(previous.position[0]), Float(previous.position[1]),
+                Float(previous.position[2]))
+            owner.eulerAngles = SCNVector3(
+                Float(previous.rotation[0]), Float(previous.rotation[1]),
+                Float(previous.rotation[2]))
+            // Persist the reverted pose, otherwise exiting and reopening the
+            // puzzle would incorrectly replay the move that was undone.
+            var positions = UserDefaults.standard.dictionary(forKey: storageKey)
+                as? [String: [Double]] ?? [:]
+            positions[previous.identifier] = previous.position
+            UserDefaults.standard.set(positions, forKey: storageKey)
+            var rotations = UserDefaults.standard.dictionary(forKey: rotationStorageKey)
+                as? [String: [Double]] ?? [:]
+            rotations[previous.identifier] = previous.rotation
+            UserDefaults.standard.set(rotations, forKey: rotationStorageKey)
+            notifyCanUndoPlacement()
+        }
 
         // Original 3DO meshes can sit beneath any number of helper nodes.
         // Find the nearest owning tmo_ transform instead of assuming a
@@ -1109,8 +1182,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                   let selected = highlighted,
                   view.hitTest(gesture.location(in: view), options: [.firstFoundOnly: true]).first?.node === selected,
                   let owner = originalOwner(for: selected),
+                  owner.isUnlockedInOriginalLevel,
                   let identifier = owner.name,
                   let original = originalPositions[identifier] else { return }
+            let before = placementPose(of: owner)
             owner.position = original
             if let originalAngles = originalRotations[identifier] {
                 owner.eulerAngles = originalAngles
@@ -1122,6 +1197,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 as? [String: [Double]] ?? [:]
             rotations.removeValue(forKey: identifier)
             UserDefaults.standard.set(rotations, forKey: rotationStorageKey)
+            recordPlacement(before: before, owner: owner)
         }
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
@@ -1244,6 +1320,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             switch gesture.state {
             case .began:
                 rotationStartZ = owner.eulerAngles.z
+                rotationBeforePose = placementPose(of: owner)
             case .changed:
                 guard let initial = rotationStartZ else { return }
                 let next = initial + Float(gesture.rotation)
@@ -1261,9 +1338,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     ]
                     UserDefaults.standard.set(saved, forKey: rotationStorageKey)
                 }
+                recordPlacement(before: rotationBeforePose, owner: owner)
+                rotationBeforePose = nil
                 rotationStartZ = nil
             case .cancelled, .failed:
                 if let original = rotationStartZ { owner.eulerAngles.z = original }
+                rotationBeforePose = nil
                 rotationStartZ = nil
             default:
                 break
@@ -1285,6 +1365,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // Move the owning original object transform, not its 3DO
                 // wrapper; keep every nested model offset intact.
                 dragging = owner
+                dragBeforePose = placementPose(of: owner)
                 dragInitialPosition = owner.position
                 lastDragPoint = point
                 dragWasActive = true
@@ -1324,8 +1405,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                              Double(target.position.y),
                                              Double(target.position.z)]
                     UserDefaults.standard.set(positions, forKey: storageKey)
+                    recordPlacement(before: dragBeforePose, owner: target)
                 }
                 dragging = nil
+                dragBeforePose = nil
                 dragInitialPosition = nil
                 lastDragPoint = nil
                 dragWasActive = false
