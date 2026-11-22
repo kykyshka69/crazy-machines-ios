@@ -5,6 +5,7 @@ import SwiftUI
 /// the original Windows game engine or a claim of reconstructed puzzle rules.
 struct CMOriginalQuickPlayView: View {
     let assetDirectory: URL
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var document: CMOriginalSceneDocument
 
     init(document: CMOriginalSceneDocument, assetDirectory: URL) {
@@ -199,6 +200,7 @@ struct CMOriginalQuickPlayView: View {
             )
             .id(sceneRevision)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .layoutPriority(1)
             .overlay(alignment: .bottomTrailing) {
                 Button {
                     cameraResetRevision &+= 1
@@ -213,6 +215,11 @@ struct CMOriginalQuickPlayView: View {
                 .padding(10)
             }
 
+            // The original PC puzzle needs a usable 3D board even after
+            // contacts, motors and goals populate the status panel. Keep the
+            // board flexible and scroll secondary controls independently.
+            ScrollView(.vertical) {
+                VStack(spacing: 0) {
             HStack(spacing: 12) {
                 Toggle("Run experimental physics", isOn: $experimentalPhysics)
                     .font(.caption)
@@ -434,6 +441,10 @@ struct CMOriginalQuickPlayView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 12)
                 .padding(.bottom, 8)
+                }
+            }
+            .frame(maxHeight: verticalSizeClass == .compact ? 120 : 260)
+            .accessibilityIdentifier("cm.original.quickplay-controls")
         }
         .navigationTitle("Crazy Machines")
         .navigationBarTitleDisplayMode(.inline)

@@ -1544,6 +1544,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var loadedMeshNodes: [SCNNode] = []
         // Resolve each original 3DO reference once per scene; levels reuse meshes.
         let assetIndex = CMOriginalModelResolver.AssetIndex(directory: assetDirectory)
+        // Build a single case-insensitive TGA index for this entire scene.
+        // Every reused original UCM/wall material sees the same decoded image
+        // instead of rescanning 181 files and decompressing each TGA again.
+        let textureCache = OriginalTextureCache(directory: assetDirectory)
         var resolvedModels: [String: URL] = [:]
         var missingModels = Set<String>()
         var meshCache: [String: SCNGeometry] = [:]
@@ -1647,7 +1651,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             geometry = cached
                         } else {
                             geometry = try? Self.loadGeometry(
-                                url, assetDirectory: assetDirectory,
+                                url, textureCache: textureCache,
                                 originalModelReference: name
                             )
                             if let geometry {
@@ -2171,8 +2175,56 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         "windmill_base": "windmill", "windmill_wings": "windmill"
     ]
 
+    /// Per-scene original TGA index and lazy decode cache. Each unique
+    /// asset is opened at most once per scene even when many original UCMs
+    /// share it, and exact-on-disk casing is respected on iOS.
+    private final class OriginalTextureCache {
+        private var imageFiles: [String: [URL]] = [:]
+        private var decoded: [String: CGImage] = [:]
+        private var unavailable = Set<String>()
+
+        init(directory: URL) {
+            let files = (try? FileManager.default.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            )) ?? []
+            for file in files where file.pathExtension.lowercased() == "tga" {
+                guard (try? file.resourceValues(
+                    forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
+                let key = file.deletingPathExtension().lastPathComponent.lowercased()
+                imageFiles[key, default: []].append(file)
+            }
+        }
+
+        func image(named name: String) -> CGImage? {
+            let key = name.lowercased()
+            if let cached = decoded[key] { return cached }
+            if unavailable.contains(key) { return nil }
+            // Duplicate case-insensitive original names cannot be resolved
+            // unambiguously; do NOT choose an arbitrary game texture.
+            guard let matches = imageFiles[key], matches.count == 1,
+                  let bytes = try? Data(contentsOf: matches[0]),
+                  let tga = try? CMTGATexture(data: bytes),
+                  let provider = CGDataProvider(data: tga.rgba as CFData),
+                  let space = CGColorSpace(name: CGColorSpace.sRGB),
+                  let image = CGImage(
+                    width: tga.width, height: tga.height,
+                    bitsPerComponent: 8, bitsPerPixel: 32,
+                    bytesPerRow: tga.width * 4, space: space,
+                    bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
+                    provider: provider, decode: nil,
+                    shouldInterpolate: true, intent: .defaultIntent
+                  ) else {
+                unavailable.insert(key)
+                return nil
+            }
+            decoded[key] = image
+            return image
+        }
+    }
+
     private static func originalTexture(
-        for modelURL: URL, in directory: URL,
+        for modelURL: URL, cache: OriginalTextureCache,
         originalModelReference: String? = nil
     ) -> CGImage? {
         let modelName = modelURL.deletingPathExtension().lastPathComponent.lowercased()
@@ -2190,38 +2242,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             "to_wall_brick": "wall_bricks",
             "to_wall_wall_paper": "wall_paper"
         ]
-        let textureName = sceneTextures[originalModelReference?.lowercased() ?? ""]
-            ?? verifiedTextures[modelName]
-        guard let textureName else { return nil }
-        // Original Windows asset paths are case-insensitive; the iPhone
-        // sandbox is not. Resolve the real imported filename rather than
-        // assuming its spelling matches the shader's lowercase name.
-        let candidates = (try? FileManager.default.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        )) ?? []
-        let matches = candidates.filter {
-            $0.pathExtension.lowercased() == "tga"
-                && $0.deletingPathExtension().lastPathComponent.lowercased() == textureName
-                && (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
-        }
-        // A duplicate basename is ambiguous: never select an arbitrary texture.
-        guard matches.count == 1 else { return nil }
-        let textureURL = matches[0]
-        guard let bytes = try? Data(contentsOf: textureURL),
-              let decoded = try? CMTGATexture(data: bytes),
-              let provider = CGDataProvider(data: decoded.rgba as CFData),
-              let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
-        return CGImage(width: decoded.width, height: decoded.height,
-                       bitsPerComponent: 8, bitsPerPixel: 32,
-                       bytesPerRow: decoded.width * 4, space: colorSpace,
-                       bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
-                       provider: provider, decode: nil,
-                       shouldInterpolate: true, intent: .defaultIntent)
+        guard let name = sceneTextures[originalModelReference?.lowercased() ?? ""]
+                ?? verifiedTextures[modelName] else { return nil }
+        return cache.image(named: name)
     }
 
-    static func loadGeometry(
-        _ url: URL, assetDirectory: URL,
+    private static func loadGeometry(
+        _ url: URL, textureCache: OriginalTextureCache,
         originalModelReference: String? = nil
     ) throws -> SCNGeometry {
         let model = try CMUCMModel(data: Data(contentsOf: url))
@@ -2290,7 +2317,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         let geometry = SCNGeometry(sources: [source, normals, texcoords], elements: [element])
         let material = SCNMaterial()
         material.diffuse.contents = originalTexture(
-            for: url, in: assetDirectory,
+            for: url, cache: textureCache,
             originalModelReference: originalModelReference
         ) ?? UIColor(white: 0.78, alpha: 1)
         material.isDoubleSided = true
