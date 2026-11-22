@@ -130,6 +130,14 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   ios/CMOriginalWindowsElectricalGoals.swift \
   tests/OriginalWindowsSolarCircuitSmoke.swift -o "$tmp/original-solar-circuit"
 "$tmp/original-solar-circuit"
+# Recovered original Win32 0x409650 angular/radial beam region.
+swiftc ios/CMOriginalWindowsBeamRegion.swift tests/OriginalWindowsBeamRegionSmoke.swift \
+  -o "$tmp/original-win32-beam"
+"$tmp/original-win32-beam"
+swiftc ios/CMOriginalWindowsBeamRegion.swift ios/CMOriginalWindowsOpticalSample.swift \
+  ios/CMOriginalOpticalSightline.swift ios/CMOriginalWindowsSolarSignal.swift \
+  tests/OriginalWindowsOpticalSampleSmoke.swift -o "$tmp/original-win32-optical-solar"
+"$tmp/original-win32-optical-solar"
 # Actual UCM mesh-to-mesh path geometry and intervening original blockers.
 swiftc ios/CMOriginalOpticalSightline.swift tests/OriginalOpticalSightlineSmoke.swift \
   -o "$tmp/original-optical-geometry"
