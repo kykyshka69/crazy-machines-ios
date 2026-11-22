@@ -13,6 +13,9 @@ public enum CMOriginalWindowsPowerScalar {
     public static let lampGoalCutoff: Float = 3
     // 0x450E68 compares the lightning's +0x40 with float 1 before GOAL.
     public static let lightningGoalCutoff: Float = 1
+    // 0x44BCC1 stores abs(generator rotor +0xE8) as power at +0x40.
+    // 0x44BCCA compares the new power signal with float 1 before GOAL.
+    public static let generatorGoalCutoff: Float = 1
 
     /// Win32 0x44C8F2...0x44C8F8 copies source state +0x40 to target;
     /// 0x44C8E8 sets that source state to zero for a blocking condition.
@@ -39,6 +42,22 @@ public enum CMOriginalWindowsPowerScalar {
 
     public static func lightningTriggersGoal(power: Float) -> Bool {
         power.isFinite && power > lightningGoalCutoff
+    }
+
+    /// Generator is mechanically driven, not a permanent source. Win32
+    /// 0x44BCAC-0x44BCC1 copies abs(child rotor command +0xE8) to the
+    /// generator's electrical node +0x40. The caller supplies an actual
+    /// rotor scalar; SceneKit angular velocity is only a measured proxy.
+    public static func generatorSignal(fromRotorCommand rotor: Float) -> Float? {
+        guard rotor.isFinite else { return nil }
+        return abs(rotor)
+    }
+
+    public static func generatorTriggersGoal(rotor: Float) -> Bool {
+        guard let output = generatorSignal(fromRotorCommand: rotor) else {
+            return false
+        }
+        return output > generatorGoalCutoff
     }
 
     /// Win32 0x451E21-0x451E2A: the lamp's visual factor is power / 10.

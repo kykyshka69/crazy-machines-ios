@@ -48,6 +48,8 @@ struct CMOriginalQuickPlayView: View {
     @State private var experimentalMagnetism = false
     @State private var experimentalWiredPower = false
     @State private var powerCircuit: CMOriginalPowerCircuit?
+    // Original generator owner ID → observed signed rotor speed.
+    @State private var generatorRotorSpeedsByDeviceID: [String: Float] = [:]
     @State private var pendingPowerPlugID: String?
     @State private var powerConnectionMessage: String?
     @State private var physicsPaused = false
@@ -120,15 +122,18 @@ struct CMOriginalQuickPlayView: View {
     /// Authored original plug-to-plug pairs plus Win32's actual battery
     /// source value (10.0). This graph remains an OPT-IN topology prototype:
     /// voltage loss and the original electrical solver are not recovered.
-    private var experimentalBatterySignals: [String: Float] {
+    private var experimentalPowerSignals: [String: Float] {
         guard experimentalPhysics && experimentalWiredPower,
               let network = powerCircuit else { return [:] }
-        return network.experimentalBatterySignals(
-            closedSwitchIDs: flippedOriginalSwitchIDs)
+        // Actual Win32 battery scalar 10.0 + measured generator speed,
+        // transmitted through EXPLICIT pairs of original PC power plugs.
+        return network.experimentalNetworkSignals(
+            closedSwitchIDs: flippedOriginalSwitchIDs,
+            generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID)
     }
 
     private var wiredMotorRotorDriveSignals: [String: Float] {
-        let inputs = experimentalBatterySignals
+        let inputs = experimentalPowerSignals
         return Dictionary(uniqueKeysWithValues:
             originalSession.objects.compactMap { rotor -> (String, Float)? in
                 guard rotor.type == "tmo_power_motor_rotor",
@@ -152,7 +157,7 @@ struct CMOriginalQuickPlayView: View {
             return
         }
         let eligible = CMOriginalWindowsElectricalGoals.activeGoalIDs(
-            session: originalSession, powerByDeviceID: experimentalBatterySignals
+            session: originalSession, powerByDeviceID: experimentalPowerSignals
         )
         for id in eligible {
             _ = windowsGoalCounter?.recordGoalEvent(
@@ -194,6 +199,7 @@ struct CMOriginalQuickPlayView: View {
         originalSession = CMOriginalGameplaySession(document: next)
         objectiveLedger = CMOriginalObjectiveEvidenceLedger(session: originalSession)
         powerCircuit = CMOriginalPowerCircuit(session: originalSession)
+        generatorRotorSpeedsByDeviceID.removeAll()
         pendingPowerPlugID = nil
         powerConnectionMessage = nil
         experimentalWiredPower = false
@@ -211,6 +217,7 @@ struct CMOriginalQuickPlayView: View {
         matchedZoneLinks.removeAll()
         matchedMechanismLinks.removeAll()
         flippedOriginalSwitchIDs.removeAll()
+        generatorRotorSpeedsByDeviceID.removeAll()
         firstLevelRun?.reset()
         secondLevelRun?.reset()
                         thirdLevelRun?.reset()
@@ -229,6 +236,7 @@ struct CMOriginalQuickPlayView: View {
         matchedZoneLinks.removeAll()
         matchedMechanismLinks.removeAll()
         flippedOriginalSwitchIDs.removeAll()
+        generatorRotorSpeedsByDeviceID.removeAll()
         firstLevelRun?.reset()
         secondLevelRun?.reset()
         thirdLevelRun?.reset()
@@ -356,6 +364,16 @@ struct CMOriginalQuickPlayView: View {
                     ) == true, let run = fourthLevelRun {
                         UserDefaults.standard.set(true, forKey: run.storageKey)
                     }
+                },
+                onOriginalGeneratorSignal: { generatorID, rotorSpeed in
+                    guard experimentalPhysics && !physicsPaused else { return }
+                    generatorRotorSpeedsByDeviceID[generatorID] = rotorSpeed
+                    if CMOriginalWindowsPowerScalar.generatorTriggersGoal(
+                        rotor: rotorSpeed) {
+                        _ = windowsGoalCounter?.recordGoalEvent(
+                            objectID: generatorID, simulationRunning: true)
+                    }
+                    creditExperimentalElectricGoals()
                 },
                 onOriginalPowerPlugTap: { plugID in
                     guard !experimentalPhysics else { return }
@@ -593,6 +611,7 @@ struct CMOriginalQuickPlayView: View {
                         matchedZoneLinks.removeAll()
                         matchedMechanismLinks.removeAll()
                         flippedOriginalSwitchIDs.removeAll()
+                        generatorRotorSpeedsByDeviceID.removeAll()
                         firstLevelRun?.reset()
         secondLevelRun?.reset()
                         thirdLevelRun?.reset()
@@ -669,7 +688,8 @@ struct CMOriginalQuickPlayView: View {
                         Text(message).font(.caption2)
                             .accessibilityIdentifier("cm.original.power-cable-message")
                     }
-                    Text("Win32 battery signal 10.0; lamp GOAL requires >3 and lightning >1. Cable graph and 3 rad/s motor speed are experimental: original current, polarity, generator input and return-path rules remain unrecovered.")
+                    Text("Win32: battery source 10.0; spinning generator outputs abs(rotor speed). Lamp GOAL >3, lightning >1, generator >1. Cable graph, generator units, return paths and motor torque remain experimental.")
+                        .accessibilityIdentifier("cm.original.generator-power-rules")
                         .font(.caption2).foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 14)

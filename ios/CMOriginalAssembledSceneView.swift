@@ -150,6 +150,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // Reports a user-operated original PC power switch. This changes its
     // actual lever mesh, NOT the unrecovered electrical connectivity.
     var onOriginalPowerPlugTap: ((String) -> Void)? = nil
+    var onOriginalGeneratorSignal: ((String, Float) -> Void)? = nil
     var onOriginalSwitchToggle: ((String, Bool) -> Void)? = nil
 
     private var physicsAccessibilityStatus: String {
@@ -387,6 +388,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.fourthLevelRun = CMOriginalFourthLevelRun(document: document)
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
+        context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal
         if experimentalPhysics {
             context.coordinator.session?.start()
             if physicsPaused { context.coordinator.session?.pause() }
@@ -479,6 +481,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalBucketCapture = onOriginalBucketCapture
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
+        context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal
         context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
         context.coordinator.onCanUndoPlacementChange = onCanUndoPlacementChange
         context.coordinator.setExperimentalMotorDrive(experimentalMotorDrive)
@@ -555,6 +558,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private weak var fourthBucketMesh: CMOriginalObjectMeshNode?
         private var fourthBallCaptured = false
         private var motorRotorObjectIDs = Set<String>()
+        private var generatorIDByRotorID: [String: String] = [:]
+        private var lastGeneratorScalars: [String: Float] = [:]
+        private var lastGeneratorPollTime: TimeInterval = 0
+        var onOriginalGeneratorSignal: ((String, Float) -> Void)?
         private var axleObjectIDs = Set<String>()
         // Authentic PC conveyor children are linked through their scene-graph
         // parentID, not through a guessed nearest wheel or motor.
@@ -710,6 +717,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             switchLeverNodes.removeAll()
             switchLeverRestAngles.removeAll()
             flippedSwitchIDs.removeAll()
+            generatorIDByRotorID.removeAll()
+            lastGeneratorScalars.removeAll()
+            lastGeneratorPollTime = 0
             fourthBallCaptured = false
             fourthBallMesh = nil
             fourthBucketMesh = nil
@@ -728,6 +738,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 (session?.objects ?? [])
                     .filter { $0.type == "tmo_power_motor_rotor" }
                     .map(\.id)
+            )
+            generatorIDByRotorID = Dictionary(
+                uniqueKeysWithValues: originalObjects.compactMap {
+                    rotor -> (String, String)? in
+                    guard rotor.type == "tmo_power_generator_rotor",
+                          let parent = rotor.parentID,
+                          originalTypesByID[parent] == "tmo_power_generator"
+                    else { return nil }
+                    return (rotor.id, parent)
+                }
             )
             magneticSourceIDs = Set(originalObjects
                 .filter { $0.type == "tmo_magnetic_permanent" }.map(\.id))
@@ -861,6 +881,26 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             guard let previous = lastRendererTime else { return }
             let delta = time - previous
             guard delta.isFinite, delta > 0, delta <= 0.25 else { return }
+            // Original Win32: abs(generator rotor +0xE8) → power at +0x40.
+            // Observe real 3D rotor angular velocity; no idle generator
+            // becomes a fictional constant electrical source.
+            if time - lastGeneratorPollTime >= 0.16 {
+                lastGeneratorPollTime = time
+                for (rotorID, generatorID) in generatorIDByRotorID {
+                    guard let node = physicsNodesByObjectID[rotorID]?.first,
+                          let body = node.physicsBody, body.type == .dynamic
+                    else { continue }
+                    let rotation = body.angularVelocity
+                    let speed = rotation.z < 0 ? -rotation.w : rotation.w
+                    guard speed.isFinite else { continue }
+                    if let old = lastGeneratorScalars[generatorID],
+                       abs(old - speed) < 0.05 { continue }
+                    lastGeneratorScalars[generatorID] = speed
+                    DispatchQueue.main.async { [weak self] in
+                        self?.onOriginalGeneratorSignal?(generatorID, speed)
+                    }
+                }
+            }
             // Render-timestep-aware buoyancy for authentic tmo_balloon
             // parts: the original puzzles treat them as rising objects,
             // not heavy falling crates. Use a conservative acceleration

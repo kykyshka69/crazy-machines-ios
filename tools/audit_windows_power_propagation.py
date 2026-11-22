@@ -13,6 +13,12 @@ from pathlib import Path
 EXPECTED_SHA256 = "51f9beecd9842c67834da9c4fc73be7a1452c9e8149d059729b130a2b9d601e6"
 INSTRUCTIONS = {
     0x4504C9: bytes.fromhex("c7 40 40 00 00 20 41"),  # battery 10.0f
+    0x44BCAC: bytes.fromhex("8b 55 b0 8b 82 e8 00 00 00 50"),  # generator rotor +E8
+    0x44BCBE: bytes.fromhex("8b 4d ac d9 59 40"),  # abs(rotor) -> electric +40
+    0x44BCC7: bytes.fromhex("d9 42 40 d8 1d 18 3c 4f 00"),  # generator >1
+    0x44BCD7: bytes.fromhex("6a 00 6a 00"),  # generator GOAL callback
+    0x44BD0E: bytes.fromhex("8b 8d 68 ff ff ff e8 87 0b 00 00"),  # generator propagates
+
     0x44C8E8: bytes.fromhex("c7 42 40 00 00 00 00"),  # source block = 0
     0x44C8F2: bytes.fromhex("8b 4d 08 8b 51 40 89 50 40"),  # copy src +40 to target +40
     0x450A2D: bytes.fromhex("d9 42 40 d9 e0"),  # motor: load float and reverse sign

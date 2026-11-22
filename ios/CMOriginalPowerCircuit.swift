@@ -48,6 +48,7 @@ public struct CMOriginalPowerCircuit {
 
     private let byPlugID: [String: Terminal]
     private let sourceDeviceIDs: Set<String>
+    private let generatorDeviceIDs: Set<String>
     private let conditionalSourceDeviceIDs: Set<String>
     private let passthroughDeviceIDs: Set<String>
     private let switchDeviceIDs: Set<String>
@@ -72,6 +73,9 @@ public struct CMOriginalPowerCircuit {
         byPlugID = Dictionary(uniqueKeysWithValues: all.map { ($0.plugID, $0) })
         sourceDeviceIDs = Set(all.filter {
             $0.deviceType == "tmo_power_battery"
+        }.map(\.deviceID))
+        generatorDeviceIDs = Set(all.filter {
+            $0.deviceType == "tmo_power_generator"
         }.map(\.deviceID))
         conditionalSourceDeviceIDs = Set(all.filter {
             $0.deviceType == "tmo_power_generator"
@@ -118,8 +122,17 @@ public struct CMOriginalPowerCircuit {
         closedSwitchIDs: Set<String> = [],
         externallyActiveSourceIDs: Set<String> = []
     ) -> Set<String> {
-        let activeSourceIDs = sourceDeviceIDs.union(
+        let sources = sourceDeviceIDs.union(
             externallyActiveSourceIDs.intersection(conditionalSourceDeviceIDs))
+        return devicesReachable(from: sources, closedSwitchIDs: closedSwitchIDs)
+    }
+
+    /// Strict reachability through explicitly authored cable pairs, using
+    /// the authentic original plug owner IDs. Loads do not transmit, and
+    /// open original switches cut off downstream devices.
+    private func devicesReachable(
+        from sources: Set<String>, closedSwitchIDs: Set<String>
+    ) -> Set<String> {
         var edges: [String: Set<String>] = [:]
         for cable in cables {
             guard let a = byPlugID[cable.firstPlugID],
@@ -127,37 +140,69 @@ public struct CMOriginalPowerCircuit {
             edges[a.deviceID, default: []].insert(b.deviceID)
             edges[b.deviceID, default: []].insert(a.deviceID)
         }
-        var visited = activeSourceIDs
-        var queue = Array(activeSourceIDs)
+        var visited = sources
+        var queue = Array(sources)
         var head = 0
         while head < queue.count {
             let current = queue[head]
             head += 1
-            let transmits = activeSourceIDs.contains(current)
+            let transmits = sources.contains(current)
                 || passthroughDeviceIDs.contains(current)
                 || (switchDeviceIDs.contains(current)
                     && closedSwitchIDs.contains(current))
             guard transmits else { continue }
-            for neighbor in edges[current] ?? [] where visited.insert(neighbor).inserted {
+            for neighbor in edges[current] ?? []
+                where visited.insert(neighbor).inserted {
                 queue.append(neighbor)
             }
         }
         return visited
     }
 
-    /// Explicit, opt-in iOS *prototype* for propagating the battery's real
-    /// Win32 +0x40 source value (10.0f) across manually paired plug endpoints.
-    /// Win32 also copies electrical state along cable paths at 0x44C8F2.
-    /// Only a closed switch or original distributor can pass it onward.
-    /// Does NOT reconstruct current, polarity, resistor loss or a closed loop.
+    /// An explicitly labeled iOS experiment, not the full Win32 circuit
+    /// solver. Battery: actual Win32 source value 10. Generator: actual
+    /// Win32 source operation abs(rotor command +0xE8). Sources travel only
+    /// via selected cables/switches/distributors, never via nearest objects.
+    /// A receiving device reached by two different source signals is
+    /// AMBIGUOUS: fail closed rather than inventing addition/polarity rules.
+    public func experimentalNetworkSignals(
+        closedSwitchIDs: Set<String> = [],
+        generatorRotorCommandsByDeviceID: [String: Float] = [:]
+    ) -> [String: Float] {
+        var sources: [(String, Float)] = sourceDeviceIDs.sorted().map {
+            ($0, CMOriginalWindowsPowerScalar.batterySource)
+        }
+        for (deviceID, speed) in generatorRotorCommandsByDeviceID.sorted(
+            by: { $0.key < $1.key }) {
+            guard generatorDeviceIDs.contains(deviceID),
+                  let output = CMOriginalWindowsPowerScalar
+                    .generatorSignal(fromRotorCommand: speed),
+                  output > 0 else { continue }
+            sources.append((deviceID, output))
+        }
+        var power: [String: Float] = [:]
+        var ambiguous = Set<String>()
+        for (sourceID, signal) in sources {
+            for id in devicesReachable(
+                from: [sourceID], closedSwitchIDs: closedSwitchIDs
+            ) {
+                if let previous = power[id], previous != signal {
+                    ambiguous.insert(id)
+                } else {
+                    power[id] = signal
+                }
+            }
+        }
+        for id in ambiguous { power.removeValue(forKey: id) }
+        return power
+    }
+
+    /// Compatibility for purely battery-driven puzzles: a single source
+    /// returns the recovered 10.0 Win32 scalar, not a made-up VALF voltage.
     public func experimentalBatterySignals(
         closedSwitchIDs: Set<String> = []
     ) -> [String: Float] {
-        guard !sourceDeviceIDs.isEmpty else { return [:] }
-        let reachable = reachableDevices(closedSwitchIDs: closedSwitchIDs)
-        return Dictionary(uniqueKeysWithValues: reachable.map {
-            ($0, CMOriginalWindowsPowerScalar.batterySource)
-        })
+        experimentalNetworkSignals(closedSwitchIDs: closedSwitchIDs)
     }
 
     public mutating func reset() { cables.removeAll(keepingCapacity: true) }

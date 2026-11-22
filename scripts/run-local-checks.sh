@@ -103,5 +103,10 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsElectricalGoals.swift \
   tests/OriginalWindowsElectricalGoalsSmoke.swift -o "$tmp/original-electrical-goals"
 "$tmp/original-electrical-goals"
+# Genuine generator is a mechanism-driven source, not an always-on battery.
+swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
+  ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsPowerScalar.swift \
+  tests/OriginalGeneratorCircuitSmoke.swift -o "$tmp/original-generator"
+"$tmp/original-generator"
 python3 -m unittest discover -s tools -p 'test_*.py'
 echo "Portable checks passed. iOS simulator build still requires Xcode/macOS."

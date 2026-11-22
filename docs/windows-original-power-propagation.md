@@ -7,6 +7,10 @@ Evidence is from the privately supplied original `CrazyMachines.exe`, SHA-256 `5
 | Win32 VA | Verified instruction / meaning |
 | --- | --- |
 | `0x4504C9` | Battery element writes IEEE-754 float **10.0** (`0x41200000`) to the electrical element-state slot `+0x40` |
+| `0x44BCAC–0x44BCC1` | For `tmo_power_generator`, loads its actual rotor scalar `+0xE8`, calls the executable's absolute-value wrapper `0x4270D0`, and stores the magnitude to the generator electrical state `+0x40` |
+| `0x44BCC7–0x44BCE5` | If generator electrical state is **strictly greater than 1.0**, calls the GOAL dispatcher `0x44B460` |
+| `0x44BCEA–0x44BD14` | If the generator has a wired endpoint, dispatches its generated state through the same connection propagator `0x44C8A0` |
+
 | `0x44C8E8` | Power propagation path explicitly sets source `+0x40` to **zero** when a blocking condition at `+0x50` is present; the full meaning of this latter field is still being recovered |
 | `0x44C8F2–0x44C8F8` | Copies source electrical state `+0x40` to target state `+0x40`, while traversing existing original wired endpoints |
 | `0x450A2D–0x450A3E` | For `tmo_power_motor`, loads a float at the element state `+0x40`, **negates it**, and stores it as the child rotor's scalar command at `+0xE8` |
@@ -15,7 +19,7 @@ Evidence is from the privately supplied original `CrazyMachines.exe`, SHA-256 `5
 | `0x450E5F–0x450E90` | For `tmo_power_lightning`, compares its electrical state `+0x40` to float **1.0** and calls `0x44B460` for values **strictly above 1** |
 | `0x451E21–0x451E2A` | Lamp visual animation uses the element power state **divided by 10**, not a fixed on/off number |
 
-All the instruction bytes, thresholds, original resource names and file identity are independently validated by the read-only auditor. It checks 13 exact x86 sites, three float constants, and one double. The native portable Swift tests exercise these exact scalar operations, including signs, boundaries, NaN, duplicates and nonmatching GOAL elements.
+All the instruction bytes, thresholds, original resource names and file identity are independently validated by the read-only auditor. It checks 18 exact x86 sites, three float constants, and one double. The native portable Swift tests exercise these exact scalar operations, including signs, boundaries, NaN, duplicates and nonmatching GOAL elements.
 
 ## iOS integration and limitations
 

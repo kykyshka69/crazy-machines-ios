@@ -271,6 +271,8 @@ jobs:
         run: |
           swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsPowerScalar.swift tests/OriginalPowerCircuitSmoke.swift -o /tmp/cm-original-power
           /tmp/cm-original-power
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsPowerScalar.swift tests/OriginalGeneratorCircuitSmoke.swift -o /tmp/cm-original-generator
+          /tmp/cm-original-generator
 
   original-vsc-runtime:
     runs-on: ubuntu-latest
