@@ -69,6 +69,7 @@ struct CMOriginalLevelBrowserView: View {
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }
+                        .accessibilityIdentifier("cm.original.level-\(document.index)")
                     }
                 }
             }
