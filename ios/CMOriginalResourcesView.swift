@@ -278,6 +278,14 @@ struct CMOriginalResourcesView: View {
                 }
                 let data = try Data(contentsOf: url)
                 guard data.count == size else { rejected += 1; continue }
+                if ext == "fsc" && url.lastPathComponent.lowercased() == "elements.fsc" {
+                    guard let source = try? CMOriginalElementsScriptDecoder.decode(data),
+                          let scripts = try? CMOriginalElementsTemplateCatalog
+                            .parse(decodedBytes: source), scripts.count >= 100 else {
+                        rejected += 1
+                        continue
+                    }
+                }
                 if ext == "ucm" {
                     // Reject truncated or malformed meshes before they reach
                     // SceneKit. The parser validates indices and finite floats.

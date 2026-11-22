@@ -63,7 +63,7 @@ enum CMOriginalAssetPackImporter {
         guard count > 0 && count <= 1024 else {
             throw PackError.invalid("Invalid game pack entry count")
         }
-        let allowed = Set(["ucm", "tga", "cml", "json"])
+        let allowed = Set(["ucm", "tga", "cml", "json", "fsc"])
         var entries: [Entry] = []
         entries.reserveCapacity(count)
         var names = Set<String>()
@@ -106,6 +106,12 @@ enum CMOriginalAssetPackImporter {
                     throw PackError.invalid("Invalid original texture: \(name)")
                 }
                 textures += 1
+            } else if kind == "fsc" && name.lowercased() == "elements.fsc" {
+                guard let source = try? CMOriginalElementsScriptDecoder.decode(bytes),
+                      let scripts = try? CMOriginalElementsTemplateCatalog
+                        .parse(decodedBytes: source), scripts.count >= 100 else {
+                    throw PackError.invalid("Invalid original elements.fsc")
+                }
             } else if kind == "json" {
                 guard (try? CMOriginalSceneDocument.read(bytes)) != nil else {
                     throw PackError.invalid("Invalid original level: \(name)")

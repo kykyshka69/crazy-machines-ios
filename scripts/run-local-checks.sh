@@ -66,5 +66,13 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   ios/CMOriginalFourthLevelRun.swift tests/OriginalFourthLevelRunSmoke.swift \
   -o "$tmp/original-fourth"
 "$tmp/original-fourth"
+# Validate original Windows template inheritance, scene override priority,
+# and genuine-object evidence-ledger wiring; no proprietary CI fixture.
+swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
+  ios/CMOriginalPhysicsRolePlanner.swift ios/CMOriginalElementsScriptDecoder.swift \
+  ios/CMOriginalElementsTemplateCatalog.swift ios/CMOriginalWindowsElementRules.swift \
+  ios/CMOriginalWindowsScriptLibrary.swift ios/CMOriginalObjectiveEvidenceLedger.swift \
+  tests/OriginalElementsPortableSmoke.swift -o "$tmp/original-windows"
+"$tmp/original-windows"
 python3 -m unittest discover -s tools -p 'test_*.py'
 echo "Portable checks passed. iOS simulator build still requires Xcode/macOS."

@@ -244,3 +244,12 @@ jobs:
         run: |
           swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalFourthLevelRun.swift tests/OriginalFourthLevelRunSmoke.swift -o /tmp/cm-fourth
           /tmp/cm-fourth
+
+  original-windows-rules-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run recovered Windows script metadata and evidence contract
+        run: |
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalPhysicsRolePlanner.swift ios/CMOriginalElementsScriptDecoder.swift ios/CMOriginalElementsTemplateCatalog.swift ios/CMOriginalWindowsElementRules.swift ios/CMOriginalWindowsScriptLibrary.swift ios/CMOriginalObjectiveEvidenceLedger.swift tests/OriginalElementsPortableSmoke.swift -o /tmp/original-windows
+          /tmp/original-windows

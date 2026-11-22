@@ -7,7 +7,8 @@ import Foundation
 /// a fixed board/collection zone fall.
 public enum CMOriginalPhysicsRolePlanner {
     public static func roles(
-        for session: CMOriginalGameplaySession
+        for session: CMOriginalGameplaySession,
+        originalTemplates: [String: CMOriginalElementsTemplateCatalog.Template]? = nil
     ) -> [String: CMOriginalGameplaySession.PhysicsRole] {
         var result: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
         result.reserveCapacity(session.objects.count)
@@ -22,16 +23,26 @@ public enum CMOriginalPhysicsRolePlanner {
                 // Preserve hinged and axle-driven components even when
                 // original metadata does not include a VALB moving flag.
                 role = .movable
-            } else if let raw = object.fields["VALB"]?.first,
-                      let flags = Int(raw.trimmingCharacters(in: .whitespacesAndNewlines)),
-                      (0...255).contains(flags) {
-                // Recovered bit 8 marks movable original puzzle bodies.
-                // This is an experimental SceneKit mapping, not PC physics.
-                role = (flags & 8) != 0 ? .movable : .fixed
             } else {
-                // Missing, invalid and decorative metadata is not a license
-                // to simulate falling equipment supports or backdrops.
-                role = .fixed
+                // Original level-specific VALB overrides take precedence
+                // over templates recovered from the genuine elements.fsc.
+                let inherited = originalTemplates.flatMap { templates in
+                    let raw = object.fields.flatMap { key, values in
+                        values.map { key + " " + $0 }
+                    }
+                    return CMOriginalWindowsElementRules(
+                        type: object.type, sceneFields: raw,
+                        catalogue: templates
+                    )?.effectiveBits
+                }
+                let actual = object.fields["VALB"]?.first
+                    .flatMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+                    .flatMap { (0...255).contains($0) ? $0 : nil }
+                if let bits = actual ?? inherited {
+                    role = (bits & 8) != 0 ? .movable : .fixed
+                } else {
+                    role = .fixed
+                }
             }
             result[object.id] = role
         }

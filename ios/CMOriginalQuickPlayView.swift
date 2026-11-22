@@ -29,6 +29,9 @@ struct CMOriginalQuickPlayView: View {
         _firstLevelRun = State(initialValue: CMOriginalFirstLevelRun(document: document))
         _secondLevelRun = State(initialValue: CMOriginalSecondLevelRun(document: document))
         _thirdLevelRun = State(initialValue: CMOriginalThirdLevelRun(document: document))
+        _objectiveLedger = State(initialValue:
+            CMOriginalObjectiveEvidenceLedger(
+                session: CMOriginalGameplaySession(document: document)))
         _fourthLevelRun = State(initialValue: CMOriginalFourthLevelRun(document: document))
     }
 
@@ -43,6 +46,9 @@ struct CMOriginalQuickPlayView: View {
     @State private var undoPlacementRevision = 0
     @State private var canUndoPlacement = false
     @State private var showAllLevels = false
+    @State private var originalWindowsTemplates:
+        [String: CMOriginalElementsTemplateCatalog.Template]?
+    @State private var objectiveLedger: CMOriginalObjectiveEvidenceLedger?
     @State private var zoneContacts: [String: Int] = [:]
     @State private var matchedZoneLinks = Set<String>()
     @State private var matchedMechanismLinks = Set<String>()
@@ -72,7 +78,9 @@ struct CMOriginalQuickPlayView: View {
     /// registry as SceneKit bodies and CONNECTED_TO links. Nested mount
     /// objects must not make the object IDs drift.
     private var experimentalPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] {
-        CMOriginalPhysicsRolePlanner.roles(for: originalSession)
+        CMOriginalPhysicsRolePlanner.roles(
+            for: originalSession, originalTemplates: originalWindowsTemplates
+        )
     }
 
     /// Identifies parts the original PC level explicitly lets the player
@@ -126,6 +134,7 @@ struct CMOriginalQuickPlayView: View {
         guard let next = scene(at: document.index + step) else { return }
         document = next
         originalSession = CMOriginalGameplaySession(document: next)
+        objectiveLedger = CMOriginalObjectiveEvidenceLedger(session: originalSession)
         firstLevelRun = CMOriginalFirstLevelRun(document: next)
         secondLevelRun = CMOriginalSecondLevelRun(document: next)
         thirdLevelRun = CMOriginalThirdLevelRun(document: next)
@@ -143,6 +152,7 @@ struct CMOriginalQuickPlayView: View {
         secondLevelRun?.reset()
                         thirdLevelRun?.reset()
                         fourthLevelRun?.reset()
+                        objectiveLedger?.reset()
         canUndoPlacement = false
         sceneRevision = UUID()
     }
@@ -223,6 +233,10 @@ struct CMOriginalQuickPlayView: View {
                     }
                 },
                 onOriginalConnectionContact: { sourceID, targetID in
+                    _ = objectiveLedger?.recordPhysicalContact(
+                        sourceID, targetID,
+                        isSimulationRunning: experimentalPhysics && !physicsPaused
+                    )
                     let key = sourceID + "|" + targetID
                     if originalMechanismConnections.contains(where: {
                         $0.sourceID == sourceID && $0.targetID == targetID
@@ -240,6 +254,10 @@ struct CMOriginalQuickPlayView: View {
                     }
                 },
                 onOriginalBucketCapture: { ballID, bucketID in
+                    _ = objectiveLedger?.recordGoalStateChanged(
+                        bucketID,
+                        isSimulationRunning: experimentalPhysics && !physicsPaused
+                    )
                     if fourthLevelRun?.recordCapture(
                         ballID: ballID, bucketID: bucketID
                     ) == true, let run = fourthLevelRun {
@@ -450,6 +468,7 @@ struct CMOriginalQuickPlayView: View {
         secondLevelRun?.reset()
                         thirdLevelRun?.reset()
                         fourthLevelRun?.reset()
+                        objectiveLedger?.reset()
                         // Rebuild bodies only after changing scene physics mode.
                         canUndoPlacement = false
                         sceneRevision = UUID()
@@ -471,6 +490,7 @@ struct CMOriginalQuickPlayView: View {
         secondLevelRun?.reset()
                         thirdLevelRun?.reset()
                         fourthLevelRun?.reset()
+                        objectiveLedger?.reset()
                     canUndoPlacement = false
                     sceneRevision = UUID()
                 }
@@ -561,6 +581,7 @@ struct CMOriginalQuickPlayView: View {
         secondLevelRun?.reset()
                         thirdLevelRun?.reset()
                         fourthLevelRun?.reset()
+                        objectiveLedger?.reset()
                     canUndoPlacement = false
                     sceneRevision = UUID()
                 }
@@ -754,6 +775,17 @@ struct CMOriginalQuickPlayView: View {
         .navigationTitle("Crazy Machines")
         .onAppear {
             lastPlayedOriginalLevel = document.index
+        }
+        .task {
+            // Decode only user-installed genuine Windows templates off-main.
+            let directory = assetDirectory
+            let original = await Task.detached(priority: .utility) {
+                CMOriginalWindowsScriptLibrary.load(directory: directory)
+            }.value
+            if let original {
+                originalWindowsTemplates = original
+                if experimentalPhysics { sceneRevision = UUID() }
+            }
         }
         .onChange(of: document.index) { _, newIndex in
             lastPlayedOriginalLevel = newIndex
