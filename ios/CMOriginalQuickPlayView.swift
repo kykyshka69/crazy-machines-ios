@@ -710,6 +710,54 @@ struct CMOriginalQuickPlayView: View {
                 }
             }
 
+            // Win32 0x44B592 emits task_solved/level_done when ALL
+            // individually latched native channels have fired. Previous
+            // controls were buried in the diagnostics panel, inaccessible
+            // on a small iPhone unless the user scrolled past everything.
+            // Show the decoded original leveldone.vsc actions directly
+            // over the imported PC scene, without faking a solved level
+            // from GOAL annotations or merely opening an original file.
+            .overlay(alignment: .center) {
+                if experimentalPhysics,
+                   let counter = windowsGoalCounter, counter.completed {
+                    VStack(spacing: 12) {
+                        Label(
+                            "Original goal inputs received",
+                            systemImage: "checkmark.seal.fill"
+                        )
+                        .font(.headline)
+                        Text(
+                            "All \(counter.totalRequired) reconstructed Win32 input channels have fired. Full Windows physics parity remains unverified."
+                        )
+                        .font(.caption)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                        HStack(spacing: 12) {
+                            Button(originalLevelDoneActions?.continueName ?? "Continue") {
+                                changeLevel(by: 1)
+                            }
+                            .disabled(scene(at: document.index + 1) == nil)
+                            .accessibilityIdentifier("cm.original.windows-win-next")
+                            Button(originalLevelDoneActions?.replayName ?? "Replay") {
+                                restartCurrentPuzzle()
+                            }
+                            .accessibilityIdentifier("cm.original.windows-win-replay")
+                            Button(originalLevelDoneActions?.mainMenuName ?? "Main menu") {
+                                dismiss()
+                            }
+                            .accessibilityIdentifier("cm.original.windows-win-menu")
+                        }
+                        .font(.caption.weight(.semibold))
+                        .buttonStyle(.bordered)
+                    }
+                    .padding(18)
+                    .frame(maxWidth: 370)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
+                    .padding(.horizontal, 14)
+                    .accessibilityIdentifier("cm.original.windows-leveldone-viewport")
+                }
+            }
+
             // The original PC puzzle needs a usable 3D board even after
             // contacts, motors and goals populate the status panel. Keep the
             // board flexible and scroll secondary controls independently.
@@ -1051,31 +1099,9 @@ struct CMOriginalQuickPlayView: View {
                     if counter.completed {
                         Text("All reconstructed win inputs fired. Original Windows mechanism parity has not been established.")
                             .font(.caption.weight(.semibold))
-                        if let actions = originalLevelDoneActions {
-                            // Text and IDs are from the user's genuine
-                            // encrypted gui/leveldone.vsc, not fabricated
-                            // button names or hardcoded Windows screen art.
-                            HStack {
-                                Button(actions.continueName) {
-                                    changeLevel(by: 1)
-                                }
-                                .disabled(scene(at: document.index + 1) == nil)
-                                .accessibilityIdentifier("cm.original.windows-win-next")
-                                Button(actions.replayName) {
-                                    restartCurrentPuzzle()
-                                }
-                                .accessibilityIdentifier("cm.original.windows-win-replay")
-                                Button(actions.mainMenuName) { dismiss() }
-                                    .accessibilityIdentifier("cm.original.windows-win-menu")
-                            }
-                            .font(.caption.weight(.semibold))
-                        } else {
-                            Button("Continue to level \(document.index + 1) (experimental)") {
-                                changeLevel(by: 1)
-                            }
-                            .disabled(scene(at: document.index + 1) == nil)
-                            .accessibilityIdentifier("cm.original.windows-win-next")
-                        }
+                        Text("The original VSC Continue / Replay / Main menu actions are available over the 3D board.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .padding(.horizontal, 14)
