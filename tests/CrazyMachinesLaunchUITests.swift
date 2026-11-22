@@ -201,6 +201,54 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         attachScreenshot(app, named: "08-synthetic-original-level-two-navigation")
     }
 
+    func testSecondLevelBasketHitsItsOriginalLinkedCrate() {
+        // The real PC level 2 links one basketball to a crate, NOT to
+        // its separate tmo_zone. Synthetic 3D bodies exercise the production
+        // originalConnection callback and evidence-based prototype tracker.
+        let app = XCUIApplication()
+        app.launchArguments = ["--cm-ci-install-linked-zone-fixture"]
+        app.launch()
+        let play = app.buttons["cm.menu.play"]
+        XCTAssertTrue(play.waitForExistence(timeout: 25))
+        play.tap()
+        let next = app.buttons["cm.original.quickplay-next"]
+        XCTAssertTrue(next.waitForExistence(timeout: 15))
+        XCTAssertTrue(next.isEnabled)
+        next.tap()
+        XCTAssertTrue(
+            app.staticTexts["Original level 2: CM synthetic CI level 2"]
+                .waitForExistence(timeout: 20),
+            "Original-style second puzzle could not be opened"
+        )
+        let progress = app.staticTexts["cm.original.second-level-progress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 15),
+                      "Second level basket-to-crate link not detected")
+        XCTAssertEqual(progress.label, "0 / 1")
+        let physics = app.switches["cm.original.quickplay-physics"]
+        XCTAssertTrue(physics.waitForExistence(timeout: 10))
+        physics.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertEqual(physics.value as? String, "1")
+        let hit = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label == %@", "1 / 1"),
+            object: progress
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [hit], timeout: 35), .completed,
+            "Basket and its own crate did not produce the real SceneKit " +
+            "CONNECTED_TO contact; last progress: \(progress.label)"
+        )
+        let continueToLevel3 = app.buttons["cm.original.second-level-next"]
+        XCTAssertTrue(continueToLevel3.waitForExistence(timeout: 10))
+        XCTAssertTrue(continueToLevel3.isEnabled)
+        attachScreenshot(app, named: "09-synthetic-level-2-basket-crate-contact")
+        continueToLevel3.tap()
+        XCTAssertTrue(
+            app.staticTexts["Original level 3: CM synthetic CI level 3"]
+                .waitForExistence(timeout: 20),
+            "Basket-to-crate prototype did not continue to level 3"
+        )
+    }
+
     func testPrivateOriginalLevelOneWhenOptedIn() throws {
         // This test is opt-in because the user's original game files are
         // copyrighted and MUST NOT enter public GitHub Actions artifacts.

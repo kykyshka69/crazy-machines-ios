@@ -1,5 +1,13 @@
 # Crazy Machines — original iOS port: working branch
 
+## Original second-level prototype: basket → crate (2026-11-22)
+
+- The [iPhone 17 Pro Simulator run 45016273503](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45016273503) passed fully for `b9c55b0`: **7 XCTest cases, 6 passed, 1 opt-in private test skipped, 0 failures**. The real SceneKit synthetic fixture completed **four distinct zone deliveries**, revealed the first-level Continue button, and navigated successfully to imported level 2.
+- **New source-only, evidence-derived step:** the user's actual Professor `level-002.json`, titled "Эффект домино", has one explicit `CONNECTED_TO 17` from a basketball to a **crate**. Original child element 17 is `tmo_crate`; `tmo_zone` is a separate element 23. Exactly three dominoes have `UNLOCKED 1`. It would be incorrect to reuse the first-level four-to-zone victory prototype here.
+- The newly implemented `CMOriginalSecondLevelRun` accepts **only** an exact basketball→crate physical contact in level 2 if that signature is present; it doesn't claim to reconstruct Windows victory rules. The 3D game overlays a prototype 0/1 progress indicator, keeps Level 3 navigation visible after the contact, and retains all three original editable dominoes.
+- Added a copyright-free synthetic SceneKit test scene matching that relationship and portable negative tests for wrong target, wrong level, missing editable dominoes, duplicate/reversed contact. The new UI test requires a genuine physical contact and opens level 3; it must pass CI before runtime is considered verified.
+- Proprietary original PC UCM/TGA/CML/JSON files remain **outside public GitHub**; an authentic on-device screenshot and original physics simulation are still unverified.
+
 ## Verified four-delivery mechanics and pinned Continue fix (2026-11-22)
 
 - **GitHub Actions [run 45015630928](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45015630928), commit `408ac2a`**: Xcode simulator compile, simulator boot, app launch and existing UI checks completed. XCTest had **one failure**, in `testLinkedZoneContactActuallyAdvancesFirstLevelPrototype`. The log explicitly shows the expectation `label == "4 / 4"` **succeeded**; the failure is at the NEXT assertion because the button `cm.original.first-level-next` was not accessible (inside a height-capped, scrollable diagnostics panel). Thus all four synthetic SceneKit contacts reached the target; end-of-level UI/navigation had not passed.

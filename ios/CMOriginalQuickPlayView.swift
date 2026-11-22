@@ -17,6 +17,7 @@ struct CMOriginalQuickPlayView: View {
         _document = State(initialValue: document)
         _originalSession = State(initialValue: CMOriginalGameplaySession(document: document))
         _firstLevelRun = State(initialValue: CMOriginalFirstLevelRun(document: document))
+        _secondLevelRun = State(initialValue: CMOriginalSecondLevelRun(document: document))
     }
 
     // Open an authentic scene at rest; users arrange original parts before
@@ -32,6 +33,7 @@ struct CMOriginalQuickPlayView: View {
     @State private var matchedMechanismLinks = Set<String>()
     @State private var flippedOriginalSwitchIDs = Set<String>()
     @State private var firstLevelRun: CMOriginalFirstLevelRun?
+    @State private var secondLevelRun: CMOriginalSecondLevelRun?
     @State private var showFirstLevelObjectiveDetails = false
 
     // Reconstruct the PC's explicit CONNECTED_TO references to tmo_zone.
@@ -111,6 +113,7 @@ struct CMOriginalQuickPlayView: View {
         document = next
         originalSession = CMOriginalGameplaySession(document: next)
         firstLevelRun = CMOriginalFirstLevelRun(document: next)
+        secondLevelRun = CMOriginalSecondLevelRun(document: next)
         showFirstLevelObjectiveDetails = false
         experimentalPhysics = false
         experimentalMotorDrive = false
@@ -120,6 +123,7 @@ struct CMOriginalQuickPlayView: View {
         matchedMechanismLinks.removeAll()
         flippedOriginalSwitchIDs.removeAll()
         firstLevelRun?.reset()
+        secondLevelRun?.reset()
         sceneRevision = UUID()
     }
 
@@ -193,6 +197,15 @@ struct CMOriginalQuickPlayView: View {
                         $0.sourceID == sourceID && $0.targetID == targetID
                     }) {
                         matchedMechanismLinks.insert(key)
+                        // Original Professor level 2 links a basketball to
+                        // a crate, not to its separate tmo_zone. Credit an
+                        // actual SceneKit contact between those exact IDs.
+                        if secondLevelRun?.recordContact(
+                            sourceID: sourceID, targetID: targetID
+                        ) == true,
+                           let run = secondLevelRun, run.isSatisfied {
+                            UserDefaults.standard.set(true, forKey: run.storageKey)
+                        }
                     }
                 },
                 onOriginalSwitchToggle: { switchID, isOn in
@@ -250,6 +263,30 @@ struct CMOriginalQuickPlayView: View {
                         }
                     }
                     .padding(10)
+                } else if let run = secondLevelRun {
+                    HStack(spacing: 8) {
+                        Label(
+                            "Basket → crate: \(run.isSatisfied ? "1/1" : "0/1")",
+                            systemImage: run.isSatisfied ? "checkmark.seal.fill" : "scope"
+                        )
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 8)
+                        .background(.regularMaterial, in: Capsule())
+                        .accessibilityIdentifier("cm.original.second-level-hud")
+                        if run.isSatisfied {
+                            Button {
+                                changeLevel(by: 1)
+                            } label: {
+                                Label("Level 3", systemImage: "arrow.right")
+                            }
+                            .font(.caption.weight(.semibold))
+                            .buttonStyle(.borderedProminent)
+                            .disabled(scene(at: document.index + 1) == nil)
+                            .accessibilityIdentifier("cm.original.second-level-next")
+                        }
+                    }
+                    .padding(10)
                 }
             }
 
@@ -269,6 +306,7 @@ struct CMOriginalQuickPlayView: View {
                         matchedMechanismLinks.removeAll()
                         flippedOriginalSwitchIDs.removeAll()
                         firstLevelRun?.reset()
+        secondLevelRun?.reset()
                         // Rebuild bodies only after changing scene physics mode.
                         sceneRevision = UUID()
                     }
@@ -286,6 +324,7 @@ struct CMOriginalQuickPlayView: View {
                     matchedMechanismLinks.removeAll()
                     flippedOriginalSwitchIDs.removeAll()
                     firstLevelRun?.reset()
+        secondLevelRun?.reset()
                     sceneRevision = UUID()
                 }
                 .accessibilityIdentifier("cm.original.quickplay-reset")
@@ -352,6 +391,7 @@ struct CMOriginalQuickPlayView: View {
                     matchedMechanismLinks.removeAll()
                     flippedOriginalSwitchIDs.removeAll()
                     firstLevelRun?.reset()
+        secondLevelRun?.reset()
                     sceneRevision = UUID()
                 }
                 .font(.caption.weight(.semibold))
@@ -359,6 +399,27 @@ struct CMOriginalQuickPlayView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
+
+            if let run = secondLevelRun {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Level 2: original basketball → crate link")
+                        .font(.caption.weight(.semibold))
+                    Text("Arrange the three UNLOCKED dominoes, then start physics. This prototype checks the basketball's actual contact with its CONNECTED_TO crate, not the separate collection zone.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(run.isSatisfied ? "1 / 1" : "0 / 1")
+                        .font(.caption.monospacedDigit().weight(.semibold))
+                        .accessibilityIdentifier("cm.original.second-level-progress")
+                    if run.isSatisfied {
+                        Text("Original object link contacted. Windows victory logic remains under reconstruction.")
+                            .font(.caption2)
+                            .foregroundStyle(.green)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .accessibilityIdentifier("cm.original.second-level-challenge")
+            }
 
             if let run = firstLevelRun {
                 VStack(alignment: .leading, spacing: 5) {

@@ -154,6 +154,79 @@ struct OriginalFirstLevelRunSmoke {
         precondition(CMOriginalFirstLevelRun(document: wrongTarget) == nil)
         precondition(CMOriginalFirstLevelRun(document: noEditableBoards) == nil)
 
-        print("Original level-1 four-linked-object delivery objective: OK")
+        // Actual Professor level 2 has one basketball CONNECTED_TO a
+        // crate, plus three UNLOCKED dominoes. In particular, its tmo_zone
+        // is not the linked target. These values were audited from the
+        // user-owned scene, but the test fixture contains no original media.
+        func secondDocument(
+            level: Int = 2, targetIsZone: Bool = false,
+            editableDominoes: Int = 3
+        ) throws -> CMOriginalSceneDocument {
+            func object(_ name: String, fields: [String]) -> [String: Any] {
+                ["name": name, "fields": fields, "children": []]
+            }
+            var elements: [[String: Any]] = [
+                object(targetIsZone ? "tmo_zone" : "tmo_crate",
+                       fields: ["VALB \(targetIsZone ? 32 : 72)"]),
+                object("tmo_ball_basket",
+                       fields: ["CONNECTED_TO 0", "VALB 72"]),
+                object("tmo_zone", fields: ["VALB 32"])
+            ]
+            for _ in 0..<editableDominoes {
+                elements.append(object(
+                    "tmo_domino", fields: ["UNLOCKED 1", "VALB 8"]))
+            }
+            let raw: [String: Any] = [
+                "schema": "crazy-machines-original-scene-v1",
+                "index": level,
+                "title": "Synthetic original second-level relationship test",
+                "scene_sha256": String(repeating: "c", count: 64),
+                "root": [
+                    "name": "level", "fields": [],
+                    "children": [[
+                        "name": "level_elements", "fields": [],
+                        "children": elements
+                    ]]
+                ]
+            ]
+            return try CMOriginalSceneDocument.read(
+                JSONSerialization.data(withJSONObject: raw))
+        }
+        let authenticSecondSignature = try secondDocument()
+        guard var second = CMOriginalSecondLevelRun(
+            document: authenticSecondSignature
+        ) else {
+            preconditionFailure("Second-level basket to crate signature absent")
+        }
+        let secondSession = CMOriginalGameplaySession(
+            document: authenticSecondSignature)
+        precondition(secondSession.originalConnections.count == 1)
+        let onlyLink = secondSession.originalConnections[0]
+        precondition(onlyLink.sourceType == "tmo_ball_basket")
+        precondition(onlyLink.targetType == "tmo_crate")
+        precondition(second.sourceID == onlyLink.sourceID)
+        precondition(second.targetID == onlyLink.targetID)
+        precondition(!second.isSatisfied)
+        precondition(!second.recordContact(
+            sourceID: second.targetID, targetID: second.sourceID))
+        precondition(!second.recordContact(
+            sourceID: second.sourceID, targetID: "another-crate"))
+        precondition(second.recordContact(
+            sourceID: second.sourceID, targetID: second.targetID))
+        precondition(second.isSatisfied)
+        precondition(!second.recordContact(
+            sourceID: second.sourceID, targetID: second.targetID))
+        precondition(second.storageKey.contains(
+            String(repeating: "c", count: 64)))
+        second.reset()
+        precondition(!second.isSatisfied)
+        precondition(CMOriginalSecondLevelRun(
+            document: try secondDocument(level: 3)) == nil)
+        precondition(CMOriginalSecondLevelRun(
+            document: try secondDocument(targetIsZone: true)) == nil)
+        precondition(CMOriginalSecondLevelRun(
+            document: try secondDocument(editableDominoes: 2)) == nil)
+
+        print("Original levels 1 and 2 four-linked-object delivery objective: OK")
     }
 }

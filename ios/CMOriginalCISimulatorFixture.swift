@@ -46,7 +46,7 @@ enum CMOriginalCISimulatorFixture {
         try? FileManager.default.removeItem(at: solidModel)
         // Remove only exact synthetic scenes; NEVER delete imported PC
         // levels (including a real level 2) during CI fixture cleanup.
-        for filename in ["level-001.json", "level-002.json"] {
+        for filename in ["level-001.json", "level-002.json", "level-003.json"] {
             let sceneURL = sceneStorage.appendingPathComponent(filename)
             if let contents = try? Data(contentsOf: sceneURL),
                let content = String(data: contents, encoding: .utf8),
@@ -152,14 +152,59 @@ enum CMOriginalCISimulatorFixture {
     /// completed first-level prototype can navigate into the next imported
     /// level rather than just display a hidden/disabled Continue button.
     private static func makeSecondScene() throws -> Data {
+        func object(_ name: String, x: Double, y: Double,
+                    extra: [String]) -> [String: Any] {
+            let fields = ["POS \(x), \(y), 0"] + extra
+            return [
+                "name": name, "fields": fields,
+                "position": [x, y, 0.0],
+                "models": ["cm_ci_solid"], "children": []
+            ]
+        }
+        // This explicitly mirrors only the VERIFIED relation signature of
+        // authentic PC Professor level 2: one basketball CONNECTED_TO a
+        // CRATE (not the separate zone), three editable dominoes. Geometry
+        // and object placements are copyright-free synthetic test values.
+        let elements: [[String: Any]] = [
+            object("tmo_board", x: 0, y: -1.0, extra: ["VALB 64"]),
+            object("tmo_crate", x: 0, y: 0.0, extra: ["VALB 72"]),
+            object("tmo_ball_basket", x: 0, y: 1.05,
+                   extra: ["CONNECTED_TO 1", "VALB 72"]),
+            object("tmo_domino", x: -3, y: 0,
+                   extra: ["UNLOCKED 1", "VALB 8"]),
+            object("tmo_domino", x: -2, y: 0,
+                   extra: ["UNLOCKED 1", "VALB 8"]),
+            object("tmo_domino", x: -1, y: 0,
+                   extra: ["UNLOCKED 1", "VALB 8"]),
+            object("tmo_zone", x: 4, y: -1, extra: ["VALB 32"])
+        ]
+        let scene: [String: Any] = [
+            "schema": "crazy-machines-original-scene-v1",
+            "index": 2,
+            "title": "CM synthetic CI level 2",
+            "scene_sha256": String(repeating: "c", count: 64),
+            "root": [
+                "name": "level", "fields": [],
+                "children": [[
+                    "name": "level_elements", "fields": [],
+                    "children": elements
+                ]]
+            ]
+        ]
+        return try JSONSerialization.data(
+            withJSONObject: scene, options: [.sortedKeys]
+        )
+    }
+
+    private static func makeThirdScene() throws -> Data {
         guard var document = try JSONSerialization.jsonObject(
             with: makeScene()
         ) as? [String: Any] else {
-            throw NSError(domain: "CMSyntheticScene", code: 2)
+            throw NSError(domain: "CMSyntheticScene", code: 3)
         }
-        document["index"] = 2
-        document["title"] = "CM synthetic CI level 2"
-        document["scene_sha256"] = String(repeating: "c", count: 64)
+        document["index"] = 3
+        document["title"] = "CM synthetic CI level 3"
+        document["scene_sha256"] = String(repeating: "d", count: 64)
         return try JSONSerialization.data(
             withJSONObject: document, options: [.sortedKeys]
         )
@@ -227,7 +272,8 @@ enum CMOriginalCISimulatorFixture {
                 ("cm_ci_triangle.ucm", makeModel()),
                 ("cm_ci_solid.ucm", makeSolidModel()),
                 ("level-001.json", try makeLinkedZoneScene()),
-                ("level-002.json", try makeSecondScene())
+                ("level-002.json", try makeSecondScene()),
+                ("level-003.json", try makeThirdScene())
             ]
             : [
                 ("cm_ci_triangle.ucm", makeModel()),

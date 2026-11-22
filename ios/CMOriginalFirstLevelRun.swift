@@ -82,3 +82,58 @@ public struct CMOriginalFirstLevelRun {
         deliveredIDs.removeAll()
     }
 }
+
+/**
+ Evidence-limited level-two prototype based on the user's authentic PC scene.
+
+ Original Professor level 2 ("Эффект домино") contains a basketball whose
+ sole CONNECTED_TO target is a tmo_crate, NOT the separately present tmo_zone.
+ Exactly three dominoes are marked UNLOCKED 1. A contact between the named
+ basket and its own crate is a testable interaction; it does not assert that
+ the original Windows puzzle's complete victory rule has been recovered.
+ */
+public struct CMOriginalSecondLevelRun {
+    public let sourceID: String
+    public let targetID: String
+    public let sceneSHA256: String
+    public private(set) var isSatisfied = false
+
+    public init?(document: CMOriginalSceneDocument) {
+        guard document.index == 2 else { return nil }
+        let session = CMOriginalGameplaySession(document: document)
+        let connections = session.originalConnections
+        let editable = session.objects.filter {
+            ($0.fields["UNLOCKED"] ?? []).contains("1")
+        }
+        guard connections.count == 1,
+              let only = connections.first,
+              only.sourceType == "tmo_ball_basket",
+              only.targetType == "tmo_crate",
+              editable.count == 3,
+              editable.allSatisfy({ $0.type == "tmo_domino" })
+        else { return nil }
+        sourceID = only.sourceID
+        targetID = only.targetID
+        sceneSHA256 = document.sceneSHA256
+    }
+
+    public var storageKey: String {
+        "cm.original.prototype-level-2.\(sceneSHA256)"
+    }
+
+    /// Exact original source/target IDs, not merely any ball or any crate.
+    @discardableResult
+    public mutating func recordContact(
+        sourceID: String, targetID: String
+    ) -> Bool {
+        guard !isSatisfied,
+              sourceID == self.sourceID,
+              targetID == self.targetID else { return false }
+        isSatisfied = true
+        return true
+    }
+
+    public mutating func reset() {
+        isSatisfied = false
+    }
+}
