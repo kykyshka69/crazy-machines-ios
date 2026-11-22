@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 
 from boot_iphone_simulator_ci import (
-    SimulatorBootError, boot_iphone, execute, iphone_candidates,
+    SimulatorBootError, boot_iphone, select_iphone, execute, iphone_candidates,
 )
 
 
@@ -91,6 +91,33 @@ class SimulatorCIRegression(unittest.TestCase):
             command[2:] == ["list", "devices", "booted", "-j"]
             for command, _ in runner.calls
         ))
+
+    def test_select_only_never_boots_or_waits_for_bootstatus(self):
+        runner = FakeSimulator(make_devices(
+            ("iPhone 16e", "slow", "Shutdown", True),
+            ("iPhone 17 Pro", "xcode", "Shutdown", True)
+        ), fail_bootstatus={"slow", "xcode"})
+        with patch.dict(os.environ, {"CM_SIMULATOR_PREFERRED_NAME": "iPhone 17 Pro"}):
+            self.assertEqual(select_iphone(runner=runner), "xcode")
+        self.assertEqual(
+            [call[0][2] for call in runner.calls], ["list"],
+            "The Xcode-managed mode must never preboot a simulator")
+
+    def test_select_only_reuses_booted_device(self):
+        runner = FakeSimulator(make_devices(
+            ("iPhone 16e", "ready", "Booted", True),
+            ("iPhone 17 Pro", "shutdown", "Shutdown", True)
+        ))
+        with patch.dict(os.environ, {"CM_SIMULATOR_PREFERRED_NAME": "iPhone 17 Pro"}):
+            self.assertEqual(select_iphone(runner=runner), "ready")
+        self.assertFalse(any(x[0][2] == "bootstatus" for x in runner.calls))
+
+    def test_select_only_rejects_unavailable_requested_udid(self):
+        runner = FakeSimulator(make_devices(
+            ("iPhone 17 Pro", "available", "Shutdown", True)
+        ))
+        with self.assertRaisesRegex(SimulatorBootError, "requested iPhone"):
+            select_iphone(runner=runner, preferred_udid="not-here")
 
     def test_timeout_tries_second_phone(self):
         runner = FakeSimulator(make_devices(("iPhone 17", "a", "Shutdown", True),

@@ -137,3 +137,67 @@ public struct CMOriginalSecondLevelRun {
         isSatisfied = false
     }
 }
+
+/**
+ Evidence-limited Professor level 3 ("Уборщик") prototype. The user-owned
+ PC scene has five distinct crates connected to ONE tmo_zone, plus exactly
+ one unlocked tmo_spring. This is a SceneKit contact objective, not proof
+ that the Windows game's spring/victory physics has been reproduced.
+ */
+public struct CMOriginalThirdLevelRun {
+    public struct Target: Equatable, Identifiable {
+        public let sourceID: String
+        public let zoneID: String
+        public var id: String { sourceID + "|" + zoneID }
+    }
+
+    public let targets: [Target]
+    public let sceneSHA256: String
+    public private(set) var deliveredIDs = Set<String>()
+
+    public init?(document: CMOriginalSceneDocument) {
+        guard document.index == 3 else { return nil }
+        let session = CMOriginalGameplaySession(document: document)
+        let links = session.originalConnections
+        let editable = session.objects.filter {
+            ($0.fields["UNLOCKED"] ?? []).contains("1")
+        }
+        guard links.count == 5,
+              Set(links.map(\.sourceID)).count == 5,
+              links.allSatisfy({
+                  $0.sourceType == "tmo_crate" && $0.targetType == "tmo_zone"
+              }),
+              Set(links.map(\.targetID)).count == 1,
+              editable.count == 1,
+              editable.first?.type == "tmo_spring"
+        else { return nil }
+
+        targets = links.map {
+            Target(sourceID: $0.sourceID, zoneID: $0.targetID)
+        }
+        sceneSHA256 = document.sceneSHA256
+    }
+
+    public var deliveredCount: Int { deliveredIDs.count }
+    public var totalCount: Int { targets.count }
+    public var isSatisfied: Bool {
+        !targets.isEmpty && deliveredIDs.count == targets.count
+    }
+    public var storageKey: String {
+        "cm.original.prototype-level-3.\(sceneSHA256)"
+    }
+
+    @discardableResult
+    public mutating func recordContact(
+        sourceID: String, zoneID: String
+    ) -> Bool {
+        let key = sourceID + "|" + zoneID
+        guard targets.contains(where: { $0.id == key }),
+              deliveredIDs.insert(key).inserted else { return false }
+        return true
+    }
+
+    public mutating func reset() {
+        deliveredIDs.removeAll()
+    }
+}

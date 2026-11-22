@@ -1,5 +1,14 @@
 # Crazy Machines — original iOS port: working branch
 
+## Third original puzzle prototype + Xcode-managed Simulator CI (2026-11-22)
+
+- Confirmed private owner pack `level-003.json`, Professor title "Уборщик": exactly **five distinct tmo_crate CONNECTED_TO 21 references** resolve to ONE `tmo_zone`, and exactly one `tmo_spring` is `UNLOCKED 1`. The level has **45 original 3DO instances**. These facts come from the user-owned original resource pack; do NOT upload any PC assets to public GitHub.
+- Implemented `CMOriginalThirdLevelRun` as an evidence-limited `0/5 → 5/5` contact tracker, with exact object/zone IDs. The iPhone UI shows progress over the 3D viewport, provides Level 4 after five distinct deliveries, and consumes only prototype-approved bodies so successive crates can enter the zone. This is experimental SceneKit behavior, **not the recovered Windows victory condition**.
+- Portable negative tests cover wrong source type, wrong editable element, wrong level index, four instead of five crates, reversed/unrelated contacts, duplicate contacts and reset. Synthetic SceneKit UI fixture exercises five crate contacts plus navigation to a fourth placeholder level; original PC geometries remain private. The opt-in macOS XCTest also checks original level 3's meshes and records a private authentic third screenshot. Tests must pass CI before claiming verified runtime.
+- Simulator run [45018166728](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45018166728) on `01e1286` successfully compiled Xcode but failed **before any XCTest**: two `xcrun simctl bootstatus -b` calls each timed out after 130s on hosted macOS. Source, portable and physical-device compilation all passed. No new second-level collision result exists from this failed run.
+- New workflow selects an available iPhone using `--select-only` (without calling simctl boot/bootstatus), then lets **`xcodebuild test` boot its own simulator**. Real UI screenshot attachments are exported from XCTest; post-test additional launch screenshot is optional and bounded, so incidental CoreSimulator hangs no longer hide the gameplay test result. Selection and no-boot behavior have portable regressions.
+- Pending: confirmation of level 2 synthetic basket→crate contact, level 3 five-crate deliveries, and authentic levels 1–3 on a Mac with the private original `.cmassets`.
+
 ## New gameplay step: second original level + private two-level capture (2026-11-22)
 
 - The active branch's `c939d84` introduces `CMOriginalSecondLevelRun` for evidence-based basket→crate contact. This is grounded in the original Professor level 2 scene's `CONNECTED_TO 17` resolving to `tmo_crate` and exactly 3 UNLOCKED dominoes, *not* a generic goal-zone counter.

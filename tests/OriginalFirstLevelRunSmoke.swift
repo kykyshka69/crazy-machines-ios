@@ -229,6 +229,75 @@ struct OriginalFirstLevelRunSmoke {
         precondition(CMOriginalSecondLevelRun(document: wrongSecondTarget) == nil)
         precondition(CMOriginalSecondLevelRun(document: missingDomino) == nil)
 
-        print("Original linked-object prototypes for levels 1 and 2: OK")
+        // Genuine Professor level 3 has FIVE distinct crates linked to a
+        // single zone and ONE unlocked spring. Negative variants must not
+        // accidentally activate a collection challenge on other puzzles.
+        func thirdDocument(
+            level: Int = 3, crates: Int = 5,
+            sourceIsBasket: Bool = false, editable: String = "tmo_spring"
+        ) throws -> CMOriginalSceneDocument {
+            func object(_ name: String, fields: [String]) -> [String: Any] {
+                ["name": name, "fields": fields, "children": []]
+            }
+            var elements = [object("tmo_zone", fields: ["VALB 32"])]
+            for _ in 0..<crates {
+                elements.append(object(
+                    sourceIsBasket ? "tmo_ball_basket" : "tmo_crate",
+                    fields: ["CONNECTED_TO 0", "VALB 72"]))
+            }
+            elements.append(object(editable, fields: ["UNLOCKED 1"]))
+            let scene: [String: Any] = [
+                "schema": "crazy-machines-original-scene-v1",
+                "index": level,
+                "title": "Synthetic third original-level signature",
+                "scene_sha256": String(repeating: "d", count: 64),
+                "root": [
+                    "name": "level", "fields": [],
+                    "children": [[
+                        "name": "level_elements", "fields": [],
+                        "children": elements
+                    ]]
+                ]
+            ]
+            return try CMOriginalSceneDocument.read(
+                JSONSerialization.data(withJSONObject: scene))
+        }
+        let thirdDocumentValid = try thirdDocument()
+        guard var third = CMOriginalThirdLevelRun(
+            document: thirdDocumentValid
+        ) else {
+            preconditionFailure("Level 3 five-crate original signature not detected")
+        }
+        precondition(third.totalCount == 5 && third.deliveredCount == 0)
+        precondition(third.targets.allSatisfy { $0.zoneID == third.targets[0].zoneID })
+        let firstCrate = third.targets[0]
+        precondition(!third.recordContact(
+            sourceID: firstCrate.zoneID, zoneID: firstCrate.sourceID))
+        precondition(!third.recordContact(
+            sourceID: "foreign-crate", zoneID: firstCrate.zoneID))
+        precondition(!third.recordContact(
+            sourceID: firstCrate.sourceID, zoneID: "wrong-zone"))
+        precondition(third.recordContact(
+            sourceID: firstCrate.sourceID, zoneID: firstCrate.zoneID))
+        precondition(!third.recordContact(
+            sourceID: firstCrate.sourceID, zoneID: firstCrate.zoneID))
+        precondition(third.deliveredCount == 1 && !third.isSatisfied)
+        for target in third.targets.dropFirst() {
+            precondition(third.recordContact(
+                sourceID: target.sourceID, zoneID: target.zoneID))
+        }
+        precondition(third.deliveredCount == 5 && third.isSatisfied)
+        third.reset()
+        precondition(third.deliveredCount == 0 && !third.isSatisfied)
+
+        let levelFour = try thirdDocument(level: 4)
+        let fourCrates = try thirdDocument(crates: 4)
+        let wrongSourceKind = try thirdDocument(sourceIsBasket: true)
+        let wrongEditable = try thirdDocument(editable: "tmo_domino")
+        precondition(CMOriginalThirdLevelRun(document: levelFour) == nil)
+        precondition(CMOriginalThirdLevelRun(document: fourCrates) == nil)
+        precondition(CMOriginalThirdLevelRun(document: wrongSourceKind) == nil)
+        precondition(CMOriginalThirdLevelRun(document: wrongEditable) == nil)
+        print("Original linked-object prototypes for levels 1, 2 and 3: OK")
     }
 }

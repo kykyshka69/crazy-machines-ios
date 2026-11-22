@@ -293,12 +293,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
         context.coordinator.setExperimentalMotorDrive(experimentalMotorDrive)
         context.coordinator.session = CMOriginalGameplaySession(document: document)
-        // Only the evidence-derived four-delivery prototype for original
-        // Professor level 1 may consume linked sources. Other original
-        // levels retain their physics bodies until their mechanics are known.
-        context.coordinator.firstLevelPrototypeTargets = Set(
-            (CMOriginalFirstLevelRun(document: document)?.targets ?? []).map(\.id)
-        )
+        // Only evidence-derived zone-delivery prototypes collect bodies:
+        // four distinct linked objects in Professor level 1, or five
+        // linked crates in Professor level 3. Other levels preserve bodies.
+        let first = (CMOriginalFirstLevelRun(document: document)?.targets ?? [])
+            .map(\.id)
+        let third = (CMOriginalThirdLevelRun(document: document)?.targets ?? [])
+            .map(\.id)
+        context.coordinator.collectiblePrototypeTargets = Set(first + third)
         context.coordinator.onOriginalZoneContact = onOriginalZoneContact
         context.coordinator.onLinkedZoneContact = onLinkedZoneContact
         context.coordinator.onOriginalConnectionContact = onOriginalConnectionContact
@@ -464,7 +466,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onLinkedZoneContact: ((String, String) -> Void)?
         var onOriginalConnectionContact: ((String, String) -> Void)?
         private var reportedZoneContacts = Set<String>()
-        var firstLevelPrototypeTargets = Set<String>()
+        var collectiblePrototypeTargets = Set<String>()
         private var collectedPrototypeSources = Set<String>()
         private var reportedOriginalConnections = Set<String>()
         private var physicsNodesByObjectID: [String: [SCNNode]] = [:]
@@ -936,7 +938,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                reportedZoneContacts.insert(candidate + "|" + zoneID).inserted {
                 contactType = types[candidate]
                 contactIDs = (candidate, zoneID)
-                collectibleSourceID = firstLevelPrototypeTargets.contains(
+                collectibleSourceID = collectiblePrototypeTargets.contains(
                     candidate + "|" + zoneID
                 ) ? candidate : nil
             } else {

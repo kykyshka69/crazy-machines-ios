@@ -18,6 +18,7 @@ struct CMOriginalQuickPlayView: View {
         _originalSession = State(initialValue: CMOriginalGameplaySession(document: document))
         _firstLevelRun = State(initialValue: CMOriginalFirstLevelRun(document: document))
         _secondLevelRun = State(initialValue: CMOriginalSecondLevelRun(document: document))
+        _thirdLevelRun = State(initialValue: CMOriginalThirdLevelRun(document: document))
     }
 
     // Open an authentic scene at rest; users arrange original parts before
@@ -34,6 +35,7 @@ struct CMOriginalQuickPlayView: View {
     @State private var flippedOriginalSwitchIDs = Set<String>()
     @State private var firstLevelRun: CMOriginalFirstLevelRun?
     @State private var secondLevelRun: CMOriginalSecondLevelRun?
+    @State private var thirdLevelRun: CMOriginalThirdLevelRun?
     @State private var showFirstLevelObjectiveDetails = false
 
     // Reconstruct the PC's explicit CONNECTED_TO references to tmo_zone.
@@ -114,6 +116,7 @@ struct CMOriginalQuickPlayView: View {
         originalSession = CMOriginalGameplaySession(document: next)
         firstLevelRun = CMOriginalFirstLevelRun(document: next)
         secondLevelRun = CMOriginalSecondLevelRun(document: next)
+        thirdLevelRun = CMOriginalThirdLevelRun(document: next)
         showFirstLevelObjectiveDetails = false
         experimentalPhysics = false
         experimentalMotorDrive = false
@@ -124,6 +127,7 @@ struct CMOriginalQuickPlayView: View {
         flippedOriginalSwitchIDs.removeAll()
         firstLevelRun?.reset()
         secondLevelRun?.reset()
+                        thirdLevelRun?.reset()
         sceneRevision = UUID()
     }
 
@@ -187,6 +191,14 @@ struct CMOriginalQuickPlayView: View {
                         if firstLevelRun?.recordContact(
                             sourceID: sourceID, zoneID: zoneID) == true,
                            let run = firstLevelRun, run.isSatisfied {
+                            UserDefaults.standard.set(true, forKey: run.storageKey)
+                        }
+                        // Professor level 3 has FIVE separate crates with
+                        // an explicit CONNECTED_TO reference to one zone.
+                        // Track only their exact original IDs and collisions.
+                        if thirdLevelRun?.recordContact(
+                            sourceID: sourceID, zoneID: zoneID) == true,
+                           let run = thirdLevelRun, run.isSatisfied {
                             UserDefaults.standard.set(true, forKey: run.storageKey)
                         }
                     }
@@ -287,6 +299,31 @@ struct CMOriginalQuickPlayView: View {
                         }
                     }
                     .padding(10)
+                } else if let run = thirdLevelRun {
+                    HStack(spacing: 8) {
+                        Label(
+                            "Crates: \(run.deliveredCount)/\(run.totalCount)",
+                            systemImage: run.isSatisfied
+                                ? "checkmark.seal.fill" : "scope"
+                        )
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 8)
+                        .background(.regularMaterial, in: Capsule())
+                        .accessibilityIdentifier("cm.original.third-level-hud")
+                        if run.isSatisfied {
+                            Button {
+                                changeLevel(by: 1)
+                            } label: {
+                                Label("Level 4", systemImage: "arrow.right")
+                            }
+                            .font(.caption.weight(.semibold))
+                            .buttonStyle(.borderedProminent)
+                            .disabled(scene(at: document.index + 1) == nil)
+                            .accessibilityIdentifier("cm.original.third-level-next")
+                        }
+                    }
+                    .padding(10)
                 }
             }
 
@@ -307,6 +344,7 @@ struct CMOriginalQuickPlayView: View {
                         flippedOriginalSwitchIDs.removeAll()
                         firstLevelRun?.reset()
         secondLevelRun?.reset()
+                        thirdLevelRun?.reset()
                         // Rebuild bodies only after changing scene physics mode.
                         sceneRevision = UUID()
                     }
@@ -325,6 +363,7 @@ struct CMOriginalQuickPlayView: View {
                     flippedOriginalSwitchIDs.removeAll()
                     firstLevelRun?.reset()
         secondLevelRun?.reset()
+                        thirdLevelRun?.reset()
                     sceneRevision = UUID()
                 }
                 .accessibilityIdentifier("cm.original.quickplay-reset")
@@ -392,6 +431,7 @@ struct CMOriginalQuickPlayView: View {
                     flippedOriginalSwitchIDs.removeAll()
                     firstLevelRun?.reset()
         secondLevelRun?.reset()
+                        thirdLevelRun?.reset()
                     sceneRevision = UUID()
                 }
                 .font(.caption.weight(.semibold))
@@ -399,6 +439,27 @@ struct CMOriginalQuickPlayView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
+
+            if let run = thirdLevelRun {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Level 3: five original crate → zone links")
+                        .font(.caption.weight(.semibold))
+                    Text("Arrange the UNLOCKED spring and start physics. This experimental objective records actual contacts of the five linked crates with their original target zone.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text("\(run.deliveredCount) / \(run.totalCount)")
+                        .font(.caption.monospacedDigit().weight(.semibold))
+                        .accessibilityIdentifier("cm.original.third-level-progress")
+                    if run.isSatisfied {
+                        Text("All five original links contacted. Recovered Windows physics and victory rules are not yet verified.")
+                            .font(.caption2)
+                            .foregroundStyle(.green)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .accessibilityIdentifier("cm.original.third-level-challenge")
+            }
 
             if let run = secondLevelRun {
                 VStack(alignment: .leading, spacing: 5) {

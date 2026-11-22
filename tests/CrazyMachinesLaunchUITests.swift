@@ -249,6 +249,56 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         )
     }
 
+    func testThirdLevelFiveLinkedCratesReachTheirOriginalZone() {
+        // Synthetic UCM geometry, but production SceneKit contact callbacks
+        // and original level-3 five-crate/one-unlocked-spring signature.
+        let app = XCUIApplication()
+        app.launchArguments = ["--cm-ci-install-linked-zone-fixture"]
+        app.launch()
+        let play = app.buttons["cm.menu.play"]
+        XCTAssertTrue(play.waitForExistence(timeout: 25))
+        play.tap()
+        let next = app.buttons["cm.original.quickplay-next"]
+        XCTAssertTrue(next.waitForExistence(timeout: 15))
+        XCTAssertTrue(next.isEnabled)
+        next.tap() // level 2
+        XCTAssertTrue(
+            app.staticTexts["Original level 2: CM synthetic CI level 2"]
+                .waitForExistence(timeout: 20))
+        next.tap() // level 3
+        XCTAssertTrue(
+            app.staticTexts["Original level 3: CM synthetic CI level 3"]
+                .waitForExistence(timeout: 20))
+
+        let progress = app.staticTexts["cm.original.third-level-progress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 15),
+                      "Authentic five-crate original link signature not detected")
+        XCTAssertEqual(progress.label, "0 / 5")
+        let physics = app.switches["cm.original.quickplay-physics"]
+        XCTAssertTrue(physics.waitForExistence(timeout: 10))
+        physics.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertEqual(physics.value as? String, "1")
+        let fiveContacts = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label == %@", "5 / 5"),
+            object: progress
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [fiveContacts], timeout: 45), .completed,
+            "Five linked crates were not each collected by their exact " +
+            "original zone; last progress: \(progress.label)"
+        )
+        let continueToLevel4 = app.buttons["cm.original.third-level-next"]
+        XCTAssertTrue(continueToLevel4.waitForExistence(timeout: 10))
+        XCTAssertTrue(continueToLevel4.isEnabled)
+        attachScreenshot(app, named: "10-synthetic-five-linked-crates-collected")
+        continueToLevel4.tap()
+        XCTAssertTrue(
+            app.staticTexts["Original level 4: CM synthetic CI level 4"]
+                .waitForExistence(timeout: 20),
+            "Five original-style crate deliveries did not advance to level 4"
+        )
+    }
+
     func testPrivateOriginalLevelOneWhenOptedIn() throws {
         // This test is opt-in because the user's original game files are
         // copyrighted and MUST NOT enter public GitHub Actions artifacts.
@@ -348,6 +398,35 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(secondCount, 60,
             "Authentic original level 2 has 66 UCM instances; \(secondStatus)")
         attachScreenshot(app, named: "09-PRIVATE-original-professor-level-002")
+
+        next.tap()
+        let thirdTitle = app.staticTexts.matching(NSPredicate(
+            format: "label BEGINSWITH %@", "Original level 3:")).firstMatch
+        XCTAssertTrue(thirdTitle.waitForExistence(timeout: 35),
+                      "Authentic Professor level 3 failed to open")
+        let thirdProgress = app.staticTexts["cm.original.third-level-progress"]
+        XCTAssertTrue(thirdProgress.waitForExistence(timeout: 20),
+                      "Original five-crate collection signature was not detected")
+        XCTAssertEqual(thirdProgress.label, "0 / 5")
+        var thirdCount = 0
+        var thirdStatus = ""
+        for _ in 0..<20 {
+            thirdStatus = (viewport.value as? String) ?? ""
+            if let expression = try? NSRegularExpression(
+                pattern: "originalUCM=(\\d+)"),
+               let match = expression.firstMatch(
+                in: thirdStatus,
+                range: NSRange(thirdStatus.startIndex..., in: thirdStatus)),
+               let range = Range(match.range(at: 1), in: thirdStatus),
+               let value = Int(thirdStatus[range]) {
+                thirdCount = value
+            }
+            if thirdCount >= 40 { break }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        XCTAssertGreaterThanOrEqual(thirdCount, 40,
+            "Authentic level 3 has 45 original 3DO instances; \(thirdStatus)")
+        attachScreenshot(app, named: "11-PRIVATE-original-professor-level-003")
     }
 
     /// Inspect only the SceneKit pixels, not the bright SwiftUI controls.

@@ -13,6 +13,7 @@ import struct
 TEST_NAME = "testPrivateOriginalLevelOneWhenOptedIn"
 ATTACHMENT_NAME = "07-PRIVATE-original-professor-level-001"
 ATTACHMENT_NAME_LEVEL_TWO = "09-PRIVATE-original-professor-level-002"
+ATTACHMENT_NAME_LEVEL_THREE = "11-PRIVATE-original-professor-level-003"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
@@ -86,8 +87,10 @@ def select_screenshot(export_directory, summary, destination,
     destination = Path(destination)
     validate_summary(summary)
     manifest = json.loads((export_directory / "manifest.json").read_text(encoding="utf-8"))
-    if attachment_name not in (ATTACHMENT_NAME, ATTACHMENT_NAME_LEVEL_TWO):
-        raise ValueError("unknown authentic first/second level screenshot name")
+    if attachment_name not in (
+        ATTACHMENT_NAME, ATTACHMENT_NAME_LEVEL_TWO, ATTACHMENT_NAME_LEVEL_THREE
+    ):
+        raise ValueError("unknown authentic original-level screenshot name")
     source = find_exact_attachment(manifest, export_directory, attachment_name)
     validate_png(source)
     if destination.resolve() == source.resolve():
@@ -105,7 +108,8 @@ def main():
     parser.add_argument("--summary", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--attachment-name", default=ATTACHMENT_NAME,
-                        choices=[ATTACHMENT_NAME, ATTACHMENT_NAME_LEVEL_TWO])
+                        choices=[ATTACHMENT_NAME, ATTACHMENT_NAME_LEVEL_TWO,
+                                 ATTACHMENT_NAME_LEVEL_THREE])
     args = parser.parse_args()
     try:
         summary = json.loads(args.summary.read_text(encoding="utf-8"))

@@ -34,41 +34,53 @@ jobs:
           set -o pipefail
           mkdir -p /tmp/crazy-machines-build-logs
           xcodebuild -project CrazyMachinesIOS.xcodeproj -scheme CrazyMachinesIOS -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/crazy-machines-derived CODE_SIGNING_ALLOWED=NO build 2>&1 | tee /tmp/crazy-machines-build-logs/xcodebuild.log
-      - name: Boot iPhone simulator and capture actual launch screen
-        timeout-minutes: 8
+      - name: Choose iPhone destination without preboot
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/work/original-3d-scene-batch'
+        timeout-minutes: 2
         run: |
           set -euo pipefail
-          # The helper queries devices once in JSON. Avoid an extra
-          # unbounded global simctl list on overburdened macOS runners.
-          # Each bootstatus attempt is bounded; a second iPhone is tried.
-          # Reuse the iPhone 17 Pro model proven by previous successful
-          # GitHub Actions UI screenshots; fall back if unavailable.
+          # The hosted runner repeatedly left BOTH simctl bootstatus calls
+          # waiting for 130 seconds; none of the actual UI tests ran.
+          # Select a real device once, and let xcodebuild test boot it.
           export CM_SIMULATOR_PREFERRED_NAME="iPhone 17 Pro"
-          DEVICE_ID="$(python3 tools/boot_iphone_simulator_ci.py)"
+          DEVICE_ID="$(python3 tools/boot_iphone_simulator_ci.py --select-only)"
           test -n "$DEVICE_ID"
-          echo "Booted iPhone Simulator: $DEVICE_ID"
-          APP="/tmp/crazy-machines-derived/Build/Products/Debug-iphonesimulator/CrazyMachinesIOS.app"
-          /usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Info.plist" > /tmp/cm-bundle-id
-          BUNDLE_ID=$(cat /tmp/cm-bundle-id)
-          xcrun simctl install "$DEVICE_ID" "$APP"
-          xcrun simctl launch --terminate-running-process "$DEVICE_ID" "$BUNDLE_ID"
-          sleep 8
-          # A successful simctl launch alone does not prove the process stayed alive.
-          xcrun simctl spawn "$DEVICE_ID" launchctl list | grep -F "$BUNDLE_ID"
-          mkdir -p /tmp/crazy-machines-screenshots
-          xcrun simctl io "$DEVICE_ID" screenshot /tmp/crazy-machines-screenshots/iphone-launch.png
-      - name: Run launch and navigation UI tests on the booted iPhone
+          echo "Selected Xcode-managed iPhone Simulator: $DEVICE_ID"
+      - name: Run gameplay and navigation UI tests with Xcode-managed startup
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/work/original-3d-scene-batch'
         timeout-minutes: 22
         run: |
           set -o pipefail
           mkdir -p /tmp/crazy-machines-build-logs
-          DEVICE_ID="$CM_BOOTED_IPHONE_UDID"
+          DEVICE_ID="$CM_SELECTED_IPHONE_UDID"
           test -n "$DEVICE_ID"
-          # Avoid launching extra parallel XCTest simulator clones on
-          # macOS CI. Reuse the iPhone already booted and smoke-tested
-          # by the preceding step, reducing CoreSimulator contention.
-          xcodebuild -project CrazyMachinesIOS.xcodeproj -scheme CrazyMachinesIOS -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE_ID" -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 -derivedDataPath /tmp/crazy-machines-derived -resultBundlePath /tmp/CrazyMachinesUITests.xcresult CODE_SIGNING_ALLOWED=NO test 2>&1 | tee /tmp/crazy-machines-build-logs/ui-tests.log
+          # This test invocation is responsible for starting the iPhone.
+          # It avoids the separate, flaky preboot/bootstatus bottleneck.
+          xcodebuild -project CrazyMachinesIOS.xcodeproj -scheme CrazyMachinesIOS -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE_ID" -destination-timeout 180 -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 -derivedDataPath /tmp/crazy-machines-derived -resultBundlePath /tmp/CrazyMachinesUITests.xcresult CODE_SIGNING_ALLOWED=NO test 2>&1 | tee /tmp/crazy-machines-build-logs/ui-tests.log
+      - name: Capture optional actual simulator launch screenshot
+        if: success() && (github.event_name == 'pull_request' || github.ref == 'refs/heads/work/original-3d-scene-batch')
+        timeout-minutes: 3
+        run: |
+          mkdir -p /tmp/crazy-machines-screenshots
+          # XCT attachments are authoritative in-app screenshot proof.
+          # This extra home/launch screenshot must never prevent UI tests
+          # from being reported if CoreSimulator is slow after XCTest exits.
+          python3 - <<'PY'
+          import os
+          import time
+          from tools.boot_iphone_simulator_ci import SimulatorBootError, execute
+          udid = os.environ["CM_SELECTED_IPHONE_UDID"]
+          bundle_id = "org.crazymachines.port"
+          try:
+              execute(["xcrun", "simctl", "launch", "--terminate-running-process",
+                       udid, bundle_id], timeout=35)
+              time.sleep(4)
+              execute(["xcrun", "simctl", "io", udid, "screenshot",
+                       "/tmp/crazy-machines-screenshots/iphone-launch.png"],
+                      timeout=35)
+          except SimulatorBootError as exc:
+              print("Optional launch screenshot not captured: " + str(exc))
+          PY
       - name: Export UI test screenshots for direct inspection
         if: always()
         run: |

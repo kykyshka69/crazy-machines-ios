@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 from select_first_level_screenshot import (
-    ATTACHMENT_NAME, ATTACHMENT_NAME_LEVEL_TWO, TEST_NAME,
+    ATTACHMENT_NAME, ATTACHMENT_NAME_LEVEL_TWO, ATTACHMENT_NAME_LEVEL_THREE, TEST_NAME,
     select_screenshot, validate_summary
 )
 
@@ -46,6 +46,19 @@ class SelectFirstLevelScreenshotTests(unittest.TestCase):
             select_screenshot(
                 self.path, GOOD_SUMMARY, self.output,
                 ATTACHMENT_NAME_LEVEL_TWO),
+            self.output)
+        self.assertEqual(
+            self.output.read_bytes(),
+            (self.path / "right.png").read_bytes())
+
+    def test_selects_authentic_third_level_only_by_exact_name(self):
+        self.record["attachments"][1]["suggestedHumanReadableName"] = (
+            ATTACHMENT_NAME_LEVEL_THREE)
+        self.write_manifest([self.record])
+        self.assertEqual(
+            select_screenshot(
+                self.path, GOOD_SUMMARY, self.output,
+                ATTACHMENT_NAME_LEVEL_THREE),
             self.output)
         self.assertEqual(
             self.output.read_bytes(),

@@ -90,6 +90,36 @@ def execute(argv, *, runner=subprocess.run, timeout=45):
     return completed.stdout
 
 
+def select_iphone(*, runner=subprocess.run, preferred_udid=None):
+    """Choose an available iPhone for Xcode's OWN simulator boot machinery.
+
+    The GitHub macOS runner repeatedly timed out inside simctl bootstatus
+    BEFORE UI tests. This mode never issues simctl boot/bootstatus. Instead,
+    xcodebuild test is responsible for bringing up its selected destination.
+    """
+    payload = execute(["xcrun", "simctl", "list", "devices", "available", "-j"],
+                      runner=runner, timeout=30)
+    try:
+        candidates = iphone_candidates(json.loads(payload))
+    except json.JSONDecodeError as error:
+        raise SimulatorBootError("invalid JSON from simctl") from error
+    if not candidates:
+        raise SimulatorBootError("no available iPhone Simulator device")
+    requested = preferred_udid or os.environ.get("CM_SIMULATOR_UDID")
+    if requested:
+        candidates = [item for item in candidates if item[0] == requested]
+        if not candidates:
+            raise SimulatorBootError(
+                "requested iPhone Simulator is not available: " + requested)
+    preferred_name = os.environ.get("CM_SIMULATOR_PREFERRED_NAME")
+    if preferred_name and not requested:
+        candidates.sort(key=lambda item: (
+            item[2] != "Booted", item[1] != preferred_name,
+            item[1], item[0]
+        ))
+    return candidates[0][0]
+
+
 def boot_iphone(*, runner=subprocess.run, max_attempts=2,
                 preferred_udid=None):
     payload = execute(["xcrun", "simctl", "list", "devices", "available", "-j"],
@@ -140,13 +170,17 @@ def boot_iphone(*, runner=subprocess.run, max_attempts=2,
 
 
 def main():
+    select_only = sys.argv[1:] == ["--select-only"]
+    if sys.argv[1:] and not select_only:
+        sys.exit("Usage: boot_iphone_simulator_ci.py [--select-only]\n")
     try:
-        udid = boot_iphone()
+        udid = select_iphone() if select_only else boot_iphone()
     except SimulatorBootError as error:
-        sys.exit("iPhone Simulator startup failed: %s\n" % error)
+        sys.exit("iPhone Simulator selection/startup failed: %s\n" % error)
     if os.getenv("GITHUB_ENV"):
+        key = "CM_SELECTED_IPHONE_UDID" if select_only else "CM_BOOTED_IPHONE_UDID"
         with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as file:
-            file.write("CM_BOOTED_IPHONE_UDID=%s\n" % udid)
+            file.write("%s=%s\n" % (key, udid))
     print(udid)
 
 
