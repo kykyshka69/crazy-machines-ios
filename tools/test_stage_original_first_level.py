@@ -87,7 +87,10 @@ class FirstLevelStagingTest(unittest.TestCase):
                     model_base(ref)
 
     def test_rejects_ambiguous_alias_names(self):
-        (self.models / "BOARD.UCM").write_bytes(synthetic_ucm())
+        other = self.models / "BOARD.UCM"
+        other.write_bytes(synthetic_ucm())
+        if other.samefile(self.models / "board.ucm"):
+            self.skipTest("filesystem is case-insensitive")
         with self.assertRaisesRegex(ValueError, "ambiguous"):
             stage(self.scene, self.models, self.output)
 
