@@ -575,9 +575,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var magneticTargetIDs = Set<String>()
         var fourthLevelRun: CMOriginalFourthLevelRun?
         var onOriginalBucketCapture: ((String, String) -> Void)?
-        private weak var fourthBallMesh: CMOriginalObjectMeshNode?
-        private weak var fourthBucketMesh: CMOriginalObjectMeshNode?
-        private var fourthBallCaptured = false
+        // Win32 0x44D874..0x44D9A2 checks actual GOAL-marked
+        // tmo_bucket objects against tmo_ball_ objects, not only puzzle 4.
+        // Retain authentic UCM mesh identities for geometry containment.
+        private var goalBucketMeshes: [String: CMOriginalObjectMeshNode] = [:]
+        private var originalBallMeshes: [String: CMOriginalObjectMeshNode] = [:]
+        private var bucketGoalIDs = Set<String>()
+        private var ballObjectIDs = Set<String>()
+        private var capturedGoalBucketIDs = Set<String>()
         private var motorRotorObjectIDs = Set<String>()
         private var generatorIDByRotorID: [String: String] = [:]
         private var disrupterIDByWheelID: [String: String] = [:]
@@ -809,10 +814,22 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             lastDisrupterConduction.removeAll()
             lastGeneratorScalars.removeAll()
             lastGeneratorPollTime = 0
-            fourthBallCaptured = false
-            fourthBallMesh = nil
-            fourthBucketMesh = nil
+            goalBucketMeshes.removeAll()
+            originalBallMeshes.removeAll()
+            bucketGoalIDs.removeAll()
+            ballObjectIDs.removeAll()
+            capturedGoalBucketIDs.removeAll()
             let originalObjects = session?.objects ?? []
+            bucketGoalIDs = Set(originalObjects.compactMap { object in
+                guard object.type == "tmo_bucket",
+                      let raw = object.fields["GOAL"]?.first,
+                      let mark = Int(raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+                      mark != 0 else { return nil }
+                return object.id
+            })
+            ballObjectIDs = Set(originalObjects.filter {
+                $0.type.hasPrefix("tmo_ball_")
+            }.map(\.id))
             switchContacts = CMOriginalSwitchContactMapper(objects: originalObjects.map {
                 .init(id: $0.id, type: $0.type, parentID: $0.parentID)
             })
@@ -922,14 +939,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                 }
                 if let mesh = node as? CMOriginalObjectMeshNode,
-                   let goal = self.fourthLevelRun {
-                    if mesh.originalObjectID == goal.ballID,
-                       mesh.name?.lowercased() == "to_ball_tennis" {
-                        self.fourthBallMesh = mesh
-                    }
-                    if mesh.originalObjectID == goal.bucketID,
+                   let id = mesh.originalObjectID {
+                    if self.bucketGoalIDs.contains(id),
                        mesh.name?.lowercased() == "to_bucket" {
-                        self.fourthBucketMesh = mesh
+                        self.goalBucketMeshes[id] = mesh
+                    }
+                    if self.ballObjectIDs.contains(id),
+                       mesh.name?.lowercased().hasPrefix("to_ball_") == true {
+                        self.originalBallMeshes[id] = mesh
                     }
                 }
                 if let owner = node as? CMOriginalPhysicsOwnerNode,
@@ -1258,42 +1275,78 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         func renderer(_ renderer: SCNSceneRenderer, didSimulatePhysicsAtTime time: TimeInterval) {
             guard physicsEnabled else { return }
             applyPendingActions()
-            // The original fourth scene has a GOAL-marked bucket, but no
-            // explicit CONNECTED_TO. Observe original UCM geometry after
-            // each simulated step; touching its outside never scores.
-            guard !fourthBallCaptured,
-                  let goal = fourthLevelRun,
-                  let ballMesh = fourthBallMesh,
-                  let bucketMesh = fourthBucketMesh,
-                  physicsNodesByObjectID[goal.ballID]?.first?.physicsBody?.type == .dynamic
-            else { return }
             sessionLock.lock()
             let running = session?.phase == .running
             sessionLock.unlock()
             guard running else { return }
-            let (low, high) = bucketMesh.boundingBox
-            guard let panels = CMOriginalBucketCollisionProxy.panels(
-                low: [low.x, low.y, low.z],
-                high: [high.x, high.y, high.z]
-            ) else { return }
-            let (ballLow, ballHigh) = ballMesh.boundingBox
-            let radius = (ballHigh.x - ballLow.x) * 0.5
-            guard radius.isFinite && radius > 0 else { return }
-            let ballCenter = SCNVector3(
-                (ballLow.x + ballHigh.x) * 0.5,
-                (ballLow.y + ballHigh.y) * 0.5,
-                (ballLow.z + ballHigh.z) * 0.5
-            )
-            let ballWorld = ballMesh.presentation.convertPosition(ballCenter, to: nil)
-            let bucketLocal = bucketMesh.presentation.convertPosition(
-                ballWorld, from: nil)
-            if CMOriginalBucketCollisionProxy.containsBall(
-                x: bucketLocal.x, y: bucketLocal.y,
-                radius: radius, panels: panels
-            ) {
-                fourthBallCaptured = true
-                DispatchQueue.main.async { [weak self] in
-                    self?.onOriginalBucketCapture?(goal.ballID, goal.bucketID)
+
+            // The authentic Win32 GOAL dispatcher reaches tmo_bucket from
+            // a tmo_ball_ search (0x44D874..0x44D9A2). Level 4 was the
+            // first imported geometry demonstration, but the owner has
+            // seven GOAL buckets across all 102 PC scenes. Use real
+            // to_bucket and to_ball_* UCM meshes on every relevant level.
+            //
+            // Win32's internal helper transform comparison at 0x44D97B
+            // has not yet been completely mapped to iOS; containment
+            // via the original UCM bounds is an explicitly experimental
+            // physical proxy, not a claimed identical Windows trigger.
+            for (bucketID, bucketMesh) in goalBucketMeshes {
+                guard !capturedGoalBucketIDs.contains(bucketID) else {
+                    continue
+                }
+                let (low, high) = bucketMesh.boundingBox
+                guard let panels = CMOriginalBucketCollisionProxy.panels(
+                    low: [low.x, low.y, low.z],
+                    high: [high.x, high.y, high.z]
+                ) else { continue }
+
+                for (ballID, ballMesh) in originalBallMeshes.sorted(
+                    by: { $0.key < $1.key }
+                ) {
+                    guard physicsNodesByObjectID[ballID]?.first?
+                            .physicsBody?.type == .dynamic else { continue }
+                    let (ballLow, ballHigh) = ballMesh.boundingBox
+                    let ballCenter = SCNVector3(
+                        (ballLow.x + ballHigh.x) * 0.5,
+                        (ballLow.y + ballHigh.y) * 0.5,
+                        (ballLow.z + ballHigh.z) * 0.5
+                    )
+                    // Transform the actual moving ball in the bucket's
+                    // coordinate system. A non-uniformly scaled or rotated
+                    // UCM must not score with an untransformed radius.
+                    let ballPosition = bucketMesh.presentation.convertPosition(
+                        ballMesh.presentation.convertPosition(ballCenter, to: nil),
+                        from: nil
+                    )
+                    let ballRadiusX = bucketMesh.presentation.convertVector(
+                        SCNVector3((ballHigh.x - ballLow.x) * 0.5, 0, 0),
+                        from: ballMesh.presentation
+                    )
+                    let ballRadiusY = bucketMesh.presentation.convertVector(
+                        SCNVector3(0, (ballHigh.y - ballLow.y) * 0.5, 0),
+                        from: ballMesh.presentation
+                    )
+                    let radiusX = sqrt(
+                        ballRadiusX.x * ballRadiusX.x
+                        + ballRadiusX.y * ballRadiusX.y
+                    )
+                    let radiusY = sqrt(
+                        ballRadiusY.x * ballRadiusY.x
+                        + ballRadiusY.y * ballRadiusY.y
+                    )
+                    let radius = max(radiusX, radiusY)
+                    guard CMOriginalBucketCollisionProxy.containsBall(
+                        x: ballPosition.x, y: ballPosition.y,
+                        radius: radius, panels: panels
+                    ) else { continue }
+
+                    capturedGoalBucketIDs.insert(bucketID)
+                    DispatchQueue.main.async { [weak self] in
+                        self?.onOriginalBucketCapture?(ballID, bucketID)
+                    }
+                    // A single original GOAL bucket contributes one
+                    // Win32 channel-0 latch, not a new GOAL for every ball.
+                    break
                 }
             }
         }
