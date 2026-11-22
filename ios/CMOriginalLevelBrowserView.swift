@@ -256,6 +256,17 @@ struct CMOriginalLevelBrowserView: View {
                     }
                 }
             }
+            // The previous file-name-only readiness report cannot tell
+            // whether an original UCM actually parses into valid geometry.
+            // Keep its useful missing-model list, then expose the main
+            // branch's stronger on-demand mesh integrity check.
+            Section("Original UCM geometry verification") {
+                CMOriginalAssetAuditView(
+                    modelNames: CMOriginalModelResolver.allModelNames(in: document.root),
+                    directory: originalStorage
+                )
+                .id(document.sceneSHA256)
+            }
             Section("Original PC electrical terminals") {
                 let session = CMOriginalGameplaySession(document: document)
                 let terminals = session.originalPowerTerminals
