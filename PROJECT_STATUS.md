@@ -1,6 +1,6 @@
 # Crazy Machines — iOS Port: verified project status
 
-Last evidence review: 2026-11-21 (GitHub `main`; latest implementation commit `d0326376`, following baseline `fd3ceca6`).
+Last evidence review: 2026-11-22 (GitHub `main`; latest documented code and local regression verification).
 Primary goal: load and play the **original PC Crazy Machines puzzles on iPhone**. This is not yet a playable port.
 
 ## Verified work present in the repository
@@ -48,6 +48,20 @@ Primary goal: load and play the **original PC Crazy Machines puzzles on iPhone**
 - `c2163713`, `f74ecd36`: added this regression to GitHub portable CI and `scripts/run-local-checks.sh`.
 - **Executed here:** a Foundation-only Swift 6.2.1 Linux *isolated reproduction* of the asset resolver/audit behavior compiled and passed, including missing, malformed, ambiguous and alias cases. The **exact full GitHub test target has not been executed in this environment**. The code compiles in isolation, but SwiftUI/SceneKit and an Xcode iOS app build require a macOS runner.
 - GitHub combined commit status for `f74ecd36` currently returned **no statuses** from the connected API, so this is neither a verified CI success nor a failure. No actual first-level iPhone screenshot yet.
+
+## Continued work — reproducible first ORIGINAL level Simulator capture (2026-11-22)
+
+- `47d927f3`: assigned stable accessibility IDs to original level rows, so the UI test can open **original level 1**, not an invented playground.
+- `10809541`: SceneKit original-level view now reports the number of **actually constructed imported UCM mesh nodes** through accessibility. A blank SceneKit canvas cannot satisfy the new screenshot assertion.
+- `0ac9cf21`: added opt-in `testCaptureFirstRealLevel3DWhenSeeded` to navigate through the real app and attach a screenshot only after nonzero original meshes are loaded. In public CI without licensed game data it deliberately **skips**; a skip does not pass this milestone.
+- `9e878ae6`: `tools/stage_original_first_level.py` validates the original level 1 JSON and every referenced original UCM file, rejects missing/corrupt/ambiguous models, and privately stages them for the app sandbox.
+- `3139c582`, `5af0ecd3`, `24d26ad3`: added eight synthetic staging regressions, made duplicate detection tests case-sensitive-filesystem aware, and enabled them in Python CI.
+- `e81b0f74`: `scripts/capture-original-first-level.sh` performs an actual macOS Xcode `build-for-testing`, boots an iPhone Simulator, seeds the app sandbox with privately staged original models/level JSON, runs the UI screenshot test and exports the screenshot plus logs.
+- `b1781db2`: documented exact invocation and limitations in `docs/first-original-level-simulator.md`.
+- **Actually executed in this session:** ran `python -m unittest -v test_stage_original_first_level.py` on local copies of the identical-length Python sources in Linux using synthetic UCM; **8 tests passed**. `ast.parse` succeeded on the staging/test source. The original proprietary files were **not available in this runtime**.
+- **Not yet executed/verified:** the macOS shell script, Xcode compilation, first-level UI test on iPhone Simulator, actual UCM geometry rendering on Apple SDK, and genuine iPhone screenshot. This environment has Swift/Linux but **no Xcode/iPhone Simulator**. Do not claim the screenshot has been produced.
+
+**Next action:** execute the macOS capture script with a private exported original `level-001.json` and its UCM asset directory; inspect the resulting actual screenshot/coverage; then fix any SceneKit mismatch. See `docs/first-original-level-simulator.md`.
 
 ## Priority blockers / work order
 
