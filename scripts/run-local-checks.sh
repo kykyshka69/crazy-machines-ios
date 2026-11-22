@@ -130,6 +130,10 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   ios/CMOriginalWindowsElectricalGoals.swift \
   tests/OriginalWindowsSolarCircuitSmoke.swift -o "$tmp/original-solar-circuit"
 "$tmp/original-solar-circuit"
+# Authentic pocketlamp angular cone / native near and far beam constants.
+swiftc ios/CMOriginalWindowsBeamRegion.swift ios/CMOriginalWindowsBeamFactory.swift \
+  tests/OriginalWindowsBeamFactorySmoke.swift -o "$tmp/original-pocketlamp"
+"$tmp/original-pocketlamp"
 # Recovered original Win32 0x409650 angular/radial beam region.
 swiftc ios/CMOriginalWindowsBeamRegion.swift tests/OriginalWindowsBeamRegionSmoke.swift \
   -o "$tmp/original-win32-beam"
