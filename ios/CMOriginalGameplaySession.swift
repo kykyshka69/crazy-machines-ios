@@ -565,6 +565,11 @@ public struct CMOriginalGameplaySession {
             guard let number = terminal.originalTerminalNumber else { return true }
             return seenTerminalNumbers.insert(number).inserted
         }
+        // The authentic CML source scalar is active even before Run.
+        // Delaying initialization until start() incorrectly hides
+        // initially lit candles and the level-92 pocketlamp in the editor.
+        originalPocketLampStates = authoredPocketLampStates
+        originalHeatSourceStates = authoredHeatSourceStates
     }
 
     public var annotatedGoalObjects: [Object] {

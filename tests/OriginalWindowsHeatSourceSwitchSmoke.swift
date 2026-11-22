@@ -26,6 +26,8 @@ struct OriginalWindowsHeatSourceSwitchSmoke {
             JSONSerialization.data(withJSONObject: source))
         var session = CMOriginalGameplaySession(document: document)
         let ids = session.objects.map(\.id)
+        precondition(session.originalHeatSourceStates[ids[0]] == true)
+        precondition(session.originalHeatSourceStates[ids[1]] == nil)
         precondition(session.toggleOriginalHeatSource(ids[0]) == nil)
         session.start()
         precondition(session.originalHeatSourceStates[ids[0]] == true)

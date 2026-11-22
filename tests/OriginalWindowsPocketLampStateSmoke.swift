@@ -25,6 +25,8 @@ struct OriginalWindowsPocketLampStateSmoke {
             JSONSerialization.data(withJSONObject: source))
         var session = CMOriginalGameplaySession(document: document)
         let ids = session.objects.map(\.id)
+        precondition(session.originalPocketLampStates[ids[0]] == nil)
+        precondition(session.originalPocketLampStates[ids[1]] == true)
         precondition(session.toggleOriginalPocketLamp(ids[0]) == nil)
         session.start()
         precondition(session.originalPocketLampStates[ids[0]] == nil)

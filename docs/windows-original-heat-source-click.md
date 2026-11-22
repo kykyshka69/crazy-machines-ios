@@ -13,3 +13,7 @@ The native scene initializer at **0x45523B–0x455241** copies each actual eleme
 ## Reproducible native Windows proof
 
 The author's original x86 `CrazyMachines.exe` was individually checked at 22 x86 instruction sites from 0x4226DE through 0x455241/0x434B12, including `VALF` load to +0xEC, start-state snapshot into +0xF0, clickable flag 0x10, both 0/1 toggles, both x87 status comparisons, and GOAL calls. Four exact original type/field selector strings were also verified. `python3 tools/audit_windows_source_click_exe.py /private/CrazyMachines.exe` reproduces the proof with SHA-256 verification. CI tests rejection of nonmatching EXEs, never redistributes proprietary game data.
+
+## Real original CML active source state before Run
+
+The per-element CML `VALF 1` initializes native source `+0xEC` when the scene is imported, **not** only when the player starts physics. Native pocketlamp/candle visual glow billboards in the iOS arrangement scene now begin in their authentic original on/off state. A player may not toggle them while the simulation is stopped; Run and Reset restore each element's authored initial scalar.
