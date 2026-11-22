@@ -40,7 +40,7 @@ swiftc ios/CMOriginalConveyorContact.swift tests/OriginalConveyorContactSmoke.sw
 # Five PC glow references use authentic TGA images instead of UCM geometry.
 swiftc ios/CMOriginalEffectBillboard.swift tests/OriginalEffectBillboardSmoke.swift -o "$tmp/original-glow"
 "$tmp/original-glow"
-swiftc ios/CMOriginalModelResolver.swift ios/CMUCMModel.swift ios/CMTGATexture.swift \
+swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalModelResolver.swift ios/CMUCMModel.swift ios/CMTGATexture.swift \
   ios/CMOriginalEffectBillboard.swift ios/CMOriginalAssetAudit.swift \
   tests/OriginalAssetAuditSmoke.swift -o "$tmp/original-assets"
 "$tmp/original-assets"
