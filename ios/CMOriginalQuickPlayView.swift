@@ -117,17 +117,47 @@ struct CMOriginalQuickPlayView: View {
         return contains(document.root)
     }
 
-    private var wiredMotorRotorIDs: Set<String> {
+    /// Authored original plug-to-plug pairs plus Win32's actual battery
+    /// source value (10.0). This graph remains an OPT-IN topology prototype:
+    /// voltage loss and the original electrical solver are not recovered.
+    private var experimentalBatterySignals: [String: Float] {
         guard experimentalPhysics && experimentalWiredPower,
-              let circuit = powerCircuit else { return [] }
-        let reachable = circuit.reachableDevices(
+              let network = powerCircuit else { return [:] }
+        return network.experimentalBatterySignals(
             closedSwitchIDs: flippedOriginalSwitchIDs)
-        return Set(originalSession.objects.compactMap { rotor in
-            guard rotor.type == "tmo_power_motor_rotor",
-                  let parentID = rotor.parentID,
-                  reachable.contains(parentID) else { return nil }
-            return rotor.id
-        })
+    }
+
+    private var wiredMotorRotorDriveSignals: [String: Float] {
+        let inputs = experimentalBatterySignals
+        return Dictionary(uniqueKeysWithValues:
+            originalSession.objects.compactMap { rotor -> (String, Float)? in
+                guard rotor.type == "tmo_power_motor_rotor",
+                      let ownerID = rotor.parentID,
+                      let input = inputs[ownerID],
+                      CMOriginalWindowsPowerScalar.motorTriggersGoal(power: input),
+                      let command = CMOriginalWindowsPowerScalar
+                        .motorRotorCommand(from: input)
+                else { return nil }
+                return (rotor.id, command)
+            }
+        )
+    }
+
+    private var wiredMotorRotorIDs: Set<String> {
+        Set(wiredMotorRotorDriveSignals.keys)
+    }
+
+    private func creditExperimentalElectricGoals() {
+        guard experimentalPhysics && experimentalWiredPower && !physicsPaused else {
+            return
+        }
+        let eligible = CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: originalSession, powerByDeviceID: experimentalBatterySignals
+        )
+        for id in eligible {
+            _ = windowsGoalCounter?.recordGoalEvent(
+                objectID: id, simulationRunning: true)
+        }
     }
 
     private var hasOriginalMotor: Bool {
@@ -253,6 +283,7 @@ struct CMOriginalQuickPlayView: View {
                 experimentalMotorDrive: experimentalMotorDrive,
                 experimentalMagnetism: experimentalMagnetism,
                 poweredMotorRotorObjectIDs: wiredMotorRotorIDs,
+                poweredMotorRotorDriveSignals: wiredMotorRotorDriveSignals,
                 configuredPhysicsRoles: experimentalPhysicsRoles,
                 onOriginalZoneContact: { type in
                     // Callback is posted to the main thread by SceneKit bridge.
@@ -364,6 +395,9 @@ struct CMOriginalQuickPlayView: View {
                     } else {
                         flippedOriginalSwitchIDs.remove(switchID)
                     }
+                    // Power can reach a lamp/lightning only through the
+                    // actual chosen plug pairs and closed original switch.
+                    creditExperimentalElectricGoals()
                 }
             )
             .id(sceneRevision)
@@ -573,6 +607,7 @@ struct CMOriginalQuickPlayView: View {
                 if experimentalPhysics {
                     Button(physicsPaused ? "Resume" : "Pause") {
                         physicsPaused.toggle()
+                        if !physicsPaused { creditExperimentalElectricGoals() }
                     }
                     .accessibilityIdentifier("cm.original.quickplay-pause")
                 }
@@ -620,10 +655,13 @@ struct CMOriginalQuickPlayView: View {
                             closedSwitchIDs: flippedOriginalSwitchIDs)
                         Text("Battery-reachable devices: \(reachable.count). An open switch blocks transmission.")
                             .font(.caption2).foregroundStyle(.secondary)
-                        if hasOriginalMotor {
-                            Toggle("Drive battery-reachable motor rotors (prototype)",
+                        if circuit.cableCount > 0 {
+                            Toggle("Experimental battery-powered mechanisms",
                                    isOn: $experimentalWiredPower)
                                 .font(.caption)
+                                .onChange(of: experimentalWiredPower) { _, enabled in
+                                    if enabled { creditExperimentalElectricGoals() }
+                                }
                                 .accessibilityIdentifier("cm.original.wired-motor-drive")
                         }
                     }
@@ -631,7 +669,7 @@ struct CMOriginalQuickPlayView: View {
                         Text(message).font(.caption2)
                             .accessibilityIdentifier("cm.original.power-cable-message")
                     }
-                    Text("Prototype connections only: Win32 current, polarity, generator torque and return-path rules remain unrecovered.")
+                    Text("Win32 battery signal 10.0; lamp GOAL requires >3 and lightning >1. Cable graph and 3 rad/s motor speed are experimental: original current, polarity, generator input and return-path rules remain unrecovered.")
                         .font(.caption2).foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 14)
@@ -846,7 +884,7 @@ struct CMOriginalQuickPlayView: View {
                     }
                     .font(.caption.weight(.semibold))
                     .accessibilityIdentifier("cm.original.windows-win-counter")
-                    Text("Verified Win32 GOAL / CONNECTED_TO gate. Only observed, supported iOS mechanism events count; energy and other mechanisms remain under reconstruction.")
+                    Text("Win32 GOAL / CONNECTED_TO counter. Some credited electrical inputs use an explicitly experimental battery-cable graph; this is not proof of Windows physics parity.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                     if counter.completed {

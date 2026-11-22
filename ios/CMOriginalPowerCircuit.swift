@@ -145,5 +145,20 @@ public struct CMOriginalPowerCircuit {
         return visited
     }
 
+    /// Explicit, opt-in iOS *prototype* for propagating the battery's real
+    /// Win32 +0x40 source value (10.0f) across manually paired plug endpoints.
+    /// Win32 also copies electrical state along cable paths at 0x44C8F2.
+    /// Only a closed switch or original distributor can pass it onward.
+    /// Does NOT reconstruct current, polarity, resistor loss or a closed loop.
+    public func experimentalBatterySignals(
+        closedSwitchIDs: Set<String> = []
+    ) -> [String: Float] {
+        guard !sourceDeviceIDs.isEmpty else { return [:] }
+        let reachable = reachableDevices(closedSwitchIDs: closedSwitchIDs)
+        return Dictionary(uniqueKeysWithValues: reachable.map {
+            ($0, CMOriginalWindowsPowerScalar.batterySource)
+        })
+    }
+
     public mutating func reset() { cables.removeAll(keepingCapacity: true) }
 }

@@ -59,6 +59,18 @@ struct OriginalPowerCircuitSmoke {
         precondition(net.toggleCable(between: terminal(4),
                                      and: terminal(5)) == .connected)
         precondition(net.reachableDevices().count == 2) // battery + open switch
+        // Genuine battery writes 10.0 to +0x40 in the Win32 executable.
+        // The iOS experimental topology must NOT leak across an open switch.
+        let openSignal = net.experimentalBatterySignals()
+        precondition(openSignal[sourceID] == 10)
+        precondition(openSignal[motorID] == nil)
+        precondition(CMOriginalWindowsPowerScalar.motorRotorCommand(
+            from: openSignal[sourceID]!) == -10)
+        let closedSignal = net.experimentalBatterySignals(
+            closedSwitchIDs: [switchID])
+        precondition(closedSignal[motorID] == 10)
+        precondition(CMOriginalWindowsPowerScalar.motorTriggersGoal(
+            power: closedSignal[motorID]!))
         let withSwitch = net.reachableDevices(closedSwitchIDs: [switchID])
         precondition(withSwitch.contains(sourceID))
         precondition(withSwitch.contains(junctionID))
@@ -67,8 +79,6 @@ struct OriginalPowerCircuitSmoke {
                                      and: terminal(6)) == .rejected)
         precondition(net.toggleCable(between: terminal(1),
                                      and: terminal(2)) == .rejected)
-        // The original-format level also contains a standalone plug with
-        // VALF 7. It must NOT appear among device-owned circuit terminals.
         let unowned = session.originalPowerTerminals.first {
             $0.originalTerminalNumber == 7
         }!
@@ -81,6 +91,8 @@ struct OriginalPowerCircuitSmoke {
                                      and: terminal(5)) == .disconnected)
         precondition(!net.reachableDevices(closedSwitchIDs: [switchID])
             .contains(motorID))
+        precondition(net.experimentalBatterySignals(
+            closedSwitchIDs: [switchID])[motorID] == nil)
         net.reset()
         precondition(net.unwiredTerminalCount == 7)
         precondition(net.reachableDevices() == [sourceID])

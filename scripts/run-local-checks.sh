@@ -82,7 +82,8 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
 "$tmp/original-windows-win"
 # Validate original Win32 two-ended power cable: real terminals and switch isolation.
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
-  ios/CMOriginalPowerCircuit.swift tests/OriginalPowerCircuitSmoke.swift \
+  ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsPowerScalar.swift \
+  tests/OriginalPowerCircuitSmoke.swift \
   -o "$tmp/original-power"
 "$tmp/original-power"
 # Independently recovered Windows Value Script key: synthetic encrypted VSC
@@ -94,5 +95,13 @@ swiftc ios/CMOriginalWindows1251.swift ios/CMOriginalVSCDecoder.swift \
   ios/CMOriginalVSCScriptLibrary.swift tests/OriginalVSCCompletionSmoke.swift \
   -o "$tmp/original-vsc-completion"
 "$tmp/original-vsc-completion"
+# Confirm exact Win32 scalar thresholds and original GOAL owner metadata.
+swiftc ios/CMOriginalWindowsPowerScalar.swift tests/OriginalWindowsPowerScalarSmoke.swift \
+  -o "$tmp/original-win32-power-scalar"
+"$tmp/original-win32-power-scalar"
+swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
+  ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsElectricalGoals.swift \
+  tests/OriginalWindowsElectricalGoalsSmoke.swift -o "$tmp/original-electrical-goals"
+"$tmp/original-electrical-goals"
 python3 -m unittest discover -s tools -p 'test_*.py'
 echo "Portable checks passed. iOS simulator build still requires Xcode/macOS."

@@ -132,6 +132,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var experimentalMotorDrive = false
     var experimentalMagnetism = false
     var poweredMotorRotorObjectIDs: Set<String> = []
+    // Signed Win32 command (-power) for original UCM motor rotors.
+    // Actual angular-speed/torque scaling is still a bounded prototype.
+    var poweredMotorRotorDriveSignals: [String: Float] = [:]
     var configuredPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
     var configuredReactions: [CMOriginalGameplaySession.ReactionRule] = []
     var switchPressCount = 0
@@ -367,6 +370,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.setExperimentalMotorDrive(experimentalMotorDrive)
         context.coordinator.setExperimentalMagnetism(experimentalMagnetism)
         context.coordinator.setPoweredMotorRotorIDs(poweredMotorRotorObjectIDs)
+        context.coordinator.setPoweredMotorDriveSignals(poweredMotorRotorDriveSignals)
         context.coordinator.session = CMOriginalGameplaySession(document: document)
         // Only evidence-derived zone-delivery prototypes collect bodies:
         // four distinct linked objects in Professor level 1, or five
@@ -480,6 +484,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.setExperimentalMotorDrive(experimentalMotorDrive)
         context.coordinator.setExperimentalMagnetism(experimentalMagnetism)
         context.coordinator.setPoweredMotorRotorIDs(poweredMotorRotorObjectIDs)
+        context.coordinator.setPoweredMotorDriveSignals(poweredMotorRotorDriveSignals)
         if context.coordinator.lastUndoPlacementRevision != undoPlacementRevision {
             context.coordinator.lastUndoPlacementRevision = undoPlacementRevision
             context.coordinator.undoPlacement(in: uiView)
@@ -530,7 +535,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var experimentalMotorDriveEnabled = false
         private var experimentalMagnetismEnabled = false
         private var poweredMotorRotorIDs = Set<String>()
+        private var poweredMotorDriveSignals: [String: Float] = [:]
         var onOriginalPowerPlugTap: ((String) -> Void)?
+        func setPoweredMotorDriveSignals(_ signals: [String: Float]) {
+            sessionLock.lock()
+            poweredMotorDriveSignals = signals.filter { $0.value.isFinite }
+            sessionLock.unlock()
+        }
         func setPoweredMotorRotorIDs(_ ids: Set<String>) {
             sessionLock.lock()
             poweredMotorRotorIDs = ids
@@ -890,15 +901,19 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // authentic UCM teeth can then interact with other physics
                 // bodies, without a manually animated visual-only rotation.
                 //
-                // IMPORTANT: 3 rad/s is an EXPLICIT prototype setting,
-                // not a speed recovered from the Windows game. Electrical
-                // activation, torque curves and belt drive ratios remain
-                // unknown and must not be silently inferred from VALF 0.125.
-                let targetSpeed: Float = 3.0
+                // IMPORTANT: The SIGN of the motor input is now taken
+                // from original x86 instructions. The magnitude of
+                // 3 rad/s is a prototype, not a decoded Win32 speed curve;
+                // never infer voltage or torque from VALF 0.125.
                 let maxStep = Float(delta) * 9.0
                 for id in motorRotorObjectIDs {
                     guard experimentalMotorDriveEnabled
                         || poweredMotorRotorIDs.contains(id) else { continue }
+                    // Win32 0x450A30 flips the electrical input sign before
+                    // issuing the motor's rotor command. Preserve direction.
+                    // The ±3 rad/s speed remains an explicit iOS prototype.
+                    let command = poweredMotorDriveSignals[id] ?? 1
+                    let targetSpeed: Float = command < 0 ? -3.0 : 3.0
                     for node in physicsNodesByObjectID[id] ?? [] {
                         guard let body = node.physicsBody,
                               body.type == .dynamic else { continue }
@@ -907,7 +922,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         let step = min(maxStep, max(-maxStep, targetSpeed - signedSpeed))
                         let next = signedSpeed + step
                         guard next.isFinite else { continue }
-                        body.angularVelocity = SCNVector4(0, 0, 1, next)
+                        body.angularVelocity = SCNVector4(
+                            0, 0, next >= 0 ? 1 : -1, abs(next)
+                        )
                     }
                 }
             }

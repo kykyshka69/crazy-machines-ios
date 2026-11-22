@@ -269,7 +269,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify original plug ownership, wire pairing, switch isolation
         run: |
-          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalPowerCircuit.swift tests/OriginalPowerCircuitSmoke.swift -o /tmp/cm-original-power
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsPowerScalar.swift tests/OriginalPowerCircuitSmoke.swift -o /tmp/cm-original-power
           /tmp/cm-original-power
 
   original-vsc-runtime:
@@ -282,3 +282,14 @@ jobs:
           /tmp/cm-original-vsc
           swiftc ios/CMOriginalWindows1251.swift ios/CMOriginalVSCDecoder.swift ios/CMOriginalVSCScriptLibrary.swift tests/OriginalVSCCompletionSmoke.swift -o /tmp/cm-original-vsc-done
           /tmp/cm-original-vsc-done
+
+  original-win32-electrical-state-and-goals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run real Win32 motor and lamp/lightning threshold contracts
+        run: |
+          swiftc ios/CMOriginalWindowsPowerScalar.swift tests/OriginalWindowsPowerScalarSmoke.swift -o /tmp/cm-win-power-scalar
+          /tmp/cm-win-power-scalar
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsElectricalGoals.swift tests/OriginalWindowsElectricalGoalsSmoke.swift -o /tmp/cm-win-electrical-goals
+          /tmp/cm-win-electrical-goals
