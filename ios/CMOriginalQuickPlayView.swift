@@ -50,9 +50,6 @@ struct CMOriginalQuickPlayView: View {
     @State private var powerCircuit: CMOriginalPowerCircuit?
     // Original generator owner ID → observed signed rotor speed.
     @State private var generatorRotorSpeedsByDeviceID: [String: Float] = [:]
-    // World-space SceneKit velocity of each original windmill wheel.
-    // Native Windows uses +0xE0 and abs(x)>0.3; 3D velocity is a proxy.
-    @State private var windmillRotorSpeedsByDeviceID: [String: Float] = [:]
     // Measured angle of the authentic disrupter wheel (+0xD0 on Windows).
     // Original phase interval check decides whether cables conduct.
     @State private var disrupterAnglesByDeviceID: [String: Float] = [:]
@@ -251,7 +248,6 @@ struct CMOriginalQuickPlayView: View {
         objectiveLedger = CMOriginalObjectiveEvidenceLedger(session: originalSession)
         powerCircuit = CMOriginalPowerCircuit(session: originalSession)
         generatorRotorSpeedsByDeviceID.removeAll()
-        windmillRotorSpeedsByDeviceID.removeAll()
         disrupterAnglesByDeviceID.removeAll()
         pendingPowerPlugID = nil
         powerConnectionMessage = nil
@@ -273,7 +269,6 @@ struct CMOriginalQuickPlayView: View {
         observedOriginalLeverStrikers.removeAll()
         originalOpticalSightlines.removeAll()
         generatorRotorSpeedsByDeviceID.removeAll()
-        windmillRotorSpeedsByDeviceID.removeAll()
         disrupterAnglesByDeviceID.removeAll()
         firstLevelRun?.reset()
         secondLevelRun?.reset()
@@ -296,7 +291,6 @@ struct CMOriginalQuickPlayView: View {
         observedOriginalLeverStrikers.removeAll()
         originalOpticalSightlines.removeAll()
         generatorRotorSpeedsByDeviceID.removeAll()
-        windmillRotorSpeedsByDeviceID.removeAll()
         disrupterAnglesByDeviceID.removeAll()
         firstLevelRun?.reset()
         secondLevelRun?.reset()
@@ -472,8 +466,6 @@ struct CMOriginalQuickPlayView: View {
                 },
                 onOriginalWindmillSignal: { windmillID, measuredRotorSpeed in
                     guard experimentalPhysics && !physicsPaused else { return }
-                    windmillRotorSpeedsByDeviceID[windmillID] =
-                        measuredRotorSpeed
                     // The native GOAL predicate is exact; mapping SceneKit
                     // angular velocity to Win32 +0xE0 remains provisional.
                     if CMOriginalWindowsWindmill.triggersGoal(
@@ -725,7 +717,6 @@ struct CMOriginalQuickPlayView: View {
                         observedOriginalLeverStrikers.removeAll()
                         originalOpticalSightlines.removeAll()
                         generatorRotorSpeedsByDeviceID.removeAll()
-        windmillRotorSpeedsByDeviceID.removeAll()
         disrupterAnglesByDeviceID.removeAll()
                         firstLevelRun?.reset()
         secondLevelRun?.reset()

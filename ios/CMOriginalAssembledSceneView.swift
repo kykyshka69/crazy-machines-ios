@@ -599,7 +599,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var motorRotorObjectIDs = Set<String>()
         private var generatorIDByRotorID: [String: String] = [:]
         private var windmillIDByWheelID: [String: String] = [:]
-        private var lastWindmillScalars: [String: Float] = [:]
+        private var qualifiedWindmillGoalIDs = Set<String>()
         private var disrupterIDByWheelID: [String: String] = [:]
         private var lastDisrupterConduction: [String: Bool] = [:]
         private var lastGeneratorScalars: [String: Float] = [:]
@@ -867,7 +867,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             coastingMotorRotorIDs.removeAll()
             generatorIDByRotorID.removeAll()
             windmillIDByWheelID.removeAll()
-            lastWindmillScalars.removeAll()
+            qualifiedWindmillGoalIDs.removeAll()
             disrupterIDByWheelID.removeAll()
             lastDisrupterConduction.removeAll()
             lastGeneratorScalars.removeAll()
@@ -1248,17 +1248,21 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                 }
                 for (wheelID, windmillID) in windmillIDByWheelID {
-                    guard let wheel = physicsNodesByObjectID[wheelID]?.first,
-                          let body = wheel.physicsBody, body.type == .dynamic
-                    else { continue }
-                    let rotation = body.angularVelocity
-                    let scalar = rotation.z < 0 ? -rotation.w : rotation.w
-                    guard scalar.isFinite else { continue }
-                    if let old = lastWindmillScalars[windmillID],
-                       abs(old - scalar) < 0.01 { continue }
-                    lastWindmillScalars[windmillID] = scalar
+                    // A native windmill GOAL is a once-only transition;
+                    // never make SwiftUI redraw repeatedly on every rotor
+                    // sample as the SceneKit angular velocity changes.
+                    guard !qualifiedWindmillGoalIDs.contains(windmillID),
+                          let wheel = physicsNodesByObjectID[wheelID]?.first,
+                          let body = wheel.physicsBody,
+                          body.type == .dynamic else { continue }
+                    let angular = body.angularVelocity
+                    let measured = angular.z < 0 ? -angular.w : angular.w
+                    guard CMOriginalWindowsWindmill.triggersGoal(
+                        nativeWheelSignal: measured
+                    ) else { continue }
+                    qualifiedWindmillGoalIDs.insert(windmillID)
                     DispatchQueue.main.async { [weak self] in
-                        self?.onOriginalWindmillSignal?(windmillID, scalar)
+                        self?.onOriginalWindmillSignal?(windmillID, measured)
                     }
                 }
                 for (rotorID, generatorID) in generatorIDByRotorID {
