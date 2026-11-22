@@ -106,6 +106,21 @@ enum CMOriginalCMLDecoderSmoke {
         precondition(first.root.children[0].goalRaw == "1")
         precondition(first.sceneSHA256 ==
             CMOriginalSHA256.digest(raw).map { String(format: "%02x", $0) }.joined())
+
+        // The same validated native documents must roundtrip through the
+        // original-level browser's private JSON store, without overwrites.
+        let storage = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cm-native-cml-" + UUID().uuidString,
+                                    isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: storage) }
+        let initial = try CMOriginalCMLStorage.save(documents, to: storage)
+        precondition(initial.saved == 1 && initial.conflicting == 0)
+        let savedFile = storage.appendingPathComponent("level-001.json")
+        let persisted = try CMOriginalSceneDocument.read(Data(contentsOf: savedFile))
+        precondition(persisted.sceneSHA256 == first.sceneSHA256)
+        precondition(persisted.root.children[0].models == ["to_board"])
+        let duplicate = try CMOriginalCMLStorage.save(documents, to: storage)
+        precondition(duplicate.saved == 0 && duplicate.alreadyPresent == 1)
         let emptyLaboratory = try CMOriginalCMLDecoder.decode(syntheticLab(recordCount: 0))
         precondition(emptyLaboratory.isEmpty)
 
