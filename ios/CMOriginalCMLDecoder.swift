@@ -40,6 +40,10 @@ enum CMOriginalCMLDecoder {
         }
         let bytes = Array(data)
         let first = try decodeFrame(Array(bytes[0..<24]), size: 4)
+        // Do not accept a valid record count wrapped in a corrupted CML
+        // header. The Windows reader validates both remaining framed fields.
+        _ = try decodeFrame(Array(bytes[24..<124]), size: 80)
+        _ = try decodeFrame(Array(bytes[124..<148]), size: 4)
         let count = Int(le32(first, at: 0))
         guard (0...102).contains(count) else { throw DecodeError.unsupportedRecordCount }
         // First three header fields are individually framed at offsets
