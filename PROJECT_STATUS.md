@@ -92,6 +92,16 @@ Primary goal: load and play the **original PC Crazy Machines puzzles on iPhone**
 
 **Next action:** perform an Apple-SDK build and native import of the original user-owned Professor Laboratory CML, verify 102 scenes/model availability and capture the actual first puzzle. Use `docs/native-cml-on-iphone.md`; do not restart reverse-engineering from scratch.
 
+## Active consolidation (2026-11-22)
+
+- Created `integration/original-game-unified` from `work/original-3d-scene-batch` (the more feature-rich original Quick Play engine). The two previous branches remain untouched.
+- Opened **draft PR #3** into `main`: https://github.com/kykyshka69/crazy-machines-ios/pull/3 . **GitHub reports mergeable=false** at PR creation, so do NOT merge until the overlapping Swift and workflow changes have been reconciled.
+- Integrated main-only `CMOriginalAssetAudit.swift`, `CMOriginalAssetAuditView.swift`, and its synthetic test, adapting the work branch's `AssetIndex.resolution(for:)` and wiring the verification into the existing original level browser without replacing Quick Play.
+- Integrated main-only screenshot selector and Python tests, adapting to the work branch's stronger private original first-level test (requires at least 25 genuine UCM mesh instances).
+- Added `scripts/capture-private-professor-level-one.sh` for an actual private user-owned asset pack capture on Mac, CI jobs for the added integrity tests, and a separate integration `PROJECT_STATUS.md`. No private game bytes committed.
+- **Not confirmed**: PR CI passes, full iOS Simulator build, genuine level-one screenshots, original physics/win-rule parity. Do not falsely treat code or workflow configuration as runtime verification.
+- **Work from PR #3/integration branch next**, not isolated `main` or old work branch; integrate carefully and only merge into `main` after resolving conflicts and verifying tests. Never implement a third CML decoder.
+
 ## CRITICAL: branch divergence / avoid duplicated implementation (2026-11-22)
 
 Verified GitHub branch comparison (merge base `ef3151d6c2fef5248501d645ded3b7dd1aa4f9a2`):
