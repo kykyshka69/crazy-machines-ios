@@ -153,6 +153,12 @@ swiftc ios/CMOriginalWindowsBeamRegion.swift ios/CMOriginalWindowsBeamFactory.sw
 "$tmp/original-pocketlamp"
 # Original Windows GOAL dispatcher SHA gate; no private EXE in public CI.
 python3 -m unittest discover -s tools -p 'test_audit_windows_goal_calls.py'
+# Original rocket state 2 + real engine countdown >3 seconds => state 3,
+# never invent an ignition, physics explosion, or puzzle GOAL.
+swiftc ios/CMOriginalWindowsRocketTimer.swift tests/OriginalWindowsRocketTimerSmoke.swift \
+  -o "$tmp/original-rocket-fuse"
+"$tmp/original-rocket-fuse"
+python3 -m unittest discover -s tools -p 'test_audit_windows_rocket_exe.py'
 # Native steam source pressure and >=1.0 whistle GOAL boundary.
 swiftc ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsSteamWhistle.swift \
   tests/OriginalWindowsSteamWhistleSmoke.swift -o "$tmp/original-whistle-goal"
