@@ -269,9 +269,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify original plug ownership, wire pairing, switch isolation
         run: |
-          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalWindowsPowerScalar.swift tests/OriginalPowerCircuitSmoke.swift -o /tmp/cm-original-power
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsSwitchContactGate.swift ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalWindowsPowerScalar.swift tests/OriginalPowerCircuitSmoke.swift -o /tmp/cm-original-power
           /tmp/cm-original-power
-          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalWindowsPowerScalar.swift tests/OriginalGeneratorCircuitSmoke.swift -o /tmp/cm-original-generator
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsSwitchContactGate.swift ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalWindowsPowerScalar.swift tests/OriginalGeneratorCircuitSmoke.swift -o /tmp/cm-original-generator
           /tmp/cm-original-generator
 
   original-vsc-runtime:
@@ -302,7 +302,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify original Win32 power-disrupter rotor phase and circuit gate
         run: |
-          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalWindowsPowerScalar.swift tests/OriginalWindowsPowerDisrupterSmoke.swift -o /tmp/cm-original-disrupter
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsSwitchContactGate.swift ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalWindowsPowerScalar.swift tests/OriginalWindowsPowerDisrupterSmoke.swift -o /tmp/cm-original-disrupter
           /tmp/cm-original-disrupter
           python3 -m unittest discover -s tools -p 'test_audit_windows_disrupter.py'
 
@@ -317,3 +317,15 @@ jobs:
           swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsElectricalGoals.swift tests/OriginalWindowsSolarCircuitSmoke.swift -o /tmp/cm-solar-circuit
           /tmp/cm-solar-circuit
           python3 -m unittest discover -s tools -p 'test_audit_windows_solar_exe.py'
+
+  original-win32-switch-contact-pair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Win32 +/-1 exact contact states and original switch zero-write
+        run: |
+          swiftc ios/CMOriginalWindowsSwitchContactGate.swift tests/OriginalWindowsSwitchContactGateSmoke.swift -o /tmp/cm-win-switch-contacts
+          /tmp/cm-win-switch-contacts
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalWindowsSwitchContactGate.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsPowerDisrupter.swift tests/OriginalWindowsSwitchCircuitSmoke.swift -o /tmp/cm-win-switch-circuit
+          /tmp/cm-win-switch-circuit
+          python3 -m unittest discover -s tools -p 'test_audit_windows_switch_contacts.py'

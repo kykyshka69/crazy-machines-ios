@@ -129,13 +129,15 @@ public struct CMOriginalPowerCircuit {
     public func reachableDevices(
         closedSwitchIDs: Set<String> = [],
         externallyActiveSourceIDs: Set<String> = [],
-        disrupterRotorAnglesByDeviceID: [String: Float] = [:]
+        disrupterRotorAnglesByDeviceID: [String: Float] = [:],
+        switchContactsByDeviceID: [String: CMOriginalWindowsSwitchContactGate.ContactPair] = [:]
     ) -> Set<String> {
         let sources = sourceDeviceIDs.union(
             externallyActiveSourceIDs.intersection(conditionalSourceDeviceIDs))
         return devicesReachable(
             from: sources, closedSwitchIDs: closedSwitchIDs,
-            disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID)
+            disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID,
+            switchContactsByDeviceID: switchContactsByDeviceID)
     }
 
     /// Strict reachability through explicitly authored cable pairs, using
@@ -143,7 +145,8 @@ public struct CMOriginalPowerCircuit {
     /// open original switches cut off downstream devices.
     private func devicesReachable(
         from sources: Set<String>, closedSwitchIDs: Set<String>,
-        disrupterRotorAnglesByDeviceID: [String: Float]
+        disrupterRotorAnglesByDeviceID: [String: Float],
+        switchContactsByDeviceID: [String: CMOriginalWindowsSwitchContactGate.ContactPair]
     ) -> Set<String> {
         var edges: [String: Set<String>] = [:]
         for cable in cables {
@@ -161,13 +164,24 @@ public struct CMOriginalPowerCircuit {
             let transmits = sources.contains(current)
                 || passthroughDeviceIDs.contains(current)
                 || (switchDeviceIDs.contains(current)
-                    && closedSwitchIDs.contains(current))
+                    && (switchContactsByDeviceID[current].map {
+                        CMOriginalWindowsSwitchContactGate.preservesPower($0) == true
+                    } ?? closedSwitchIDs.contains(current)))
                 || (disrupterDeviceIDs.contains(current)
                     && disrupterRotorAnglesByDeviceID[current].map {
                         CMOriginalWindowsPowerDisrupter.conducts(rotorAngle: $0)
                     } == true)
             guard transmits else { continue }
             for neighbor in edges[current] ?? [] {
+                // Win32 0x44CA24 clears power on a switch whose contact
+                // +0xEC and +0xC8 mismatch at an exact ±1 position.
+                // Only independently observed contact pairs override the
+                // legacy prototype toggle; never manufacture those fields.
+                if switchDeviceIDs.contains(neighbor),
+                   let contacts = switchContactsByDeviceID[neighbor],
+                   CMOriginalWindowsSwitchContactGate.preservesPower(contacts) != true {
+                    continue
+                }
                 // Win32 0x44CAA3/0x44CAC2 clears +0x40 on the actual
                 // disrupter target when its wheel phase blocks current.
                 // Do not expose even a phantom powered disrupter node.
@@ -194,7 +208,8 @@ public struct CMOriginalPowerCircuit {
         // Only independently measured ORIGINAL light ray intersections;
         // never turn on every solar cell just because it exists in the CML.
         solarRayContributionsByDeviceID: [String: [Float]] = [:],
-        disrupterRotorAnglesByDeviceID: [String: Float] = [:]
+        disrupterRotorAnglesByDeviceID: [String: Float] = [:],
+        switchContactsByDeviceID: [String: CMOriginalWindowsSwitchContactGate.ContactPair] = [:]
     ) -> [String: Float] {
         var sources: [(String, Float)] = sourceDeviceIDs.sorted().map {
             ($0, CMOriginalWindowsPowerScalar.batterySource)
@@ -220,7 +235,8 @@ public struct CMOriginalPowerCircuit {
         for (sourceID, signal) in sources {
             for id in devicesReachable(
                 from: [sourceID], closedSwitchIDs: closedSwitchIDs,
-                disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID
+                disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID,
+                switchContactsByDeviceID: switchContactsByDeviceID
             ) {
                 if let previous = power[id], previous != signal {
                     ambiguous.insert(id)
@@ -237,11 +253,13 @@ public struct CMOriginalPowerCircuit {
     /// returns the recovered 10.0 Win32 scalar, not a made-up VALF voltage.
     public func experimentalBatterySignals(
         closedSwitchIDs: Set<String> = [],
-        disrupterRotorAnglesByDeviceID: [String: Float] = [:]
+        disrupterRotorAnglesByDeviceID: [String: Float] = [:],
+        switchContactsByDeviceID: [String: CMOriginalWindowsSwitchContactGate.ContactPair] = [:]
     ) -> [String: Float] {
         experimentalNetworkSignals(
             closedSwitchIDs: closedSwitchIDs,
-            disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID)
+            disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID,
+            switchContactsByDeviceID: switchContactsByDeviceID)
     }
 
     public mutating func reset() { cables.removeAll(keepingCapacity: true) }
