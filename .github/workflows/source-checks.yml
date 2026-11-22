@@ -2,7 +2,7 @@ name: Source checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, work/original-3d-scene-batch]
   pull_request:
   workflow_dispatch:
 
@@ -43,6 +43,7 @@ jobs:
           python -m unittest -v test_inventory_original_object_fields.py
           python -m unittest -v test_inspect_original_level_objects.py
           python -m unittest -v test_select_first_level_screenshot.py
+          python -m unittest -v test_boot_iphone_simulator_ci.py
 
   original-ucm-integrity-runtime:
     runs-on: ubuntu-latest
