@@ -7,6 +7,7 @@ struct CMOriginalLevelBrowserView: View {
     @State private var importing = false
     @State private var importingFolder = false
     @State private var importingCML = false
+    @State private var decodingCML = false
     @State private var documents: [CMOriginalSceneDocument] = []
     @State private var errorMessage: String?
     @State private var selected: Int?
@@ -40,6 +41,8 @@ struct CMOriginalLevelBrowserView: View {
                     Button("Import original levels") { importing = true }
                     Button("Import entire exported levels folder") { importingFolder = true }
                     Button("Import original PC laboratory (.cml)") { importingCML = true }
+                        .disabled(decodingCML)
+                    if decodingCML { ProgressView("Decoding original PC levels") }
                     if let errorMessage {
                         Text(errorMessage).foregroundStyle(.red).font(.caption)
                     }
@@ -256,6 +259,17 @@ struct CMOriginalLevelBrowserView: View {
                     }
                 }
             }
+            // The previous file-name-only readiness report cannot tell
+            // whether an original UCM actually parses into valid geometry.
+            // Keep its useful missing-model list, then expose the main
+            // branch's stronger on-demand mesh integrity check.
+            Section("Original UCM geometry verification") {
+                CMOriginalAssetAuditView(
+                    modelNames: CMOriginalModelResolver.allModelNames(in: document.root),
+                    directory: originalStorage
+                )
+                .id(document.sceneSHA256)
+            }
             Section("Original PC electrical terminals") {
                 let session = CMOriginalGameplaySession(document: document)
                 let terminals = session.originalPowerTerminals
@@ -440,6 +454,7 @@ struct CMOriginalLevelBrowserView: View {
     /// Re-importing the same laboratory is idempotent; incompatible on-device
     /// level numbers are preserved rather than silently overwritten.
     private func importOriginalLaboratory(_ url: URL) {
+        guard !decodingCML else { return }
         let accessed = url.startAccessingSecurityScopedResource()
         defer { if accessed { url.stopAccessingSecurityScopedResource() } }
         do {
@@ -450,17 +465,31 @@ struct CMOriginalLevelBrowserView: View {
                 errorMessage = "Original CML file has an invalid size"
                 return
             }
+            // Read while the iOS Files security scope is open. Perform
+            // decrypt/LZW/export of all 102 levels away from the main actor.
             let data = try Data(contentsOf: url)
-            let result = try CMOriginalLaboratorySceneInstaller.install(
-                data, into: sceneStorage
-            ) { original in
-                SHA256.hash(data: original)
-                    .map { String(format: "%02x", $0) }.joined()
+            let directory = sceneStorage
+            decodingCML = true
+            errorMessage = nil
+            Task {
+                do {
+                    let result = try await Task.detached(priority: .userInitiated) {
+                        try CMOriginalLaboratorySceneInstaller.install(
+                            data, into: directory
+                        ) { original in
+                            SHA256.hash(data: original)
+                                .map { String(format: "%02x", $0) }.joined()
+                        }
+                    }.value
+                    reloadSavedScenes()
+                    errorMessage = result.total == 0
+                        ? "This original laboratory contains no puzzles"
+                        : "Imported \(result.installed) original PC puzzles (\(result.existing) already installed)"
+                } catch {
+                    errorMessage = "Unable to import original CML: \(error.localizedDescription)"
+                }
+                decodingCML = false
             }
-            reloadSavedScenes()
-            errorMessage = result.total == 0
-                ? "This original laboratory contains no puzzles"
-                : "Imported \(result.installed) original PC puzzles (\(result.existing) already installed)"
         } catch {
             errorMessage = "Unable to import original CML: \(error.localizedDescription)"
         }
