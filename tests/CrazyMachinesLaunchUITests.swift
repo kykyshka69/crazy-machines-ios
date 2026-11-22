@@ -315,7 +315,7 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         let play = app.buttons["cm.menu.play"]
         XCTAssertTrue(play.waitForExistence(timeout: 25))
         play.tap()
-        let first = app.staticTexts["Original level 1: CM synthetic CI linked zone"]
+        let first = app.staticTexts["Original level 1: CM synthetic CI 3D contacts"]
         XCTAssertTrue(first.waitForExistence(timeout: 20))
         let next = app.buttons["cm.original.quickplay-next"]
         XCTAssertTrue(next.waitForExistence(timeout: 10))
