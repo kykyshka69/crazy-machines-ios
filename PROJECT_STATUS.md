@@ -10,9 +10,7 @@ Do not resume two independent CML/SceneKit implementations.
 **Actual connected GitHub Actions evidence for PR #4 at integration commit
 `1a744a9e`**: `Source checks` — all **16 jobs passed**; `Portable checks`
 — passed. This includes the new UCM integrity smoke and screenshot-selector
-regressions. The macOS `iOS simulator build` job was **in progress** at this
-review; its Xcode build/UI test result is **not yet confirmed**. This is
-not a genuine original level-one screenshot.
+regressions. The macOS `iOS simulator build` job has now **successfully completed its Xcode compilation** for the iPhone Simulator (GitHub run `44993963653`, job `137120900299`, step `Build for iOS Simulator without signing`: success). Simulator boot/launch, UI tests and screenshot artifacts were **not yet confirmed** at this review. This is **not** a genuine original level-one screenshot.
 
 **New player-facing fixes**: imported CML now decrypts and converts the
 original levels away from the SwiftUI main thread; original first-level
