@@ -30,7 +30,7 @@ struct CMOriginalResourcesView: View {
                 Section {
                     Text("Original Crazy Machines resources")
                         .font(.headline)
-                    Text("Original CML decoding and private scene export are available through the project tools. Import the exported JSON scenes in Original levels; original physics is not playable yet.")
+                    Text("Import your original .cml and .ucm resources here. Then open Original levels and tap Decode previously imported CML to load the real puzzles directly on iPhone. Original puzzle physics is not yet playable.")
                         .font(.caption)
                     Button("Import original game files") { importing = true }
                     Button("Import entire extracted models folder") { importingFolder = true }
