@@ -141,6 +141,20 @@ struct CMOriginalQuickPlayView: View {
             disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
     }
 
+    private var originalLampVisualFactors: [String: Float]? {
+        guard experimentalPhysics && experimentalWiredPower else { return nil }
+        let powerByID = experimentalPowerSignals
+        var factors: [String: Float] = [:]
+        for lamp in originalSession.objects where lamp.type == "tmo_power_lamp" {
+            guard let power = powerByID[lamp.id],
+                  let fraction = CMOriginalWindowsPowerScalar
+                    .lampVisualFactor(power: power)
+            else { continue }
+            factors[lamp.id] = fraction
+        }
+        return factors
+    }
+
     private var wiredMotorRotorDriveSignals: [String: Float] {
         let inputs = experimentalPowerSignals
         return Dictionary(uniqueKeysWithValues:
@@ -320,6 +334,7 @@ struct CMOriginalQuickPlayView: View {
                 experimentalMagnetism: experimentalMagnetism,
                 poweredMotorRotorObjectIDs: wiredMotorRotorIDs,
                 poweredMotorRotorDriveSignals: wiredMotorRotorDriveSignals,
+                originalLampVisualFactors: originalLampVisualFactors,
                 configuredPhysicsRoles: experimentalPhysicsRoles,
                 onOriginalZoneContact: { type in
                     // Callback is posted to the main thread by SceneKit bridge.
@@ -752,7 +767,7 @@ struct CMOriginalQuickPlayView: View {
                         Text(message).font(.caption2)
                             .accessibilityIdentifier("cm.original.power-cable-message")
                     }
-                    Text("Win32 battery 10.0 and generator rotor feed the cable graph. Original disrupters now switch on their real wheel phase (signed fmod by π); unknown wheel angles block power. Return paths and rotor physics remain experimental.")
+                    Text("Win32 battery 10.0 and measured generator rotation feed the experimental cable graph. Disrupters use their actual wheel phase. Each imported lamp bulb uses the recovered power/10 visual factor when opt-in wiring is enabled. Full Win32 current, return paths and lamp rendering parity are not proven.")
                         .accessibilityIdentifier("cm.original.generator-power-rules")
                         .font(.caption2).foregroundStyle(.secondary)
                 }

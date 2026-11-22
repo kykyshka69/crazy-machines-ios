@@ -135,6 +135,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // Signed Win32 command (-power) for original UCM motor rotors.
     // Actual angular-speed/torque scaling is still a bounded prototype.
     var poweredMotorRotorDriveSignals: [String: Float] = [:]
+    // Optional experimental electrical power, expressed with the actual
+    // Win32 lamp visual factor (+0x40 / 10). Nil means no wired experiment.
+    var originalLampVisualFactors: [String: Float]? = nil
     var configuredPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
     var configuredReactions: [CMOriginalGameplaySession.ReactionRule] = []
     var switchPressCount = 0
@@ -422,6 +425,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             context.coordinator.registerPhysicsNodes(in: scene)
             context.coordinator.configurePhysicsRoles(configuredPhysicsRoles)
             context.coordinator.configureExperimentalReactions(configuredReactions)
+            context.coordinator.setOriginalLampVisualFactors(originalLampVisualFactors)
         }
         // Assign a fixed simulation step to reduce device-dependent solver
         // behavior and tunneling through thin imported mechanisms.
@@ -501,6 +505,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.setExperimentalMagnetism(experimentalMagnetism)
         context.coordinator.setPoweredMotorRotorIDs(poweredMotorRotorObjectIDs)
         context.coordinator.setPoweredMotorDriveSignals(poweredMotorRotorDriveSignals)
+        context.coordinator.setOriginalLampVisualFactors(originalLampVisualFactors)
         if context.coordinator.lastUndoPlacementRevision != undoPlacementRevision {
             context.coordinator.lastUndoPlacementRevision = undoPlacementRevision
             context.coordinator.undoPlacement(in: uiView)
@@ -596,11 +601,47 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalOpticalSightlines: (([CMOriginalOpticalSightline]) -> Void)?
         private var opticalEmitterMeshes: [String: SCNNode] = [:]
         private var opticalSolarMeshes: [String: SCNNode] = [:]
+        // Each lightbulb has its own copied original UCM materials. Never
+        // change the shared cross-level geometry cache or another lamp.
+        private var originalLampBulbMaterials: [String: [SCNMaterial]] = [:]
+        private var originalLampDiffuseIntensity: [ObjectIdentifier: CGFloat] = [:]
+        private var requestedLampVisualFactors: [String: Float]? = nil
+        private var appliedLampVisualFactors: [String: Float]? = nil
         // The real bulb UCM belongs to a separate tmo_ child object. Its
         // geometry is part of the source, not an intervening obstruction.
         private var opticalEmitterByPartID: [String: String] = [:]
         private var lastOpticalSampleTime: TimeInterval = -1
         private var previousOpticalSightlines: [CMOriginalOpticalSightline] = []
+
+        func setOriginalLampVisualFactors(_ values: [String: Float]?) {
+            sessionLock.lock()
+            defer { sessionLock.unlock() }
+            requestedLampVisualFactors = values?.filter { $0.value.isFinite }
+            applyOriginalLampVisualFactors()
+        }
+
+        private func applyOriginalLampVisualFactors() {
+            guard !originalLampBulbMaterials.isEmpty,
+                  appliedLampVisualFactors != requestedLampVisualFactors else {
+                return
+            }
+            appliedLampVisualFactors = requestedLampVisualFactors
+            for (lampID, materials) in originalLampBulbMaterials {
+                // Pure SceneKit display clamp only. The separately
+                // recovered Win32 scalar is NOT clamped at its source.
+                let displayFactor: CGFloat
+                if let values = requestedLampVisualFactors {
+                    displayFactor = CGFloat(min(1, max(0, values[lampID] ?? 0)))
+                } else {
+                    displayFactor = 1
+                }
+                for material in materials {
+                    let original = originalLampDiffuseIntensity[
+                        ObjectIdentifier(material)] ?? 1
+                    material.diffuse.intensity = original * displayFactor
+                }
+            }
+        }
 
         func setExperimentalMotorDrive(_ enabled: Bool) {
             sessionLock.lock()
@@ -745,6 +786,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             flippedSwitchIDs.removeAll()
             opticalEmitterMeshes.removeAll()
             opticalSolarMeshes.removeAll()
+            originalLampBulbMaterials.removeAll()
+            originalLampDiffuseIntensity.removeAll()
+            appliedLampVisualFactors = nil
             opticalEmitterByPartID.removeAll()
             previousOpticalSightlines.removeAll()
             lastOpticalSampleTime = -1
@@ -844,6 +888,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                            .contains(mesh.name?.lowercased() ?? "") {
                         self.opticalEmitterMeshes[emitterID] = mesh
                     }
+                    if mesh.name?.lowercased() == "to_power_lamp_bulb",
+                       let lampID = emitterByPartID[owner],
+                       self.originalTypesByID[lampID] == "tmo_power_lamp" {
+                        for material in mesh.geometry?.materials ?? [] {
+                            self.originalLampBulbMaterials[lampID, default: []]
+                                .append(material)
+                            self.originalLampDiffuseIntensity[
+                                ObjectIdentifier(material)] = material.diffuse.intensity
+                        }
+                    }
                     if mesh.name?.lowercased() == "to_power_solarcell",
                        self.originalTypesByID[owner] == "tmo_power_solarcell" {
                         self.opticalSolarMeshes[owner] = mesh
@@ -896,6 +950,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     body.isAffectedByGravity = false
                 }
             }
+            applyOriginalLampVisualFactors()
             // Each original conveyor has a distinct child tmo_belt_conveyer_wheel
             // whose rotational velocity determines its belt movement. Never
             // connect unrelated conveyors or activate a motionless wheel.
@@ -2297,7 +2352,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             // mutable material between 57 independent belts:
                             // each conveyor has its own physical roller speed.
                             let rendered: SCNGeometry
-                            if name.lowercased() == "to_belt_conveyer_belt",
+                            if ["to_belt_conveyer_belt", "to_power_lamp_bulb"]
+                                .contains(name.lowercased()),
                                let copy = geometry.copy() as? SCNGeometry {
                                 copy.materials = geometry.materials.map {
                                     ($0.copy() as? SCNMaterial) ?? $0
