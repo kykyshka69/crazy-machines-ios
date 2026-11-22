@@ -443,6 +443,21 @@ struct CMOriginalQuickPlayView: View {
                         isSimulationRunning: experimentalPhysics && !physicsPaused
                     )
                 },
+                onOriginalPlayerSourceGoal: { originalID in
+                    // Real x86 0x455241 captures the initial source state
+                    // in +0xF0. Native 0x434A76/0x434B12 emits channel-0
+                    // only AFTER user click changes +0xEC against +0xF0.
+                    // The coordinator has already checked that condition
+                    // on the real imported, GOAL-marked PC element.
+                    _ = windowsGoalCounter?.recordGoalEvent(
+                        objectID: originalID,
+                        simulationRunning: experimentalPhysics && !physicsPaused
+                    )
+                    _ = objectiveLedger?.recordGoalStateChanged(
+                        originalID,
+                        isSimulationRunning: experimentalPhysics && !physicsPaused
+                    )
+                },
                 onOriginalDisrupterAngle: { disrupterID, wheelAngle in
                     guard experimentalPhysics && !physicsPaused else { return }
                     guard originalSession.objects.contains(where: {

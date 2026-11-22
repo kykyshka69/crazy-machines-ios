@@ -157,6 +157,12 @@ python3 -m unittest discover -s tools -p 'test_audit_windows_goal_calls.py'
 swiftc ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsSteamWhistle.swift \
   tests/OriginalWindowsSteamWhistleSmoke.swift -o "$tmp/original-whistle-goal"
 "$tmp/original-whistle-goal"
+# Original 0x455241 snapshots +0xEC into +0xF0 and only a genuine
+# source state difference dispatches native GOAL 0 (x86 0x434A76).
+swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
+  ios/CMOriginalWindowsGoalCounter.swift tests/OriginalWindowsSourceClickGoalSmoke.swift \
+  -o "$tmp/original-source-snapshot-goal"
+"$tmp/original-source-snapshot-goal"
 # Original Win32 candle/dynamic-candle/blowtorch click +0xEC and VALF state.
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   tests/OriginalWindowsHeatSourceSwitchSmoke.swift -o "$tmp/original-heat-source-click"

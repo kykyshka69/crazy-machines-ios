@@ -122,6 +122,32 @@ public struct CMOriginalGameplaySession {
     /// This optional circuit prototype does not fabricate Win32 +0xEC/+0xC8
     /// contacts or a native GOAL event.
     @discardableResult
+    /// Original engine 0x45523B...0x455241 snapshots physical +0xEC
+    /// into immutable per-run +0xF0 BEFORE player input. Its click handler
+    /// compares the current +0xEC against that snapshot using fucompp,
+    /// test ah,0x44 / jnp (0x434A5C or 0x434AFC); an unequal valid 0/1
+    /// pair dispatches channel-0 GOAL. The scene's authored VALF is the
+    /// initial source +0xEC, so 0/1 comparisons have exact equivalence.
+    /// This is NOT a heat transfer or ray-hit event.
+    public func nativeClickedSourceGoalSatisfied(_ id: String) -> Bool? {
+        guard phase == .running,
+              let object = objects.first(where: { $0.id == id }),
+              object.goalAnnotation == "1"
+                  || object.fields["GOAL"]?.contains("1") == true
+        else { return nil }
+        if Self.isUserOperatedHeatSource(object.type) {
+            let initial = authoredHeatSourceStates[id] ?? false
+            let current = originalHeatSourceStates[id] ?? false
+            return current != initial
+        }
+        if object.type == "tmo_light_pocketlamp" {
+            let initial = authoredPocketLampStates[id] ?? false
+            let current = originalPocketLampStates[id] ?? false
+            return current != initial
+        }
+        return nil
+    }
+
     public mutating func toggleOriginalSwitch(_ id: String) -> Bool? {
         guard phase == .running,
               objects.contains(where: { $0.id == id && $0.type == "tmo_power_switch" })

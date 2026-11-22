@@ -373,6 +373,15 @@ jobs:
           swiftc ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsSteamWhistle.swift tests/OriginalWindowsSteamWhistleSmoke.swift -o /tmp/cm-win32-whistle
           /tmp/cm-win32-whistle
 
+  original-win32-source-click-goal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify authentic native start-snapshot and 0/1 source click GOAL
+        run: |
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalWindowsGoalCounter.swift tests/OriginalWindowsSourceClickGoalSmoke.swift -o /tmp/cm-native-click-goal
+          /tmp/cm-native-click-goal
+
   original-win32-clickable-heat-source:
     runs-on: ubuntu-latest
     steps:

@@ -152,6 +152,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalConnectionContact: ((String, String) -> Void)? = nil
     var onOriginalBucketCapture: ((String, String) -> Void)? = nil
     var onOriginalCageCapture: ((String, String) -> Void)? = nil
+    // Native original click produces a GOAL only if +0xEC differs
+    // from its original start-of-run snapshot at +0xF0.
+    var onOriginalPlayerSourceGoal: ((String) -> Void)? = nil
     // Reports a user-operated original PC power switch. This changes its
     // actual lever mesh, NOT the unrecovered electrical connectivity.
     var onOriginalDisrupterAngle: ((String, Float) -> Void)? = nil
@@ -399,6 +402,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalConnectionContact = onOriginalConnectionContact
         context.coordinator.onOriginalBucketCapture = onOriginalBucketCapture
         context.coordinator.onOriginalCageCapture = onOriginalCageCapture
+        context.coordinator.onOriginalPlayerSourceGoal = onOriginalPlayerSourceGoal
         context.coordinator.fourthLevelRun = CMOriginalFourthLevelRun(document: document)
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
@@ -500,6 +504,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalConnectionContact = onOriginalConnectionContact
         context.coordinator.onOriginalBucketCapture = onOriginalBucketCapture
         context.coordinator.onOriginalCageCapture = onOriginalCageCapture
+        context.coordinator.onOriginalPlayerSourceGoal = onOriginalPlayerSourceGoal
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
         context.coordinator.onOriginalOpticalSightlines = onOriginalOpticalSightlines
@@ -585,6 +590,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var fourthLevelRun: CMOriginalFourthLevelRun?
         var onOriginalBucketCapture: ((String, String) -> Void)?
         var onOriginalCageCapture: ((String, String) -> Void)?
+        var onOriginalPlayerSourceGoal: ((String) -> Void)?
         // Win32 0x44D874..0x44D9A2 checks actual GOAL-marked
         // tmo_bucket objects against tmo_ball_ objects, not only puzzle 4.
         // Retain authentic UCM mesh identities for geometry containment.
@@ -2287,10 +2293,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             } else { return false }
             sessionLock.lock()
             let next = session?.toggleOriginalPocketLamp(pocketlampID)
+            let nativeGoal = session?.nativeClickedSourceGoalSatisfied(pocketlampID)
             sessionLock.unlock()
             guard let on = next else { return false }
             for glow in originalPocketLampGlowNodes[pocketlampID] ?? [] {
                 glow.opacity = on ? 1 : 0
+            }
+            // Win32 0x434AF6..0x434B12 only: physical source state
+            // changed from its captured +0xF0 snapshot, with GOAL 1.
+            if nativeGoal == true {
+                onOriginalPlayerSourceGoal?(pocketlampID)
             }
             return true
         }
@@ -2306,10 +2318,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
             sessionLock.lock()
             let next = session?.toggleOriginalHeatSource(id)
+            let nativeGoal = session?.nativeClickedSourceGoalSatisfied(id)
             sessionLock.unlock()
             guard let isOn = next else { return false }
             for sprite in originalCandleGlowNodes[id] ?? [] {
                 sprite.opacity = isOn ? 1 : 0
+            }
+            // Win32 0x434A50..0x434A76: current +0xEC differs
+            // from original run-snapshot +0xF0. Not a generic tap GOAL.
+            if nativeGoal == true {
+                onOriginalPlayerSourceGoal?(id)
             }
             return true
         }
