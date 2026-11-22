@@ -594,11 +594,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalSwitchToggle: ((String, Bool) -> Void)?
         var onOriginalSwitchContact: ((CMOriginalSwitchContactMapper.Hit) -> Void)?
         var onOriginalOpticalSightlines: (([CMOriginalOpticalSightline]) -> Void)?
-        private var opticalLampMeshes: [String: SCNNode] = [:]
+        private var opticalEmitterMeshes: [String: SCNNode] = [:]
         private var opticalSolarMeshes: [String: SCNNode] = [:]
         // The real bulb UCM belongs to a separate tmo_ child object. Its
         // geometry is part of the source, not an intervening obstruction.
-        private var opticalLampByBulbID: [String: String] = [:]
+        private var opticalEmitterByPartID: [String: String] = [:]
         private var lastOpticalSampleTime: TimeInterval = -1
         private var previousOpticalSightlines: [CMOriginalOpticalSightline] = []
 
@@ -743,9 +743,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             switchLeverNodes.removeAll()
             switchLeverRestAngles.removeAll()
             flippedSwitchIDs.removeAll()
-            opticalLampMeshes.removeAll()
+            opticalEmitterMeshes.removeAll()
             opticalSolarMeshes.removeAll()
-            opticalLampByBulbID.removeAll()
+            opticalEmitterByPartID.removeAll()
             previousOpticalSightlines.removeAll()
             lastOpticalSampleTime = -1
             generatorIDByRotorID.removeAll()
@@ -810,19 +810,21 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                     .map(\.id)
             )
-            // Authentic tmo_power_lamp_bulb is a direct PC child of its
-            // power lamp. Observe its genuine bulb UCM instead of a fake
-            // point light at the housing center.
-            let lampByBulbID = Dictionary(uniqueKeysWithValues:
-                originalObjects.compactMap { bulb -> (String, String)? in
-                    guard bulb.type == "tmo_power_lamp_bulb",
-                          let parent = bulb.parentID,
-                          originalTypesByID[parent] == "tmo_power_lamp"
-                    else { return nil }
-                    return (bulb.id, parent)
+            // Both genuine original optical sources have a physical tmo_
+            // child whose UCM can anchor a candidate sightline. Do not
+            // replace these meshes with an invented light origin.
+            let emitterByPartID = Dictionary(uniqueKeysWithValues:
+                originalObjects.compactMap { part -> (String, String)? in
+                    guard let parent = part.parentID else { return nil }
+                    let lampBulb = part.type == "tmo_power_lamp_bulb"
+                        && originalTypesByID[parent] == "tmo_power_lamp"
+                    let pocketGlass = part.type == "tmo_light_pocketlamp_glass"
+                        && originalTypesByID[parent] == "tmo_light_pocketlamp"
+                    guard lampBulb || pocketGlass else { return nil }
+                    return (part.id, parent)
                 }
             )
-            opticalLampByBulbID = lampByBulbID
+            opticalEmitterByPartID = emitterByPartID
             let switchByLeverID = Dictionary(uniqueKeysWithValues:
                 originalObjects.compactMap { part -> (String, String)? in
                     guard part.type == "tmo_power_switch_lever",
@@ -837,9 +839,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                    let owner = mesh.originalObjectID {
                     // These are real UCM vertices; synthetic glow sprites
                     // and the housing have no role in ray occlusion.
-                    if mesh.name?.lowercased() == "to_power_lamp_bulb",
-                       let lampID = lampByBulbID[owner] {
-                        self.opticalLampMeshes[lampID] = mesh
+                    if let emitterID = emitterByPartID[owner],
+                       ["to_power_lamp_bulb", "to_light_pocketlamp_glass"]
+                           .contains(mesh.name?.lowercased() ?? "") {
+                        self.opticalEmitterMeshes[emitterID] = mesh
                     }
                     if mesh.name?.lowercased() == "to_power_solarcell",
                        self.originalTypesByID[owner] == "tmo_power_solarcell" {
@@ -905,7 +908,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
 
-        /// Inspect authentic UCM triangles along a candidate bulb-to-cell
+        /// Inspect authentic UCM triangles along a candidate
+        /// lamp-bulb/pocketlamp-glass to solar-cell segment.
         /// sightline. This measures blocking geometry and path length ONLY.
         /// The original Win32 bulb beam directions, hit fraction and
         /// reflections are not recovered, so this observation deliberately
@@ -928,7 +932,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // Segment hit testing is on SCNNode, not the SceneKit
             // renderer protocol. The scene root uses world coordinates.
             guard let root = renderer.scene?.rootNode else { return }
-            let emitters = opticalLampMeshes.sorted { $0.key < $1.key }
+            let emitters = opticalEmitterMeshes.sorted { $0.key < $1.key }
             let receivers = opticalSolarMeshes.sorted { $0.key < $1.key }
             var observations: [CMOriginalOpticalSightline] = []
             // Work is bounded per renderer sample even for future complex
@@ -955,7 +959,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             // the ray; failing closed avoids invented light.
                             return "unresolved-original-mesh"
                         }
-                        return opticalLampByBulbID[id] ?? id
+                        return opticalEmitterByPartID[id] ?? id
                     }
                     let a = CMOriginalOpticalSightlineGeometry.Point(
                         x: from.x, y: from.y, z: from.z
