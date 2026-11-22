@@ -596,6 +596,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalOpticalSightlines: (([CMOriginalOpticalSightline]) -> Void)?
         private var opticalLampMeshes: [String: SCNNode] = [:]
         private var opticalSolarMeshes: [String: SCNNode] = [:]
+        // The real bulb UCM belongs to a separate tmo_ child object. Its
+        // geometry is part of the source, not an intervening obstruction.
+        private var opticalLampByBulbID: [String: String] = [:]
         private var lastOpticalSampleTime: TimeInterval = -1
         private var previousOpticalSightlines: [CMOriginalOpticalSightline] = []
 
@@ -742,6 +745,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             flippedSwitchIDs.removeAll()
             opticalLampMeshes.removeAll()
             opticalSolarMeshes.removeAll()
+            opticalLampByBulbID.removeAll()
             previousOpticalSightlines.removeAll()
             lastOpticalSampleTime = -1
             generatorIDByRotorID.removeAll()
@@ -818,6 +822,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     return (bulb.id, parent)
                 }
             )
+            opticalLampByBulbID = lampByBulbID
             let switchByLeverID = Dictionary(uniqueKeysWithValues:
                 originalObjects.compactMap { part -> (String, String)? in
                     guard part.type == "tmo_power_switch_lever",
@@ -939,7 +944,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     // intervening original UCM object's mesh is opaque.
                     let hitOwners = hits.compactMap { hit -> String? in
                         guard hit.node is CMOriginalObjectMeshNode else { return nil }
-                        return owningOriginalObjectID(for: hit.node)
+                        guard let id = owningOriginalObjectID(for: hit.node) else {
+                            // A real UCM with unresolvable ownership blocks
+                            // the ray; failing closed avoids invented light.
+                            return "unresolved-original-mesh"
+                        }
+                        return opticalLampByBulbID[id] ?? id
                     }
                     let a = CMOriginalOpticalSightlineGeometry.Point(
                         x: from.x, y: from.y, z: from.z
