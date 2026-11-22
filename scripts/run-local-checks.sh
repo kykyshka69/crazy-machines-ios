@@ -125,6 +125,10 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   ios/CMOriginalWindowsElectricalGoals.swift \
   tests/OriginalWindowsSolarCircuitSmoke.swift -o "$tmp/original-solar-circuit"
 "$tmp/original-solar-circuit"
+# Actual UCM mesh-to-mesh path geometry and intervening original blockers.
+swiftc ios/CMOriginalOpticalSightline.swift tests/OriginalOpticalSightlineSmoke.swift \
+  -o "$tmp/original-optical-geometry"
+"$tmp/original-optical-geometry"
 # Real SceneKit switch-lever collision maps only original CML object IDs.
 # The Win32 physics components +0xEC/+0xC8 are NOT synthesized from a hit.
 swiftc ios/CMOriginalSwitchContactMapper.swift tests/OriginalSwitchContactSmoke.swift \
