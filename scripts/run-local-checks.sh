@@ -21,6 +21,9 @@ swiftc ios/CMPhysics2D.swift ios/CMPinJoint2D.swift tests/CMPinSmoke.swift -o "$
 "$tmp/pins"
 # Verify authentic PC scene metadata and model ownership on Linux too.
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalModelResolver.swift tests/OriginalSceneDocumentSmoke.swift -o "$tmp/original-scenes"
+# Native original Windows CML decoding and lossless scene metadata storage.
+swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalSHA256.swift ios/CMOriginalCMLDecoder.swift ios/CMOriginalCMLStorage.swift tests/CMOriginalCMLDecoderSmoke.swift -o "$tmp/native-cml"
+"$tmp/native-cml"
 "$tmp/original-scenes"
 # Check on-device asset readiness with synthetic, legally distributable UCM bytes.
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalModelResolver.swift ios/CMUCMModel.swift ios/CMOriginalAssetAudit.swift tests/OriginalAssetAuditSmoke.swift -o "$tmp/original-asset-audit"
