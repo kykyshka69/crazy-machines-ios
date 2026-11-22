@@ -399,7 +399,7 @@ struct CMOriginalLevelBrowserView: View {
                   decoded.count == 4 else { continue }
             let count = Int(decoded[0]) | (Int(decoded[1]) << 8) |
                 (Int(decoded[2]) << 16) | (Int(decoded[3]) << 24)
-            if (1...102).contains(count), best == nil || count > best!.count {
+            if (1...102).contains(count), count > (best?.count ?? 0) {
                 best = (count, url)
             }
         }
