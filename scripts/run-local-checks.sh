@@ -163,6 +163,7 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   ios/CMOriginalWindowsGoalCounter.swift tests/OriginalWindowsSourceClickGoalSmoke.swift \
   -o "$tmp/original-source-snapshot-goal"
 "$tmp/original-source-snapshot-goal"
+python3 -m unittest discover -s tools -p 'test_audit_windows_source_click_exe.py'
 # Original Win32 candle/dynamic-candle/blowtorch click +0xEC and VALF state.
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   tests/OriginalWindowsHeatSourceSwitchSmoke.swift -o "$tmp/original-heat-source-click"

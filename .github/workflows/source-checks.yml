@@ -381,6 +381,7 @@ jobs:
         run: |
           swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalWindowsGoalCounter.swift tests/OriginalWindowsSourceClickGoalSmoke.swift -o /tmp/cm-native-click-goal
           /tmp/cm-native-click-goal
+          python3 -m unittest discover -s tools -p 'test_audit_windows_source_click_exe.py'
 
   original-win32-clickable-heat-source:
     runs-on: ubuntu-latest
