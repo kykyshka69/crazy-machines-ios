@@ -57,5 +57,7 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
 # User-placement Undo history is pure Swift; test reversibility and bounds.
 swiftc ios/CMOriginalPlacementHistory.swift tests/OriginalPlacementHistorySmoke.swift -o "$tmp/original-undo"
 "$tmp/original-undo"
+swiftc ios/CMOriginalMagneticAttraction.swift tests/OriginalMagneticAttractionSmoke.swift -o "$tmp/original-magnet"
+"$tmp/original-magnet"
 python3 -m unittest discover -s tools -p 'test_*.py'
 echo "Portable checks passed. iOS simulator build still requires Xcode/macOS."

@@ -35,6 +35,7 @@ struct CMOriginalQuickPlayView: View {
     // starting the approximate physics simulation, matching the PC play loop.
     @State private var experimentalPhysics = false
     @State private var experimentalMotorDrive = false
+    @State private var experimentalMagnetism = false
     @State private var physicsPaused = false
     @State private var sceneRevision = UUID()
     @State private var cameraResetRevision = 0
@@ -99,6 +100,12 @@ struct CMOriginalQuickPlayView: View {
         return containsMotor(document.root)
     }
 
+    private var hasOriginalMagneticTargets: Bool {
+        let types = Set(originalSession.objects.map(\.type))
+        return types.contains("tmo_magnetic_permanent")
+            && types.contains(where: CMOriginalMagneticAttraction.responds)
+    }
+
     private var hasOriginalCaptureZone: Bool {
         func containsZone(_ node: CMOriginalSceneDocument.Node) -> Bool {
             node.name == "tmo_zone" || node.children.contains(where: containsZone)
@@ -123,6 +130,7 @@ struct CMOriginalQuickPlayView: View {
         showFirstLevelObjectiveDetails = false
         experimentalPhysics = false
         experimentalMotorDrive = false
+        experimentalMagnetism = false
         physicsPaused = false
         zoneContacts.removeAll()
         matchedZoneLinks.removeAll()
@@ -177,6 +185,7 @@ struct CMOriginalQuickPlayView: View {
                 onCanUndoPlacementChange: { canUndoPlacement = $0 },
                 allowObjectPlacement: true,
                 experimentalMotorDrive: experimentalMotorDrive,
+                experimentalMagnetism: experimentalMagnetism,
                 configuredPhysicsRoles: experimentalPhysicsRoles,
                 onOriginalZoneContact: { type in
                     // Callback is posted to the main thread by SceneKit bridge.
@@ -365,7 +374,10 @@ struct CMOriginalQuickPlayView: View {
                 Toggle("Run experimental physics", isOn: $experimentalPhysics)
                     .font(.caption)
                     .onChange(of: experimentalPhysics) { _, newValue in
-                        if !newValue { experimentalMotorDrive = false }
+                        if !newValue {
+                            experimentalMotorDrive = false
+                            experimentalMagnetism = false
+                        }
                         physicsPaused = false
                         zoneContacts.removeAll()
                         matchedZoneLinks.removeAll()
@@ -412,6 +424,17 @@ struct CMOriginalQuickPlayView: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 14)
+            }
+
+            if experimentalPhysics && hasOriginalMagneticTargets {
+                Toggle("Experimental magnet attraction", isOn: $experimentalMagnetism)
+                    .font(.caption.weight(.medium))
+                    .padding(.horizontal, 14)
+                    .accessibilityIdentifier("cm.original.magnetism")
+                Text("Approximate force on original buckets and steel balls. Windows magnet strength, radius and victory rules are not recovered.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 14)
             }
 
             if experimentalPhysics && hasOriginalMotor {
@@ -463,6 +486,7 @@ struct CMOriginalQuickPlayView: View {
                     )
                     experimentalPhysics = false
                     experimentalMotorDrive = false
+                    experimentalMagnetism = false
                     physicsPaused = false
                     zoneContacts.removeAll()
                     matchedZoneLinks.removeAll()

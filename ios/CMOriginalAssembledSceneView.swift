@@ -130,6 +130,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // The Windows electric-circuit rules are not yet decoded; do not
     // automatically energize every motor when starting a puzzle.
     var experimentalMotorDrive = false
+    var experimentalMagnetism = false
     var configuredPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
     var configuredReactions: [CMOriginalGameplaySession.ReactionRule] = []
     var switchPressCount = 0
@@ -361,6 +362,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.physicsEnabled = experimentalPhysics
         context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
         context.coordinator.setExperimentalMotorDrive(experimentalMotorDrive)
+        context.coordinator.setExperimentalMagnetism(experimentalMagnetism)
         context.coordinator.session = CMOriginalGameplaySession(document: document)
         // Only evidence-derived zone-delivery prototypes collect bodies:
         // four distinct linked objects in Professor level 1, or five
@@ -467,6 +469,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
         context.coordinator.onCanUndoPlacementChange = onCanUndoPlacementChange
         context.coordinator.setExperimentalMotorDrive(experimentalMotorDrive)
+        context.coordinator.setExperimentalMagnetism(experimentalMagnetism)
         if context.coordinator.lastUndoPlacementRevision != undoPlacementRevision {
             context.coordinator.lastUndoPlacementRevision = undoPlacementRevision
             context.coordinator.undoPlacement(in: uiView)
@@ -515,6 +518,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private let sessionLock = NSLock()
         private var lastRendererTime: TimeInterval?
         private var experimentalMotorDriveEnabled = false
+        private var experimentalMagnetismEnabled = false
+        private var magneticSourceIDs = Set<String>()
+        private var magneticTargetIDs = Set<String>()
         private var motorRotorObjectIDs = Set<String>()
         private var axleObjectIDs = Set<String>()
         // Authentic PC conveyor children are linked through their scene-graph
@@ -533,6 +539,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         func setExperimentalMotorDrive(_ enabled: Bool) {
             sessionLock.lock()
             experimentalMotorDriveEnabled = enabled
+            sessionLock.unlock()
+        }
+
+        func setExperimentalMagnetism(_ enabled: Bool) {
+            sessionLock.lock()
+            experimentalMagnetismEnabled = enabled
             sessionLock.unlock()
         }
 
@@ -681,6 +693,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     .filter { $0.type == "tmo_power_motor_rotor" }
                     .map(\.id)
             )
+            magneticSourceIDs = Set(originalObjects
+                .filter { $0.type == "tmo_magnetic_permanent" }.map(\.id))
+            magneticTargetIDs = Set(originalObjects
+                .filter { CMOriginalMagneticAttraction.responds($0.type) }
+                .map(\.id))
             axleObjectIDs = Set(
                 (session?.objects ?? [])
                     .filter {
@@ -853,6 +870,30 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         let next = signedSpeed + step
                         guard next.isFinite else { continue }
                         body.angularVelocity = SCNVector4(0, 0, 1, next)
+                    }
+                }
+            }
+            if experimentalMagnetismEnabled {
+                // Original tmo_ owners supply positions and body identities.
+                // Only steel balls and buckets with dynamic bodies respond.
+                for magnetID in magneticSourceIDs {
+                    guard let magnet = physicsNodesByObjectID[magnetID]?.first
+                    else { continue }
+                    let center = magnet.presentation.worldPosition
+                    for targetID in magneticTargetIDs {
+                        for target in physicsNodesByObjectID[targetID] ?? [] {
+                            guard let body = target.physicsBody,
+                                  body.type == .dynamic else { continue }
+                            let point = target.presentation.worldPosition
+                            if let force = CMOriginalMagneticAttraction.force(
+                                magnetX: center.x, magnetY: center.y,
+                                targetX: point.x, targetY: point.y,
+                                mass: Float(body.mass)
+                            ) {
+                                body.applyForce(SCNVector3(force.x, force.y, 0),
+                                                asImpulse: false)
+                            }
+                        }
                     }
                 }
             }

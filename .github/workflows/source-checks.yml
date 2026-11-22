@@ -217,3 +217,12 @@ jobs:
         run: |
           swiftc ios/CMOriginalPlacementHistory.swift tests/OriginalPlacementHistorySmoke.swift -o /tmp/cm-placement-undo
           /tmp/cm-placement-undo
+
+  original-magnet-prototype-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check finite, bounded optional original magnet force
+        run: |
+          swiftc ios/CMOriginalMagneticAttraction.swift tests/OriginalMagneticAttractionSmoke.swift -o /tmp/cm-original-magnet
+          /tmp/cm-original-magnet
