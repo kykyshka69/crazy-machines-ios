@@ -318,6 +318,15 @@ jobs:
           /tmp/cm-solar-circuit
           python3 -m unittest discover -s tools -p 'test_audit_windows_solar_exe.py'
 
+  original-pc-switch-lever-hits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify imported switch lever and struck object identities
+        run: |
+          swiftc ios/CMOriginalSwitchContactMapper.swift tests/OriginalSwitchContactSmoke.swift -o /tmp/cm-original-switch-lever-hits
+          /tmp/cm-original-switch-lever-hits
+
   original-win32-switch-contact-pair:
     runs-on: ubuntu-latest
     steps:
