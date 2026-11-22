@@ -23,6 +23,7 @@ original="$(cd "$(dirname "$original")" && pwd)/$(basename "$original")"
 private_dir="$repo/ios"
 pack="$private_dir/CrazyMachines_Original_102Levels.cmassets"
 # Never overwrite a different user-owned resource pack in the local checkout.
+created_private_pack=0
 if [[ -e "$pack" ]]; then
   cmp -s "$original" "$pack" || {
     echo "Different private asset pack already exists at $pack" >&2
@@ -30,7 +31,16 @@ if [[ -e "$pack" ]]; then
   }
 else
   cp "$original" "$pack"
+  created_private_pack=1
 fi
+# The source repo must not retain a copied proprietary game pack after the
+# local build. Never delete a private pack that was already present.
+cleanup_private_pack() {
+  if [[ "$created_private_pack" == "1" ]]; then
+    rm -f "$pack"
+  fi
+}
+trap cleanup_private_pack EXIT
 
 output="$(printenv CM_PRIVATE_CAPTURE_OUTPUT 2>/dev/null || mktemp -d -t cm-private-original)"
 mkdir -p "$output"
@@ -42,20 +52,10 @@ output="$(cd "$output" && pwd)"
 cd "$repo"
 xcodegen generate --spec project.yml
 
-device_id="$(printenv CM_SIMULATOR_UDID 2>/dev/null || true)"
-if [[ -z "$device_id" ]]; then
-  device_id="$(xcrun simctl list devices available -j | python3 -c '
-import json,sys
-groups=json.load(sys.stdin)["devices"].values()
-phones=[x for group in groups for x in group if x["name"].startswith("iPhone")]
-device=next((x for x in phones if x["state"]=="Booted"),None)
-device=device or next((x for x in phones if x["state"]=="Shutdown"),None)
-print(device["udid"] if device else "")
-')"
-fi
-[[ -n "$device_id" ]] || { echo "No iPhone Simulator installed" >&2; exit 2; }
-xcrun simctl boot "$device_id" >/dev/null 2>&1 || true
-xcrun simctl bootstatus "$device_id" -b
+# Use the same bounded boot routine as GitHub CI. The helper honors
+# CM_SIMULATOR_UDID when explicitly supplied and refuses mismatched devices.
+device_id="$(python3 "$repo/tools/boot_iphone_simulator_ci.py")"
+test -n "$device_id"
 
 # Only the opt-in private test is allowed; public CI must never bundle
 # user-owned original PC media or upload resulting screens/artwork.
