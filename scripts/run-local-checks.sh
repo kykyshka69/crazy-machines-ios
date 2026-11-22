@@ -52,6 +52,7 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalModelResolver.swift ios/C
 # Original first-level puzzle objective uses only evidence from PC CONNECTED_TO.
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   ios/CMOriginalPhysicsRolePlanner.swift ios/CMOriginalFirstLevelRun.swift \
+  ios/CMOriginalElementsTemplateCatalog.swift ios/CMOriginalWindowsElementRules.swift \
   tests/OriginalFirstLevelRunSmoke.swift -o "$tmp/original-first-level"
 "$tmp/original-first-level"
 # User-placement Undo history is pure Swift; test reversibility and bounds.
