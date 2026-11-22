@@ -63,6 +63,17 @@ Primary goal: load and play the **original PC Crazy Machines puzzles on iPhone**
 
 **Next action:** execute the macOS capture script with a private exported original `level-001.json` and its UCM asset directory; inspect the resulting actual screenshot/coverage; then fix any SceneKit mismatch. See `docs/first-original-level-simulator.md`.
 
+## Continued work — first-level screenshot authenticity guard (2026-11-22)
+
+- **Issue fixed:** the existing macOS screenshot script copied the *first arbitrary PNG* exported by `xcresulttool`, risking a startup/diagnostic image being presented as the first original puzzle.
+- `34a1a162`: new `tools/select_first_level_screenshot.py` validates the actual Xcode test summary (exactly one test passed, zero failed/skipped) and the export `manifest.json`, requiring the uniquely named attachment `04-real-first-original-level-3d` from the real first-level UI test. Invalid/ambiguous images, unsupported filenames, and overwrite attempts are rejected.
+- `958450ff`: added 10 synthetic regression tests covering the intended attachment, skipped or failed tests, wrong test/attachment, ambiguous matches, traversal attempts, invalid PNG and overwrite.
+- `00cefa02`: integrated the strict screenshot selection into `scripts/capture-original-first-level.sh`. An arbitrary Xcode screenshot can no longer be called the first original level by the script.
+- `9bf5af52`: enabled screenshot-selection tests in portable Python CI.
+- `941edc45`: documented the strict capture gate in `docs/first-original-level-simulator.md`.
+- **Verified here:** 10/10 screenshot-selector Python unit tests passed on Linux, and `py_compile` succeeded for the selector and tests. GitHub-published selector was re-fetched to verify content; no macOS/Xcode/SceneKit runtime was available, so **real screenshot still not captured**.
+- **Next:** run the existing private first-level script on a Mac with the original level JSON + UCM assets, inspect Xcode test logs and exact screenshot, and fix the first actual Apple-SDK or renderer defect revealed.
+
 ## Priority blockers / work order
 
 1. **DONE IN CODE, AWAITING APP/CI VERIFICATION:** the original level model inventory now calls `CMOriginalModelResolver.allModelNames(in:)`; this collects UCM references from nested `tmo_*` owners, preserves object-local resolution, and de-duplicates case-insensitively. UI readiness and per-level preview selection use it. Regression assertions added, CI Swift compiler inputs corrected. Verify in the actual iOS level browser with user-owned original assets.
