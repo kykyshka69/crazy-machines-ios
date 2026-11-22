@@ -253,3 +253,12 @@ jobs:
         run: |
           swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalPhysicsRolePlanner.swift ios/CMOriginalElementsScriptDecoder.swift ios/CMOriginalElementsTemplateCatalog.swift ios/CMOriginalWindowsElementRules.swift ios/CMOriginalWindowsScriptLibrary.swift ios/CMOriginalObjectiveEvidenceLedger.swift tests/OriginalElementsPortableSmoke.swift -o /tmp/original-windows
           /tmp/original-windows
+
+  original-windows-win-counter-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Win32 goal and connected target independent win latches
+        run: |
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalWindowsGoalCounter.swift tests/OriginalWindowsGoalCounterSmoke.swift -o /tmp/cm-original-win
+          /tmp/cm-original-win

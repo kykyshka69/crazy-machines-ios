@@ -32,6 +32,9 @@ struct CMOriginalQuickPlayView: View {
         _objectiveLedger = State(initialValue:
             CMOriginalObjectiveEvidenceLedger(
                 session: CMOriginalGameplaySession(document: document)))
+        _windowsGoalCounter = State(initialValue:
+            CMOriginalWindowsGoalCounter(
+                session: CMOriginalGameplaySession(document: document)))
         _fourthLevelRun = State(initialValue: CMOriginalFourthLevelRun(document: document))
     }
 
@@ -49,6 +52,9 @@ struct CMOriginalQuickPlayView: View {
     @State private var originalWindowsTemplates:
         [String: CMOriginalElementsTemplateCatalog.Template]?
     @State private var objectiveLedger: CMOriginalObjectiveEvidenceLedger?
+    // Recovered from the original CrazyMachines.exe win dispatcher:
+    // two separately latched channels, not a generic scene-collision win.
+    @State private var windowsGoalCounter: CMOriginalWindowsGoalCounter?
     @State private var zoneContacts: [String: Int] = [:]
     @State private var matchedZoneLinks = Set<String>()
     @State private var matchedMechanismLinks = Set<String>()
@@ -135,6 +141,7 @@ struct CMOriginalQuickPlayView: View {
         document = next
         originalSession = CMOriginalGameplaySession(document: next)
         objectiveLedger = CMOriginalObjectiveEvidenceLedger(session: originalSession)
+        windowsGoalCounter = CMOriginalWindowsGoalCounter(session: originalSession)
         firstLevelRun = CMOriginalFirstLevelRun(document: next)
         secondLevelRun = CMOriginalSecondLevelRun(document: next)
         thirdLevelRun = CMOriginalThirdLevelRun(document: next)
@@ -153,6 +160,7 @@ struct CMOriginalQuickPlayView: View {
                         thirdLevelRun?.reset()
                         fourthLevelRun?.reset()
                         objectiveLedger?.reset()
+                        windowsGoalCounter?.reset()
         canUndoPlacement = false
         sceneRevision = UUID()
     }
@@ -233,6 +241,10 @@ struct CMOriginalQuickPlayView: View {
                     }
                 },
                 onOriginalConnectionContact: { sourceID, targetID in
+                    _ = windowsGoalCounter?.recordConnectedToEvent(
+                        sourceID: sourceID, targetID: targetID,
+                        simulationRunning: experimentalPhysics && !physicsPaused
+                    )
                     _ = objectiveLedger?.recordPhysicalContact(
                         sourceID, targetID,
                         isSimulationRunning: experimentalPhysics && !physicsPaused
@@ -254,6 +266,11 @@ struct CMOriginalQuickPlayView: View {
                     }
                 },
                 onOriginalBucketCapture: { ballID, bucketID in
+                    // Actual imported ball UCM fit inside imported GOAL bucket.
+                    _ = windowsGoalCounter?.recordGoalEvent(
+                        objectID: bucketID,
+                        simulationRunning: experimentalPhysics && !physicsPaused
+                    )
                     _ = objectiveLedger?.recordGoalStateChanged(
                         bucketID,
                         isSimulationRunning: experimentalPhysics && !physicsPaused
@@ -265,6 +282,14 @@ struct CMOriginalQuickPlayView: View {
                     }
                 },
                 onOriginalSwitchToggle: { switchID, isOn in
+                    // Win32 switch mechanism calls its GOAL channel on an
+                    // actual lever activation, not on a passive contact.
+                    if isOn {
+                        _ = windowsGoalCounter?.recordGoalEvent(
+                            objectID: switchID,
+                            simulationRunning: experimentalPhysics && !physicsPaused
+                        )
+                    }
                     if isOn {
                         flippedOriginalSwitchIDs.insert(switchID)
                     } else {
@@ -469,6 +494,7 @@ struct CMOriginalQuickPlayView: View {
                         thirdLevelRun?.reset()
                         fourthLevelRun?.reset()
                         objectiveLedger?.reset()
+                        windowsGoalCounter?.reset()
                         // Rebuild bodies only after changing scene physics mode.
                         canUndoPlacement = false
                         sceneRevision = UUID()
@@ -491,6 +517,7 @@ struct CMOriginalQuickPlayView: View {
                         thirdLevelRun?.reset()
                         fourthLevelRun?.reset()
                         objectiveLedger?.reset()
+                        windowsGoalCounter?.reset()
                     canUndoPlacement = false
                     sceneRevision = UUID()
                 }
@@ -582,6 +609,7 @@ struct CMOriginalQuickPlayView: View {
                         thirdLevelRun?.reset()
                         fourthLevelRun?.reset()
                         objectiveLedger?.reset()
+                        windowsGoalCounter?.reset()
                     canUndoPlacement = false
                     sceneRevision = UUID()
                 }
@@ -703,6 +731,36 @@ struct CMOriginalQuickPlayView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
                 .accessibilityIdentifier("cm.original.first-level-challenge")
+            }
+
+            // These are actual, independently latched Windows-style win
+            // inputs. Incomplete mechanism and power simulation remains
+            // explicitly experimental; a count does not prove parity.
+            if experimentalPhysics, let counter = windowsGoalCounter {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Label("Original Windows win inputs", systemImage: "checkmark.circle")
+                        Spacer()
+                        Text("\(counter.credited) / \(counter.totalRequired)")
+                            .monospacedDigit()
+                    }
+                    .font(.caption.weight(.semibold))
+                    .accessibilityIdentifier("cm.original.windows-win-counter")
+                    Text("Verified Win32 GOAL / CONNECTED_TO gate. Only observed, supported iOS mechanism events count; energy and other mechanisms remain under reconstruction.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    if counter.completed {
+                        Text("All reconstructed win inputs fired. Original Windows mechanism parity has not been established.")
+                            .font(.caption.weight(.semibold))
+                        Button("Continue to level \(document.index + 1) (experimental)") {
+                            changeLevel(by: 1)
+                        }
+                        .disabled(scene(at: document.index + 1) == nil)
+                        .accessibilityIdentifier("cm.original.windows-win-next")
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
             }
 
             if experimentalPhysics && hasOriginalCaptureZone {

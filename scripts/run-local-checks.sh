@@ -75,5 +75,10 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   ios/CMOriginalWindowsScriptLibrary.swift ios/CMOriginalObjectiveEvidenceLedger.swift \
   tests/OriginalElementsPortableSmoke.swift -o "$tmp/original-windows"
 "$tmp/original-windows"
+# Exact once-only GOAL and CONNECTED_TO Win32 puzzle-completion counter.
+swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
+  ios/CMOriginalWindowsGoalCounter.swift tests/OriginalWindowsGoalCounterSmoke.swift \
+  -o "$tmp/original-windows-win"
+"$tmp/original-windows-win"
 python3 -m unittest discover -s tools -p 'test_*.py'
 echo "Portable checks passed. iOS simulator build still requires Xcode/macOS."
