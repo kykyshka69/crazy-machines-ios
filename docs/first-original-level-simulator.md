@@ -8,8 +8,9 @@ that original puzzle mechanics work.
 
 - Mac with an installed compatible Xcode, iPhone Simulator and `xcodegen`
   (`brew install xcodegen`).
-- An actual `level-001.json` exported from your **own original Professor
-  Laboratory CML** by the repository's original-scene export tools.
+- The original **Professor Laboratory `.cml`** from your own Windows
+  installation (preferred). The older pre-exported `level-001.json` is
+  still supported as a fallback.
 - A directory containing original `.ucm` meshes extracted from your own
   installation of Crazy Machines. Nested folders are accepted.
 - Do not use synthetic playground objects as substitutes for original meshes.
@@ -20,7 +21,7 @@ From the repository root:
 
 ```bash
 bash scripts/capture-original-first-level.sh \
-  "/private/path/level-001.json" \
+  "/private/path/Professor Laboratory.cml" \
   "/private/path/original-game/data/models"
 ```
 
@@ -31,10 +32,12 @@ directory, or `CM_SIMULATOR_UDID` to target a specific iPhone Simulator.
 
 ## What the command actually checks
 
-1. `tools/stage_original_first_level.py` checks the original level schema
-   and index, inventories original `3DO` references, and matches them against
-   case-insensitive, unambiguous original UCM basenames. It supports the
-   original `to_foo` to `foo.ucm` alias only when an exact match is absent.
+1. With a `.cml` input, `tools/stage_original_cml_for_iphone.py` checks
+   the exact SHA-256 of the verified original Professor Laboratory, reads all
+   **102 original records** through the Python reference decoder and validates
+   level-one UCM references. It stages the **original CML bytes**, but does
+   **not** preseed level-one JSON: the iPhone app must decode it itself.
+   With an older JSON input, the original JSON staging path remains available.
 2. Referenced original UCM files are structurally decoded and checked for
    unsupported index counts and non-finite vertex values before copying.
    Missing or invalid original geometry **fails the command**, rather than
@@ -42,9 +45,11 @@ directory, or `CM_SIMULATOR_UDID` to target a specific iPhone Simulator.
 3. `xcodebuild build-for-testing` compiles the actual iOS app and UI tests
    with an Apple SDK, then the original resources are staged inside the
    installed Simulator app's private `Application Support` directory.
-4. `testCaptureFirstRealLevel3DWhenSeeded` opens **level 1** through the
-   genuine UI, presents the SceneKit scene, and asserts that the scene has
-   at least one loaded UCM mesh.
+4. `testCaptureFirstRealLevel3DWhenSeeded` first invokes **Decode previously
+   imported CML** when level one is not yet in the browser, then opens the
+   *genuine first original level* in SceneKit and requires at least one
+   actually loaded UCM mesh. If decoding or rendering fails, it must not
+   yield an accepted screenshot.
 5. XCTest attaches an actual Simulator screenshot and
    `xcresulttool` exports it. **The exporter then verifies the Xcode test
    summary and attachment manifest:** exactly one test must have passed,
