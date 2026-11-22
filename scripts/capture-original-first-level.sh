@@ -91,12 +91,15 @@ xcodebuild test-without-building \
 mkdir -p "$screenshots"
 xcrun xcresulttool export attachments \
   --path "$result_bundle" --output-path "$screenshots"
-first_png="$(find "$screenshots" -type f -iname '*.png' -size +0c -print -quit)"
-if [[ -z "$first_png" ]]; then
-  echo "No screenshot exported. Level may have been skipped or rendered blank." >&2
-  exit 1
-fi
-cp "$first_png" "$output/original-level-001-iphone-simulator.png"
+# A successful xcodebuild command can contain skipped tests. Explicitly check
+# the test result summary and find the uniquely named XCTest attachment.
+# Never relabel an unrelated PNG or an Xcode failure screenshot as level one.
+xcrun xcresulttool get test-results summary \
+  --path "$result_bundle" > "$output/test-summary.json"
+python3 "$repo_root/tools/select_first_level_screenshot.py" \
+  --attachments-dir "$screenshots" \
+  --summary "$output/test-summary.json" \
+  --output "$output/original-level-001-iphone-simulator.png"
 echo "Captured real original level 1 from an iPhone Simulator:"
 echo "$output/original-level-001-iphone-simulator.png"
 echo "Build log: $output/build.log"
