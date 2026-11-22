@@ -89,8 +89,18 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         // privately staged original first-level JSON + UCM files enables
         // this screenshot test. Do not substitute the synthetic playground.
         let originalLevel = app.descendants(matching: .any)["cm.original.level-1"]
-        guard originalLevel.waitForExistence(timeout: 10) else {
-            throw XCTSkip("No user-owned original first-level scene staged")
+        if !originalLevel.waitForExistence(timeout: 5) {
+            // The private capture script can now seed the unmodified
+            // Professor Laboratory CML instead of a separately exported
+            // JSON scene. Exercise the *actual iOS CML decoder*.
+            let decode = app.buttons["Decode previously imported CML"]
+            XCTAssertTrue(decode.waitForExistence(timeout: 10))
+            decode.tap()
+        }
+        guard originalLevel.waitForExistence(timeout: 120) else {
+            // Public CI without licensed game assets must not claim a pass.
+            // The private capture script rejects a skipped result.
+            throw XCTSkip("No decodable original first-level scene staged")
         }
         originalLevel.tap()
         let open3D = app.buttons["cm.original.open-3d"]
