@@ -251,6 +251,7 @@ struct CMOriginalQuickPlayView: View {
         objectiveLedger = CMOriginalObjectiveEvidenceLedger(session: originalSession)
         powerCircuit = CMOriginalPowerCircuit(session: originalSession)
         generatorRotorSpeedsByDeviceID.removeAll()
+        windmillRotorSpeedsByDeviceID.removeAll()
         disrupterAnglesByDeviceID.removeAll()
         pendingPowerPlugID = nil
         powerConnectionMessage = nil
@@ -272,6 +273,7 @@ struct CMOriginalQuickPlayView: View {
         observedOriginalLeverStrikers.removeAll()
         originalOpticalSightlines.removeAll()
         generatorRotorSpeedsByDeviceID.removeAll()
+        windmillRotorSpeedsByDeviceID.removeAll()
         disrupterAnglesByDeviceID.removeAll()
         firstLevelRun?.reset()
         secondLevelRun?.reset()
@@ -294,6 +296,7 @@ struct CMOriginalQuickPlayView: View {
         observedOriginalLeverStrikers.removeAll()
         originalOpticalSightlines.removeAll()
         generatorRotorSpeedsByDeviceID.removeAll()
+        windmillRotorSpeedsByDeviceID.removeAll()
         disrupterAnglesByDeviceID.removeAll()
         firstLevelRun?.reset()
         secondLevelRun?.reset()
@@ -722,6 +725,7 @@ struct CMOriginalQuickPlayView: View {
                         observedOriginalLeverStrikers.removeAll()
                         originalOpticalSightlines.removeAll()
                         generatorRotorSpeedsByDeviceID.removeAll()
+        windmillRotorSpeedsByDeviceID.removeAll()
         disrupterAnglesByDeviceID.removeAll()
                         firstLevelRun?.reset()
         secondLevelRun?.reset()
