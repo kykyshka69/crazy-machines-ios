@@ -219,6 +219,26 @@ struct CMOriginalQuickPlayView: View {
                 .accessibilityIdentifier("cm.original.quickplay-center-camera")
                 .padding(10)
             }
+            .overlay(alignment: .topLeading) {
+                // The objective must remain readable while watching the
+                // original 3D board. Previously the only 0/4 counter was
+                // buried in a short scrollable control panel below the scene.
+                if let run = firstLevelRun {
+                    HStack(spacing: 6) {
+                        Image(systemName: run.isSatisfied
+                              ? "checkmark.seal.fill" : "scope")
+                        Text("Prototype deliveries: \(run.deliveredCount)/\(run.totalCount)")
+                            .monospacedDigit()
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(run.isSatisfied ? Color.green : Color.primary)
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 8)
+                    .background(.regularMaterial, in: Capsule())
+                    .accessibilityIdentifier("cm.original.first-level-hud")
+                    .padding(10)
+                }
+            }
 
             // The original PC puzzle needs a usable 3D board even after
             // contacts, motors and goals populate the status panel. Keep the

@@ -1,5 +1,13 @@
 # Crazy Machines — original iOS port: working branch
 
+## Verified FIRST actual linked-zone contact path on iPhone 17 Pro Simulator (2026-11-22)
+
+- **GitHub Actions [run 45011119996](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45011119996) completed SUCCESS for commit `24b2940`**: Xcode Simulator build, boot, app launch and XCTest. **7 test cases: 6 passed, 1 private-original-level test intentionally skipped, 0 failures.** Source checks, Portable checks and unsigned physical-iPhone compilation also passed.
+- Crucially, `testLinkedZoneContactActuallyAdvancesFirstLevelPrototype` passed, not merely a physics-toggle UI check. It loads an entirely **synthetic, copyright-free 3D puzzle** through the production CMASSET1 importer, with two UNLOCKED boards, four CONNECTED_TO objects and a genuine SceneKit sensor. A closed, volumetric UCM octahedron falls under SceneKit gravity, creates a source/zone physical contact, and the app changes the exact first-level prototype delivery counter from 0/4 to a nonzero value. This validates the cross-layer contact → original object ID → exact link → player progress flow, **not the unrecovered Windows physics or victory logic**.
+- Genuine screenshot artifact `CrazyMachinesIOS-ui-screenshots` ID `14749973481`; item `07-synthetic-linked-zone-contact-proved` is a real iPhone 17 Pro Simulator screenshot of the synthetic test with running physics. **Do not label it an original PC level screenshot.**
+- After verified contact path, gameplay work continues with an always-visible first-level prototype delivery HUD over the actual 3D viewport and removal of needless per-contact object-type dictionary rebuilding. These follow-on edits require their own iOS CI result; the verified test above is for `24b2940`.
+- Still unverified: **the authentic original Professor level 1 with the user's private 445-entry asset pack running on macOS iPhone Simulator or physical iPhone**. Public GitHub CI deliberately does not contain those copyrighted PC resources. Do not conflate synthetic linked-zone proof with that milestone.
+
 ## Verified original PC resources and private simulator handoff (2026-11-22)
 
 - The user-owned, **private** `CrazyMachines_Original_102Levels.cmassets` has been recovered from the user's ChatGPT Library and inspected *outside GitHub*. Size **33,369,110 bytes**, SHA-256 `936e025b512452fb6767643bc5762bb713c7ab0d604ac4fbb963fec67d9ac532`. Its **445 entries** have valid SHA-256 checksums and comprise **160 UCMs, 181 TGAs, 102 JSON level scenes and 2 CMLs**. Do NOT upload the pack or original game meshes into the public GitHub repository.

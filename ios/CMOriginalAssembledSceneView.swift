@@ -887,9 +887,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // Original PC 'tmo_zone' nodes are collection areas. Notify the
             // UI of ACTUAL SceneKit contacts, not of inferred puzzle victory.
             // Report each object only once for this simulation run.
-            let types = Dictionary(
-                uniqueKeysWithValues: (session?.objects ?? []).map { ($0.id, $0.type) }
-            )
+            // The registry is already built when SceneKit bodies are
+            // registered. Rebuilding a dictionary for EVERY collision is
+            // expensive on original levels with dozens of moving parts.
+            let types = originalTypesByID
             let candidate: String?
             let zoneID: String?
             if types[a] == "tmo_zone" && types[b] != "tmo_zone" {
