@@ -571,6 +571,7 @@ enum CMOriginalAxleParts {
         "tmo_power_disrupter_wheel",
         "tmo_steam_wheel",
         "tmo_windmill_wheel",
+        "tmo_windmill_wings",
         "tmo_hammer_wheel",
         "tmo_belt_flag_wheel",
         "tmo_heat_grill_wheel"

@@ -469,7 +469,7 @@ struct CMOriginalQuickPlayView: View {
                     // The native GOAL predicate is exact; mapping SceneKit
                     // angular velocity to Win32 +0xE0 remains provisional.
                     if CMOriginalWindowsWindmill.triggersGoal(
-                        nativeWheelSignal: measuredRotorSpeed) {
+                        nativeWingsSignal: measuredRotorSpeed) {
                         _ = windowsGoalCounter?.recordGoalEvent(
                             objectID: windmillID, simulationRunning: true)
                     }

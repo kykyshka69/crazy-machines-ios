@@ -598,7 +598,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var capturedCatchGoalIDs = Set<String>()
         private var motorRotorObjectIDs = Set<String>()
         private var generatorIDByRotorID: [String: String] = [:]
-        private var windmillIDByWheelID: [String: String] = [:]
+        private var windmillIDByWingsID: [String: String] = [:]
         private var qualifiedWindmillGoalIDs = Set<String>()
         private var disrupterIDByWheelID: [String: String] = [:]
         private var lastDisrupterConduction: [String: Bool] = [:]
@@ -866,7 +866,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             lastOpticalSampleTime = -1
             coastingMotorRotorIDs.removeAll()
             generatorIDByRotorID.removeAll()
-            windmillIDByWheelID.removeAll()
+            windmillIDByWingsID.removeAll()
             qualifiedWindmillGoalIDs.removeAll()
             disrupterIDByWheelID.removeAll()
             lastDisrupterConduction.removeAll()
@@ -920,15 +920,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     return (rotor.id, parent)
                 }
             )
-            // A windmill's actual UCM wheel +0xE0 is the Win32 GOAL
-            // rotation source. Only original parent/child identities apply.
-            windmillIDByWheelID = Dictionary(uniqueKeysWithValues:
-                originalObjects.compactMap { wheel -> (String, String)? in
-                    guard wheel.type == "tmo_windmill_wheel",
-                          let ownerID = wheel.parentID,
+            // Win32 0x44F48F selects tmo_windmill_wings (NOT wheel) via
+            // 0x41F5C0, then reads wing +0xE0 for the owner GOAL.
+            windmillIDByWingsID = Dictionary(uniqueKeysWithValues:
+                originalObjects.compactMap { wings -> (String, String)? in
+                    guard wings.type == "tmo_windmill_wings",
+                          let ownerID = wings.parentID,
                           originalTypesByID[ownerID] == "tmo_windmill"
                     else { return nil }
-                    return (wheel.id, ownerID)
+                    return (wings.id, ownerID)
                 })
             // Read the EXACT original hierarchy. Never attach a disrupter
             // to an arbitrary nearby gear by model name or proximity.
@@ -1247,18 +1247,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         self?.onOriginalDisrupterAngle?(disrupterID, angle)
                     }
                 }
-                for (wheelID, windmillID) in windmillIDByWheelID {
+                for (wingsID, windmillID) in windmillIDByWingsID {
                     // A native windmill GOAL is a once-only transition;
                     // never make SwiftUI redraw repeatedly on every rotor
                     // sample as the SceneKit angular velocity changes.
                     guard !qualifiedWindmillGoalIDs.contains(windmillID),
-                          let wheel = physicsNodesByObjectID[wheelID]?.first,
-                          let body = wheel.physicsBody,
+                          let wings = physicsNodesByObjectID[wingsID]?.first,
+                          let body = wings.physicsBody,
                           body.type == .dynamic else { continue }
                     let angular = body.angularVelocity
                     let measured = angular.z < 0 ? -angular.w : angular.w
                     guard CMOriginalWindowsWindmill.triggersGoal(
-                        nativeWheelSignal: measured
+                        nativeWingsSignal: measured
                     ) else { continue }
                     qualifiedWindmillGoalIDs.insert(windmillID)
                     DispatchQueue.main.async { [weak self] in
