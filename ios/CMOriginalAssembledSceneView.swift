@@ -604,6 +604,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // Each lightbulb has its own copied original UCM materials. Never
         // change the shared cross-level geometry cache or another lamp.
         private var originalLampBulbMaterials: [String: [SCNMaterial]] = [:]
+        private var originalLampGlowNodes: [String: [SCNNode]] = [:]
         private var originalLampDiffuseIntensity: [ObjectIdentifier: CGFloat] = [:]
         private var requestedLampVisualFactors: [String: Float]? = nil
         private var appliedLampVisualFactors: [String: Float]? = nil
@@ -639,6 +640,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     let original = originalLampDiffuseIntensity[
                         ObjectIdentifier(material)] ?? 1
                     material.diffuse.intensity = original * displayFactor
+                }
+                // The original scene's separate bulb bloom uses the
+                // imported light_glow.tga, not a fictitious UCM. Make it
+                // follow the SAME recovered power/10 signal as its bulb.
+                for glow in originalLampGlowNodes[lampID] ?? [] {
+                    glow.opacity = displayFactor
                 }
             }
         }
@@ -787,6 +794,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             opticalEmitterMeshes.removeAll()
             opticalSolarMeshes.removeAll()
             originalLampBulbMaterials.removeAll()
+            originalLampGlowNodes.removeAll()
             originalLampDiffuseIntensity.removeAll()
             appliedLampVisualFactors = nil
             opticalEmitterByPartID.removeAll()
@@ -879,6 +887,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
             )
             scene.rootNode.enumerateChildNodes { node, _ in
+                if node.name == "original-effect-glow-to_power_lamp_bulb_bb",
+                   let bulbID = self.owningOriginalObjectID(for: node),
+                   let lampID = emitterByPartID[bulbID],
+                   self.originalTypesByID[lampID] == "tmo_power_lamp" {
+                    self.originalLampGlowNodes[lampID, default: []].append(node)
+                }
                 if let mesh = node as? CMOriginalObjectMeshNode,
                    let owner = mesh.originalObjectID {
                     // These are real UCM vertices; synthetic glow sprites
