@@ -47,7 +47,8 @@ def execute(argv, *, runner=subprocess.run, timeout=45):
     return completed.stdout
 
 
-def boot_iphone(*, runner=subprocess.run, max_attempts=2):
+def boot_iphone(*, runner=subprocess.run, max_attempts=2,
+                preferred_udid=None):
     payload = execute(["xcrun", "simctl", "list", "devices", "available", "-j"],
                       runner=runner, timeout=30)
     try:
@@ -56,6 +57,14 @@ def boot_iphone(*, runner=subprocess.run, max_attempts=2):
         raise SimulatorBootError("invalid JSON from simctl") from error
     if not candidates:
         raise SimulatorBootError("no available iPhone Simulator device")
+    # Private captures may require the same iPhone Simulator across runs.
+    # Never silently use a different device if the owner requested a UDID.
+    requested = preferred_udid or os.environ.get("CM_SIMULATOR_UDID")
+    if requested:
+        candidates = [device for device in candidates if device[0] == requested]
+        if not candidates:
+            raise SimulatorBootError(
+                "requested iPhone Simulator is not available: " + requested)
     errors = []
     for udid, name, state in candidates[:max_attempts]:
         print("Starting %s (%s, %s)" % (name, udid, state), file=sys.stderr)
