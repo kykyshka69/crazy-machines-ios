@@ -63,7 +63,7 @@ enum CMOriginalAssetPackImporter {
         guard count > 0 && count <= 1024 else {
             throw PackError.invalid("Invalid game pack entry count")
         }
-        let allowed = Set(["ucm", "tga", "cml", "json", "fsc"])
+        let allowed = Set(["ucm", "tga", "cml", "json", "fsc", "vsc"])
         var entries: [Entry] = []
         entries.reserveCapacity(count)
         var names = Set<String>()
@@ -111,6 +111,13 @@ enum CMOriginalAssetPackImporter {
                       let scripts = try? CMOriginalElementsTemplateCatalog
                         .parse(decodedBytes: source), scripts.count >= 100 else {
                     throw PackError.invalid("Invalid original elements.fsc")
+                }
+            } else if kind == "vsc" {
+                // The original game uses a distinct 8-byte VSC key,
+                // not the 20-byte encrypted FSC/CML laboratory key.
+                // Reject malformed scripts before installing any files.
+                guard (try? CMOriginalVSCDecoder.read(bytes)) != nil else {
+                    throw PackError.invalid("Invalid original Windows Value Script: \(name)")
                 }
             } else if kind == "json" {
                 guard (try? CMOriginalSceneDocument.read(bytes)) != nil else {

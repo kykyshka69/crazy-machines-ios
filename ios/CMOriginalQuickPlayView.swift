@@ -6,6 +6,7 @@ import SwiftUI
 struct CMOriginalQuickPlayView: View {
     let assetDirectory: URL
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dismiss) private var dismiss
     @AppStorage("cm.original.last-played-level") private var lastPlayedOriginalLevel = 1
     @State private var document: CMOriginalSceneDocument
     // Decode the original hierarchy once per loaded level. SwiftUI
@@ -57,6 +58,8 @@ struct CMOriginalQuickPlayView: View {
     @State private var showAllLevels = false
     @State private var originalWindowsTemplates:
         [String: CMOriginalElementsTemplateCatalog.Template]?
+    @State private var originalLevelDoneActions:
+        CMOriginalVSCScriptLibrary.CompletionActions?
     @State private var objectiveLedger: CMOriginalObjectiveEvidenceLedger?
     // Recovered from the original CrazyMachines.exe win dispatcher:
     // two separately latched channels, not a generic scene-collision win.
@@ -184,6 +187,24 @@ struct CMOriginalQuickPlayView: View {
                         fourthLevelRun?.reset()
                         objectiveLedger?.reset()
                         windowsGoalCounter?.reset()
+        canUndoPlacement = false
+        sceneRevision = UUID()
+    }
+
+    /// Same restart action for the normal iPhone control and the genuine
+    /// Windows VSC Replay button. No game assets or game-state shortcuts.
+    private func restartCurrentPuzzle() {
+        physicsPaused = false
+        zoneContacts.removeAll()
+        matchedZoneLinks.removeAll()
+        matchedMechanismLinks.removeAll()
+        flippedOriginalSwitchIDs.removeAll()
+        firstLevelRun?.reset()
+        secondLevelRun?.reset()
+        thirdLevelRun?.reset()
+        fourthLevelRun?.reset()
+        objectiveLedger?.reset()
+        windowsGoalCounter?.reset()
         canUndoPlacement = false
         sceneRevision = UUID()
     }
@@ -555,21 +576,7 @@ struct CMOriginalQuickPlayView: View {
                     }
                     .accessibilityIdentifier("cm.original.quickplay-pause")
                 }
-                Button("Restart") {
-                    physicsPaused = false
-                    zoneContacts.removeAll()
-                    matchedZoneLinks.removeAll()
-                    matchedMechanismLinks.removeAll()
-                    flippedOriginalSwitchIDs.removeAll()
-                    firstLevelRun?.reset()
-        secondLevelRun?.reset()
-                        thirdLevelRun?.reset()
-                        fourthLevelRun?.reset()
-                        objectiveLedger?.reset()
-                        windowsGoalCounter?.reset()
-                    canUndoPlacement = false
-                    sceneRevision = UUID()
-                }
+                Button("Restart") { restartCurrentPuzzle() }
                 .accessibilityIdentifier("cm.original.quickplay-reset")
             }
             .padding(.horizontal, 14)
@@ -845,11 +852,31 @@ struct CMOriginalQuickPlayView: View {
                     if counter.completed {
                         Text("All reconstructed win inputs fired. Original Windows mechanism parity has not been established.")
                             .font(.caption.weight(.semibold))
-                        Button("Continue to level \(document.index + 1) (experimental)") {
-                            changeLevel(by: 1)
+                        if let actions = originalLevelDoneActions {
+                            // Text and IDs are from the user's genuine
+                            // encrypted gui/leveldone.vsc, not fabricated
+                            // button names or hardcoded Windows screen art.
+                            HStack {
+                                Button(actions.continueName) {
+                                    changeLevel(by: 1)
+                                }
+                                .disabled(scene(at: document.index + 1) == nil)
+                                .accessibilityIdentifier("cm.original.windows-win-next")
+                                Button(actions.replayName) {
+                                    restartCurrentPuzzle()
+                                }
+                                .accessibilityIdentifier("cm.original.windows-win-replay")
+                                Button(actions.mainMenuName) { dismiss() }
+                                    .accessibilityIdentifier("cm.original.windows-win-menu")
+                            }
+                            .font(.caption.weight(.semibold))
+                        } else {
+                            Button("Continue to level \(document.index + 1) (experimental)") {
+                                changeLevel(by: 1)
+                            }
+                            .disabled(scene(at: document.index + 1) == nil)
+                            .accessibilityIdentifier("cm.original.windows-win-next")
                         }
-                        .disabled(scene(at: document.index + 1) == nil)
-                        .accessibilityIdentifier("cm.original.windows-win-next")
                     }
                 }
                 .padding(.horizontal, 14)
@@ -937,6 +964,11 @@ struct CMOriginalQuickPlayView: View {
                 originalWindowsTemplates = original
                 if experimentalPhysics { sceneRevision = UUID() }
             }
+            // Original PC completion UI is another encrypted script, using
+            // the independently recovered tz023416 Value Script key.
+            originalLevelDoneActions = await Task.detached(priority: .utility) {
+                CMOriginalVSCScriptLibrary.loadLevelDone(directory: directory)
+            }.value
         }
         .onChange(of: document.index) { _, newIndex in
             lastPlayedOriginalLevel = newIndex

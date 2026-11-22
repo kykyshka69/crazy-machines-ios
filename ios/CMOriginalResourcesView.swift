@@ -12,7 +12,7 @@ struct CMOriginalResourcesView: View {
     @State private var selectedCML: ResourceEntry?
     @State private var selectedProbe: CMOriginalCMLProbe?
     @State private var entries: [ResourceEntry] = []
-    @State private var message = "Import extracted original .cml, .ucm or .tga files."
+    @State private var message = "Import original .cml, .ucm, .tga, .fsc and .vsc files."
     private let allowed = Set(["cml", "ucm", "tga", "ogg", "wav", "vsc", "fsc"])
 
     struct ResourceEntry: Identifiable {
@@ -282,6 +282,14 @@ struct CMOriginalResourcesView: View {
                     guard let source = try? CMOriginalElementsScriptDecoder.decode(data),
                           let scripts = try? CMOriginalElementsTemplateCatalog
                             .parse(decodedBytes: source), scripts.count >= 100 else {
+                        rejected += 1
+                        continue
+                    }
+                }
+                if ext == "vsc" {
+                    // Verify the same genuine Win32 VSC key/header/section
+                    // structure as the all-in-one original game pack.
+                    guard (try? CMOriginalVSCDecoder.read(data)) != nil else {
                         rejected += 1
                         continue
                     }

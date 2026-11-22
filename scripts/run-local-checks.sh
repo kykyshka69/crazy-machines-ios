@@ -85,5 +85,14 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   ios/CMOriginalPowerCircuit.swift tests/OriginalPowerCircuitSmoke.swift \
   -o "$tmp/original-power"
 "$tmp/original-power"
+# Independently recovered Windows Value Script key: synthetic encrypted VSC
+# and original completion-dialog button numbering, not bundled PC art.
+swiftc ios/CMOriginalWindows1251.swift ios/CMOriginalVSCDecoder.swift \
+  tests/OriginalVSCDecoderSmoke.swift -o "$tmp/original-vsc"
+"$tmp/original-vsc"
+swiftc ios/CMOriginalWindows1251.swift ios/CMOriginalVSCDecoder.swift \
+  ios/CMOriginalVSCScriptLibrary.swift tests/OriginalVSCCompletionSmoke.swift \
+  -o "$tmp/original-vsc-completion"
+"$tmp/original-vsc-completion"
 python3 -m unittest discover -s tools -p 'test_*.py'
 echo "Portable checks passed. iOS simulator build still requires Xcode/macOS."

@@ -271,3 +271,14 @@ jobs:
         run: |
           swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalPowerCircuit.swift tests/OriginalPowerCircuitSmoke.swift -o /tmp/cm-original-power
           /tmp/cm-original-power
+
+  original-vsc-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify 8-byte Windows Value Script key and native VSC parser
+        run: |
+          swiftc ios/CMOriginalWindows1251.swift ios/CMOriginalVSCDecoder.swift tests/OriginalVSCDecoderSmoke.swift -o /tmp/cm-original-vsc
+          /tmp/cm-original-vsc
+          swiftc ios/CMOriginalWindows1251.swift ios/CMOriginalVSCDecoder.swift ios/CMOriginalVSCScriptLibrary.swift tests/OriginalVSCCompletionSmoke.swift -o /tmp/cm-original-vsc-done
+          /tmp/cm-original-vsc-done
