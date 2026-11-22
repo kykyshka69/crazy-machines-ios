@@ -1,5 +1,30 @@
 # Crazy Machines — original iOS port: working branch
 
+## Stage 1 — original Win32 engine mechanics (2026-11-22)
+
+**Status: IN PROGRESS, not completed.** All engine findings below are derived from the user's privately owned real `CrazyMachines.exe`, original FSC/VSC, and 102 PC scene exports. The original binary/assets are not committed. An iPhone Simulator CI success proves build/UI behavior, **not** that original gameplay physics or 102 puzzle solutions are faithful.
+
+**Confirmed original behavior + integrated iOS code:**
+
+- Original encrypted `elements.fsc` decoded; 157 original element definitions, 122 element types used in 102 levels. Per-level `VALB` overrides take priority over template defaults (`CMOriginalElementsScriptDecoder`, `CMOriginalWindowsElementRules`, `CMOriginalPhysicsRolePlanner`).
+- All 17 original VSC files decoded with real `tz023416` key. `gui/leveldone.vsc` supplies genuine Continue/Replay/Main_menu actions. VSC files are configuration, not the Windows physics engine.
+- Win32 GOAL and CONNECTED_TO completion dispatcher traced to `0x44B460` and the dual-channel one-shot counter. There are 86 GOAL annotations and 80 CONNECTED_TO references across the real 102 Professor scenes. `CMOriginalWindowsGoalCounter` is integrated with supported SceneKit events, not a claim of Win32 victory parity.
+- Win32 `0x42FCB0` constructs each `power_cable` from TWO selected physical plug ends. `VALF` terminal numbers are unique IDs, **not** wires. The opt-in `CMOriginalPowerCircuit` only traverses explicitly chosen plug pairs and closed switches, without inventing links from proximity.
+- The verified Win32 battery source is IEEE-754 float **10.0** at power state `+0x40` (`0x4504C9`); `0x44C8A0` copies state to connected nodes, including a conditional blocker at `+0x50`. The blocker/return circuit solver remains unrecovered.
+- Actual `tmo_power_generator` obtains **abs(rotor state +0xE8)**, stores it in power `+0x40`, dispatches GOAL if >1, then propagates if connected (`0x44BCAC–0x44BD14`). The iOS SceneKit bridge observes the genuinely imported generator rotor's angular velocity and uses this as an *experimental input* to the explicit cable graph; a stationary generator is never an automatic power source. Win32 rotor physical units are not yet reproduced.
+- Actual motor negates the input signal to rotor `+0xE8`; motor GOAL threshold is abs(command)>0.5. Lamp GOAL requires **power>3** and its animation uses power/10; lightning GOAL requires **power>1**; bell GOAL requires **min(abs(power),10)>1**. These independent types are checked by `CMOriginalWindowsPowerScalar` and `CMOriginalWindowsElectricalGoals`. Original motor torque, bell clapper/audio and shader effects remain unfinished.
+- Read-only, hash-gated x86 auditor `tools/audit_windows_power_propagation.py` independently verified **22 exact instruction sites**, 3 float constants and 1 double against this one owner's Win32 EXE. No executable bytes included in GitHub.
+- Integration commits: [`9bc6aec`](https://github.com/kykyshka69/crazy-machines-ios/commit/9bc6aecf77fbb55006e9154ffd19c80f77c2b51a), [`d8f68d5`](https://github.com/kykyshka69/crazy-machines-ios/commit/d8f68d56f4c922af5ae843b98cd3f8500426e054), [`d16f7d1`](https://github.com/kykyshka69/crazy-machines-ios/commit/d16f7d18337fc499606107b25d7a652bca7c4a92), [`3e13b7d`](https://github.com/kykyshka69/crazy-machines-ios/commit/3e13b7d782fda05e4537f7d45633e283e31f8a5b), [`8564937`](https://github.com/kykyshka69/crazy-machines-ios/commit/8564937a2508d06c84481108ead71c0f3643ecf7), [`0f55e1f`](https://github.com/kykyshka69/crazy-machines-ios/commit/0f55e1f3c89289146170ebe530b85c0674a94ce2), [`d33fd30`](https://github.com/kykyshka69/crazy-machines-ios/commit/d33fd300567eca3e4aa42e2250642f73fe906c27) and [`53d6fdd`](https://github.com/kykyshka69/crazy-machines-ios/commit/53d6fddc62b58b3d55cde66eb1dbc60fd03bce62).
+
+**Required before stage 1 can be marked finished:**
+
+1. Reconstruct the original cable persistence and **full** `0x44C8A0` network traversal, `+0x50` blockers, orientation-gated `tmo_power_switch`, live `tmo_power_disrupter`, source mixing/return paths, and original supply constraints. The current network graph is **opt-in provisional logic**, not an exact Win32 solver.
+2. Reconstruct `tmo_power_solarcell`: Win32 `0x44FB90–0x450043` integrates source lighting and geometric interactions before producing energy; it is **not** an always-active power source. Reconstruct generator Win32 rotor physical units and real motor torque/gear/belt responses.
+3. Recover the complete runtime behavior, interactions, timers, and resulting goal/connection state transitions for non-electric original mechanisms (steam, heat, ropes, springs, optics, gravity, balloons, etc.), with actual original object state rather than generic contact credit.
+4. Compare actual level lifecycle and completion under the iOS engine against Windows for each of the 102 authentic scenes, including real UCM/TGA/sound, reproducible original interactions and level-completion actions. No CI fixture passes are substitutes for this.
+
+The latest new Bell/Generator source/portable/ARM64 checks passed; iPhone Simulator for the latest gameplay commit is independent and must be checked separately. Avoid claiming 102 solved levels or native Windows physics parity.
+
 ## Level 4 real-PC physics implementation (2026-11-22)
 
 - No more synthetic screenshots should be reported as evidence of authentic PC-level rendering on iPhone. Synthetic fixture UI tests passing is different from actually running the user's copyrighted original meshes and puzzle semantics.
