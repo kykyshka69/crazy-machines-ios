@@ -46,7 +46,12 @@ directory, or `CM_SIMULATOR_UDID` to target a specific iPhone Simulator.
    genuine UI, presents the SceneKit scene, and asserts that the scene has
    at least one loaded UCM mesh.
 5. XCTest attaches an actual Simulator screenshot and
-   `xcresulttool` exports it. A successful run writes
+   `xcresulttool` exports it. **The exporter then verifies the Xcode test
+   summary and attachment manifest:** exactly one test must have passed,
+   zero may have failed or been skipped, and the attachment must belong
+   to `testCaptureFirstRealLevel3DWhenSeeded` and carry the exact
+   `04-real-first-original-level-3d` name. Unrelated failure/launch
+   screenshots are explicitly rejected. Only then can the command write
    `original-level-001-iphone-simulator.png` next to the build/test logs.
 
 If Xcode compilation, asset staging, navigation, geometry loading or screenshot
