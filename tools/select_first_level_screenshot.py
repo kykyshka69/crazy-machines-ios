@@ -10,8 +10,8 @@ from pathlib import Path
 import shutil
 import struct
 
-TEST_NAME = "testCaptureFirstRealLevel3DWhenSeeded"
-ATTACHMENT_NAME = "04-real-first-original-level-3d"
+TEST_NAME = "testPrivateOriginalLevelOneWhenOptedIn"
+ATTACHMENT_NAME = "07-PRIVATE-original-professor-level-001"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
