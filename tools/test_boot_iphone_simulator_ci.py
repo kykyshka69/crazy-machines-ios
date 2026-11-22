@@ -2,6 +2,8 @@
 import json
 import os
 import subprocess
+import sys
+import time
 import unittest
 from unittest.mock import patch
 
@@ -139,6 +141,21 @@ class SimulatorCIRegression(unittest.TestCase):
         runner = FakeSimulator(make_devices(("iPad", "ipad", "Shutdown", True)))
         with self.assertRaisesRegex(SimulatorBootError, "no available iPhone"):
             boot_iphone(runner=runner)
+
+    def test_real_process_group_timeout_kills_inherited_pipe_children(self):
+        # A child that inherits captured stdout used to keep
+        # subprocess.run().communicate() blocked even after xcrun died.
+        # This regression is runnable on Linux and macOS, with no Xcode.
+        started = time.monotonic()
+        with self.assertRaisesRegex(SimulatorBootError, "timeout"):
+            execute([
+                sys.executable, "-c",
+                "import subprocess,sys,time; "
+                "subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)']); "
+                "time.sleep(30)"
+            ], timeout=0.25)
+        self.assertLess(time.monotonic() - started, 6,
+                        "A simulator child process held the job pipes open")
 
     def test_subprocess_timeout_is_bounded_error(self):
         def slow(argv, **kwargs):

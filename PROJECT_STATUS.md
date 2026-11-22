@@ -1,5 +1,13 @@
 # Crazy Machines — original iOS port: working branch
 
+## Current focus — authentic first-level framing and 4/4 physics proof (2026-11-22)
+
+- Current working branch and last confirmed gameplay test: `work/original-3d-scene-batch`, commit `4356404`. The implementation consumes a credited prototype delivery to free the shared target zone; a new UI test requires **4/4 distinct synthetic deliveries and the Level 2 button**. Source, portable checks and unsigned physical iPhone compile all succeeded.
+- The [new iOS Simulator run 45012909707](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45012909707) **did not reach XCTest**: its first attempt failed two 130-second CoreSimulator bootstatus requests; the retry also reported a simulator boot failure. **Do not claim the new 4/4 scene test passed.** The earlier run [45011119996](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45011119996) proved one genuine synthetic source-to-zone SceneKit contact, not four.
+- A follow-up CI reliability change isolates each real `xcrun simctl` invocation in a process group and kills descendants on timeout, preventing a hanging pipe from outliving the deadline. Includes a portable spawned-process regression test.
+- Private original Professor level-1 UCM bounds analysis: all original visible models span **8.4 units** across the decorative wall, while the interactive puzzle excluding backdrop/arrow/mount geometry spans **about 5.3 units**. For clearer iPhone portrait display, the camera now frames the interactive models but still renders every original decorative model in place. This is a source change pending verification, NOT a genuine iPhone original-level screenshot.
+- Next genuinely missing milestone: use the private owned 445-entry pack in macOS iPhone Simulator to capture and test original Professor level 1; it must not be uploaded as public GitHub source/artifacts. Windows physics and victory rules remain an experimental approximation.
+
 ## Verified FIRST actual linked-zone contact path on iPhone 17 Pro Simulator (2026-11-22)
 
 - **GitHub Actions [run 45011119996](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45011119996) completed SUCCESS for commit `24b2940`**: Xcode Simulator build, boot, app launch and XCTest. **7 test cases: 6 passed, 1 private-original-level test intentionally skipped, 0 failures.** Source checks, Portable checks and unsigned physical-iPhone compilation also passed.

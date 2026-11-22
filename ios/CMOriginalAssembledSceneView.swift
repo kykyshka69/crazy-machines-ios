@@ -1992,7 +1992,22 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                -Float.greatestFiniteMagnitude,
                                -Float.greatestFiniteMagnitude)
         var hasBounds = false
-        for mesh in loadedMeshNodes {
+        // Frame the *interactive puzzle*, not the much larger original
+        // background wall, arrows or tiny nested mounting ornaments.
+        // On a portrait iPhone the wide PC background otherwise forces
+        // the balls and draggable boards into a very small central region.
+        // These original UCMs are still rendered in their exact positions;
+        // only their decorative bounds are ignored for camera fitting.
+        let interactiveMeshes = loadedMeshNodes.filter { mesh in
+            guard let id = (mesh as? CMOriginalObjectMeshNode)?.originalObjectID,
+                  let kind = objectTypes[id] else { return true }
+            return !kind.hasPrefix("tmo_background_")
+                && kind != "tmo_arrow"
+                && !kind.hasPrefix("tmo_mount_")
+        }
+        let framingMeshes = interactiveMeshes.isEmpty
+            ? loadedMeshNodes : interactiveMeshes
+        for mesh in framingMeshes {
             let (minLocal, maxLocal) = mesh.boundingBox
             for x in [minLocal.x, maxLocal.x] {
                 for y in [minLocal.y, maxLocal.y] {

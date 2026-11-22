@@ -2,6 +2,7 @@
 """Bound macOS CoreSimulator boot attempts; reject a stalled simulator."""
 import json
 import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -32,10 +33,52 @@ def iphone_candidates(payload):
     return result
 
 
+def _run_isolated_process_group(argv, *, capture_output, text, timeout, check):
+    """Keep xcrun grandchildren from holding capture pipes after a timeout.
+
+    subprocess.run() kills only the immediate xcrun process on timeout.
+    Hosted macOS CoreSimulator may leave a simctl child holding stdout/stderr,
+    causing communicate() to block indefinitely and stall the entire CI job.
+    """
+    if not capture_output or not text or check:
+        raise ValueError("The simulator helper requires captured text output")
+    with subprocess.Popen(
+        argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, start_new_session=True
+    ) as process:
+        try:
+            output, errors = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            # start_new_session gives this command its own process group.
+            # Kill the entire chain, not the shared macOS simulator service.
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            try:
+                process.communicate(timeout=3)
+            except subprocess.TimeoutExpired:
+                if process.stdout is not None:
+                    process.stdout.close()
+                if process.stderr is not None:
+                    process.stderr.close()
+            raise
+        return subprocess.CompletedProcess(
+            argv, process.returncode, output, errors
+        )
+
+
 def execute(argv, *, runner=subprocess.run, timeout=45):
     try:
-        completed = runner(argv, capture_output=True, text=True, timeout=timeout,
-                           check=False)
+        # Preserve dependency injection for portable fake-runner tests.
+        # Only real OS commands need isolated process-group cleanup.
+        actual_runner = (
+            _run_isolated_process_group if runner is subprocess.run else runner
+        )
+        completed = actual_runner(
+            argv, capture_output=True, text=True, timeout=timeout,
+            check=False
+        )
     except subprocess.TimeoutExpired as error:
         raise SimulatorBootError("timeout after %ss: %s" % (
             timeout, " ".join(argv))) from error
