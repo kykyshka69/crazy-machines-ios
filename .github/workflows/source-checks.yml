@@ -318,6 +318,15 @@ jobs:
           /tmp/cm-solar-circuit
           python3 -m unittest discover -s tools -p 'test_audit_windows_solar_exe.py'
 
+  original-ucm-optical-line-of-sight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check authentic mesh-to-mesh optical path measurement
+        run: |
+          swiftc ios/CMOriginalOpticalSightline.swift tests/OriginalOpticalSightlineSmoke.swift -o /tmp/cm-optical-sightline
+          /tmp/cm-optical-sightline
+
   original-pc-switch-lever-hits:
     runs-on: ubuntu-latest
     steps:
