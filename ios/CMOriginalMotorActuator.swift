@@ -31,9 +31,15 @@ public enum CMOriginalMotorActuator {
         guard signedAngularSpeed.isFinite, targetSpeed.isFinite,
               elapsedSeconds.isFinite, elapsedSeconds > 0,
               elapsedSeconds <= 0.25 else { return nil }
+        // A caller can bypass prototypeTargetSpeed; keep the integration
+        // bounded even for an unexpectedly large (but finite) command.
+        // Treat prior speed as measured state, then move it toward a capped
+        // target without allowing a single step to overshoot that target.
+        let speedLimit = Double(prototypeMaximumAngularSpeed)
+        let boundedTarget = max(-speedLimit, min(speedLimit, Double(targetSpeed)))
         let maximumChange = Double(prototypeMaximumAngularAcceleration)
             * elapsedSeconds
-        let change = Double(targetSpeed) - Double(signedAngularSpeed)
+        let change = boundedTarget - Double(signedAngularSpeed)
         let boundedChange = max(-maximumChange, min(maximumChange, change))
         let next = Double(signedAngularSpeed) + boundedChange
         guard next.isFinite, abs(next) <= Double(Float.greatestFiniteMagnitude)
