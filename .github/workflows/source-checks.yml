@@ -306,6 +306,15 @@ jobs:
           /tmp/cm-original-disrupter
           python3 -m unittest discover -s tools -p 'test_audit_windows_disrupter.py'
 
+  original-motor-rotor-drive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify subthreshold motor motion, polarity, and cable loss deceleration
+        run: |
+          swiftc ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalMotorActuator.swift tests/OriginalMotorActuatorSmoke.swift -o /tmp/cm-motor-actuator
+          /tmp/cm-motor-actuator
+
   original-win32-solar-ray-scalar-and-power:
     runs-on: ubuntu-latest
     steps:

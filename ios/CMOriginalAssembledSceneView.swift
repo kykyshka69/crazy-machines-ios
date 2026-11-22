@@ -556,6 +556,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var experimentalMotorDriveEnabled = false
         private var experimentalMagnetismEnabled = false
         private var poweredMotorRotorIDs = Set<String>()
+        // A rotor that was being driven must coast down after an external
+        // cable/switch/generator stops supplying its motor.
+        private var coastingMotorRotorIDs = Set<String>()
         private var poweredMotorDriveSignals: [String: Float] = [:]
         var onOriginalPowerPlugTap: ((String) -> Void)?
         func setPoweredMotorDriveSignals(_ signals: [String: Float]) {
@@ -800,6 +803,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             opticalEmitterByPartID.removeAll()
             previousOpticalSightlines.removeAll()
             lastOpticalSampleTime = -1
+            coastingMotorRotorIDs.removeAll()
             generatorIDByRotorID.removeAll()
             disrupterIDByWheelID.removeAll()
             lastDisrupterConduction.removeAll()
@@ -1178,39 +1182,47 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     fraction, 0, 0
                 )
             }
-            if experimentalMotorDriveEnabled || !poweredMotorRotorIDs.isEmpty {
-                // Ramp the physically simulated rotor toward a limited
-                // angular speed around its original Z axle. The driven
-                // authentic UCM teeth can then interact with other physics
-                // bodies, without a manually animated visual-only rotation.
-                //
-                // IMPORTANT: The SIGN of the motor input is now taken
-                // from original x86 instructions. The magnitude of
-                // 3 rad/s is a prototype, not a decoded Win32 speed curve;
-                // never infer voltage or torque from VALF 0.125.
-                let maxStep = Float(delta) * 9.0
-                for id in motorRotorObjectIDs {
-                    guard experimentalMotorDriveEnabled
-                        || poweredMotorRotorIDs.contains(id) else { continue }
-                    // Win32 0x450A30 flips the electrical input sign before
-                    // issuing the motor's rotor command. Preserve direction.
-                    // The ±3 rad/s speed remains an explicit iOS prototype.
-                    let command = poweredMotorDriveSignals[id] ?? 1
-                    let targetSpeed: Float = command < 0 ? -3.0 : 3.0
-                    for node in physicsNodesByObjectID[id] ?? [] {
-                        guard let body = node.physicsBody,
-                              body.type == .dynamic else { continue }
-                        let rotation = body.angularVelocity
-                        let signedSpeed = rotation.z >= 0 ? rotation.w : -rotation.w
-                        let step = min(maxStep, max(-maxStep, targetSpeed - signedSpeed))
-                        let next = signedSpeed + step
-                        guard next.isFinite else { continue }
-                        body.angularVelocity = SCNVector4(
-                            0, 0, next >= 0 ? 1 : -1, abs(next)
-                        )
-                    }
+            // The Win32 motor writes its signed -power to rotor +0xE8
+            // even when abs(power) <= 0.5; that cutoff only calls GOAL.
+            // Our SceneKit speed/acceleration mapping is a bounded prototype.
+            // Keep previously driven UCM rotors under control until they
+            // coast to rest after the actual cable power disappears.
+            let activeMotorIDs = experimentalMotorDriveEnabled
+                ? motorRotorObjectIDs
+                : poweredMotorRotorIDs.intersection(motorRotorObjectIDs)
+            let motorsToUpdate = activeMotorIDs.union(coastingMotorRotorIDs)
+            var keepCoasting = activeMotorIDs
+            for id in motorsToUpdate {
+                let energized = activeMotorIDs.contains(id)
+                // The manual diagnostic toggle requests full prototype
+                // drive. Real opt-in circuit power uses -power from Win32.
+                let command: Float = energized
+                    ? (poweredMotorDriveSignals[id]
+                        ?? (experimentalMotorDriveEnabled ? 10 : 0))
+                    : 0
+                guard let targetSpeed = CMOriginalMotorActuator
+                    .prototypeTargetSpeed(rotorCommand: command) else {
+                    continue
                 }
+                var stillSpinning = false
+                for node in physicsNodesByObjectID[id] ?? [] {
+                    guard let body = node.physicsBody,
+                          body.type == .dynamic else { continue }
+                    let angular = body.angularVelocity
+                    let signedSpeed = angular.z >= 0 ? angular.w : -angular.w
+                    guard let nextSpeed = CMOriginalMotorActuator.prototypeStep(
+                        signedAngularSpeed: signedSpeed,
+                        targetSpeed: targetSpeed,
+                        elapsedSeconds: delta
+                    ) else { continue }
+                    body.angularVelocity = SCNVector4(
+                        0, 0, nextSpeed >= 0 ? 1 : -1, abs(nextSpeed)
+                    )
+                    if abs(nextSpeed) > 0.01 { stillSpinning = true }
+                }
+                if !energized && stillSpinning { keepCoasting.insert(id) }
             }
+            coastingMotorRotorIDs = keepCoasting
             if experimentalMagnetismEnabled {
                 // Gather ORIGINAL magnet-owner world positions once per
                 // renderer frame. Some PC puzzles contain several sources;

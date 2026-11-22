@@ -115,6 +115,11 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   ios/CMOriginalWindowsPowerScalar.swift \
   tests/OriginalWindowsPowerDisrupterSmoke.swift -o "$tmp/original-disrupter"
 "$tmp/original-disrupter"
+# Original motor GOAL is separate from rotor start/stop.
+# The SceneKit torque/speed curve is still a declared bounded prototype.
+swiftc ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalMotorActuator.swift \
+  tests/OriginalMotorActuatorSmoke.swift -o "$tmp/original-motor-drive"
+"$tmp/original-motor-drive"
 # Exact Win32 solar-ray attenuation, 10x conversion, and solar-only GOAL.
 swiftc ios/CMOriginalWindowsSolarSignal.swift tests/OriginalWindowsSolarSignalSmoke.swift \
   -o "$tmp/original-solar-scalar"

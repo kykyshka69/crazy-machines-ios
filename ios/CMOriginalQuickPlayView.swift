@@ -162,10 +162,13 @@ struct CMOriginalQuickPlayView: View {
                 guard rotor.type == "tmo_power_motor_rotor",
                       let ownerID = rotor.parentID,
                       let input = inputs[ownerID],
-                      CMOriginalWindowsPowerScalar.motorTriggersGoal(power: input),
                       let command = CMOriginalWindowsPowerScalar
-                        .motorRotorCommand(from: input)
+                        .motorRotorCommand(from: input),
+                      command != 0
                 else { return nil }
+                // The original Win32 GOAL threshold 0.5 does NOT gate
+                // the rotor command: even a nonzero subthreshold input
+                // produces motor motion. Goal credit is handled separately.
                 return (rotor.id, command)
             }
         )
