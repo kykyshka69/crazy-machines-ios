@@ -50,6 +50,9 @@ struct CMOriginalQuickPlayView: View {
     @State private var powerCircuit: CMOriginalPowerCircuit?
     // Original generator owner ID → observed signed rotor speed.
     @State private var generatorRotorSpeedsByDeviceID: [String: Float] = [:]
+    // Measured angle of the authentic disrupter wheel (+0xD0 on Windows).
+    // Original phase interval check decides whether cables conduct.
+    @State private var disrupterAnglesByDeviceID: [String: Float] = [:]
     @State private var pendingPowerPlugID: String?
     @State private var powerConnectionMessage: String?
     @State private var physicsPaused = false
@@ -129,7 +132,8 @@ struct CMOriginalQuickPlayView: View {
         // transmitted through EXPLICIT pairs of original PC power plugs.
         return network.experimentalNetworkSignals(
             closedSwitchIDs: flippedOriginalSwitchIDs,
-            generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID)
+            generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID,
+            disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
     }
 
     private var wiredMotorRotorDriveSignals: [String: Float] {
@@ -200,6 +204,7 @@ struct CMOriginalQuickPlayView: View {
         objectiveLedger = CMOriginalObjectiveEvidenceLedger(session: originalSession)
         powerCircuit = CMOriginalPowerCircuit(session: originalSession)
         generatorRotorSpeedsByDeviceID.removeAll()
+        disrupterAnglesByDeviceID.removeAll()
         pendingPowerPlugID = nil
         powerConnectionMessage = nil
         experimentalWiredPower = false
@@ -218,6 +223,7 @@ struct CMOriginalQuickPlayView: View {
         matchedMechanismLinks.removeAll()
         flippedOriginalSwitchIDs.removeAll()
         generatorRotorSpeedsByDeviceID.removeAll()
+        disrupterAnglesByDeviceID.removeAll()
         firstLevelRun?.reset()
         secondLevelRun?.reset()
                         thirdLevelRun?.reset()
@@ -237,6 +243,7 @@ struct CMOriginalQuickPlayView: View {
         matchedMechanismLinks.removeAll()
         flippedOriginalSwitchIDs.removeAll()
         generatorRotorSpeedsByDeviceID.removeAll()
+        disrupterAnglesByDeviceID.removeAll()
         firstLevelRun?.reset()
         secondLevelRun?.reset()
         thirdLevelRun?.reset()
@@ -364,6 +371,17 @@ struct CMOriginalQuickPlayView: View {
                     ) == true, let run = fourthLevelRun {
                         UserDefaults.standard.set(true, forKey: run.storageKey)
                     }
+                },
+                onOriginalDisrupterAngle: { disrupterID, wheelAngle in
+                    guard experimentalPhysics && !physicsPaused else { return }
+                    guard originalSession.objects.contains(where: {
+                        $0.id == disrupterID
+                            && $0.type == "tmo_power_disrupter"
+                    }) else { return }
+                    // Only genuine original wheel->device ownership events.
+                    // Missing angle always blocks power, never auto-enables.
+                    disrupterAnglesByDeviceID[disrupterID] = wheelAngle
+                    creditExperimentalElectricGoals()
                 },
                 onOriginalGeneratorSignal: { generatorID, rotorSpeed in
                     guard experimentalPhysics && !physicsPaused else { return }
@@ -612,6 +630,7 @@ struct CMOriginalQuickPlayView: View {
                         matchedMechanismLinks.removeAll()
                         flippedOriginalSwitchIDs.removeAll()
                         generatorRotorSpeedsByDeviceID.removeAll()
+        disrupterAnglesByDeviceID.removeAll()
                         firstLevelRun?.reset()
         secondLevelRun?.reset()
                         thirdLevelRun?.reset()
@@ -688,7 +707,7 @@ struct CMOriginalQuickPlayView: View {
                         Text(message).font(.caption2)
                             .accessibilityIdentifier("cm.original.power-cable-message")
                     }
-                    Text("Win32: battery source 10.0; spinning generator outputs abs(rotor speed). Lamp GOAL >3, lightning >1, generator >1. Cable graph, generator units, return paths and motor torque remain experimental.")
+                    Text("Win32 battery 10.0 and generator rotor feed the cable graph. Original disrupters now switch on their real wheel phase (signed fmod by π); unknown wheel angles block power. Return paths and rotor physics remain experimental.")
                         .accessibilityIdentifier("cm.original.generator-power-rules")
                         .font(.caption2).foregroundStyle(.secondary)
                 }

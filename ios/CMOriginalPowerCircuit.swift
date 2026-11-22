@@ -52,6 +52,7 @@ public struct CMOriginalPowerCircuit {
     private let conditionalSourceDeviceIDs: Set<String>
     private let passthroughDeviceIDs: Set<String>
     private let switchDeviceIDs: Set<String>
+    private let disrupterDeviceIDs: Set<String>
 
     public init?(session: CMOriginalGameplaySession) {
         guard (1...102).contains(session.levelIndex) else { return nil }
@@ -87,6 +88,9 @@ public struct CMOriginalPowerCircuit {
         switchDeviceIDs = Set(all.filter {
             $0.deviceType == "tmo_power_switch"
         }.map(\.deviceID))
+        disrupterDeviceIDs = Set(all.filter {
+            $0.deviceType == "tmo_power_disrupter"
+        }.map(\.deviceID))
     }
 
     public var cableCount: Int { cables.count }
@@ -120,18 +124,22 @@ public struct CMOriginalPowerCircuit {
     /// Non-conducting loads are endpoints, never accidental bridges.
     public func reachableDevices(
         closedSwitchIDs: Set<String> = [],
-        externallyActiveSourceIDs: Set<String> = []
+        externallyActiveSourceIDs: Set<String> = [],
+        disrupterRotorAnglesByDeviceID: [String: Float] = [:]
     ) -> Set<String> {
         let sources = sourceDeviceIDs.union(
             externallyActiveSourceIDs.intersection(conditionalSourceDeviceIDs))
-        return devicesReachable(from: sources, closedSwitchIDs: closedSwitchIDs)
+        return devicesReachable(
+            from: sources, closedSwitchIDs: closedSwitchIDs,
+            disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID)
     }
 
     /// Strict reachability through explicitly authored cable pairs, using
     /// the authentic original plug owner IDs. Loads do not transmit, and
     /// open original switches cut off downstream devices.
     private func devicesReachable(
-        from sources: Set<String>, closedSwitchIDs: Set<String>
+        from sources: Set<String>, closedSwitchIDs: Set<String>,
+        disrupterRotorAnglesByDeviceID: [String: Float]
     ) -> Set<String> {
         var edges: [String: Set<String>] = [:]
         for cable in cables {
@@ -150,10 +158,21 @@ public struct CMOriginalPowerCircuit {
                 || passthroughDeviceIDs.contains(current)
                 || (switchDeviceIDs.contains(current)
                     && closedSwitchIDs.contains(current))
+                || (disrupterDeviceIDs.contains(current)
+                    && disrupterRotorAnglesByDeviceID[current].map {
+                        CMOriginalWindowsPowerDisrupter.conducts(rotorAngle: $0)
+                    } == true)
             guard transmits else { continue }
-            for neighbor in edges[current] ?? []
-                where visited.insert(neighbor).inserted {
-                queue.append(neighbor)
+            for neighbor in edges[current] ?? [] {
+                // Win32 0x44CAA3/0x44CAC2 clears +0x40 on the actual
+                // disrupter target when its wheel phase blocks current.
+                // Do not expose even a phantom powered disrupter node.
+                if disrupterDeviceIDs.contains(neighbor) {
+                    guard let phase = disrupterRotorAnglesByDeviceID[neighbor],
+                          CMOriginalWindowsPowerDisrupter.conducts(rotorAngle: phase)
+                    else { continue }
+                }
+                if visited.insert(neighbor).inserted { queue.append(neighbor) }
             }
         }
         return visited
@@ -167,7 +186,8 @@ public struct CMOriginalPowerCircuit {
     /// AMBIGUOUS: fail closed rather than inventing addition/polarity rules.
     public func experimentalNetworkSignals(
         closedSwitchIDs: Set<String> = [],
-        generatorRotorCommandsByDeviceID: [String: Float] = [:]
+        generatorRotorCommandsByDeviceID: [String: Float] = [:],
+        disrupterRotorAnglesByDeviceID: [String: Float] = [:]
     ) -> [String: Float] {
         var sources: [(String, Float)] = sourceDeviceIDs.sorted().map {
             ($0, CMOriginalWindowsPowerScalar.batterySource)
@@ -184,7 +204,8 @@ public struct CMOriginalPowerCircuit {
         var ambiguous = Set<String>()
         for (sourceID, signal) in sources {
             for id in devicesReachable(
-                from: [sourceID], closedSwitchIDs: closedSwitchIDs
+                from: [sourceID], closedSwitchIDs: closedSwitchIDs,
+                disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID
             ) {
                 if let previous = power[id], previous != signal {
                     ambiguous.insert(id)
@@ -200,9 +221,12 @@ public struct CMOriginalPowerCircuit {
     /// Compatibility for purely battery-driven puzzles: a single source
     /// returns the recovered 10.0 Win32 scalar, not a made-up VALF voltage.
     public func experimentalBatterySignals(
-        closedSwitchIDs: Set<String> = []
+        closedSwitchIDs: Set<String> = [],
+        disrupterRotorAnglesByDeviceID: [String: Float] = [:]
     ) -> [String: Float] {
-        experimentalNetworkSignals(closedSwitchIDs: closedSwitchIDs)
+        experimentalNetworkSignals(
+            closedSwitchIDs: closedSwitchIDs,
+            disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID)
     }
 
     public mutating func reset() { cables.removeAll(keepingCapacity: true) }

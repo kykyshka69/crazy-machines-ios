@@ -149,6 +149,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalBucketCapture: ((String, String) -> Void)? = nil
     // Reports a user-operated original PC power switch. This changes its
     // actual lever mesh, NOT the unrecovered electrical connectivity.
+    var onOriginalDisrupterAngle: ((String, Float) -> Void)? = nil
     var onOriginalGeneratorSignal: ((String, Float) -> Void)? = nil
     var onOriginalPowerPlugTap: ((String) -> Void)? = nil
     var onOriginalSwitchToggle: ((String, Bool) -> Void)? = nil
@@ -388,6 +389,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.fourthLevelRun = CMOriginalFourthLevelRun(document: document)
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
+        context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
         context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal
         if experimentalPhysics {
             context.coordinator.session?.start()
@@ -481,6 +483,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalBucketCapture = onOriginalBucketCapture
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
+        context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
         context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal
         context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
         context.coordinator.onCanUndoPlacementChange = onCanUndoPlacementChange
@@ -559,8 +562,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var fourthBallCaptured = false
         private var motorRotorObjectIDs = Set<String>()
         private var generatorIDByRotorID: [String: String] = [:]
+        private var disrupterIDByWheelID: [String: String] = [:]
+        private var lastDisrupterConduction: [String: Bool] = [:]
         private var lastGeneratorScalars: [String: Float] = [:]
         private var lastGeneratorPollTime: TimeInterval = 0
+        var onOriginalDisrupterAngle: ((String, Float) -> Void)?
         var onOriginalGeneratorSignal: ((String, Float) -> Void)?
         private var axleObjectIDs = Set<String>()
         // Authentic PC conveyor children are linked through their scene-graph
@@ -718,6 +724,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             switchLeverRestAngles.removeAll()
             flippedSwitchIDs.removeAll()
             generatorIDByRotorID.removeAll()
+            disrupterIDByWheelID.removeAll()
+            lastDisrupterConduction.removeAll()
             lastGeneratorScalars.removeAll()
             lastGeneratorPollTime = 0
             fourthBallCaptured = false
@@ -747,6 +755,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                           originalTypesByID[parent] == "tmo_power_generator"
                     else { return nil }
                     return (rotor.id, parent)
+                }
+            )
+            // Read the EXACT original hierarchy. Never attach a disrupter
+            // to an arbitrary nearby gear by model name or proximity.
+            disrupterIDByWheelID = Dictionary(
+                uniqueKeysWithValues: originalObjects.compactMap {
+                    wheel -> (String, String)? in
+                    guard wheel.type == "tmo_power_disrupter_wheel",
+                          let owner = wheel.parentID,
+                          originalTypesByID[owner] == "tmo_power_disrupter"
+                    else { return nil }
+                    return (wheel.id, owner)
                 }
             )
             magneticSourceIDs = Set(originalObjects
@@ -886,6 +906,23 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // becomes a fictional constant electrical source.
             if time - lastGeneratorPollTime >= 0.16 {
                 lastGeneratorPollTime = time
+                // Win32 0x44CA59..0x44CAC8: the wheel angle modulo Pi is
+                // a power gate. Observe original imported 3D wheel rotation.
+                // This SceneKit Euler-Z mapping to Win32's +0xD0 scalar
+                // is approximate and is not a recovered torque constant.
+                for (wheelID, disrupterID) in disrupterIDByWheelID {
+                    guard let wheel = physicsNodesByObjectID[wheelID]?.first
+                    else { continue }
+                    let angle = wheel.presentation.eulerAngles.z
+                    let conducting = CMOriginalWindowsPowerDisrupter.conducts(
+                        rotorAngle: angle)
+                    guard lastDisrupterConduction[disrupterID] != conducting
+                    else { continue }
+                    lastDisrupterConduction[disrupterID] = conducting
+                    DispatchQueue.main.async { [weak self] in
+                        self?.onOriginalDisrupterAngle?(disrupterID, angle)
+                    }
+                }
                 for (rotorID, generatorID) in generatorIDByRotorID {
                     guard let node = physicsNodesByObjectID[rotorID]?.first,
                           let body = node.physicsBody, body.type == .dynamic

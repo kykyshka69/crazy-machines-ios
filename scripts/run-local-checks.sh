@@ -82,7 +82,7 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
 "$tmp/original-windows-win"
 # Validate original Win32 two-ended power cable: real terminals and switch isolation.
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
-  ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsPowerScalar.swift \
+  ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalWindowsPowerScalar.swift \
   tests/OriginalPowerCircuitSmoke.swift \
   -o "$tmp/original-power"
 "$tmp/original-power"
@@ -105,8 +105,15 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
 "$tmp/original-electrical-goals"
 # Genuine generator is a mechanism-driven source, not an always-on battery.
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
-  ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsPowerScalar.swift \
+  ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalWindowsPowerScalar.swift \
   tests/OriginalGeneratorCircuitSmoke.swift -o "$tmp/original-generator"
 "$tmp/original-generator"
+# Recovered Win32 0x44CA59..0x44CAC8 disrupter gate, not a static
+# always-on cable shortcut. Its wheel signal is orientation-dependent.
+swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
+  ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsPowerDisrupter.swift \
+  ios/CMOriginalWindowsPowerScalar.swift \
+  tests/OriginalWindowsPowerDisrupterSmoke.swift -o "$tmp/original-disrupter"
+"$tmp/original-disrupter"
 python3 -m unittest discover -s tools -p 'test_*.py'
 echo "Portable checks passed. iOS simulator build still requires Xcode/macOS."

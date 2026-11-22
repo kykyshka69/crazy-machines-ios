@@ -269,9 +269,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify original plug ownership, wire pairing, switch isolation
         run: |
-          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsPowerScalar.swift tests/OriginalPowerCircuitSmoke.swift -o /tmp/cm-original-power
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalWindowsPowerScalar.swift tests/OriginalPowerCircuitSmoke.swift -o /tmp/cm-original-power
           /tmp/cm-original-power
-          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsPowerScalar.swift tests/OriginalGeneratorCircuitSmoke.swift -o /tmp/cm-original-generator
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalWindowsPowerScalar.swift tests/OriginalGeneratorCircuitSmoke.swift -o /tmp/cm-original-generator
           /tmp/cm-original-generator
 
   original-vsc-runtime:
@@ -295,3 +295,13 @@ jobs:
           /tmp/cm-win-power-scalar
           swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsElectricalGoals.swift tests/OriginalWindowsElectricalGoalsSmoke.swift -o /tmp/cm-win-electrical-goals
           /tmp/cm-win-electrical-goals
+
+  original-win32-disrupter-circuit-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify original Win32 power-disrupter rotor phase and circuit gate
+        run: |
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalWindowsPowerScalar.swift tests/OriginalWindowsPowerDisrupterSmoke.swift -o /tmp/cm-original-disrupter
+          /tmp/cm-original-disrupter
+          python3 -m unittest discover -s tools -p 'test_audit_windows_disrupter.py'
