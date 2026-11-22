@@ -305,6 +305,39 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         )
     }
 
+    func testFourthOriginalLevelCanToggleMagnetFrom3DViewport() {
+        // The fourth scene uses copyright-free original-format UCM pieces,
+        // not the user's private original PC artwork. This proves actual
+        // SwiftUI -> SceneKit magnet switch wiring on iPhone Simulator.
+        let app = XCUIApplication()
+        app.launchArguments = ["--cm-ci-install-linked-zone-fixture"]
+        app.launch()
+        let play = app.buttons["cm.menu.play"]
+        XCTAssertTrue(play.waitForExistence(timeout: 25))
+        play.tap()
+        let next = app.buttons["cm.original.quickplay-next"]
+        XCTAssertTrue(next.waitForExistence(timeout: 15))
+        for index in 2...4 {
+            next.tap()
+            XCTAssertTrue(app.staticTexts[
+                "Original level \(index): CM synthetic CI level \(index)"
+            ].waitForExistence(timeout: 20))
+        }
+        let physics = app.switches["cm.original.quickplay-physics"]
+        XCTAssertTrue(physics.waitForExistence(timeout: 10))
+        physics.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertEqual(physics.value as? String, "1")
+        let magnet = app.buttons["cm.original.magnetism-viewport"]
+        XCTAssertTrue(magnet.waitForExistence(timeout: 10),
+                      "Level 4 must expose an always-visible magnet control")
+        XCTAssertEqual(magnet.label, "Enable experimental magnet attraction")
+        magnet.tap()
+        XCTAssertEqual(magnet.label, "Disable experimental magnet attraction")
+        attachScreenshot(app, named: "07-experimental-magnet-3D-viewport")
+        magnet.tap()
+        XCTAssertEqual(magnet.label, "Enable experimental magnet attraction")
+    }
+
     func testContinueRestoresLastOpenedOriginalLevel() {
         // Production Play always starts level one. The independent Continue
         // action must restore an authentic index after app termination.

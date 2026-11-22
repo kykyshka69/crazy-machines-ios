@@ -278,6 +278,29 @@ enum CMOriginalCISimulatorFixture {
         document["index"] = 4
         document["title"] = "CM synthetic CI level 4"
         document["scene_sha256"] = String(repeating: "e", count: 64)
+        // Copyright-free original-format magnet + metal bucket, matching
+        // only the tmo_ categories/VALB roles of PC Professor level four.
+        // The positions and solid meshes below are synthetic CI fixtures.
+        guard var root = document["root"] as? [String: Any],
+              var objects = root["children"] as? [[String: Any]] else {
+            throw NSError(domain: "CMSyntheticScene", code: 5)
+        }
+        objects.append([
+            "name": "tmo_magnetic_permanent",
+            "fields": ["POS -1, 0, 0", "UNLOCKED 1", "VALB 64"],
+            "position": [-1.0, 0.0, 0.0],
+            "models": ["cm_ci_solid"],
+            "children": []
+        ])
+        objects.append([
+            "name": "tmo_bucket",
+            "fields": ["POS 0.6, 0, 0", "GOAL 1", "VALB 104"],
+            "position": [0.6, 0.0, 0.0],
+            "models": ["cm_ci_solid"],
+            "children": []
+        ])
+        root["children"] = objects
+        document["root"] = root
         return try JSONSerialization.data(
             withJSONObject: document, options: [.sortedKeys]
         )

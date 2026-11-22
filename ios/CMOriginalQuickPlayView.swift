@@ -259,6 +259,33 @@ struct CMOriginalQuickPlayView: View {
                 .accessibilityIdentifier("cm.original.quickplay-center-camera")
                 .padding(10)
             }
+            .overlay(alignment: .topTrailing) {
+                if experimentalPhysics && hasOriginalMagneticTargets {
+                    // PC level 4's magnet is a real movable original object.
+                    // Put its prototype field control over the viewport:
+                    // the lower diagnostic panel can be off-screen on iPhone.
+                    Button {
+                        experimentalMagnetism.toggle()
+                    } label: {
+                        Label(
+                            experimentalMagnetism ? "Magnet ON" : "Magnet OFF",
+                            systemImage: "magnet"
+                        )
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 8)
+                        .background(.regularMaterial, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("cm.original.magnetism-viewport")
+                    .accessibilityLabel(
+                        experimentalMagnetism
+                            ? "Disable experimental magnet attraction"
+                            : "Enable experimental magnet attraction"
+                    )
+                    .padding(10)
+                }
+            }
             .overlay(alignment: .topLeading) {
                 // The original goal must remain visible over the 3D board.
                 // The continue action must ALSO remain reachable when the
