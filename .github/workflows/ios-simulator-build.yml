@@ -41,6 +41,9 @@ jobs:
           # The helper queries devices once in JSON. Avoid an extra
           # unbounded global simctl list on overburdened macOS runners.
           # Each bootstatus attempt is bounded; a second iPhone is tried.
+          # Reuse the iPhone 17 Pro model proven by previous successful
+          # GitHub Actions UI screenshots; fall back if unavailable.
+          export CM_SIMULATOR_PREFERRED_NAME="iPhone 17 Pro"
           DEVICE_ID="$(python3 tools/boot_iphone_simulator_ci.py)"
           test -n "$DEVICE_ID"
           echo "Booted iPhone Simulator: $DEVICE_ID"

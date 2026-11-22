@@ -1,7 +1,9 @@
 """Boot helper regression tests requiring no Apple SDK or simulator."""
 import json
+import os
 import subprocess
 import unittest
+from unittest.mock import patch
 
 from boot_iphone_simulator_ci import (
     SimulatorBootError, boot_iphone, execute, iphone_candidates,
@@ -111,6 +113,27 @@ class SimulatorCIRegression(unittest.TestCase):
         runner = FakeSimulator(make_devices(("iPhone 17", "other", "Booted", True)))
         with self.assertRaisesRegex(SimulatorBootError, "requested iPhone"):
             boot_iphone(runner=runner, preferred_udid="missing")
+
+    def test_prefers_recent_verified_iphone_without_displacing_booted(self):
+        # The macOS CI runner exposes iPhone 16e, 17 and 17 Pro in
+        # alphabetical order. A specified preferred model should be tried
+        # first; an already booted phone still wins to avoid extra boots.
+        runner = FakeSimulator(make_devices(
+            ("iPhone 16e", "slow", "Shutdown", True),
+            ("iPhone 17 Pro", "preferred", "Shutdown", True)
+        ))
+        with patch.dict(os.environ, {"CM_SIMULATOR_PREFERRED_NAME": "iPhone 17 Pro"}):
+            self.assertEqual(boot_iphone(runner=runner), "preferred")
+        boot_calls = [argv[3] for argv, _ in runner.calls if argv[2] == "boot"]
+        self.assertEqual(boot_calls, ["preferred"])
+
+        booted = FakeSimulator(make_devices(
+            ("iPhone 16e", "already", "Booted", True),
+            ("iPhone 17 Pro", "preferred", "Shutdown", True)
+        ))
+        with patch.dict(os.environ, {"CM_SIMULATOR_PREFERRED_NAME": "iPhone 17 Pro"}):
+            self.assertEqual(boot_iphone(runner=booted), "already")
+        self.assertFalse(any(argv[2] == "boot" for argv, _ in booted.calls))
 
     def test_no_phones_is_explicit_error(self):
         runner = FakeSimulator(make_devices(("iPad", "ipad", "Shutdown", True)))

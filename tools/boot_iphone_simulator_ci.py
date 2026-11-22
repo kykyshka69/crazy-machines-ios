@@ -65,6 +65,17 @@ def boot_iphone(*, runner=subprocess.run, max_attempts=2,
         if not candidates:
             raise SimulatorBootError(
                 "requested iPhone Simulator is not available: " + requested)
+    # Hosted macOS images may expose many simulator models and runtimes.
+    # Alphabetical selection previously attempted iPhone 16e first and
+    # wasted a full boot timeout before reaching an iPhone 17. Prefer the
+    # same model used in the last confirmed successful iPhone UI run.
+    # Reuse any already Booted iPhone first, regardless of model.
+    preferred_name = os.environ.get("CM_SIMULATOR_PREFERRED_NAME")
+    if preferred_name and not requested:
+        candidates.sort(key=lambda entry: (
+            entry[2] != "Booted", entry[1] != preferred_name,
+            entry[1], entry[0]
+        ))
     errors = []
     for udid, name, state in candidates[:max_attempts]:
         print("Starting %s (%s, %s)" % (name, udid, state), file=sys.stderr)
