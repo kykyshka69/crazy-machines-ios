@@ -65,6 +65,10 @@ swiftc ios/CMOriginalMagneticAttraction.swift tests/OriginalMagneticAttractionSm
 swiftc ios/CMOriginalWindowsCatchRadius.swift tests/OriginalWindowsCatchRadiusSmoke.swift \
   -o "$tmp/original-win32-catch-radius"
 "$tmp/original-win32-catch-radius"
+# Open tapered original rope-cage: convex hull would form a false lid.
+swiftc ios/CMOriginalCageCollisionProxy.swift \
+  tests/OriginalCageCollisionProxySmoke.swift -o "$tmp/original-rope-cage"
+"$tmp/original-rope-cage"
 # Build actual level-four container collider from measured original UCM bounds.
 swiftc ios/CMOriginalBucketCollisionProxy.swift tests/OriginalBucketCollisionProxySmoke.swift -o "$tmp/original-bucket"
 "$tmp/original-bucket"

@@ -236,6 +236,15 @@ jobs:
           swiftc ios/CMOriginalWindowsCatchRadius.swift tests/OriginalWindowsCatchRadiusSmoke.swift -o /tmp/cm-win32-catch-radius
           /tmp/cm-win32-catch-radius
 
+  original-rope-cage-collision-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify measured UCM tapered cage sides and open top
+        run: |
+          swiftc ios/CMOriginalCageCollisionProxy.swift tests/OriginalCageCollisionProxySmoke.swift -o /tmp/cm-original-rope-cage
+          /tmp/cm-original-rope-cage
+
   original-bucket-collision-runtime:
     runs-on: ubuntu-latest
     steps:
