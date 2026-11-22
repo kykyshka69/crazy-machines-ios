@@ -6,6 +6,7 @@ import SwiftUI
 struct CMOriginalQuickPlayView: View {
     let assetDirectory: URL
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @AppStorage("cm.original.last-played-level") private var lastPlayedOriginalLevel = 1
     @State private var document: CMOriginalSceneDocument
     // Decode the original hierarchy once per loaded level. SwiftUI
     // recomputes these properties on every physics/status update; rebuilding
@@ -632,6 +633,12 @@ struct CMOriginalQuickPlayView: View {
             .accessibilityIdentifier("cm.original.quickplay-controls")
         }
         .navigationTitle("Crazy Machines")
+        .onAppear {
+            lastPlayedOriginalLevel = document.index
+        }
+        .onChange(of: document.index) { _, newIndex in
+            lastPlayedOriginalLevel = newIndex
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .navigationDestination(isPresented: $showAllLevels) {

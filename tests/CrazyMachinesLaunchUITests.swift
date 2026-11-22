@@ -305,6 +305,44 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         )
     }
 
+    func testContinueRestoresLastOpenedOriginalLevel() {
+        // Production Play always starts level one. The independent Continue
+        // action must restore an authentic index after app termination.
+        // Only copyright-free original-format CI levels are used here.
+        let app = XCUIApplication()
+        app.launchArguments = ["--cm-ci-install-linked-zone-fixture"]
+        app.launch()
+        let play = app.buttons["cm.menu.play"]
+        XCTAssertTrue(play.waitForExistence(timeout: 25))
+        play.tap()
+        let first = app.staticTexts["Original level 1: CM synthetic CI linked zone"]
+        XCTAssertTrue(first.waitForExistence(timeout: 20))
+        let next = app.buttons["cm.original.quickplay-next"]
+        XCTAssertTrue(next.waitForExistence(timeout: 10))
+        next.tap()
+        XCTAssertTrue(
+            app.staticTexts["Original level 2: CM synthetic CI level 2"]
+                .waitForExistence(timeout: 20),
+            "Original level 2 must open before testing app relaunch"
+        )
+        app.terminate()
+        // Keep the generated fixtures on disk, as a real installed owner
+        // pack remains on disk across launches. No CI import flag on resume.
+        app.launchArguments = []
+        app.launch()
+        let resume = app.buttons["cm.menu.continue"]
+        XCTAssertTrue(resume.waitForExistence(timeout: 20),
+                      "Continue must be offered for the last opened level")
+        XCTAssertTrue(resume.label.contains("2"),
+                      "Continue must name the original level being restored")
+        resume.tap()
+        XCTAssertTrue(
+            app.staticTexts["Original level 2: CM synthetic CI level 2"]
+                .waitForExistence(timeout: 20),
+            "Continue did not reopen the stored original level"
+        )
+    }
+
     func testPrivateAll102OriginalLevelsWhenOptedIn() throws {
         // LOCAL-ONLY, with the user's private .cmassets pack bundled into
         // the iOS app on their Mac. Public GitHub runners never receive it.

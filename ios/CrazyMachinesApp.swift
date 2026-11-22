@@ -44,6 +44,9 @@ private struct CMGameHomeView: View {
         return true
     }
 
+    // The authentic PC level selection survives app restarts, but Play
+    // continues to open level 1 for reproducible private test captures.
+    @AppStorage("cm.original.last-played-level") private var lastPlayedOriginalLevel = 1
     @State private var openingOriginalLevel = false
     @State private var showLevels = false
     @State private var quickPlaySelection: OriginalQuickPlaySelection?
@@ -64,12 +67,14 @@ private struct CMGameHomeView: View {
     /// Play should not synchronously parse every original UCM on the
     /// SwiftUI thread. Genuine imported level 1 can reference dozens of
     /// files, and its full integrity audit is intentionally strict.
-    private func openOriginalLevelFromPlay() {
-        guard !openingOriginalLevel, !installingBundledOriginalAssets else { return }
+    private func openOriginalLevelFromPlay(index: Int = 1) {
+        guard !openingOriginalLevel, !installingBundledOriginalAssets,
+              (1...102).contains(index) else { return }
         openingOriginalLevel = true
         let sceneURL = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("OriginalScenes/level-001.json")
+            .appendingPathComponent("OriginalScenes", isDirectory: true)
+            .appendingPathComponent(String(format: "level-%03d.json", index))
         let models = assetDirectory
         Task { @MainActor in
             // Pass only sendable bytes back to the UI. Validate the real
@@ -77,7 +82,8 @@ private struct CMGameHomeView: View {
             // the small JSON once more to present the verified level.
             let approved = await Task.detached(priority: .userInitiated) { () -> Data? in
                 guard let data = try? Data(contentsOf: sceneURL),
-                      let document = try? CMOriginalSceneDocument.read(data) else { return nil }
+                      let document = try? CMOriginalSceneDocument.read(data),
+                      document.index == index else { return nil }
                 let names = CMOriginalModelResolver.allModelNames(in: document.root)
                 guard CMOriginalAssetAudit.inspect(
                     modelNames: names, directory: models
@@ -86,7 +92,8 @@ private struct CMGameHomeView: View {
             }.value
             openingOriginalLevel = false
             if let approved,
-               let document = try? CMOriginalSceneDocument.read(approved) {
+               let document = try? CMOriginalSceneDocument.read(approved),
+               document.index == index {
                 quickPlaySelection = OriginalQuickPlaySelection(document: document)
             } else {
                 // Missing or invalid private assets still route to the
@@ -263,6 +270,24 @@ private struct CMGameHomeView: View {
                     .tint(.orange)
                     .accessibilityIdentifier("cm.menu.play")
                     .disabled(installingBundledOriginalAssets || openingOriginalLevel)
+
+                    // Unlike Play, Continue returns to the last genuinely
+                    // opened original scene after relaunching the iPhone app.
+                    // Do not claim that the puzzle was solved.
+                    if (2...102).contains(lastPlayedOriginalLevel) {
+                        Button {
+                            openOriginalLevelFromPlay(index: lastPlayedOriginalLevel)
+                        } label: {
+                            Label("Continue level \(lastPlayedOriginalLevel)",
+                                  systemImage: "arrow.uturn.forward")
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.white)
+                        .accessibilityIdentifier("cm.menu.continue")
+                        .disabled(installingBundledOriginalAssets || openingOriginalLevel)
+                    }
 
                     Button {
                         showResources = true
