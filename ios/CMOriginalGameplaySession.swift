@@ -41,6 +41,27 @@ public struct CMOriginalGameplaySession {
     // exact 0 or 1 scalar in the original element +0xEC. This source
     // state is separate from its native light-ray orientation and GOAL.
     public private(set) var originalPocketLampStates: [String: Bool] = [:]
+    // Native 0x4349A0..0x434A20: tmo_candle, tmo_candle_dyn and
+    // tmo_heat_blowtorch user click stores exact 0 or 1 at +0xEC.
+    // It is not itself proof of ignition, heat transfer, or GOAL.
+    public private(set) var originalHeatSourceStates: [String: Bool] = [:]
+
+    private static func isUserOperatedHeatSource(_ type: String) -> Bool {
+        type == "tmo_candle" || type == "tmo_candle_dyn"
+            || type == "tmo_heat_blowtorch"
+    }
+
+    private var authoredHeatSourceStates: [String: Bool] {
+        Dictionary(uniqueKeysWithValues: objects.compactMap {
+            object -> (String, Bool)? in
+            guard Self.isUserOperatedHeatSource(object.type),
+                  let raw = object.fields["VALF"]?.first,
+                  let initial = Float(raw.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                  )), initial == 1 else { return nil }
+            return (object.id, true)
+        })
+    }
 
     /// The owner's original level 92 has VALF 1.000000 on one genuine
     /// tmo_light_pocketlamp. Retain that authored starting source state,
@@ -66,6 +87,30 @@ public struct CMOriginalGameplaySession {
     /// between exact 0 and 1. It is a genuine light-source switch, not
     /// an inference from a nearby object or a fabricated solar ray.
     /// Native +0xF0 GOAL comparison remains a separate unverified input.
+    /// Win32 input handler 0x434903 first checks interaction flag 0x10,
+    /// then 0x4349A0 selects candles and blowtorches and flips +0xEC.
+    /// Native 0x434A56 compares +0xEC with +0xF0 to decide GOAL;
+    /// +0xF0 must be independently observed before crediting a puzzle.
+    @discardableResult
+    public mutating func toggleOriginalHeatSource(_ id: String) -> Bool? {
+        guard phase == .running,
+              let object = objects.first(where: { $0.id == id }),
+              Self.isUserOperatedHeatSource(object.type) else { return nil }
+        // User-authored VALB overrides take precedence over FSC defaults.
+        // All real click-enabled candle and blowtorch CML entries have
+        // their original interactive 0x10 bit set.
+        if let raw = object.fields["VALB"]?.first,
+           let bits = Int(raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+           bits & 0x10 == 0 { return nil }
+        let next = !(originalHeatSourceStates[id] ?? false)
+        if next {
+            originalHeatSourceStates[id] = true
+        } else {
+            originalHeatSourceStates.removeValue(forKey: id)
+        }
+        return next
+    }
+
     public mutating func toggleOriginalPocketLamp(_ id: String) -> Bool? {
         guard phase == .running,
               objects.contains(where: {
@@ -508,6 +553,7 @@ public struct CMOriginalGameplaySession {
         elapsedSimulationTime = 0
         originalSwitchStates.removeAll()
         originalPocketLampStates = authoredPocketLampStates
+        originalHeatSourceStates = authoredHeatSourceStates
         recentContacts.removeAll()
         contactCounts.removeAll()
         activations.removeAll()
@@ -541,6 +587,7 @@ public struct CMOriginalGameplaySession {
         elapsedSimulationTime = 0
         originalSwitchStates.removeAll()
         originalPocketLampStates = authoredPocketLampStates
+        originalHeatSourceStates = authoredHeatSourceStates
         recentContacts.removeAll()
         contactCounts.removeAll()
         activations.removeAll()

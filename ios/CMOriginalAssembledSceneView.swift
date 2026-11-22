@@ -631,6 +631,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // Real original pocketlamp glow TGA; owner toggles +0xEC from
         // exact 0 to 1 on native Win32 mouse activation (0x434ACA).
         private var originalPocketLampGlowNodes: [String: [SCNNode]] = [:]
+        // Imported original light_glow.tga candle sprites, per actual
+        // tmo_candle/tmo_candle_dyn owner (never shared across instances).
+        private var originalCandleGlowNodes: [String: [SCNNode]] = [:]
         // Each lightbulb has its own copied original UCM materials. Never
         // change the shared cross-level geometry cache or another lamp.
         private var originalLampBulbMaterials: [String: [SCNMaterial]] = [:]
@@ -857,6 +860,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             originalAmmeterNeedles.removeAll()
             originalAmmeterRestAngles.removeAll()
             originalPocketLampGlowNodes.removeAll()
+            originalCandleGlowNodes.removeAll()
             originalLampBulbMaterials.removeAll()
             originalLampGlowNodes.removeAll()
             originalLampDiffuseIntensity.removeAll()
@@ -980,6 +984,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
             )
             scene.rootNode.enumerateChildNodes { node, _ in
+                if node.name == "original-effect-glow-to_candle_glow",
+                   let heatID = self.owningOriginalObjectID(for: node),
+                   ["tmo_candle", "tmo_candle_dyn"].contains(
+                       self.originalTypesByID[heatID] ?? ""
+                   ) {
+                    self.originalCandleGlowNodes[heatID, default: []].append(node)
+                    node.opacity = self.session?
+                        .originalHeatSourceStates[heatID] == true ? 1 : 0
+                }
                 if node.name == "original-effect-glow-to_light_pocketlamp_glow",
                    let pocketlampID = self.owningOriginalObjectID(for: node),
                    self.originalTypesByID[pocketlampID] == "tmo_light_pocketlamp" {
@@ -2282,6 +2295,25 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             return true
         }
 
+        /// The authentic PC click handler toggles real candle or
+        /// blowtorch +0xEC from 0 to 1 and back. It then separately
+        /// compares +0xEC with +0xF0 before a native GOAL callback.
+        /// Visual flames respond, but unknown heat transport and GOAL
+        /// conditions remain disabled instead of being fabricated.
+        private func flipOriginalHeatSource(_ node: SCNNode?) -> Bool {
+            guard let id = owningOriginalObjectID(for: node) else {
+                return false
+            }
+            sessionLock.lock()
+            let next = session?.toggleOriginalHeatSource(id)
+            sessionLock.unlock()
+            guard let isOn = next else { return false }
+            for sprite in originalCandleGlowNodes[id] ?? [] {
+                sprite.opacity = isOn ? 1 : 0
+            }
+            return true
+        }
+
         @objc func selectObject(_ gesture: UITapGestureRecognizer) {
             guard let view = gesture.view as? SCNView,
                   gesture.state == .ended, !dragWasActive else { return }
@@ -2303,6 +2335,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // keeping the unrecovered electric circuit disconnected.
                 if flipOriginalPowerSwitch(node) { return }
                 if flipOriginalPocketLamp(node) { return }
+                if flipOriginalHeatSource(node) { return }
                 // The PC player cannot kick balls by tapping them after
                 // starting the machine; allow this only in diagnostic mode.
                 guard diagnosticTapImpulses else { return }

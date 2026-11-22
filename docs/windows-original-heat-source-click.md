@@ -1,0 +1,7 @@
+# Authentic Windows candle and blowtorch user interaction (0x4349A0)
+
+Recovered from the owner's SHA-256-verified original CrazyMachines.exe (SHA-256 51f9beecd9842c67834da9c4fc73be7a1452c9e8149d059729b130a2b9d601e6).
+
+At 0x434903 the native player click checks object interaction flag bit 0x10 in the object's +0x188 byte and rejects noninteractive elements. At 0x4349A0 the Windows handler handles the original tmo_candle family (including the dynamic tmo_candle_dyn prefix) and tmo_heat_blowtorch. At 0x4349EF..0x434A20, the source +0xEC is toggled exactly 0 to 1 or 1 to 0. The selected native heat visual or pump component +0xFC is then written at 0x434A20..0x434A44. At 0x434A50..0x434A76, the native engine separately compares the source +0xEC with its internal +0xF0 before calling GOAL: **the iOS source toggle alone must never credit the level.**
+
+This change wires genuine click state into the iOS imported CML scene. Original per-instance VALF 1 means active when the scene begins or resets. The authentic light_glow.tga billboard on to_candle_glow now responds on/off per original candle object; blowtorch state is tracked independently even when it has no billboard. No source heat emission, pressure, ignition spread, false GOAL, or Windows callback is manufactured. At least seven real GOAL-marked candles, one dynamic candle and two blowtorches exist across 102 original level exports; their Win32 physical GOAL semantics beyond this direct UI state still need completion. 

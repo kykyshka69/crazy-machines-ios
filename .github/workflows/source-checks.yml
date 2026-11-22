@@ -373,6 +373,15 @@ jobs:
           swiftc ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsSteamWhistle.swift tests/OriginalWindowsSteamWhistleSmoke.swift -o /tmp/cm-win32-whistle
           /tmp/cm-win32-whistle
 
+  original-win32-clickable-heat-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify real candle and blowtorch click state and starting VALF
+        run: |
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift tests/OriginalWindowsHeatSourceSwitchSmoke.swift -o /tmp/cm-win-heat-switch
+          /tmp/cm-win-heat-switch
+
   original-win32-pocketlamp-switch:
     runs-on: ubuntu-latest
     steps:

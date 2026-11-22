@@ -157,6 +157,10 @@ python3 -m unittest discover -s tools -p 'test_audit_windows_goal_calls.py'
 swiftc ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsSteamWhistle.swift \
   tests/OriginalWindowsSteamWhistleSmoke.swift -o "$tmp/original-whistle-goal"
 "$tmp/original-whistle-goal"
+# Original Win32 candle/dynamic-candle/blowtorch click +0xEC and VALF state.
+swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
+  tests/OriginalWindowsHeatSourceSwitchSmoke.swift -o "$tmp/original-heat-source-click"
+"$tmp/original-heat-source-click"
 # Original native pocketlamp click toggles +0xEC; never invent beam/GOAL.
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   tests/OriginalWindowsPocketLampStateSmoke.swift -o "$tmp/original-pocketlamp-click"
