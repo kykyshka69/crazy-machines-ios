@@ -150,6 +150,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // PC level (not only tmo_zone targets). This is observation, not victory.
     var onOriginalConnectionContact: ((String, String) -> Void)? = nil
     var onOriginalBucketCapture: ((String, String) -> Void)? = nil
+    var onOriginalCageCapture: ((String, String) -> Void)? = nil
     // Reports a user-operated original PC power switch. This changes its
     // actual lever mesh, NOT the unrecovered electrical connectivity.
     var onOriginalDisrupterAngle: ((String, Float) -> Void)? = nil
@@ -395,6 +396,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onLinkedZoneContact = onLinkedZoneContact
         context.coordinator.onOriginalConnectionContact = onOriginalConnectionContact
         context.coordinator.onOriginalBucketCapture = onOriginalBucketCapture
+        context.coordinator.onOriginalCageCapture = onOriginalCageCapture
         context.coordinator.fourthLevelRun = CMOriginalFourthLevelRun(document: document)
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
@@ -493,6 +495,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onLinkedZoneContact = onLinkedZoneContact
         context.coordinator.onOriginalConnectionContact = onOriginalConnectionContact
         context.coordinator.onOriginalBucketCapture = onOriginalBucketCapture
+        context.coordinator.onOriginalCageCapture = onOriginalCageCapture
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
         context.coordinator.onOriginalOpticalSightlines = onOriginalOpticalSightlines
@@ -575,14 +578,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var magneticTargetIDs = Set<String>()
         var fourthLevelRun: CMOriginalFourthLevelRun?
         var onOriginalBucketCapture: ((String, String) -> Void)?
+        var onOriginalCageCapture: ((String, String) -> Void)?
         // Win32 0x44D874..0x44D9A2 checks actual GOAL-marked
         // tmo_bucket objects against tmo_ball_ objects, not only puzzle 4.
         // Retain authentic UCM mesh identities for geometry containment.
-        private var goalBucketMeshes: [String: CMOriginalObjectMeshNode] = [:]
+        // Native 0x44D874..0x44D9A2 uses both GOAL tmo_bucket and
+        // GOAL tmo_rope_cage with a tmo_ball_* source. Original CML
+        // contains to_dummy_bounding at the authored Catch/Test point.
+        private var catchGoalMarkerMeshes: [String: CMOriginalObjectMeshNode] = [:]
         private var originalBallMeshes: [String: CMOriginalObjectMeshNode] = [:]
-        private var bucketGoalIDs = Set<String>()
+        private var catchGoalKindsByID: [String: String] = [:]
         private var ballObjectIDs = Set<String>()
-        private var capturedGoalBucketIDs = Set<String>()
+        private var capturedCatchGoalIDs = Set<String>()
         private var motorRotorObjectIDs = Set<String>()
         private var generatorIDByRotorID: [String: String] = [:]
         private var disrupterIDByWheelID: [String: String] = [:]
@@ -818,19 +825,23 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             lastDisrupterConduction.removeAll()
             lastGeneratorScalars.removeAll()
             lastGeneratorPollTime = 0
-            goalBucketMeshes.removeAll()
+            catchGoalMarkerMeshes.removeAll()
             originalBallMeshes.removeAll()
-            bucketGoalIDs.removeAll()
+            catchGoalKindsByID.removeAll()
             ballObjectIDs.removeAll()
-            capturedGoalBucketIDs.removeAll()
+            capturedCatchGoalIDs.removeAll()
             let originalObjects = session?.objects ?? []
-            bucketGoalIDs = Set(originalObjects.compactMap { object in
-                guard object.type == "tmo_bucket",
-                      let raw = object.fields["GOAL"]?.first,
-                      let mark = Int(raw.trimmingCharacters(in: .whitespacesAndNewlines)),
-                      mark != 0 else { return nil }
-                return object.id
-            })
+            catchGoalKindsByID = Dictionary(uniqueKeysWithValues:
+                originalObjects.compactMap { object -> (String, String)? in
+                    guard object.type == "tmo_bucket"
+                        || object.type == "tmo_rope_cage",
+                          let raw = object.fields["GOAL"]?.first,
+                          let mark = Int(raw.trimmingCharacters(
+                              in: .whitespacesAndNewlines
+                          )), mark != 0 else { return nil }
+                    return (object.id, object.type)
+                }
+            )
             ballObjectIDs = Set(originalObjects.filter {
                 $0.type.hasPrefix("tmo_ball_")
             }.map(\.id))
@@ -955,9 +966,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
                 if let mesh = node as? CMOriginalObjectMeshNode,
                    let id = mesh.originalObjectID {
-                    if self.bucketGoalIDs.contains(id),
-                       mesh.name?.lowercased() == "to_bucket" {
-                        self.goalBucketMeshes[id] = mesh
+                    if self.catchGoalKindsByID[id] != nil,
+                       mesh.name?.lowercased() == "to_dummy_bounding" {
+                        self.catchGoalMarkerMeshes[id] = mesh
                     }
                     if self.ballObjectIDs.contains(id),
                        mesh.name?.lowercased().hasPrefix("to_ball_") == true {
@@ -1295,72 +1306,48 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             sessionLock.unlock()
             guard running else { return }
 
-            // The authentic Win32 GOAL dispatcher reaches tmo_bucket from
-            // a tmo_ball_ search (0x44D874..0x44D9A2). Level 4 was the
-            // first imported geometry demonstration, but the owner has
-            // seven GOAL buckets across all 102 PC scenes. Use real
-            // to_bucket and to_ball_* UCM meshes on every relevant level.
-            //
-            // Win32's internal helper transform comparison at 0x44D97B
-            // has not yet been completely mapped to iOS; containment
-            // via the original UCM bounds is an explicitly experimental
-            // physical proxy, not a claimed identical Windows trigger.
-            for (bucketID, bucketMesh) in goalBucketMeshes {
-                guard !capturedGoalBucketIDs.contains(bucketID) else {
-                    continue
-                }
-                let (low, high) = bucketMesh.boundingBox
-                guard let panels = CMOriginalBucketCollisionProxy.panels(
-                    low: [low.x, low.y, low.z],
-                    high: [high.x, high.y, high.z]
-                ) else { continue }
-
+            // Unlike the former experimental full-ball-in-bucket proxy,
+            // native Win32 0x44D97B computes distance between the ball
+            // and the authentic Test/Catch target at +0x24, with the
+            // STRICT x87 cutoff 0.1 at 0x44D98F. Both tmo_bucket and
+            // tmo_rope_cage use this goal path. The original authored
+            // to_dummy_bounding marker is the iOS adapter for that target.
+            // Its correspondence to the native helper transform still
+            // requires full cross-engine positional validation.
+            for (goalID, markerMesh) in catchGoalMarkerMeshes.sorted(
+                by: { $0.key < $1.key }
+            ) {
+                guard !capturedCatchGoalIDs.contains(goalID),
+                      let kind = catchGoalKindsByID[goalID] else { continue }
+                let markerWorld = markerMesh.presentation.worldPosition
                 for (ballID, ballMesh) in originalBallMeshes.sorted(
                     by: { $0.key < $1.key }
                 ) {
                     guard physicsNodesByObjectID[ballID]?.first?
-                            .physicsBody?.type == .dynamic else { continue }
-                    let (ballLow, ballHigh) = ballMesh.boundingBox
-                    let ballCenter = SCNVector3(
-                        (ballLow.x + ballHigh.x) * 0.5,
-                        (ballLow.y + ballHigh.y) * 0.5,
-                        (ballLow.z + ballHigh.z) * 0.5
+                        .physicsBody?.type == .dynamic else { continue }
+                    let (low, high) = ballMesh.boundingBox
+                    let localCenter = SCNVector3(
+                        (low.x + high.x) * 0.5,
+                        (low.y + high.y) * 0.5,
+                        (low.z + high.z) * 0.5
                     )
-                    // Transform the actual moving ball in the bucket's
-                    // coordinate system. A non-uniformly scaled or rotated
-                    // UCM must not score with an untransformed radius.
-                    let ballPosition = bucketMesh.presentation.convertPosition(
-                        ballMesh.presentation.convertPosition(ballCenter, to: nil),
-                        from: nil
+                    let ballWorld = ballMesh.presentation.convertPosition(
+                        localCenter, to: nil
                     )
-                    let ballRadiusX = bucketMesh.presentation.convertVector(
-                        SCNVector3((ballHigh.x - ballLow.x) * 0.5, 0, 0),
-                        from: ballMesh.presentation
-                    )
-                    let ballRadiusY = bucketMesh.presentation.convertVector(
-                        SCNVector3(0, (ballHigh.y - ballLow.y) * 0.5, 0),
-                        from: ballMesh.presentation
-                    )
-                    let radiusX = sqrt(
-                        ballRadiusX.x * ballRadiusX.x
-                        + ballRadiusX.y * ballRadiusX.y
-                    )
-                    let radiusY = sqrt(
-                        ballRadiusY.x * ballRadiusY.x
-                        + ballRadiusY.y * ballRadiusY.y
-                    )
-                    let radius = max(radiusX, radiusY)
-                    guard CMOriginalBucketCollisionProxy.containsBall(
-                        x: ballPosition.x, y: ballPosition.y,
-                        radius: radius, panels: panels
+                    guard CMOriginalWindowsCatchRadius.withinGoalRadius(
+                        ballX: ballWorld.x, ballY: ballWorld.y,
+                        ballZ: ballWorld.z, targetX: markerWorld.x,
+                        targetY: markerWorld.y, targetZ: markerWorld.z
                     ) else { continue }
-
-                    capturedGoalBucketIDs.insert(bucketID)
+                    capturedCatchGoalIDs.insert(goalID)
                     DispatchQueue.main.async { [weak self] in
-                        self?.onOriginalBucketCapture?(ballID, bucketID)
+                        if kind == "tmo_bucket" {
+                            self?.onOriginalBucketCapture?(ballID, goalID)
+                        } else {
+                            self?.onOriginalCageCapture?(ballID, goalID)
+                        }
                     }
-                    // A single original GOAL bucket contributes one
-                    // Win32 channel-0 latch, not a new GOAL for every ball.
+                    // A container GOAL latches once, not for every ball.
                     break
                 }
             }
