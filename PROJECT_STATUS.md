@@ -12,6 +12,20 @@ Do not resume two independent CML/SceneKit implementations.
 — passed. This includes the new UCM integrity smoke and screenshot-selector
 regressions. The macOS `iOS simulator build` job has now **successfully completed its Xcode compilation** for the iPhone Simulator (GitHub run `44993963653`, job `137120900299`, step `Build for iOS Simulator without signing`: success). Simulator boot/launch, UI tests and screenshot artifacts were **not yet confirmed** at this review. This is **not** a genuine original level-one screenshot.
 
+## Confirmed iPhone 17 Pro SceneKit UI screenshots and private-pack readiness (2026-11-22)
+
+**Runtime evidence from macOS GitHub Actions run `44993963653`, job `137120900299`: SUCCESS.** Real Xcode compilation, iPhone **17 Pro** simulator boot, app launch, and UI navigation/SceneKit tests passed. XCTest log reports **6 executed, 5 passed, 1 deliberately skipped, 0 failures**. The skipped test was `testPrivateOriginalLevelOneWhenOptedIn`, because licensed original PC game resources are not present on public CI.
+
+**Actual extracted Simulator screenshots**, artifact `CrazyMachinesIOS-ui-screenshots` ID `14743416604`: `05-imported-original-3D-SceneKit-fixture` demonstrates the original UCM-loading/SceneKit path rendering a visible **synthetic orange triangle** and cyan calibration sphere; `05b-running-3D-SceneKit-fixture` demonstrates that the same SceneKit scene remains visible with experimental physics switched on. These are **real simulator screenshots of the app, not screenshots of a real copyrighted Crazy Machines puzzle**. Public CI also provides menu, imported-scene browser, and file importer screenshots.
+
+**Player-facing fixes after that successful run** (require new Apple-SDK CI confirmation):
+- `0a466287`, `211c131c`: private `CrazyMachines_Original_102Levels.cmassets` now installs and validates **off the main thread**, preventing a lengthy 445-file import from freezing the initial iPhone UI. Play/Game files are disabled from the very first frame until installation completes; a ProgressView explains the work. The private simulator diagnostic is emitted only after installation finishes.
+- `d2d182c8`: genuine original level-one UI test now waits for the verified import before tapping Play rather than racing the background installation.
+- `4395d8ac`, `b7599a14`: bounded Simulator boot helper now honors a requested `CM_SIMULATOR_UDID` and has two additional synthetic regression tests.
+- `650e05d6`: private original level-one macOS capture script now reuses the bounded boot helper, preserves the requested iPhone target and cleans up **only** the proprietary `.cmassets` file it copied into the checkout; it never deletes a pre-existing user-owned pack.
+
+**Next required actual milestone:** run the private first-level test on macOS with a user-owned `CrazyMachines_Original_102Levels.cmassets`. Confirm 25+ original UCM mesh instances and review a genuine first original Professor level screenshot; this has **not** happened in public CI. Do not confuse synthetic triangle rendering with original puzzle rendering.
+
 ## Simulator startup reliability and direct work-branch CI (2026-11-22)
 
 - `6f54dded`: new `tools/boot_iphone_simulator_ci.py` selects a booted/available iPhone, limits blocking `simctl bootstatus` to 130 seconds per attempt and tries one additional iPhone rather than hanging forever.
