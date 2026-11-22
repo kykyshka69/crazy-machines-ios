@@ -324,6 +324,29 @@ struct CMOriginalQuickPlayView: View {
                         }
                     }
                     .padding(10)
+                } else {
+                    // Professor scenes beyond the three evidence-backed
+                    // prototypes also need an always-visible gameplay HUD.
+                    // Every value below is derived from the actual imported
+                    // CML scene and observed SceneKit contacts; none is a
+                    // guessed Windows victory condition.
+                    HStack(spacing: 7) {
+                        Image(systemName: experimentalPhysics
+                              ? "point.3.connected.trianglepath.dotted"
+                              : "hand.draw")
+                        Text(experimentalPhysics
+                             ? (originalConnections.isEmpty
+                                ? "Original objects: \(document.root.objectCount)"
+                                : "Linked contacts: \(matchedZoneLinks.count + matchedMechanismLinks.count)/\(originalConnections.count)")
+                             : "Movable original parts: \(originalEditablePartCount)")
+                            .monospacedDigit()
+                            .accessibilityIdentifier("cm.original.general-level-hud")
+                    }
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 8)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(10)
                 }
             }
 
