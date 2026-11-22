@@ -5,8 +5,14 @@ struct OriginalWindmillIdentitySmoke {
     static func main() throws {
         func part(_ kind: String, children: [[String: Any]] = [],
                   goal: Bool = false) -> [String: Any] {
-            ["name": kind, "fields": goal ? ["GOAL 1"] : [],
-             "children": children]
+            // The actual exporter preserves goal_raw separately from the
+            // original GOAL field; both must be included in a fixture.
+            var node: [String: Any] = [
+                "name": kind, "fields": goal ? ["GOAL 1"] : [],
+                "children": children
+            ]
+            if goal { node["goal_raw"] = "1" }
+            return node
         }
         let raw: [String: Any] = [
             "schema": "crazy-machines-original-scene-v1",
