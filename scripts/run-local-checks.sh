@@ -60,6 +60,12 @@ swiftc ios/CMOriginalPlacementHistory.swift tests/OriginalPlacementHistorySmoke.
 "$tmp/original-undo"
 swiftc ios/CMOriginalMagneticAttraction.swift tests/OriginalMagneticAttractionSmoke.swift -o "$tmp/original-magnet"
 "$tmp/original-magnet"
+# Original incoming CONNECTED_TO ball->bucket/cage target pairs MUST
+# wait for native Catch/Test, not a generic exterior-wall collision.
+swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
+  ios/CMOriginalContainerCatchLinks.swift tests/OriginalContainerCatchLinksSmoke.swift \
+  -o "$tmp/original-catch-links"
+"$tmp/original-catch-links"
 # Native Win32 0x44D9A2 GOAL tests STRICT distance < 0.1 for both
 # authentic tmo_bucket and tmo_rope_cage owner IDs.
 swiftc ios/CMOriginalWindowsCatchRadius.swift tests/OriginalWindowsCatchRadiusSmoke.swift \

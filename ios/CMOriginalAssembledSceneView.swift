@@ -600,6 +600,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var catchGoalMarkerMeshes: [String: CMOriginalObjectMeshNode] = [:]
         private var originalBallMeshes: [String: CMOriginalObjectMeshNode] = [:]
         private var catchGoalKindsByID: [String: String] = [:]
+        // A genuine CONNECTED_TO ball->bucket/cage is a Catch/Test
+        // delivery, NOT the ball brushing the outside of a wall.
+        private var linkedContainerSourcesByTarget: [String: Set<String>] = [:]
         private var ballObjectIDs = Set<String>()
         private var capturedCatchGoalIDs = Set<String>()
         private var motorRotorObjectIDs = Set<String>()
@@ -885,20 +888,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             catchGoalMarkerMeshes.removeAll()
             originalBallMeshes.removeAll()
             catchGoalKindsByID.removeAll()
+            linkedContainerSourcesByTarget.removeAll()
             ballObjectIDs.removeAll()
             capturedCatchGoalIDs.removeAll()
             let originalObjects = session?.objects ?? []
-            catchGoalKindsByID = Dictionary(uniqueKeysWithValues:
-                originalObjects.compactMap { object -> (String, String)? in
-                    guard object.type == "tmo_bucket"
-                        || object.type == "tmo_rope_cage",
-                          let raw = object.fields["GOAL"]?.first,
-                          let mark = Int(raw.trimmingCharacters(
-                              in: .whitespacesAndNewlines
-                          )), mark != 0 else { return nil }
-                    return (object.id, object.type)
-                }
-            )
+            if let runningSession = session {
+                let catchPlan = CMOriginalContainerCatchLinks(
+                    session: runningSession
+                )
+                catchGoalKindsByID = catchPlan.goalContainerKindsByID
+                linkedContainerSourcesByTarget =
+                    catchPlan.linkedSourcesByTargetID
+            }
             ballObjectIDs = Set(originalObjects.filter {
                 $0.type.hasPrefix("tmo_ball_")
             }.map(\.id))
@@ -1042,7 +1043,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
                 if let mesh = node as? CMOriginalObjectMeshNode,
                    let id = mesh.originalObjectID {
-                    if self.catchGoalKindsByID[id] != nil,
+                    if (self.catchGoalKindsByID[id] != nil
+                        || self.linkedContainerSourcesByTarget[id] != nil),
                        mesh.name?.lowercased() == "to_dummy_bounding" {
                         self.catchGoalMarkerMeshes[id] = mesh
                     }
@@ -1414,25 +1416,33 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             sessionLock.unlock()
             guard running else { return }
 
-            // Unlike the former experimental full-ball-in-bucket proxy,
-            // native Win32 0x44D97B computes distance between the ball
-            // and the authentic Test/Catch target at +0x24, with the
-            // STRICT x87 cutoff 0.1 at 0x44D98F. Both tmo_bucket and
-            // tmo_rope_cage use this goal path. The original authored
-            // to_dummy_bounding marker is the iOS adapter for that target.
-            // Its correspondence to the native helper transform still
-            // requires full cross-engine positional validation.
-            for (goalID, markerMesh) in catchGoalMarkerMeshes.sorted(
+            // Win32 0x44D874..0x44D9A2: actual ball center must approach
+            // the original target's Catch/Test helper at distance <0.1.
+            // This is true for a GOAL bucket/cage AND an original ball
+            // linked to a bucket/cage by CONNECTED_TO. A collision with
+            // the outside of a container is never equivalent to catching
+            // that ball. Ten authentic PC inputs use the latter channel.
+            //
+            // We continue sampling all balls even after a container's
+            // GOAL latches: another uniquely linked original ball may
+            // still need to reach the same Catch/Test point.
+            for (targetID, markerMesh) in catchGoalMarkerMeshes.sorted(
                 by: { $0.key < $1.key }
             ) {
-                guard !capturedCatchGoalIDs.contains(goalID),
-                      let kind = catchGoalKindsByID[goalID] else { continue }
-                let markerWorld = markerMesh.presentation.worldPosition
+                let goalKind = catchGoalKindsByID[targetID]
+                let linked = linkedContainerSourcesByTarget[targetID] ?? []
+                guard (goalKind != nil && !capturedCatchGoalIDs.contains(targetID))
+                    || !linked.isEmpty else { continue }
+                let targetWorld = markerMesh.presentation.worldPosition
                 for (ballID, ballMesh) in originalBallMeshes.sorted(
                     by: { $0.key < $1.key }
                 ) {
-                    guard physicsNodesByObjectID[ballID]?.first?
-                        .physicsBody?.type == .dynamic else { continue }
+                    let needsGoal = goalKind != nil
+                        && !capturedCatchGoalIDs.contains(targetID)
+                    let candidateLink = linked.contains(ballID)
+                    guard needsGoal || candidateLink,
+                          physicsNodesByObjectID[ballID]?.first?
+                            .physicsBody?.type == .dynamic else { continue }
                     let (low, high) = ballMesh.boundingBox
                     let localCenter = SCNVector3(
                         (low.x + high.x) * 0.5,
@@ -1444,19 +1454,36 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     )
                     guard CMOriginalWindowsCatchRadius.withinGoalRadius(
                         ballX: ballWorld.x, ballY: ballWorld.y,
-                        ballZ: ballWorld.z, targetX: markerWorld.x,
-                        targetY: markerWorld.y, targetZ: markerWorld.z
+                        ballZ: ballWorld.z, targetX: targetWorld.x,
+                        targetY: targetWorld.y, targetZ: targetWorld.z
                     ) else { continue }
-                    capturedCatchGoalIDs.insert(goalID)
-                    DispatchQueue.main.async { [weak self] in
-                        if kind == "tmo_bucket" {
-                            self?.onOriginalBucketCapture?(ballID, goalID)
-                        } else {
-                            self?.onOriginalCageCapture?(ballID, goalID)
+
+                    // GOAL is owned by the container and latches once.
+                    if needsGoal, let goalKind {
+                        capturedCatchGoalIDs.insert(targetID)
+                        DispatchQueue.main.async { [weak self] in
+                            if goalKind == "tmo_bucket" {
+                                self?.onOriginalBucketCapture?(ballID, targetID)
+                            } else {
+                                self?.onOriginalCageCapture?(ballID, targetID)
+                            }
                         }
                     }
-                    // A container GOAL latches once, not for every ball.
-                    break
+                    // CONNECTED_TO is owned by a specific ball source.
+                    // Do not award it to a different ball in the same
+                    // container, nor twice from repeated physics frames.
+                    if candidateLink {
+                        let key = ballID + "|" + targetID
+                        sessionLock.lock()
+                        let fresh = reportedOriginalConnections.insert(key)
+                            .inserted
+                        sessionLock.unlock()
+                        if fresh {
+                            DispatchQueue.main.async { [weak self] in
+                                self?.onOriginalConnectionContact?(ballID, targetID)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1579,6 +1606,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     guard (link.sourceID == a && link.targetID == b)
                            || (link.sourceID == b && link.targetID == a)
                     else { continue }
+                    // Containers use their native internal Catch/Test
+                    // radius, not exterior-wall physics contact. Otherwise
+                    // ten original ball->bucket/cage CONNECTED_TO inputs
+                    // would be falsely marked solved on first collision.
+                    if link.targetType == "tmo_bucket"
+                        || link.targetType == "tmo_rope_cage" {
+                        continue
+                    }
                     let key = link.sourceID + "|" + link.targetID
                     if reportedOriginalConnections.insert(key).inserted {
                         newlyObservedConnections.append((link.sourceID, link.targetID))

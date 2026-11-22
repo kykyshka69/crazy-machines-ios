@@ -227,6 +227,15 @@ jobs:
           swiftc ios/CMOriginalMagneticAttraction.swift tests/OriginalMagneticAttractionSmoke.swift -o /tmp/cm-original-magnet
           /tmp/cm-original-magnet
 
+  original-win32-container-catch-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require original linked ball-to-container Catch/Test before credited input
+        run: |
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalContainerCatchLinks.swift tests/OriginalContainerCatchLinksSmoke.swift -o /tmp/cm-original-catch-links
+          /tmp/cm-original-catch-links
+
   original-win32-container-catch-radius:
     runs-on: ubuntu-latest
     steps:
