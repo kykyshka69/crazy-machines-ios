@@ -85,6 +85,16 @@ class SimulatorCIRegression(unittest.TestCase):
         with self.assertRaisesRegex(SimulatorBootError, "all attempts failed"):
             boot_iphone(runner=runner)
 
+    def test_private_capture_honors_requested_device(self):
+        runner = FakeSimulator(make_devices(("iPhone 17", "first", "Booted", True),
+                                             ("iPhone 18", "chosen", "Shutdown", True)))
+        self.assertEqual(boot_iphone(runner=runner, preferred_udid="chosen"), "chosen")
+
+    def test_private_capture_rejects_missing_device(self):
+        runner = FakeSimulator(make_devices(("iPhone 17", "other", "Booted", True)))
+        with self.assertRaisesRegex(SimulatorBootError, "requested iPhone"):
+            boot_iphone(runner=runner, preferred_udid="missing")
+
     def test_no_phones_is_explicit_error(self):
         runner = FakeSimulator(make_devices(("iPad", "ipad", "Shutdown", True)))
         with self.assertRaisesRegex(SimulatorBootError, "no available iPhone"):
