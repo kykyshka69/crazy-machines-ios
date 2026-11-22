@@ -78,6 +78,10 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         let viewport = app.otherElements["cm.original.assembled-scene"]
         XCTAssertTrue(viewport.waitForExistence(timeout: 10),
                       "Imported SceneKit viewport is missing")
+        let centerCamera = app.buttons["cm.original.quickplay-center-camera"]
+        XCTAssertTrue(centerCamera.waitForExistence(timeout: 10),
+                      "Original puzzle has no way to restore camera framing")
+        centerCamera.tap()
         var orangePixels = 0
         var calibrationPixels = 0
         for _ in 0..<5 {

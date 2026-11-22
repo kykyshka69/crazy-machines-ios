@@ -19,6 +19,7 @@ struct CMOriginalQuickPlayView: View {
     @State private var experimentalMotorDrive = false
     @State private var physicsPaused = false
     @State private var sceneRevision = UUID()
+    @State private var cameraResetRevision = 0
     @State private var showAllLevels = false
     @State private var zoneContacts: [String: Int] = [:]
     @State private var matchedZoneLinks = Set<String>()
@@ -153,6 +154,7 @@ struct CMOriginalQuickPlayView: View {
                 assetDirectory: assetDirectory,
                 experimentalPhysics: experimentalPhysics,
                 physicsPaused: physicsPaused,
+                cameraResetRevision: cameraResetRevision,
                 allowObjectPlacement: true,
                 experimentalMotorDrive: experimentalMotorDrive,
                 configuredPhysicsRoles: experimentalPhysicsRoles,
@@ -197,6 +199,19 @@ struct CMOriginalQuickPlayView: View {
             )
             .id(sceneRevision)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .bottomTrailing) {
+                Button {
+                    cameraResetRevision &+= 1
+                } label: {
+                    Image(systemName: "viewfinder")
+                        .font(.title3)
+                        .padding(10)
+                        .background(.regularMaterial, in: Circle())
+                }
+                .accessibilityLabel("Center 3D camera")
+                .accessibilityIdentifier("cm.original.quickplay-center-camera")
+                .padding(10)
+            }
 
             HStack(spacing: 12) {
                 Toggle("Run experimental physics", isOn: $experimentalPhysics)
@@ -267,7 +282,7 @@ struct CMOriginalQuickPlayView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Label("\(originalEditablePartCount) movable PC puzzle pieces", systemImage: "hand.draw")
                             .font(.caption.weight(.medium))
-                        Text("Tap to select · drag to move · twist to rotate · pinch to zoom")
+                        Text("Tap · drag part · two-finger camera pan · twist · pinch")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }

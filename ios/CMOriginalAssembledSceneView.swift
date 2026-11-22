@@ -84,6 +84,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     let assetDirectory: URL
     var experimentalPhysics = false
     var physicsPaused = false
+    // Incrementing this value recenters the camera without rebuilding the
+    // original geometry or resetting the player's saved arrangement.
+    var cameraResetRevision = 0
     // Permits moving the original PC objects while the simulation is stopped.
     // Defaults off for read-only inspectors and other embedded scene previews.
     var allowObjectPlacement = false
@@ -339,6 +342,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.originalPositions = originalPositions
         context.coordinator.originalRotations = originalRotations
         view.pointOfView = scene.rootNode.childNode(withName: "original-level-camera", recursively: false)
+        context.coordinator.initialCameraTransform = view.pointOfView?.transform
+        context.coordinator.initialCameraFieldOfView = view.pointOfView?.camera?.fieldOfView
+        context.coordinator.lastCameraResetRevision = cameraResetRevision
         #if DEBUG && targetEnvironment(simulator)
         if ProcessInfo.processInfo.arguments.contains(CMPrivateSimulatorCapture.launchArgument) {
             let registeredModels = CMOriginalModelResolver.allModelNames(in: document.root)
@@ -389,6 +395,20 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         uiView.scene?.physicsWorld.speed =
             experimentalPhysics && !physicsPaused ? 1 : 0
         uiView.allowsCameraControl = !allowObjectPlacement || experimentalPhysics
+        // Restore the framing captured when the original scene was created.
+        // Do not regenerate physics or discard edits just to recenter the
+        // view after two-finger panning/pinching/native camera rotation.
+        if context.coordinator.lastCameraResetRevision != cameraResetRevision {
+            context.coordinator.lastCameraResetRevision = cameraResetRevision
+            if let cameraNode = uiView.pointOfView {
+                if let initial = context.coordinator.initialCameraTransform {
+                    cameraNode.transform = initial
+                }
+                if let initial = context.coordinator.initialCameraFieldOfView {
+                    cameraNode.camera?.fieldOfView = initial
+                }
+            }
+        }
         if experimentalPhysics {
             context.coordinator.setSessionPaused(physicsPaused)
             context.coordinator.configurePhysicsRoles(configuredPhysicsRoles)
@@ -919,6 +939,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var dragWasActive = false
         private var rotationStartZ: Float?
         private var pinchStartFieldOfView: CGFloat?
+        var initialCameraTransform: SCNMatrix4?
+        var initialCameraFieldOfView: CGFloat?
+        var lastCameraResetRevision = 0
         var storageKey = ""
         var rotationStorageKey = ""
         var physicsEnabled = false
