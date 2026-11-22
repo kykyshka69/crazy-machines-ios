@@ -13,7 +13,10 @@ public enum CMOriginalWindowsElectricalGoals {
         powerByDeviceID: [String: Float],
         // Explicit photometry produced from observed, original ray hits.
         // Solar GOAL is not awarded for battery voltage or mere proximity.
-        solarRayContributionsByDeviceID: [String: [Float]] = [:]
+        solarRayContributionsByDeviceID: [String: [Float]] = [:],
+        // Actual generator channel-0 GOAL depends on its rotor command,
+        // not a voltage from an adjacent device.
+        generatorRotorCommandsByDeviceID: [String: Float] = [:]
     ) -> Set<String> {
         var active = Set<String>()
         for object in session.objects {
@@ -32,9 +35,24 @@ public enum CMOriginalWindowsElectricalGoals {
                 }
                 continue
             }
+            // Win32 0x44BCC7: generator GOAL uses the rotor's +0xE8
+            // scalar. Cable power alone never substitutes for motion.
+            if object.type == "tmo_power_generator" {
+                if let rotor = generatorRotorCommandsByDeviceID[object.id],
+                   CMOriginalWindowsPowerScalar.generatorTriggersGoal(rotor: rotor) {
+                    active.insert(object.id)
+                }
+                continue
+            }
             guard let power = powerByDeviceID[object.id], power.isFinite
             else { continue }
             switch object.type {
+            case "tmo_power_motor":
+                // Win32 0x450A2D: rotor command = -power; at 0x450A53
+                // abs(command) > 0.5 dispatches its GOAL channel.
+                if CMOriginalWindowsPowerScalar.motorTriggersGoal(power: power) {
+                    active.insert(object.id)
+                }
             case "tmo_power_lamp":
                 if CMOriginalWindowsPowerScalar.lampTriggersGoal(power: power) {
                     active.insert(object.id)
@@ -48,7 +66,7 @@ public enum CMOriginalWindowsElectricalGoals {
                     active.insert(object.id)
                 }
             default:
-                // Switch, C4, motor and unrelated GOAL parts have their own
+                // Switch, C4 and unrelated GOAL parts have their own
                 // callbacks. Never infer those solely from voltage.
                 break
             }

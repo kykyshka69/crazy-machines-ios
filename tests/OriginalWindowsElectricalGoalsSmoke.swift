@@ -17,14 +17,17 @@ struct OriginalWindowsElectricalGoalsSmoke {
                     object("tmo_power_lightning"),
                     object("tmo_power_bell"),
                     object("tmo_power_switch"),
-                    object("tmo_power_lamp", goal: false)
+                    object("tmo_power_lamp", goal: false),
+                    object("tmo_power_motor"),
+                    object("tmo_power_generator"),
+                    object("tmo_power_generator", goal: false)
                 ]]
             ]]
         ]
         let document = try CMOriginalSceneDocument.read(
             JSONSerialization.data(withJSONObject: root))
         let session = CMOriginalGameplaySession(document: document)
-        precondition(session.objects.count == 6)
+        precondition(session.objects.count == 9)
         let ids = session.objects.map(\.id)
         let powered = [ids[0]: Float(10), ids[1]: Float(3),
                        ids[2]: Float(1.5), ids[3]: Float(10),
@@ -44,6 +47,30 @@ struct OriginalWindowsElectricalGoalsSmoke {
             session: session, powerByDeviceID: [:]).isEmpty)
         precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
             session: session, powerByDeviceID: [ids[0]: .nan]).isEmpty)
-        print("Real Win32 electrical GOAL dispatch: lamp >3, lightning >1, bell abs(power) >1; never switch by voltage")
+        // Motor requires an actual finite electrical input.
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [ids[6]: 0.5]).isEmpty)
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [ids[6]: -0.5001]) == [ids[6]])
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [ids[6]: 0.5001]) == [ids[6]])
+        // A generator receiving cable voltage is NOT a spinning generator.
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [ids[7]: 10]).isEmpty)
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            generatorRotorCommandsByDeviceID: [ids[7]: 1]).isEmpty)
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            generatorRotorCommandsByDeviceID: [ids[7]: -1.0001]) == [ids[7]])
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [ids[6]: -10],
+            generatorRotorCommandsByDeviceID: [
+                ids[7]: 2, ids[8]: 3, ids[4]: 4
+            ]) == Set([ids[6], ids[7]]))
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            generatorRotorCommandsByDeviceID: [ids[7]: .nan]).isEmpty)
+        print("Recovered Win32 GOAL: lamp, lightning, bell, motor abs(-power)>0.5 and generator abs(rotor)>1; no switch tap")
     }
 }

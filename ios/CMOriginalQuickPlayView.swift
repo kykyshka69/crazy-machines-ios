@@ -166,7 +166,9 @@ struct CMOriginalQuickPlayView: View {
             return
         }
         let eligible = CMOriginalWindowsElectricalGoals.activeGoalIDs(
-            session: originalSession, powerByDeviceID: experimentalPowerSignals
+            session: originalSession,
+            powerByDeviceID: experimentalPowerSignals,
+            generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID
         )
         for id in eligible {
             _ = windowsGoalCounter?.recordGoalEvent(
@@ -437,14 +439,8 @@ struct CMOriginalQuickPlayView: View {
                     }
                 },
                 onOriginalSwitchToggle: { switchID, isOn in
-                    // Win32 switch mechanism calls its GOAL channel on an
-                    // actual lever activation, not on a passive contact.
-                    if isOn {
-                        _ = windowsGoalCounter?.recordGoalEvent(
-                            objectID: switchID,
-                            simulationRunning: experimentalPhysics && !physicsPaused
-                        )
-                    }
+                    // A tap is not Win32 +0xEC/+0xC8 physics contact
+                    // evidence and cannot alone dispatch a switch GOAL.
                     if isOn {
                         flippedOriginalSwitchIDs.insert(switchID)
                     } else {
@@ -691,7 +687,7 @@ struct CMOriginalQuickPlayView: View {
                     let visible = originalOpticalSightlines.filter {
                         $0.isUnobstructed
                     }.count
-                    Text("Original UCM optical paths: \\(visible)/\\(originalOpticalSightlines.count) unobstructed")
+                    Text("Original UCM optical paths: \(visible)/\(originalOpticalSightlines.count) unobstructed")
                         .font(.caption.weight(.medium))
                         .accessibilityIdentifier("cm.original.optical-sightlines")
                     Text("Measured between original lamp-bulb or pocketlamp-glass and solar-cell UCM meshes, with real 3D blockers. Windows emission direction, intersection fraction and reflections remain unverified; geometry alone never generates solar power or GOAL.")
