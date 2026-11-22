@@ -1,7 +1,7 @@
 name: iOS simulator build
 on:
   push:
-    branches: [main]
+    branches: [main, work/original-3d-scene-batch]
   pull_request:
   workflow_dispatch:
 # Keep one active iPhone simulator verification per PR or branch.
@@ -37,10 +37,11 @@ jobs:
         run: |
           set -euo pipefail
           xcrun simctl list devices available
-          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next((x["udid"] for group in d.values() for x in group if x["name"].startswith("iPhone") and x["state"]=="Shutdown"), ""))')
+          # CoreSimulator bootstatus may hang on hosted macOS runners.
+          # Each attempt is bounded and a second available iPhone is tried.
+          DEVICE_ID="$(python3 tools/boot_iphone_simulator_ci.py)"
           test -n "$DEVICE_ID"
-          xcrun simctl boot "$DEVICE_ID"
-          xcrun simctl bootstatus "$DEVICE_ID" -b
+          echo "Booted iPhone Simulator: $DEVICE_ID"
           APP="/tmp/crazy-machines-derived/Build/Products/Debug-iphonesimulator/CrazyMachinesIOS.app"
           /usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Info.plist" > /tmp/cm-bundle-id
           BUNDLE_ID=$(cat /tmp/cm-bundle-id)
@@ -52,12 +53,13 @@ jobs:
           mkdir -p /tmp/crazy-machines-screenshots
           xcrun simctl io "$DEVICE_ID" screenshot /tmp/crazy-machines-screenshots/iphone-launch.png
       - name: Run launch and navigation UI tests on the booted iPhone
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/work/original-3d-scene-batch'
         timeout-minutes: 22
         run: |
           set -o pipefail
           mkdir -p /tmp/crazy-machines-build-logs
-          DEVICE_ID=$(xcrun simctl list devices booted -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for group in d.values() for x in group if x["name"].startswith("iPhone")))')
+          DEVICE_ID="$CM_BOOTED_IPHONE_UDID"
+          test -n "$DEVICE_ID"
           xcodebuild -project CrazyMachinesIOS.xcodeproj -scheme CrazyMachinesIOS -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath /tmp/crazy-machines-derived -resultBundlePath /tmp/CrazyMachinesUITests.xcresult CODE_SIGNING_ALLOWED=NO test 2>&1 | tee /tmp/crazy-machines-build-logs/ui-tests.log
       - name: Export UI test screenshots for direct inspection
         if: always()
