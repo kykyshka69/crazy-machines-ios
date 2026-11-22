@@ -609,6 +609,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalOpticalSightlines: (([CMOriginalOpticalSightline]) -> Void)?
         private var opticalEmitterMeshes: [String: SCNNode] = [:]
         private var opticalSolarMeshes: [String: SCNNode] = [:]
+        // Real original pocketlamp glow TGA; owner toggles +0xEC from
+        // exact 0 to 1 on native Win32 mouse activation (0x434ACA).
+        private var originalPocketLampGlowNodes: [String: [SCNNode]] = [:]
         // Each lightbulb has its own copied original UCM materials. Never
         // change the shared cross-level geometry cache or another lamp.
         private var originalLampBulbMaterials: [String: [SCNMaterial]] = [:]
@@ -801,6 +804,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             flippedSwitchIDs.removeAll()
             opticalEmitterMeshes.removeAll()
             opticalSolarMeshes.removeAll()
+            originalPocketLampGlowNodes.removeAll()
             originalLampBulbMaterials.removeAll()
             originalLampGlowNodes.removeAll()
             originalLampDiffuseIntensity.removeAll()
@@ -908,6 +912,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
             )
             scene.rootNode.enumerateChildNodes { node, _ in
+                if node.name == "original-effect-glow-to_light_pocketlamp_glow",
+                   let pocketlampID = self.owningOriginalObjectID(for: node),
+                   self.originalTypesByID[pocketlampID] == "tmo_light_pocketlamp" {
+                    self.originalPocketLampGlowNodes[pocketlampID, default: []]
+                        .append(node)
+                    // Win32 pocketlamp source state +0xEC begins zero.
+                    // Show the genuine original glow TGA only when the
+                    // actual source has been toggled to 1.
+                    node.opacity = 0
+                }
                 if node.name == "original-effect-glow-to_power_lamp_bulb_bb",
                    let bulbID = self.owningOriginalObjectID(for: node),
                    let lampID = emitterByPartID[bulbID],
@@ -2162,6 +2176,35 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             return true
         }
 
+        /// Win32 0x434A9A checks the exact tmo_light_pocketlamp type,
+        /// toggles its physical +0xEC value 0<->1 (0x434ACA..0x434AE6),
+        /// then separately compares native +0xF0 before dispatching
+        /// a GOAL. This ports SOURCE STATE ONLY, not the unknown native
+        /// +0xF0 latch or a fabricated beam/solar GOAL event.
+        private func flipOriginalPocketLamp(_ node: SCNNode?) -> Bool {
+            guard let id = owningOriginalObjectID(for: node) else {
+                return false
+            }
+            let pocketlampID: String
+            if originalTypesByID[id] == "tmo_light_pocketlamp" {
+                pocketlampID = id
+            } else if originalTypesByID[id] == "tmo_light_pocketlamp_glass",
+                      let parent = session?.objects.first(
+                          where: { $0.id == id }
+                      )?.parentID,
+                      originalTypesByID[parent] == "tmo_light_pocketlamp" {
+                pocketlampID = parent
+            } else { return false }
+            sessionLock.lock()
+            let next = session?.toggleOriginalPocketLamp(pocketlampID)
+            sessionLock.unlock()
+            guard let on = next else { return false }
+            for glow in originalPocketLampGlowNodes[pocketlampID] ?? [] {
+                glow.opacity = on ? 1 : 0
+            }
+            return true
+        }
+
         @objc func selectObject(_ gesture: UITapGestureRecognizer) {
             guard let view = gesture.view as? SCNView,
                   gesture.state == .ended, !dragWasActive else { return }
@@ -2182,6 +2225,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // Preserve the player's genuine PC switch gesture while
                 // keeping the unrecovered electric circuit disconnected.
                 if flipOriginalPowerSwitch(node) { return }
+                if flipOriginalPocketLamp(node) { return }
                 // The PC player cannot kick balls by tapping them after
                 // starting the machine; allow this only in diagnostic mode.
                 guard diagnosticTapImpulses else { return }
