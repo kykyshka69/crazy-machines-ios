@@ -35,6 +35,7 @@ jobs:
           python -m unittest -v test_inventory_original_object_fields.py
           python -m unittest -v test_inspect_original_level_objects.py
           python -m unittest -v test_stage_original_first_level.py
+          python -m unittest -v test_stage_original_cml_for_iphone.py
           python -m unittest -v test_select_first_level_screenshot.py
 
   original-cml-metadata-runtime:
