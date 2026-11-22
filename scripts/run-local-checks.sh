@@ -134,6 +134,8 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
 swiftc ios/CMOriginalWindowsBeamRegion.swift ios/CMOriginalWindowsBeamFactory.swift \
   tests/OriginalWindowsBeamFactorySmoke.swift -o "$tmp/original-pocketlamp"
 "$tmp/original-pocketlamp"
+# Original Windows GOAL dispatcher SHA gate; no private EXE in public CI.
+python3 -m unittest discover -s tools -p 'test_audit_windows_goal_calls.py'
 # Recovered original Win32 0x409650 angular/radial beam region.
 swiftc ios/CMOriginalWindowsBeamRegion.swift tests/OriginalWindowsBeamRegionSmoke.swift \
   -o "$tmp/original-win32-beam"
