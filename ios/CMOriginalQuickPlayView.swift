@@ -20,6 +20,8 @@ struct CMOriginalQuickPlayView: View {
         self.assetDirectory = assetDirectory
         _document = State(initialValue: document)
         _originalSession = State(initialValue: CMOriginalGameplaySession(document: document))
+        _powerCircuit = State(initialValue: CMOriginalPowerCircuit(
+            session: CMOriginalGameplaySession(document: document)))
         let support = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let directory = support.appendingPathComponent(
@@ -43,6 +45,10 @@ struct CMOriginalQuickPlayView: View {
     @State private var experimentalPhysics = false
     @State private var experimentalMotorDrive = false
     @State private var experimentalMagnetism = false
+    @State private var experimentalWiredPower = false
+    @State private var powerCircuit: CMOriginalPowerCircuit?
+    @State private var pendingPowerPlugID: String?
+    @State private var powerConnectionMessage: String?
     @State private var physicsPaused = false
     @State private var sceneRevision = UUID()
     @State private var cameraResetRevision = 0
@@ -108,6 +114,19 @@ struct CMOriginalQuickPlayView: View {
         return contains(document.root)
     }
 
+    private var wiredMotorRotorIDs: Set<String> {
+        guard experimentalPhysics && experimentalWiredPower,
+              let circuit = powerCircuit else { return [] }
+        let reachable = circuit.reachableDevices(
+            closedSwitchIDs: flippedOriginalSwitchIDs)
+        return Set(originalSession.objects.compactMap { rotor in
+            guard rotor.type == "tmo_power_motor_rotor",
+                  let parentID = rotor.parentID,
+                  reachable.contains(parentID) else { return nil }
+            return rotor.id
+        })
+    }
+
     private var hasOriginalMotor: Bool {
         func containsMotor(_ node: CMOriginalSceneDocument.Node) -> Bool {
             node.name == "tmo_power_motor_rotor"
@@ -141,6 +160,10 @@ struct CMOriginalQuickPlayView: View {
         document = next
         originalSession = CMOriginalGameplaySession(document: next)
         objectiveLedger = CMOriginalObjectiveEvidenceLedger(session: originalSession)
+        powerCircuit = CMOriginalPowerCircuit(session: originalSession)
+        pendingPowerPlugID = nil
+        powerConnectionMessage = nil
+        experimentalWiredPower = false
         windowsGoalCounter = CMOriginalWindowsGoalCounter(session: originalSession)
         firstLevelRun = CMOriginalFirstLevelRun(document: next)
         secondLevelRun = CMOriginalSecondLevelRun(document: next)
@@ -208,6 +231,7 @@ struct CMOriginalQuickPlayView: View {
                 allowObjectPlacement: true,
                 experimentalMotorDrive: experimentalMotorDrive,
                 experimentalMagnetism: experimentalMagnetism,
+                poweredMotorRotorObjectIDs: wiredMotorRotorIDs,
                 configuredPhysicsRoles: experimentalPhysicsRoles,
                 onOriginalZoneContact: { type in
                     // Callback is posted to the main thread by SceneKit bridge.
@@ -279,6 +303,30 @@ struct CMOriginalQuickPlayView: View {
                         ballID: ballID, bucketID: bucketID
                     ) == true, let run = fourthLevelRun {
                         UserDefaults.standard.set(true, forKey: run.storageKey)
+                    }
+                },
+                onOriginalPowerPlugTap: { plugID in
+                    guard !experimentalPhysics else { return }
+                    if let first = pendingPowerPlugID {
+                        pendingPowerPlugID = nil
+                        if first == plugID {
+                            powerConnectionMessage = "Cancelled cable selection"
+                        } else if var circuit = powerCircuit {
+                            let outcome = circuit.toggleCable(
+                                between: first, and: plugID)
+                            powerCircuit = circuit
+                            switch outcome {
+                            case .connected:
+                                powerConnectionMessage = "Original plug cable connected"
+                            case .disconnected:
+                                powerConnectionMessage = "Original plug cable removed"
+                            case .rejected:
+                                powerConnectionMessage = "Invalid or already occupied plug"
+                            }
+                        }
+                    } else {
+                        pendingPowerPlugID = plugID
+                        powerConnectionMessage = "Choose the second original power plug"
                     }
                 },
                 onOriginalSwitchToggle: { switchID, isOn in
@@ -483,6 +531,7 @@ struct CMOriginalQuickPlayView: View {
                         if !newValue {
                             experimentalMotorDrive = false
                             experimentalMagnetism = false
+                            experimentalWiredPower = false
                         }
                         physicsPaused = false
                         zoneContacts.removeAll()
@@ -536,6 +585,50 @@ struct CMOriginalQuickPlayView: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 14)
+            }
+
+            if let circuit = powerCircuit, circuit.terminals.count > 1 {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Original power plugs: \(circuit.terminals.count) · logical cables: \(circuit.cableCount)")
+                        .font(.caption.weight(.semibold))
+                        .accessibilityIdentifier("cm.original.power-cable-count")
+                    if !experimentalPhysics {
+                        Text("Tap two original 3D power plugs to connect/remove their terminals. Original cable geometry is not faked.")
+                            .font(.caption2).foregroundStyle(.secondary)
+                        if pendingPowerPlugID != nil {
+                            Text("First plug selected; tap a second original plug")
+                                .font(.caption2.weight(.medium))
+                        }
+                        if circuit.cableCount > 0 {
+                            Button("Clear experimental cables") {
+                                var next = circuit
+                                next.reset()
+                                powerCircuit = next
+                                pendingPowerPlugID = nil
+                                powerConnectionMessage = nil
+                            }.font(.caption)
+                        }
+                    } else {
+                        let reachable = circuit.reachableDevices(
+                            closedSwitchIDs: flippedOriginalSwitchIDs)
+                        Text("Battery-reachable devices: \(reachable.count). An open switch blocks transmission.")
+                            .font(.caption2).foregroundStyle(.secondary)
+                        if hasOriginalMotor {
+                            Toggle("Drive battery-reachable motor rotors (prototype)",
+                                   isOn: $experimentalWiredPower)
+                                .font(.caption)
+                                .accessibilityIdentifier("cm.original.wired-motor-drive")
+                        }
+                    }
+                    if let message = powerConnectionMessage {
+                        Text(message).font(.caption2)
+                            .accessibilityIdentifier("cm.original.power-cable-message")
+                    }
+                    Text("Prototype connections only: Win32 current, polarity, generator torque and return-path rules remain unrecovered.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
             }
 
             if experimentalPhysics && hasOriginalMagneticTargets {

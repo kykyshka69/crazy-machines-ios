@@ -131,6 +131,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // automatically energize every motor when starting a puzzle.
     var experimentalMotorDrive = false
     var experimentalMagnetism = false
+    var poweredMotorRotorObjectIDs: Set<String> = []
     var configuredPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
     var configuredReactions: [CMOriginalGameplaySession.ReactionRule] = []
     var switchPressCount = 0
@@ -145,6 +146,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalBucketCapture: ((String, String) -> Void)? = nil
     // Reports a user-operated original PC power switch. This changes its
     // actual lever mesh, NOT the unrecovered electrical connectivity.
+    var onOriginalPowerPlugTap: ((String) -> Void)? = nil
     var onOriginalSwitchToggle: ((String, Bool) -> Void)? = nil
 
     private var physicsAccessibilityStatus: String {
@@ -364,6 +366,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
         context.coordinator.setExperimentalMotorDrive(experimentalMotorDrive)
         context.coordinator.setExperimentalMagnetism(experimentalMagnetism)
+        context.coordinator.setPoweredMotorRotorIDs(poweredMotorRotorObjectIDs)
         context.coordinator.session = CMOriginalGameplaySession(document: document)
         // Only evidence-derived zone-delivery prototypes collect bodies:
         // four distinct linked objects in Professor level 1, or five
@@ -379,6 +382,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalBucketCapture = onOriginalBucketCapture
         context.coordinator.fourthLevelRun = CMOriginalFourthLevelRun(document: document)
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
+        context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
         if experimentalPhysics {
             context.coordinator.session?.start()
             if physicsPaused { context.coordinator.session?.pause() }
@@ -470,10 +474,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalConnectionContact = onOriginalConnectionContact
         context.coordinator.onOriginalBucketCapture = onOriginalBucketCapture
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
+        context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
         context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
         context.coordinator.onCanUndoPlacementChange = onCanUndoPlacementChange
         context.coordinator.setExperimentalMotorDrive(experimentalMotorDrive)
         context.coordinator.setExperimentalMagnetism(experimentalMagnetism)
+        context.coordinator.setPoweredMotorRotorIDs(poweredMotorRotorObjectIDs)
         if context.coordinator.lastUndoPlacementRevision != undoPlacementRevision {
             context.coordinator.lastUndoPlacementRevision = undoPlacementRevision
             context.coordinator.undoPlacement(in: uiView)
@@ -523,6 +529,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var lastRendererTime: TimeInterval?
         private var experimentalMotorDriveEnabled = false
         private var experimentalMagnetismEnabled = false
+        private var poweredMotorRotorIDs = Set<String>()
+        var onOriginalPowerPlugTap: ((String) -> Void)?
+        func setPoweredMotorRotorIDs(_ ids: Set<String>) {
+            sessionLock.lock()
+            poweredMotorRotorIDs = ids
+            sessionLock.unlock()
+        }
         private var magneticSourceIDs = Set<String>()
         private var magneticTargetIDs = Set<String>()
         var fourthLevelRun: CMOriginalFourthLevelRun?
@@ -871,7 +884,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     fraction, 0, 0
                 )
             }
-            if experimentalMotorDriveEnabled {
+            if experimentalMotorDriveEnabled || !poweredMotorRotorIDs.isEmpty {
                 // Ramp the physically simulated rotor toward a limited
                 // angular speed around its original Z axle. The driven
                 // authentic UCM teeth can then interact with other physics
@@ -884,6 +897,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 let targetSpeed: Float = 3.0
                 let maxStep = Float(delta) * 9.0
                 for id in motorRotorObjectIDs {
+                    guard experimentalMotorDriveEnabled
+                        || poweredMotorRotorIDs.contains(id) else { continue }
                     for node in physicsNodesByObjectID[id] ?? [] {
                         guard let body = node.physicsBody,
                               body.type == .dynamic else { continue }
@@ -1795,6 +1810,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                            forward.y * magnitude,
                                            forward.z * magnitude),
                                 at: contact, asImpulse: true)
+                return
+            }
+            if let id = owningOriginalObjectID(for: node),
+               session?.objects.contains(where: {
+                   $0.id == id && $0.type == "tmo_power_plug"
+               }) == true,
+               let callback = onOriginalPowerPlugTap {
+                callback(id)
+                highlightOriginalMesh(node, in: view)
                 return
             }
             highlightOriginalMesh(node, in: view)

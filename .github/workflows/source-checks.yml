@@ -262,3 +262,12 @@ jobs:
         run: |
           swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalWindowsGoalCounter.swift tests/OriginalWindowsGoalCounterSmoke.swift -o /tmp/cm-original-win
           /tmp/cm-original-win
+
+  original-power-cable-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify original plug ownership, wire pairing, switch isolation
+        run: |
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalPowerCircuit.swift tests/OriginalPowerCircuitSmoke.swift -o /tmp/cm-original-power
+          /tmp/cm-original-power
