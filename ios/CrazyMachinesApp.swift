@@ -52,7 +52,12 @@ private struct CMGameHomeView: View {
     @State private var hasOriginalStartscreenMeshes = false
     @State private var importedOriginalAssetCount = 0
     @State private var bundledOriginalAssetsChecked = false
-    @State private var installingBundledOriginalAssets = false
+    // Start disabled on the very first rendered frame when a private game
+    // pack is bundled; otherwise XCTest can tap Play before onAppear starts
+    // the asynchronous verification and reproduce a blank first puzzle.
+    @State private var installingBundledOriginalAssets =
+        Bundle.main.url(forResource: "CrazyMachines_Original_102Levels",
+                        withExtension: "cmassets") != nil
     @State private var bundledAssetError: String?
 
     private var assetDirectory: URL {
