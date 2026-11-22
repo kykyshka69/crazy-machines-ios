@@ -8,6 +8,7 @@ struct CMOriginalResourcesView: View {
     @State private var importing = false
     @State private var importingFolder = false
     @State private var importingPack = false
+    @State private var installingPack = false
     @State private var selectedCML: ResourceEntry?
     @State private var selectedProbe: CMOriginalCMLProbe?
     @State private var entries: [ResourceEntry] = []
@@ -41,9 +42,17 @@ struct CMOriginalResourcesView: View {
                         .font(.caption)
                     Button("Install original game pack (102 levels)") { importingPack = true }
                         .accessibilityIdentifier("cm.original.import-pack")
+                        .disabled(installingPack)
+                    if installingPack {
+                        ProgressView("Checking and installing original game files…")
+                            .accessibilityIdentifier("cm.original.pack-installing")
+                    }
                     Button("Import original game files") { importing = true }
+                        .disabled(installingPack)
                     Button("Import entire extracted models folder") { importingFolder = true }
+                        .disabled(installingPack)
                     Button("Decode levels from saved CML files") { decodeSavedLaboratories() }
+                        .disabled(installingPack)
                         .accessibilityIdentifier("cm.original.decode-saved-cml")
                     Text(message).font(.caption).foregroundStyle(.secondary)
                 }
@@ -91,19 +100,37 @@ struct CMOriginalResourcesView: View {
             .fileImporter(isPresented: $importingPack, allowedContentTypes: [.item]) { result in
                 switch result {
                 case .success(let url):
-                    let access = url.startAccessingSecurityScopedResource()
-                    defer { if access { url.stopAccessingSecurityScopedResource() } }
+                    guard !installingPack else { return }
                     guard url.pathExtension.lowercased() == "cmassets" else {
                         message = "Select the CrazyMachines_Original_102Levels.cmassets file."
                         return
                     }
-                    do {
-                        let data = try Data(contentsOf: url, options: .mappedIfSafe)
-                        let report = try CMOriginalAssetPackImporter.install(data)
-                        reload()
-                        message = "Installed \(report.installed) files (\(report.existing) already present). \(report.models) original 3D models, \(report.textures) textures and \(report.levels) authentic scenes. Open Play to view levels."
-                    } catch {
-                        message = "Original game pack import failed: \(error.localizedDescription)"
+                    installingPack = true
+                    message = "Checking original model and texture checksums…"
+                    Task { @MainActor in
+                        // Maintain the Files security scope until the entire
+                        // detached import finishes. Releasing it as soon as
+                        // fileImporter returns can fail for iCloud Files.
+                        let access = url.startAccessingSecurityScopedResource()
+                        defer {
+                            if access { url.stopAccessingSecurityScopedResource() }
+                            installingPack = false
+                        }
+                        do {
+                            // Importing up to 102 scenes / 160 UCMs / 181 TGAs
+                            // includes validation, SHA-256 and atomic writes.
+                            // None of that belongs on the SwiftUI main actor.
+                            let report = try await Task.detached(
+                                priority: .userInitiated
+                            ) {
+                                let data = try Data(contentsOf: url, options: .mappedIfSafe)
+                                return try CMOriginalAssetPackImporter.install(data)
+                            }.value
+                            reload()
+                            message = "Installed \(report.installed) files (\(report.existing) already present). \(report.models) original 3D models, \(report.textures) textures and \(report.levels) authentic scenes. Open Play to view levels."
+                        } catch {
+                            message = "Original game pack import failed: \(error.localizedDescription)"
+                        }
                     }
                 case .failure(let error):
                     message = "Original game pack selection failed: \(error.localizedDescription)"
