@@ -1,0 +1,62 @@
+name: iOS physical-device compile (unsigned)
+on:
+  push:
+    branches: [work/original-3d-scene-batch]
+    paths-ignore:
+      - '**/*.md'
+  workflow_dispatch:
+
+# Build a genuine iphoneos/arm64 application independently of Simulator.
+# The result requires the owner's Apple signing identity to install on iPhone.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  iphoneos:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Print selected Xcode and device SDK
+        run: |
+          xcodebuild -version
+          xcodebuild -showsdks
+      - name: Parse iOS Swift sources
+        run: swiftc -frontend -parse ios/*.swift
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate app project
+        run: xcodegen generate --spec project.yml
+      - name: Compile for physical iPhone (arm64, unsigned)
+        run: |
+          set -o pipefail
+          mkdir -p /tmp/crazy-machines-iphoneos-logs
+          xcodebuild -project CrazyMachinesIOS.xcodeproj -scheme CrazyMachinesIOS -configuration Debug -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath /tmp/crazy-machines-iphoneos-derived CODE_SIGNING_ALLOWED=NO build 2>&1 | tee /tmp/crazy-machines-iphoneos-logs/iphoneos-build.log
+      - name: Verify device bundle identity and architecture
+        run: |
+          set -euo pipefail
+          APP="/tmp/crazy-machines-iphoneos-derived/Build/Products/Debug-iphoneos/CrazyMachinesIOS.app"
+          test -f "$APP/Info.plist"
+          test -f "$APP/CrazyMachinesIOS"
+          /usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Info.plist" | grep -Fx 'org.crazymachines.port'
+          file "$APP/CrazyMachinesIOS"
+          file "$APP/CrazyMachinesIOS.debug.dylib"
+          # Unsigned builds are compile artifacts, NOT ready-to-install IPAs.
+          echo "Verified unsigned iPhoneOS app. Device signing and on-device runtime tests remain required."
+      - name: Upload unsigned iPhoneOS app for signing
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CrazyMachinesIOS-iphoneos-unsigned
+          path: /tmp/crazy-machines-iphoneos-derived/Build/Products/Debug-iphoneos/CrazyMachinesIOS.app/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload physical device build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CrazyMachinesIOS-iphoneos-build-log
+          path: /tmp/crazy-machines-iphoneos-logs/iphoneos-build.log
+          if-no-files-found: warn
+          retention-days: 7

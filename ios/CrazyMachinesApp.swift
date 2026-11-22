@@ -44,6 +44,7 @@ private struct CMGameHomeView: View {
         return true
     }
 
+    @State private var openingOriginalLevel = false
     @State private var showLevels = false
     @State private var quickPlaySelection: OriginalQuickPlaySelection?
     @State private var showResources = false
@@ -59,6 +60,41 @@ private struct CMGameHomeView: View {
         Bundle.main.url(forResource: "CrazyMachines_Original_102Levels",
                         withExtension: "cmassets") != nil
     @State private var bundledAssetError: String?
+
+    /// Play should not synchronously parse every original UCM on the
+    /// SwiftUI thread. Genuine imported level 1 can reference dozens of
+    /// files, and its full integrity audit is intentionally strict.
+    private func openOriginalLevelFromPlay() {
+        guard !openingOriginalLevel, !installingBundledOriginalAssets else { return }
+        openingOriginalLevel = true
+        let sceneURL = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("OriginalScenes/level-001.json")
+        let models = assetDirectory
+        Task { @MainActor in
+            // Pass only sendable bytes back to the UI. Validate the real
+            // document and every referenced model off-main, then decode
+            // the small JSON once more to present the verified level.
+            let approved = await Task.detached(priority: .userInitiated) { () -> Data? in
+                guard let data = try? Data(contentsOf: sceneURL),
+                      let document = try? CMOriginalSceneDocument.read(data) else { return nil }
+                let names = CMOriginalModelResolver.allModelNames(in: document.root)
+                guard CMOriginalAssetAudit.inspect(
+                    modelNames: names, directory: models
+                ).allReady else { return nil }
+                return data
+            }.value
+            openingOriginalLevel = false
+            if let approved,
+               let document = try? CMOriginalSceneDocument.read(approved) {
+                quickPlaySelection = OriginalQuickPlaySelection(document: document)
+            } else {
+                // Missing or invalid private assets still route to the
+                // original-level browser; never synthesize an imitation.
+                showLevels = true
+            }
+        }
+    }
 
     private var assetDirectory: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -207,7 +243,7 @@ private struct CMGameHomeView: View {
                         .foregroundStyle(.white.opacity(0.7))
                     Spacer()
                     Button {
-                        if !launchOriginalLevelIfReady() { showLevels = true }
+                        openOriginalLevelFromPlay()
                     } label: {
                         if let originalStartButton {
                             Image(uiImage: originalStartButton)
@@ -226,7 +262,7 @@ private struct CMGameHomeView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(.orange)
                     .accessibilityIdentifier("cm.menu.play")
-                    .disabled(installingBundledOriginalAssets)
+                    .disabled(installingBundledOriginalAssets || openingOriginalLevel)
 
                     Button {
                         showResources = true
@@ -238,8 +274,14 @@ private struct CMGameHomeView: View {
                     .buttonStyle(.bordered)
                     .tint(.white)
                     .accessibilityIdentifier("cm.menu.files")
-                    .disabled(installingBundledOriginalAssets)
+                    .disabled(installingBundledOriginalAssets || openingOriginalLevel)
                     Spacer()
+                    if openingOriginalLevel {
+                        ProgressView("Checking original 3D models…")
+                            .tint(.white)
+                            .foregroundStyle(.white)
+                            .accessibilityIdentifier("cm.original.level-checking")
+                    }
                     if installingBundledOriginalAssets {
                         ProgressView("Installing original PC models and levels…")
                             .tint(.white)
