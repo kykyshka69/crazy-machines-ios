@@ -2,7 +2,7 @@ import Foundation
 
 /// Read-only representation of a user-owned original Crazy Machines scene export.
 /// This is intentionally separate from CMLevelDocument (the synthetic playground).
-public struct CMOriginalSceneDocument: Decodable {
+public struct CMOriginalSceneDocument: Codable {
     public let schema: String
     public let index: Int
     public let title: String
@@ -14,7 +14,7 @@ public struct CMOriginalSceneDocument: Decodable {
         case sceneSHA256 = "scene_sha256"
     }
 
-    public struct Node: Decodable, Identifiable {
+    public struct Node: Codable, Identifiable {
         public let name: String
         public let fields: [String]
         public let children: [Node]
