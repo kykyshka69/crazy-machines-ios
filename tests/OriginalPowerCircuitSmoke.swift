@@ -67,7 +67,13 @@ struct OriginalPowerCircuitSmoke {
                                      and: terminal(6)) == .rejected)
         precondition(net.toggleCable(between: terminal(1),
                                      and: terminal(2)) == .rejected)
-        precondition(net.toggleCable(between: terminal(7),
+        // The original-format level also contains a standalone plug with
+        // VALF 7. It must NOT appear among device-owned circuit terminals.
+        let unowned = session.originalPowerTerminals.first {
+            $0.originalTerminalNumber == 7
+        }!
+        precondition(unowned.deviceObjectID == nil)
+        precondition(net.toggleCable(between: unowned.plugObjectID,
                                      and: terminal(6)) == .rejected)
         precondition(net.toggleCable(between: "invalid",
                                      and: terminal(6)) == .rejected)
