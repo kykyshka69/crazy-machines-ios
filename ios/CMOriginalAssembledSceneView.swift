@@ -1706,7 +1706,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     plane.materials = [material]
                     let billboard = SCNNode(geometry: plane)
                     billboard.name = "original-effect-glow-" + name.lowercased()
-                    billboard.constraints = [SCNBillboardConstraint(freeAxes: .all)]
+                    // SceneKit's initializer is parameterless; configure
+                    // the free axes on the constraint after creation.
+                    let facing = SCNBillboardConstraint()
+                    facing.freeAxes = .all
+                    billboard.constraints = [facing]
                     billboard.renderingOrder = 10
                     transform.addChildNode(billboard)
                     return
