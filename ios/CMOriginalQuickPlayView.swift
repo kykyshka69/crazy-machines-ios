@@ -73,6 +73,9 @@ struct CMOriginalQuickPlayView: View {
     @State private var matchedZoneLinks = Set<String>()
     @State private var matchedMechanismLinks = Set<String>()
     @State private var flippedOriginalSwitchIDs = Set<String>()
+    // Observations from actual SceneKit rigid-body hits against the imported
+    // original switch lever, separate from user tap and electric-state logic.
+    @State private var observedOriginalLeverStrikers = Set<String>()
     @State private var firstLevelRun: CMOriginalFirstLevelRun?
     @State private var secondLevelRun: CMOriginalSecondLevelRun?
     @State private var thirdLevelRun: CMOriginalThirdLevelRun?
@@ -222,6 +225,7 @@ struct CMOriginalQuickPlayView: View {
         matchedZoneLinks.removeAll()
         matchedMechanismLinks.removeAll()
         flippedOriginalSwitchIDs.removeAll()
+        observedOriginalLeverStrikers.removeAll()
         generatorRotorSpeedsByDeviceID.removeAll()
         disrupterAnglesByDeviceID.removeAll()
         firstLevelRun?.reset()
@@ -242,6 +246,7 @@ struct CMOriginalQuickPlayView: View {
         matchedZoneLinks.removeAll()
         matchedMechanismLinks.removeAll()
         flippedOriginalSwitchIDs.removeAll()
+        observedOriginalLeverStrikers.removeAll()
         generatorRotorSpeedsByDeviceID.removeAll()
         disrupterAnglesByDeviceID.removeAll()
         firstLevelRun?.reset()
@@ -434,6 +439,13 @@ struct CMOriginalQuickPlayView: View {
                     // Power can reach a lamp/lightning only through the
                     // actual chosen plug pairs and closed original switch.
                     creditExperimentalElectricGoals()
+                },
+                onOriginalSwitchContact: { hit in
+                    // Collision evidence is not Win32 +0xEC/+0xC8 closure:
+                    // only expose verified original object identities.
+                    observedOriginalLeverStrikers.insert(
+                        hit.switchID + "|" + hit.strikingObjectID
+                    )
                 }
             )
             .id(sceneRevision)
@@ -629,6 +641,7 @@ struct CMOriginalQuickPlayView: View {
                         matchedZoneLinks.removeAll()
                         matchedMechanismLinks.removeAll()
                         flippedOriginalSwitchIDs.removeAll()
+                        observedOriginalLeverStrikers.removeAll()
                         generatorRotorSpeedsByDeviceID.removeAll()
         disrupterAnglesByDeviceID.removeAll()
                         firstLevelRun?.reset()
@@ -660,6 +673,9 @@ struct CMOriginalQuickPlayView: View {
                     Text("Original switch levers flipped: \(flippedOriginalSwitchIDs.count)")
                         .font(.caption.weight(.medium))
                         .accessibilityIdentifier("cm.original.switch-toggles")
+                    Text("Observed switch lever/striker pairs: \(observedOriginalLeverStrikers.count)")
+                        .font(.caption.weight(.medium))
+                        .accessibilityIdentifier("cm.original.switch-physical-contacts")
                     Text("Tap an original switch in the 3D scene to move its lever. The original wiring is still unknown, so this does not automatically power a motor.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -781,6 +797,7 @@ struct CMOriginalQuickPlayView: View {
                     matchedZoneLinks.removeAll()
                     matchedMechanismLinks.removeAll()
                     flippedOriginalSwitchIDs.removeAll()
+                    observedOriginalLeverStrikers.removeAll()
                     firstLevelRun?.reset()
         secondLevelRun?.reset()
                         thirdLevelRun?.reset()
