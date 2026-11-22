@@ -227,6 +227,15 @@ jobs:
           swiftc ios/CMOriginalMagneticAttraction.swift tests/OriginalMagneticAttractionSmoke.swift -o /tmp/cm-original-magnet
           /tmp/cm-original-magnet
 
+  original-win32-container-catch-radius:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify real Windows GOAL ball-to-container distance and strict boundary
+        run: |
+          swiftc ios/CMOriginalWindowsCatchRadius.swift tests/OriginalWindowsCatchRadiusSmoke.swift -o /tmp/cm-win32-catch-radius
+          /tmp/cm-win32-catch-radius
+
   original-bucket-collision-runtime:
     runs-on: ubuntu-latest
     steps:

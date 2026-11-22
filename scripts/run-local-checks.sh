@@ -60,6 +60,11 @@ swiftc ios/CMOriginalPlacementHistory.swift tests/OriginalPlacementHistorySmoke.
 "$tmp/original-undo"
 swiftc ios/CMOriginalMagneticAttraction.swift tests/OriginalMagneticAttractionSmoke.swift -o "$tmp/original-magnet"
 "$tmp/original-magnet"
+# Native Win32 0x44D9A2 GOAL tests STRICT distance < 0.1 for both
+# authentic tmo_bucket and tmo_rope_cage owner IDs.
+swiftc ios/CMOriginalWindowsCatchRadius.swift tests/OriginalWindowsCatchRadiusSmoke.swift \
+  -o "$tmp/original-win32-catch-radius"
+"$tmp/original-win32-catch-radius"
 # Build actual level-four container collider from measured original UCM bounds.
 swiftc ios/CMOriginalBucketCollisionProxy.swift tests/OriginalBucketCollisionProxySmoke.swift -o "$tmp/original-bucket"
 "$tmp/original-bucket"
