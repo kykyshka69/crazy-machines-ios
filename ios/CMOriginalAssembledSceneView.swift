@@ -157,6 +157,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // This reports a physical event; it does not invent Win32 +0xEC/+0xC8
     // component scalars or energize the unverified electrical network.
     var onOriginalSwitchContact: ((CMOriginalSwitchContactMapper.Hit) -> Void)? = nil
+    // Real UCM mesh-to-mesh visibility, NOT a decoded Win32 ray or GOAL.
+    var onOriginalOpticalSightlines: (([CMOriginalOpticalSightline]) -> Void)? = nil
 
     private var physicsAccessibilityStatus: String {
         let state = experimentalPhysics ? (physicsPaused ? "paused" : "running") : "off"
@@ -393,6 +395,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.fourthLevelRun = CMOriginalFourthLevelRun(document: document)
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
+        context.coordinator.onOriginalOpticalSightlines = onOriginalOpticalSightlines
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
         context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
         context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal
@@ -488,6 +491,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalBucketCapture = onOriginalBucketCapture
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
+        context.coordinator.onOriginalOpticalSightlines = onOriginalOpticalSightlines
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
         context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
         context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal
@@ -589,6 +593,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var switchContacts: CMOriginalSwitchContactMapper?
         var onOriginalSwitchToggle: ((String, Bool) -> Void)?
         var onOriginalSwitchContact: ((CMOriginalSwitchContactMapper.Hit) -> Void)?
+        var onOriginalOpticalSightlines: (([CMOriginalOpticalSightline]) -> Void)?
+        private var opticalLampMeshes: [String: SCNNode] = [:]
+        private var opticalSolarMeshes: [String: SCNNode] = [:]
+        private var lastOpticalSampleTime: TimeInterval = -1
+        private var previousOpticalSightlines: [CMOriginalOpticalSightline] = []
 
         func setExperimentalMotorDrive(_ enabled: Bool) {
             sessionLock.lock()
@@ -731,6 +740,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             switchLeverNodes.removeAll()
             switchLeverRestAngles.removeAll()
             flippedSwitchIDs.removeAll()
+            opticalLampMeshes.removeAll()
+            opticalSolarMeshes.removeAll()
+            previousOpticalSightlines.removeAll()
+            lastOpticalSampleTime = -1
             generatorIDByRotorID.removeAll()
             disrupterIDByWheelID.removeAll()
             lastDisrupterConduction.removeAll()
@@ -793,6 +806,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                     .map(\.id)
             )
+            // Authentic tmo_power_lamp_bulb is a direct PC child of its
+            // power lamp. Observe its genuine bulb UCM instead of a fake
+            // point light at the housing center.
+            let lampByBulbID = Dictionary(uniqueKeysWithValues:
+                originalObjects.compactMap { bulb -> (String, String)? in
+                    guard bulb.type == "tmo_power_lamp_bulb",
+                          let parent = bulb.parentID,
+                          originalTypesByID[parent] == "tmo_power_lamp"
+                    else { return nil }
+                    return (bulb.id, parent)
+                }
+            )
             let switchByLeverID = Dictionary(uniqueKeysWithValues:
                 originalObjects.compactMap { part -> (String, String)? in
                     guard part.type == "tmo_power_switch_lever",
@@ -803,6 +828,19 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
             )
             scene.rootNode.enumerateChildNodes { node, _ in
+                if let mesh = node as? CMOriginalObjectMeshNode,
+                   let owner = mesh.originalObjectID {
+                    // These are real UCM vertices; synthetic glow sprites
+                    // and the housing have no role in ray occlusion.
+                    if mesh.name?.lowercased() == "to_power_lamp_bulb",
+                       let lampID = lampByBulbID[owner] {
+                        self.opticalLampMeshes[lampID] = mesh
+                    }
+                    if mesh.name?.lowercased() == "to_power_solarcell",
+                       self.originalTypesByID[owner] == "tmo_power_solarcell" {
+                        self.opticalSolarMeshes[owner] = mesh
+                    }
+                }
                 if let mesh = node as? CMOriginalObjectMeshNode,
                    let goal = self.fourthLevelRun {
                     if mesh.originalObjectID == goal.ballID,
@@ -862,6 +900,70 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
 
+        /// Inspect authentic UCM triangles along a candidate bulb-to-cell
+        /// sightline. This measures blocking geometry and path length ONLY.
+        /// The original Win32 bulb beam directions, hit fraction and
+        /// reflections are not recovered, so this observation deliberately
+        /// cannot activate a solar cell or a puzzle GOAL.
+        private func sampleOriginalOpticalSightlines(
+            renderer: SCNSceneRenderer, at time: TimeInterval
+        ) {
+            guard time - lastOpticalSampleTime >= 0.45 else { return }
+            lastOpticalSampleTime = time
+
+            func worldCenter(_ node: SCNNode) -> SCNVector3 {
+                let bounds = node.boundingBox
+                let local = SCNVector3(
+                    (bounds.min.x + bounds.max.x) * 0.5,
+                    (bounds.min.y + bounds.max.y) * 0.5,
+                    (bounds.min.z + bounds.max.z) * 0.5
+                )
+                return node.presentation.convertPosition(local, to: nil)
+            }
+            let emitters = opticalLampMeshes.sorted { $0.key < $1.key }
+            let receivers = opticalSolarMeshes.sorted { $0.key < $1.key }
+            var observations: [CMOriginalOpticalSightline] = []
+            // Work is bounded per renderer sample even for future complex
+            // imported levels. No inferred results for unmeasured pairs.
+            for (sourceID, emitterMesh) in emitters {
+                for (solarID, receiverMesh) in receivers {
+                    if observations.count >= 128 { break }
+                    let from = worldCenter(emitterMesh)
+                    let to = worldCenter(receiverMesh)
+                    let hits = renderer.hitTestWithSegment(
+                        from: from, to: to,
+                        options: [.firstFoundOnly: false, .ignoreHiddenNodes: true]
+                    )
+                    // hitTestWithSegment is in nearest-to-farthest order.
+                    // Ignore self-intersections at the endpoints, while any
+                    // intervening original UCM object's mesh is opaque.
+                    let hitOwners = hits.compactMap { hit -> String? in
+                        guard hit.node is CMOriginalObjectMeshNode else { return nil }
+                        return owningOriginalObjectID(for: hit.node)
+                    }
+                    let a = CMOriginalOpticalSightlineGeometry.Point(
+                        x: from.x, y: from.y, z: from.z
+                    )
+                    let b = CMOriginalOpticalSightlineGeometry.Point(
+                        x: to.x, y: to.y, z: to.z
+                    )
+                    if let result = CMOriginalOpticalSightlineGeometry.measure(
+                        emitterID: sourceID, receiverID: solarID,
+                        emitter: a, receiver: b,
+                        obstructingObjectIDs: hitOwners
+                    ) {
+                        observations.append(result)
+                    }
+                }
+                if observations.count >= 128 { break }
+            }
+            guard observations != previousOpticalSightlines else { return }
+            previousOpticalSightlines = observations
+            DispatchQueue.main.async { [weak self] in
+                self?.onOriginalOpticalSightlines?(observations)
+            }
+        }
+
         /// Reactions must be explicitly configured; imported scene data
         /// alone does not authorize an invented impulse or activation.
         func configureExperimentalReactions(_ rules: [CMOriginalGameplaySession.ReactionRule]) {
@@ -915,6 +1017,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // Original Win32: abs(generator rotor +0xE8) → power at +0x40.
             // Observe real 3D rotor angular velocity; no idle generator
             // becomes a fictional constant electrical source.
+            // Sample actual moving SceneKit UCM scene geometry. This is
+            // independent of electric power propagation and cannot energize
+            // solar cells without original ray emission/hit validation.
+            sampleOriginalOpticalSightlines(renderer: renderer, at: time)
             if time - lastGeneratorPollTime >= 0.16 {
                 lastGeneratorPollTime = time
                 // Win32 0x44CA59..0x44CAC8: the wheel angle modulo Pi is
