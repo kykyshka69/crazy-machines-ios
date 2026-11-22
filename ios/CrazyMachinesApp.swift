@@ -52,6 +52,7 @@ private struct CMGameHomeView: View {
     @State private var hasOriginalStartscreenMeshes = false
     @State private var importedOriginalAssetCount = 0
     @State private var bundledOriginalAssetsChecked = false
+    @State private var installingBundledOriginalAssets = false
     @State private var bundledAssetError: String?
 
     private var assetDirectory: URL {
@@ -93,9 +94,9 @@ private struct CMGameHomeView: View {
         originalStartButton = image("startscreen_note_start")
     }
 
-    /// A private local iOS build can include the user's original asset pack.
-    /// It is imported once into the same sandbox as the document picker.
-    /// The public source repository never contains copyrighted game files.
+    /// The private original game pack can contain hundreds of UCM/TGA files.
+    /// Install and validate it off the main thread so the first iPhone frame
+    /// appears immediately even when the user's pack is tens of megabytes.
     private func installBundledAssetsIfNeeded() {
         guard !bundledOriginalAssetsChecked else { return }
         bundledOriginalAssetsChecked = true
@@ -106,29 +107,59 @@ private struct CMGameHomeView: View {
 
         let support = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let firstScene = support.appendingPathComponent("OriginalScenes/level-001.json")
-        // A scene-only import is NOT proof the bundled PC meshes were installed.
-        // Previous versions returned as soon as level-001.json existed, which
-        // left all 30 original first-level models absent if the user had
-        // previously imported JSON before installing a private game pack.
-        // Check actual 3DO resolutions, not just the scene filename. When the
-        // complete first level is already present, avoid reading the 33 MB
-        // resource pack again on every app launch.
-        if let saved = try? Data(contentsOf: firstScene),
-           let document = try? CMOriginalSceneDocument.read(saved) {
-            let names = CMOriginalModelResolver.allModelNames(in: document.root)
-            if CMOriginalAssetAudit.inspect(
-                modelNames: names, directory: assetDirectory
-            ).allReady {
-                return
+        let modelDirectory = support.appendingPathComponent(
+            "OriginalGame", isDirectory: true)
+        let firstScene = support.appendingPathComponent(
+            "OriginalScenes/level-001.json")
+        installingBundledOriginalAssets = true
+        bundledAssetError = nil
+        Task { @MainActor in
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    // A scene JSON alone does not prove the actual meshes
+                    // were installed. Parse all referenced genuine UCMs.
+                    if let saved = try? Data(contentsOf: firstScene),
+                       let document = try? CMOriginalSceneDocument.read(saved) {
+                        let names = CMOriginalModelResolver.allModelNames(in: document.root)
+                        if CMOriginalAssetAudit.inspect(
+                            modelNames: names, directory: modelDirectory
+                        ).allReady {
+                            return
+                        }
+                    }
+                    let data = try Data(contentsOf: pack, options: .mappedIfSafe)
+                    _ = try CMOriginalAssetPackImporter.install(data)
+                }.value
+                loadOriginalMenuArt()
+            } catch {
+                bundledAssetError = "Bundled original resources could not be installed: \(error.localizedDescription)"
             }
+            installingBundledOriginalAssets = false
+            recordPrivateSimulatorCaptureIfRequested()
         }
-        do {
-            let data = try Data(contentsOf: pack, options: .mappedIfSafe)
-            _ = try CMOriginalAssetPackImporter.install(data)
-        } catch {
-            bundledAssetError = "Bundled original resources could not be installed: \(error.localizedDescription)"
+    }
+
+    /// Private Simulator capture launches must inspect the COMPLETED import,
+    /// not report a false failure while the background install is running.
+    private func recordPrivateSimulatorCaptureIfRequested() {
+        #if DEBUG && targetEnvironment(simulator)
+        guard ProcessInfo.processInfo.arguments.contains(
+            CMPrivateSimulatorCapture.launchArgument
+        ) else { return }
+        if Bundle.main.url(
+            forResource: "CrazyMachines_Original_102Levels",
+            withExtension: "cmassets"
+        ) == nil {
+            CMPrivateSimulatorCapture.record(
+                state: "missing-private-pack",
+                message: "The real .cmassets was not bundled into the simulator app.")
+        } else if !launchOriginalLevelIfReady() {
+            CMPrivateSimulatorCapture.record(
+                state: "cannot-open-original-level-1",
+                message: bundledAssetError ??
+                    "The imported level-001.json or its original UCM models could not be loaded.")
         }
+        #endif
     }
 
     var body: some View {
@@ -190,6 +221,7 @@ private struct CMGameHomeView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(.orange)
                     .accessibilityIdentifier("cm.menu.play")
+                    .disabled(installingBundledOriginalAssets)
 
                     Button {
                         showResources = true
@@ -201,7 +233,14 @@ private struct CMGameHomeView: View {
                     .buttonStyle(.bordered)
                     .tint(.white)
                     .accessibilityIdentifier("cm.menu.files")
+                    .disabled(installingBundledOriginalAssets)
                     Spacer()
+                    if installingBundledOriginalAssets {
+                        ProgressView("Installing original PC models and levels…")
+                            .tint(.white)
+                            .foregroundStyle(.white)
+                            .accessibilityIdentifier("cm.original.pack-installing")
+                    }
                     if let bundledAssetError {
                         Text(bundledAssetError)
                             .font(.caption2)
@@ -228,27 +267,12 @@ private struct CMGameHomeView: View {
                 #endif
                 installBundledAssetsIfNeeded()
                 loadOriginalMenuArt()
-                #if DEBUG && targetEnvironment(simulator)
-                // Only the owner's LOCAL simulator build has a private pack.
-                // GitHub CI never receives original UCM/CML/TGA resources.
-                if ProcessInfo.processInfo.arguments.contains(
-                    CMPrivateSimulatorCapture.launchArgument
-                ) {
-                    if Bundle.main.url(
-                        forResource: "CrazyMachines_Original_102Levels",
-                        withExtension: "cmassets"
-                    ) == nil {
-                        CMPrivateSimulatorCapture.record(
-                            state: "missing-private-pack",
-                            message: "The real .cmassets was not bundled into the simulator app.")
-                    } else if !launchOriginalLevelIfReady() {
-                        CMPrivateSimulatorCapture.record(
-                            state: "cannot-open-original-level-1",
-                            message: bundledAssetError ??
-                                "The imported level-001.json or its original UCM models could not be loaded.")
-                    }
+                if Bundle.main.url(
+                    forResource: "CrazyMachines_Original_102Levels",
+                    withExtension: "cmassets"
+                ) == nil {
+                    recordPrivateSimulatorCaptureIfRequested()
                 }
-                #endif
             }
             .onChange(of: showResources) { _, presented in
                 if !presented { loadOriginalMenuArt() }
