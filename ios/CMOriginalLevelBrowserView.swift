@@ -8,18 +8,10 @@ struct CMOriginalLevelBrowserView: View {
     @State private var importingFolder = false
     @State private var importingCML = false
     @State private var decodingCML = false
-    // Keep only compact titles/counts in the browse screen. Retaining 102
-    // decoded nested PC object trees while navigating into SceneKit doubles
-    // memory use; read the selected document only when the user opens it.
-    private struct OriginalLevelListing: Identifiable {
-        let index: Int
-        let title: String
-        let objectCount: Int
-        let url: URL
-        var id: Int { index }
-    }
-
-    @State private var documents: [OriginalLevelListing] = []
+    // Only latest background enumeration may update the visible list.
+    @State private var scanGeneration = 0
+    @State private var scanningSavedScenes = false
+    @State private var documents: [CMOriginalLevelListing] = []
     @State private var errorMessage: String?
     @State private var selected: Int?
     @State private var previewModel: ModelPreviewSelection?
@@ -50,6 +42,7 @@ struct CMOriginalLevelBrowserView: View {
                     Button("Import original PC laboratory (.cml)") { importingCML = true }
                         .disabled(decodingCML)
                     if decodingCML { ProgressView("Decoding original PC levels") }
+                    if scanningSavedScenes { ProgressView("Loading original levels…") }
                     if let errorMessage {
                         Text(errorMessage).foregroundStyle(.red).font(.caption)
                     }
@@ -57,7 +50,7 @@ struct CMOriginalLevelBrowserView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Original puzzles") {
-                    if documents.isEmpty {
+                    if documents.isEmpty && !scanningSavedScenes {
                         ContentUnavailableView(
                             "No original levels imported",
                             systemImage: "square.stack.3d.up.slash",
@@ -520,7 +513,7 @@ struct CMOriginalLevelBrowserView: View {
 
     /// Revalidate a selected original scene because its file can change
     /// after the level list was populated (for example through Files).
-    private func sceneDocument(for entry: OriginalLevelListing) -> CMOriginalSceneDocument? {
+    private func sceneDocument(for entry: CMOriginalLevelListing) -> CMOriginalSceneDocument? {
         guard let attributes = try? entry.url.resourceValues(
                   forKeys: [.isRegularFileKey, .fileSizeKey]),
               attributes.isRegularFile == true,
@@ -532,36 +525,19 @@ struct CMOriginalLevelBrowserView: View {
     }
 
     private func reloadSavedScenes() {
-        guard let urls = try? FileManager.default.contentsOfDirectory(
-            at: sceneStorage, includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        ) else {
-            // Do not retain stale levels if private storage was removed
-            // while the app was running or is not readable.
-            documents = []
-            return
+        scanGeneration &+= 1
+        let generation = scanGeneration
+        let directory = sceneStorage
+        scanningSavedScenes = true
+        Task { @MainActor in
+            let listings = await Task.detached(priority: .userInitiated) {
+                CMOriginalLevelListingScanner.scan(directory: directory)
+            }.value
+            // An import may have started another scan; reject stale results.
+            guard generation == scanGeneration else { return }
+            documents = listings
+            scanningSavedScenes = false
         }
-        var loaded: [Int: OriginalLevelListing] = [:]
-        // Stable ordering prevents duplicate level indices from resolving
-        // differently between launches when the filesystem enumeration varies.
-        let sortedURLs = urls.sorted {
-            $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
-        }
-        for url in sortedURLs where url.pathExtension.lowercased() == "json" {
-            guard let attributes = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
-                  attributes.isRegularFile == true,
-                  let size = attributes.fileSize, size > 0, size <= 8_000_000,
-                  let data = try? Data(contentsOf: url),
-                  let document = try? CMOriginalSceneDocument.read(data) else { continue }
-            // Do not silently replace a previously loaded scene when two
-            // saved JSON files declare the same original level number.
-            if loaded[document.index] == nil {
-                loaded[document.index] = OriginalLevelListing(
-                    index: document.index, title: document.title,
-                    objectCount: document.root.objectCount, url: url)
-            }
-        }
-        documents = loaded.values.sorted { $0.index < $1.index }
     }
 
     private func importDocuments(_ urls: [URL]) {

@@ -137,7 +137,7 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
             app.buttons["Import original levels"].waitForExistence(timeout: 15),
             "3D scene did not open the original level browser"
         )
-        XCTAssertTrue(app.staticTexts["1 original levels loaded"].exists)
+        XCTAssertTrue(app.staticTexts["1 original levels loaded"].waitForExistence(timeout: 15))
         attachScreenshot(app, named: "06-imported-scene-level-browser")
     }
 
