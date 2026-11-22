@@ -1,6 +1,6 @@
 # Crazy Machines — iOS Port: verified project status
 
-Last evidence review: 2026-11-22 (GitHub `main`; latest documented code and local regression verification).
+Last evidence review: 2026-11-22 (GitHub main; native CML decoder code and local Foundation tests reviewed).
 Primary goal: load and play the **original PC Crazy Machines puzzles on iPhone**. This is not yet a playable port.
 
 ## Verified work present in the repository
@@ -73,6 +73,24 @@ Primary goal: load and play the **original PC Crazy Machines puzzles on iPhone**
 - `941edc45`: documented the strict capture gate in `docs/first-original-level-simulator.md`.
 - **Verified here:** 10/10 screenshot-selector Python unit tests passed on Linux, and `py_compile` succeeded for the selector and tests. GitHub-published selector was re-fetched to verify content; no macOS/Xcode/SceneKit runtime was available, so **real screenshot still not captured**.
 - **Next:** run the existing private first-level script on a Mac with the original level JSON + UCM assets, inspect Xcode test logs and exact screenshot, and fix the first actual Apple-SDK or renderer defect revealed.
+
+## Continued work — native original CML decoding on iPhone (2026-11-22)
+
+**Major functional change:** the iOS app no longer requires a separate Windows/Python JSON export to discover original level scenes. Import original `.cml` directly in **Original levels**, or import CML through **Original files** then use **Decode previously imported CML**.
+
+- `33fe4c1d`: portable SHA-256 for exact `scene_sha256` of decompressed original scene bytes.
+- `e5b325bc`, `7dda11d6`: native Swift original CML decoder: validates all three framed header fields, reads per-level flag/length/CP1251 title, decompresses 12-bit big-endian LZW with terminator 4095, parses original brace-structured scene nodes and preserves POS/POSREL/ROT/ROTREL, GOAL and 3DO model ownership. All decoded JSON passes the same bounded `CMOriginalSceneDocument.read` validation as imported files.
+- `a1e1aba3`: scene document / nested node structures are `Codable`, supporting exact JSON persistence of natively recovered data.
+- `f4eddab5`: saves validated native CML level metadata to `OriginalScenes/level-XXX.json` without overwriting an existing different export.
+- `1f611b76`, `ec7a1551`, `d2c1c17a`: direct on-device CML file import and import from already copied original resources; decode occurs off the UI thread. CML candidates previously imported into Original files are selected by validated nonempty record count.
+- `c276a34b`, `736be995`, `e01d9169`: synthetic original-format CML regression: decoded framing (including independently Python-generated golden frame), CP1251 Cyrillic title, LZW literal/dictionary codes, original scene hierarchy/fields, SHA-256, atomic persistence and idempotent reimport. Malformed frame and missing LZW terminator rejected.
+- `4bfe8c89`, `e71b096f`: portable GitHub Actions job and local check script updated to compile/run the native decoder smoke.
+- `84efccaf`, `0cb9b51f`, `828bd85b`: app labels and UI navigation smoke updated for on-device original CML import.
+- `7fb5b938`, `8b6cb29b`: user/workflow guidance in `docs/native-cml-on-iphone.md` and updated root README, removing stale claims that the loader is only a research candidate.
+- **Executed here:** a local Swift 6.2.1/Linux standalone Foundation build and execution of the native CML decoder, SHA-256 and storage against a synthetic 1-level original-format CML file **passed**. The fixture roundtrips original byte framing and 12-bit LZW to a structured original object with transforms and model references. No copyrighted game bytes used. The GitHub source was re-fetched after commit and the new component files/identifiers confirmed.
+- **Still unverified:** decoding the genuine 102-level original CML *in the iOS Simulator or on an iPhone*, a full macOS/Xcode app build, genuine first-level screenshot, complete UCM materials and original puzzle physics. Portable synthetic tests are not proof of gameplay parity.
+
+**Next action:** perform an Apple-SDK build and native import of the original user-owned Professor Laboratory CML, verify 102 scenes/model availability and capture the actual first puzzle. Use `docs/native-cml-on-iphone.md`; do not restart reverse-engineering from scratch.
 
 ## Priority blockers / work order
 
