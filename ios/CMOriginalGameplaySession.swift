@@ -37,11 +37,34 @@ public struct CMOriginalGameplaySession {
     /// A switch being ON does not imply current, wires or motor power:
     /// the original electrical network has not yet been recovered.
     public private(set) var originalSwitchStates: [String: Bool] = [:]
+    // Win32 0x434A9A..0x434AE6: user-operated pocketlamp stores an
+    // exact 0 or 1 scalar in the original element +0xEC. This source
+    // state is separate from its native light-ray orientation and GOAL.
+    public private(set) var originalPocketLampStates: [String: Bool] = [:]
 
     /// Toggle an imported PC switch independently of experimental reactions.
     /// Return nil for an unknown object, a non-switch or a paused/stopped run.
     /// This permits multiple switches to retain separate positions.
     @discardableResult
+    /// Verified original Windows click handler at 0x434A9A..0x434AE6:
+    /// tmo_light_pocketlamp toggles the physical component at +0xEC
+    /// between exact 0 and 1. It is a genuine light-source switch, not
+    /// an inference from a nearby object or a fabricated solar ray.
+    /// Native +0xF0 GOAL comparison remains a separate unverified input.
+    public mutating func toggleOriginalPocketLamp(_ id: String) -> Bool? {
+        guard phase == .running,
+              objects.contains(where: {
+                  $0.id == id && $0.type == "tmo_light_pocketlamp"
+              }) else { return nil }
+        let next = !(originalPocketLampStates[id] ?? false)
+        if next {
+            originalPocketLampStates[id] = true
+        } else {
+            originalPocketLampStates.removeValue(forKey: id)
+        }
+        return next
+    }
+
     public mutating func toggleOriginalSwitch(_ id: String) -> Bool? {
         guard phase == .running,
               objects.contains(where: { $0.id == id && $0.type == "tmo_power_switch" })
@@ -469,6 +492,7 @@ public struct CMOriginalGameplaySession {
         guard phase == .ready || phase == .stopped else { return }
         elapsedSimulationTime = 0
         originalSwitchStates.removeAll()
+        originalPocketLampStates.removeAll()
         recentContacts.removeAll()
         contactCounts.removeAll()
         activations.removeAll()
@@ -501,6 +525,7 @@ public struct CMOriginalGameplaySession {
     public mutating func reset() {
         elapsedSimulationTime = 0
         originalSwitchStates.removeAll()
+        originalPocketLampStates.removeAll()
         recentContacts.removeAll()
         contactCounts.removeAll()
         activations.removeAll()
