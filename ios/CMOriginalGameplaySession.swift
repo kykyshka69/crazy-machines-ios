@@ -106,9 +106,17 @@ public struct CMOriginalGameplaySession {
     @discardableResult
     public mutating func toggleOriginalPocketLamp(_ id: String) -> Bool? {
         guard phase == .running,
-              objects.contains(where: {
+              let object = objects.first(where: {
                   $0.id == id && $0.type == "tmo_light_pocketlamp"
               }) else { return nil }
+        // Native Win32 click gate 0x434903 checks interaction flag 0x10.
+        // All 11 original PC pocketlamps have VALB 176 (bit 0x10 set).
+        // Explicit disabled/malformed per-scene overrides must never be
+        // turned on merely because the object is a pocketlamp.
+        if let raw = object.fields["VALB"]?.first {
+            guard let bits = Int(raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+                  bits & 0x10 != 0 else { return nil }
+        }
         let next = !(originalPocketLampStates[id] ?? false)
         if next {
             originalPocketLampStates[id] = true

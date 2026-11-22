@@ -3,9 +3,11 @@ import Foundation
 @main
 struct OriginalWindowsPocketLampStateSmoke {
     static func main() throws {
-        func part(_ type: String, startOn: Bool = false) -> [String: Any] {
-            ["name": type, "fields": startOn ? ["VALF 1.000000"] : [],
-             "children": []]
+        func part(_ type: String, startOn: Bool = false,
+                  clickBits: Int? = nil) -> [String: Any] {
+            var fields = startOn ? ["VALF 1.000000"] : []
+            if let clickBits { fields.append("VALB \(clickBits)") }
+            return ["name": type, "fields": fields, "children": []]
         }
         let source: [String: Any] = [
             "schema": "crazy-machines-original-scene-v1",
@@ -17,7 +19,9 @@ struct OriginalWindowsPocketLampStateSmoke {
                     part("tmo_light_pocketlamp"),
                     part("tmo_light_pocketlamp", startOn: true),
                     part("tmo_power_switch"),
-                    part("tmo_light_flower")
+                    part("tmo_light_flower"),
+                    part("tmo_light_pocketlamp", clickBits: 0),
+                    part("tmo_light_pocketlamp", clickBits: 176)
                 ]]
             ]]
         ]
@@ -31,6 +35,10 @@ struct OriginalWindowsPocketLampStateSmoke {
         session.start()
         precondition(session.originalPocketLampStates[ids[0]] == nil)
         precondition(session.originalPocketLampStates[ids[1]] == true)
+        // The actual Win32 interaction bit is mandatory when a level
+        // explicitly sets VALB. A disabled source cannot be toggled.
+        precondition(session.toggleOriginalPocketLamp(ids[4]) == nil)
+        precondition(session.toggleOriginalPocketLamp(ids[5]) == true)
         precondition(session.toggleOriginalPocketLamp(ids[2]) == nil)
         precondition(session.toggleOriginalPocketLamp("invalid") == nil)
         precondition(session.toggleOriginalPocketLamp(ids[0]) == true)
