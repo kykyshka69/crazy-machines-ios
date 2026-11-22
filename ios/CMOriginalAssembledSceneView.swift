@@ -925,6 +925,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 )
                 return node.presentation.convertPosition(local, to: nil)
             }
+            // Segment hit testing is on SCNNode, not the SceneKit
+            // renderer protocol. The scene root uses world coordinates.
+            guard let root = renderer.scene?.rootNode else { return }
             let emitters = opticalLampMeshes.sorted { $0.key < $1.key }
             let receivers = opticalSolarMeshes.sorted { $0.key < $1.key }
             var observations: [CMOriginalOpticalSightline] = []
@@ -935,9 +938,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     if observations.count >= 128 { break }
                     let from = worldCenter(emitterMesh)
                     let to = worldCenter(receiverMesh)
-                    let hits = renderer.hitTestWithSegment(
+                    let hits = root.hitTestWithSegment(
                         from: from, to: to,
-                        options: [.firstFoundOnly: false, .ignoreHiddenNodes: true]
+                        options: [
+                            SCNHitTestOption.firstFoundOnly.rawValue: false,
+                            SCNHitTestOption.ignoreHiddenNodes.rawValue: true
+                        ]
                     )
                     // hitTestWithSegment is in nearest-to-farthest order.
                     // Ignore self-intersections at the endpoints, while any
