@@ -27,6 +27,10 @@ INSTRUCTIONS = {
     0x450A60: bytes.fromhex("6a 00 6a 00"),  # channel-0 goal dispatch
     0x44D9C7: bytes.fromhex("d9 42 40 d8 1d 70 73 4e 00"),  # lamp >3
     0x44D9D7: bytes.fromhex("6a 00 6a 00"),  # lamp goal dispatch
+    0x450C2D: bytes.fromhex("e8 9e 64 fd ff"),  # bell fabs(source +40)
+    0x450C4E: bytes.fromhex("c7 85 34 fc ff ff 00 00 20 41"),  # bell cap 10
+    0x450C5E: bytes.fromhex("d8 1d 18 3c 4f 00"),  # bell >1
+    0x450C6B: bytes.fromhex("6a 00 6a 00"),  # bell channel-0 GOAL
     0x450E5F: bytes.fromhex("8b 40 40"),  # lightning power signal
     0x450E6E: bytes.fromhex("d8 1d 18 3c 4f 00"),  # lightning >1
     0x450E7F: bytes.fromhex("6a 00 6a 00"),  # lightning goal dispatch

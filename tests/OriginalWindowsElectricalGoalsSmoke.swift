@@ -31,15 +31,19 @@ struct OriginalWindowsElectricalGoalsSmoke {
                        ids[4]: Float(10), ids[5]: Float(10)]
         let active = CMOriginalWindowsElectricalGoals.activeGoalIDs(
             session: session, powerByDeviceID: powered)
-        precondition(active == Set([ids[0], ids[2]]))
+        precondition(active == Set([ids[0], ids[2], ids[3]]))
         let reverse = [ids[0]: Float(-10), ids[1]: Float(3.1),
                        ids[2]: Float(-10)]
         precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
             session: session, powerByDeviceID: reverse) == Set([ids[1]]))
         precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [ids[3]: Float(-1.0001)]) == [ids[3]])
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [ids[3]: Float(1)]) == [])
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
             session: session, powerByDeviceID: [:]).isEmpty)
         precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
             session: session, powerByDeviceID: [ids[0]: .nan]).isEmpty)
-        print("Real Win32 electrical GOAL dispatch: lamp >3, lightning >1, never bell/switch by voltage")
+        print("Real Win32 electrical GOAL dispatch: lamp >3, lightning >1, bell abs(power) >1; never switch by voltage")
     }
 }

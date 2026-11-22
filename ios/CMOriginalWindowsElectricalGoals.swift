@@ -27,9 +27,13 @@ public enum CMOriginalWindowsElectricalGoals {
                 if CMOriginalWindowsPowerScalar.lightningTriggersGoal(power: power) {
                     active.insert(object.id)
                 }
+            case "tmo_power_bell":
+                if CMOriginalWindowsPowerScalar.bellTriggersGoal(power: power) {
+                    active.insert(object.id)
+                }
             default:
-                // Bell, switch, C4, motor and unrelated GOAL parts have
-                // different Win32 callbacks. Never infer those from voltage.
+                // Switch, C4, motor and unrelated GOAL parts have their own
+                // callbacks. Never infer those solely from voltage.
                 break
             }
         }

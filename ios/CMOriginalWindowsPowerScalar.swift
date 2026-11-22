@@ -13,6 +13,9 @@ public enum CMOriginalWindowsPowerScalar {
     public static let lampGoalCutoff: Float = 3
     // 0x450E68 compares the lightning's +0x40 with float 1 before GOAL.
     public static let lightningGoalCutoff: Float = 1
+    // 0x450C2D computes abs(power), clamps to 10 at 0x450C4E, then
+    // 0x450C5E compares the clamped amplitude to 1.0 for tmo_power_bell.
+    public static let bellGoalCutoff: Float = 1
     // 0x44BCC1 stores abs(generator rotor +0xE8) as power at +0x40.
     // 0x44BCCA compares the new power signal with float 1 before GOAL.
     public static let generatorGoalCutoff: Float = 1
@@ -42,6 +45,12 @@ public enum CMOriginalWindowsPowerScalar {
 
     public static func lightningTriggersGoal(power: Float) -> Bool {
         power.isFinite && power > lightningGoalCutoff
+    }
+
+    /// Win32 tmo_power_bell clamps abs(power) to 10 before triggering GOAL
+    /// when the result is strictly above 1. Clapper/audio remain separate.
+    public static func bellTriggersGoal(power: Float) -> Bool {
+        power.isFinite && min(abs(power), batterySource) > bellGoalCutoff
     }
 
     /// Generator is mechanically driven, not a permanent source. Win32
