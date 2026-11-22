@@ -28,4 +28,37 @@ enum CMOriginalMagneticAttraction {
         guard x.isFinite, y.isFinite else { return nil }
         return (x, y)
     }
+    /// The genuine 102-level pack contains scenes with multiple magnets
+    /// (11 permanent magnets and a bucket in Professor level 58). Naively
+    /// applying a separate full force for each magnet allows unbounded net
+    /// acceleration and can destabilize the experimental SceneKit solver.
+    /// Sum all world-space XY forces first, then cap the target's resulting
+    /// acceleration. 12 m/s² is a conservative prototype stability limit,
+    /// NOT a recovered Windows magnet strength.
+    static func combinedForce(
+        magnets: [(x: Float, y: Float)],
+        targetX: Float, targetY: Float, mass: Float
+    ) -> (x: Float, y: Float)? {
+        guard targetX.isFinite, targetY.isFinite,
+              mass.isFinite, mass > 0, mass <= 2_000 else { return nil }
+        var totalX = 0.0
+        var totalY = 0.0
+        for magnet in magnets {
+            guard let part = force(
+                magnetX: magnet.x, magnetY: magnet.y,
+                targetX: targetX, targetY: targetY, mass: mass
+            ) else { continue }
+            totalX += Double(part.x)
+            totalY += Double(part.y)
+        }
+        let magnitude = hypot(totalX, totalY)
+        guard magnitude.isFinite, magnitude > 0.000001 else { return nil }
+        let limit = Double(mass) * 12.0
+        let scale = min(1, limit / magnitude)
+        let x = Float(totalX * scale)
+        let y = Float(totalY * scale)
+        guard x.isFinite, y.isFinite else { return nil }
+        return (x, y)
+    }
+
 }

@@ -874,19 +874,24 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
             }
             if experimentalMagnetismEnabled {
-                // Original tmo_ owners supply positions and body identities.
-                // Only steel balls and buckets with dynamic bodies respond.
-                for magnetID in magneticSourceIDs {
-                    guard let magnet = physicsNodesByObjectID[magnetID]?.first
-                    else { continue }
+                // Gather ORIGINAL magnet-owner world positions once per
+                // renderer frame. Some PC puzzles contain several sources;
+                // each target receives only ONE capped resultant force.
+                let magnets: [(x: Float, y: Float)] = magneticSourceIDs.compactMap { id in
+                    guard let magnet = physicsNodesByObjectID[id]?.first else {
+                        return nil
+                    }
                     let center = magnet.presentation.worldPosition
+                    return (x: center.x, y: center.y)
+                }
+                if !magnets.isEmpty {
                     for targetID in magneticTargetIDs {
                         for target in physicsNodesByObjectID[targetID] ?? [] {
                             guard let body = target.physicsBody,
                                   body.type == .dynamic else { continue }
                             let point = target.presentation.worldPosition
-                            if let force = CMOriginalMagneticAttraction.force(
-                                magnetX: center.x, magnetY: center.y,
+                            if let force = CMOriginalMagneticAttraction.combinedForce(
+                                magnets: magnets,
                                 targetX: point.x, targetY: point.y,
                                 mass: Float(body.mass)
                             ) {
