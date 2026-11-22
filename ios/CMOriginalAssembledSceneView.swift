@@ -156,6 +156,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // actual lever mesh, NOT the unrecovered electrical connectivity.
     var onOriginalDisrupterAngle: ((String, Float) -> Void)? = nil
     var onOriginalGeneratorSignal: ((String, Float) -> Void)? = nil
+    var onOriginalWindmillSignal: ((String, Float) -> Void)? = nil
     var onOriginalPowerPlugTap: ((String) -> Void)? = nil
     var onOriginalSwitchToggle: ((String, Bool) -> Void)? = nil
     // Contact pairs from the actual imported PC switch lever and striker.
@@ -405,6 +406,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
         context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
         context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal
+        context.coordinator.onOriginalWindmillSignal = onOriginalWindmillSignal
         if experimentalPhysics {
             context.coordinator.session?.start()
             if physicsPaused { context.coordinator.session?.pause() }
@@ -504,6 +506,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
         context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
         context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal
+        context.coordinator.onOriginalWindmillSignal = onOriginalWindmillSignal
         context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
         context.coordinator.onCanUndoPlacementChange = onCanUndoPlacementChange
         context.coordinator.setExperimentalMotorDrive(experimentalMotorDrive)
@@ -595,12 +598,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var capturedCatchGoalIDs = Set<String>()
         private var motorRotorObjectIDs = Set<String>()
         private var generatorIDByRotorID: [String: String] = [:]
+        private var windmillIDByWheelID: [String: String] = [:]
+        private var lastWindmillScalars: [String: Float] = [:]
         private var disrupterIDByWheelID: [String: String] = [:]
         private var lastDisrupterConduction: [String: Bool] = [:]
         private var lastGeneratorScalars: [String: Float] = [:]
         private var lastGeneratorPollTime: TimeInterval = 0
         var onOriginalDisrupterAngle: ((String, Float) -> Void)?
         var onOriginalGeneratorSignal: ((String, Float) -> Void)?
+        var onOriginalWindmillSignal: ((String, Float) -> Void)?
         private var axleObjectIDs = Set<String>()
         // Authentic PC conveyor children are linked through their scene-graph
         // parentID, not through a guessed nearest wheel or motor.
@@ -860,6 +866,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             lastOpticalSampleTime = -1
             coastingMotorRotorIDs.removeAll()
             generatorIDByRotorID.removeAll()
+            windmillIDByWheelID.removeAll()
+            lastWindmillScalars.removeAll()
             disrupterIDByWheelID.removeAll()
             lastDisrupterConduction.removeAll()
             lastGeneratorScalars.removeAll()
@@ -912,6 +920,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     return (rotor.id, parent)
                 }
             )
+            // A windmill's actual UCM wheel +0xE0 is the Win32 GOAL
+            // rotation source. Only original parent/child identities apply.
+            windmillIDByWheelID = Dictionary(uniqueKeysWithValues:
+                originalObjects.compactMap { wheel -> (String, String)? in
+                    guard wheel.type == "tmo_windmill_wheel",
+                          let ownerID = wheel.parentID,
+                          originalTypesByID[ownerID] == "tmo_windmill"
+                    else { return nil }
+                    return (wheel.id, ownerID)
+                })
             // Read the EXACT original hierarchy. Never attach a disrupter
             // to an arbitrary nearby gear by model name or proximity.
             disrupterIDByWheelID = Dictionary(
@@ -1227,6 +1245,20 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     lastDisrupterConduction[disrupterID] = conducting
                     DispatchQueue.main.async { [weak self] in
                         self?.onOriginalDisrupterAngle?(disrupterID, angle)
+                    }
+                }
+                for (wheelID, windmillID) in windmillIDByWheelID {
+                    guard let wheel = physicsNodesByObjectID[wheelID]?.first,
+                          let body = wheel.physicsBody, body.type == .dynamic
+                    else { continue }
+                    let rotation = body.angularVelocity
+                    let scalar = rotation.z < 0 ? -rotation.w : rotation.w
+                    guard scalar.isFinite else { continue }
+                    if let old = lastWindmillScalars[windmillID],
+                       abs(old - scalar) < 0.01 { continue }
+                    lastWindmillScalars[windmillID] = scalar
+                    DispatchQueue.main.async { [weak self] in
+                        self?.onOriginalWindmillSignal?(windmillID, scalar)
                     }
                 }
                 for (rotorID, generatorID) in generatorIDByRotorID {

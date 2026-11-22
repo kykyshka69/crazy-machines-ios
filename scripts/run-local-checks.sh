@@ -124,6 +124,10 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
 swiftc ios/CMOriginalWindowsAmmeter.swift tests/OriginalWindowsAmmeterSmoke.swift \
   -o "$tmp/original-ammeter"
 "$tmp/original-ammeter"
+# Exact native 0.3 windmill wheel +0xE0 abs threshold.
+swiftc ios/CMOriginalWindowsWindmill.swift tests/OriginalWindowsWindmillSmoke.swift \
+  -o "$tmp/original-windmill"
+"$tmp/original-windmill"
 # Original motor GOAL is separate from rotor start/stop.
 # The SceneKit torque/speed curve is still a declared bounded prototype.
 swiftc ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalMotorActuator.swift \

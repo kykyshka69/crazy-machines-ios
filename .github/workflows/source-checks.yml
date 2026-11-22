@@ -324,6 +324,15 @@ jobs:
           swiftc ios/CMOriginalWindowsAmmeter.swift tests/OriginalWindowsAmmeterSmoke.swift -o /tmp/cm-original-ammeter
           /tmp/cm-original-ammeter
 
+  original-win32-windmill-goal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify native windmill absolute angular-signal strict 0.3 cutoff
+        run: |
+          swiftc ios/CMOriginalWindowsWindmill.swift tests/OriginalWindowsWindmillSmoke.swift -o /tmp/cm-original-windmill
+          /tmp/cm-original-windmill
+
   original-motor-rotor-drive:
     runs-on: ubuntu-latest
     steps:
