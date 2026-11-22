@@ -1,5 +1,13 @@
 # Crazy Machines — original iOS port: working branch
 
+## Visible original magnet control in 3D viewport (2026-11-22)
+
+- Gameplay commit [2bc7928](https://github.com/kykyshka69/crazy-machines-ios/commit/2bc7928fca668166059a5a0cd81e55639773cb77) displays **Magnet ON / Magnet OFF** over the actual SceneKit viewport when the original level has permanent magnets, metal targets and experimental physics on. The button drives the same experimental magnetic state as the lower diagnostic settings.
+- Fourth-scene CI fixture now contains synthetic UCM-backed original-format `tmo_magnetic_permanent` (`UNLOCKED 1`, `VALB 64`) and `tmo_bucket` (`GOAL 1`, `VALB 104`). New XCTest `testFourthOriginalLevelCanToggleMagnetFrom3DViewport` opens the fourth synthetic level, enables physics, checks magnet button ON/OFF and captures an attachment. Synthetic CI scenes are NOT original Windows screenshots or real puzzle victory proof.
+- Owner-only original level 4 metadata, verified from the private 102-scene pack locally, contains one movable permanent magnet and a GOAL-marked metal bucket. Genuine Win32 magnet strengths and level completion logic remain unknown.
+- At recording time, the [Source checks](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45031171656), [Portable checks](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45031171776), and [unsigned iPhone ARM64 compile](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45031171722) for `2bc7928` completed **successfully**. The [iPhone Simulator UI workflow](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45031171679) was pending and must not be described as passed.
+- Next: finish iPhone Simulator XCTest without further source commits triggering workflow cancellation; inspect screenshots, resolve failures, then separately test genuine owner-only 102-level SceneKit rendering. The private game pack stays outside public GitHub.
+
 ## Authentic fourth puzzle: optional magnetic force prototype (2026-11-22)
 
 - **Game code** [`eb7aaa5`](https://github.com/kykyshka69/crazy-machines-ios/commit/eb7aaa525612087f74023c9b7cc4b6b4c3c53f45) adds `CMOriginalMagneticAttraction`, SwiftUI opt-in `Experimental magnet attraction`, and actual per-frame SceneKit forces on dynamic original `tmo_bucket` and `tmo_ball_steel` bodies near authored `tmo_magnetic_permanent` parts. Original scene mesh/position/physics-object identities come from imported CML/UCM. The field range (3 SceneKit units), radial falloff and attraction strength are explicit **prototypes** only, not Windows engine constants. No automatic win condition. Never activate without player opt-in; pause halts the force.
