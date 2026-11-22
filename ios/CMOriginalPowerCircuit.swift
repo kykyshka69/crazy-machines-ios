@@ -49,6 +49,7 @@ public struct CMOriginalPowerCircuit {
     private let byPlugID: [String: Terminal]
     private let sourceDeviceIDs: Set<String>
     private let generatorDeviceIDs: Set<String>
+    private let solarDeviceIDs: Set<String>
     private let conditionalSourceDeviceIDs: Set<String>
     private let passthroughDeviceIDs: Set<String>
     private let switchDeviceIDs: Set<String>
@@ -77,6 +78,9 @@ public struct CMOriginalPowerCircuit {
         }.map(\.deviceID))
         generatorDeviceIDs = Set(all.filter {
             $0.deviceType == "tmo_power_generator"
+        }.map(\.deviceID))
+        solarDeviceIDs = Set(all.filter {
+            $0.deviceType == "tmo_power_solarcell"
         }.map(\.deviceID))
         conditionalSourceDeviceIDs = Set(all.filter {
             $0.deviceType == "tmo_power_generator"
@@ -187,6 +191,9 @@ public struct CMOriginalPowerCircuit {
     public func experimentalNetworkSignals(
         closedSwitchIDs: Set<String> = [],
         generatorRotorCommandsByDeviceID: [String: Float] = [:],
+        // Only independently measured ORIGINAL light ray intersections;
+        // never turn on every solar cell just because it exists in the CML.
+        solarRayContributionsByDeviceID: [String: [Float]] = [:],
         disrupterRotorAnglesByDeviceID: [String: Float] = [:]
     ) -> [String: Float] {
         var sources: [(String, Float)] = sourceDeviceIDs.sorted().map {
@@ -197,6 +204,14 @@ public struct CMOriginalPowerCircuit {
             guard generatorDeviceIDs.contains(deviceID),
                   let output = CMOriginalWindowsPowerScalar
                     .generatorSignal(fromRotorCommand: speed),
+                  output > 0 else { continue }
+            sources.append((deviceID, output))
+        }
+        for (deviceID, rays) in solarRayContributionsByDeviceID.sorted(
+            by: { $0.key < $1.key }) {
+            guard solarDeviceIDs.contains(deviceID),
+                  let output = CMOriginalWindowsSolarSignal
+                    .collectedPower(rayContributions: rays),
                   output > 0 else { continue }
             sources.append((deviceID, output))
         }
