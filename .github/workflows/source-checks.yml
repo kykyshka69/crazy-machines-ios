@@ -42,6 +42,16 @@ jobs:
           python -m unittest -v test_audit_original_model_coverage.py
           python -m unittest -v test_inventory_original_object_fields.py
           python -m unittest -v test_inspect_original_level_objects.py
+          python -m unittest -v test_select_first_level_screenshot.py
+
+  original-ucm-integrity-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify original UCM geometry readiness with synthetic files
+        run: |
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalModelResolver.swift ios/CMUCMModel.swift ios/CMOriginalAssetAudit.swift tests/OriginalAssetAuditSmoke.swift -o /tmp/cm-original-asset-audit
+          /tmp/cm-original-asset-audit
 
   original-cml-metadata-runtime:
     runs-on: ubuntu-latest
