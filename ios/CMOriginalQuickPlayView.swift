@@ -396,7 +396,8 @@ struct CMOriginalQuickPlayView: View {
                     }
                 },
                 onOriginalBucketCapture: { ballID, bucketID in
-                    // Actual imported ball UCM fit inside imported GOAL bucket.
+                    // Real original tmo_ball_* approaches the authored
+                    // Test/Catch marker within native Win32 radius 0.1.
                     _ = windowsGoalCounter?.recordGoalEvent(
                         objectID: bucketID,
                         simulationRunning: experimentalPhysics && !physicsPaused
@@ -410,6 +411,20 @@ struct CMOriginalQuickPlayView: View {
                     ) == true, let run = fourthLevelRun {
                         UserDefaults.standard.set(true, forKey: run.storageKey)
                     }
+                },
+                onOriginalCageCapture: { ballID, cageID in
+                    // Native Win32 Catch/Test path 0x44D874...0x44D9A2
+                    // also accepts GOAL-marked tmo_rope_cage containers.
+                    // A ball within the original 0.1 spatial target radius
+                    // generates one channel-0 event for the cage owner.
+                    _ = windowsGoalCounter?.recordGoalEvent(
+                        objectID: cageID,
+                        simulationRunning: experimentalPhysics && !physicsPaused
+                    )
+                    _ = objectiveLedger?.recordGoalStateChanged(
+                        cageID,
+                        isSimulationRunning: experimentalPhysics && !physicsPaused
+                    )
                 },
                 onOriginalDisrupterAngle: { disrupterID, wheelAngle in
                     guard experimentalPhysics && !physicsPaused else { return }
