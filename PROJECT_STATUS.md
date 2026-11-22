@@ -1,5 +1,15 @@
 # Crazy Machines — original iOS port: working branch
 
+## Complete read-only audit of ALL 102 user-owned PC Professor levels (2026-11-22)
+
+- The already-mounted owner-provided **private** `CrazyMachines_Original_102Levels.cmassets` was audited *locally* (no proprietary 3D files/scenes pushed to GitHub). Pack SHA-256: `936e025b512452fb6767643bc5762bb713c7ab0d604ac4fbb963fec67d9ac532`, **33,369,110 bytes**.
+- **445/445 records** pass SHA-256; includes **160/160 UCM** mesh binaries that pass UCM1 header/version/index/vertex/extents/finite checks, **181/181 uncompressed TGA** texture headers and pixel-length checks, **102/102 original scenes** with valid metadata/nodes/coordinates, and 2 laboratory CML files. All scene level IDs 1–102 are present.
+- **5,313 original tmo objects**, **475 `UNLOCKED 1` objects**, **80/80 valid original `CONNECTED_TO` references**. Across the 102 JSON scenes there are **5,626 explicit 3DO references**: **5,541** resolve to existing valid original UCMs using the production model resolver's exact alias rules.
+- **85 unresolved references, across 48 of 102 scenes**, are only these five apparent *visual effect/billboard* names: `to_candle_glow` (43), `to_power_lamp_bulb_bb` (19), `to_light_pocketlamp_glow` (11), `to_light_magnifier_glow_left` (6), `to_light_magnifier_glow_right` (6). The other **54 scenes have no missing 3DO mesh references**. The recovered PC archive does **not** include UCM geometry for the five effects. Some related authentic TGA glow textures are present. Do not claim they are broken puzzles: separately reconstruct original billboards/effect visuals instead of inventing substitute physics objects.
+- Full per-level private metadata report is generated locally as `CrazyMachines_102_Level_Audit_Report.md`, `CrazyMachines_102_Level_Audit.csv`, `CrazyMachines_102_Level_Audit.json` plus a reusable read-only audit script. Original game artwork/data is not stored in this GitHub source tree.
+- **This is a comprehensive source/resource validation, not a 102-level gameplay pass.** No evidence yet that all 102 levels render, simulate, or meet authentic Windows victory conditions on actual iPhone hardware. Public GitHub CI lacks the proprietary original pack; the in-flight macOS simulator test is for synthetic fixtures only. Preserve this distinction in future status updates.
+- Next priority: test original scenes 1–102 *on an authorized macOS iPhone Simulator* using the private pack, complete the missing original glow/billboard renderer, and verify actual PC puzzle rules, not only scene integrity.
+
 ## Third original puzzle prototype + Xcode-managed Simulator CI (2026-11-22)
 
 - Confirmed private owner pack `level-003.json`, Professor title "Уборщик": exactly **five distinct tmo_crate CONNECTED_TO 21 references** resolve to ONE `tmo_zone`, and exactly one `tmo_spring` is `UNLOCKED 1`. The level has **45 original 3DO instances**. These facts come from the user-owned original resource pack; do NOT upload any PC assets to public GitHub.
