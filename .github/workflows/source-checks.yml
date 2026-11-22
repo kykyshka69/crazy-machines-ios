@@ -335,6 +335,8 @@ jobs:
         run: |
           swiftc ios/CMOriginalWindowsBeamRegion.swift tests/OriginalWindowsBeamRegionSmoke.swift -o /tmp/cm-win-beam
           /tmp/cm-win-beam
+          swiftc ios/CMOriginalWindowsBeamRegion.swift ios/CMOriginalWindowsBeamFactory.swift tests/OriginalWindowsBeamFactorySmoke.swift -o /tmp/cm-pocketlamp-beam
+          /tmp/cm-pocketlamp-beam
           swiftc ios/CMOriginalWindowsBeamRegion.swift ios/CMOriginalWindowsOpticalSample.swift ios/CMOriginalOpticalSightline.swift ios/CMOriginalWindowsSolarSignal.swift tests/OriginalWindowsOpticalSampleSmoke.swift -o /tmp/cm-win-beam-solar
           /tmp/cm-win-beam-solar
           python3 -m unittest discover -s tools -p 'test_audit_windows_beam_exe.py'
