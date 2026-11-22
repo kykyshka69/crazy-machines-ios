@@ -204,7 +204,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                ? "Diagnostic mode: double tap two parts for a hinge, or long-press to change their physics type."
                : "Original puzzle is running. Pause, stop or restart the experiment; parts cannot be rearranged during motion.")
             : (allowObjectPlacement
-               ? "Only UNLOCKED parts from the original PC puzzle can be moved or rotated. Tap to select; drag, twist, or pinch to zoom."
+               ? "Only UNLOCKED parts from the original PC puzzle can be moved or rotated. Tap to select; drag with one finger, pan the camera with two fingers, twist to rotate, or pinch to zoom."
                : "Inspect the original imported parts using the camera controls.")
         view.accessibilityValue = physicsAccessibilityStatus
         // The SceneKit camera's one-finger pan conflicts with object dragging.
@@ -250,6 +250,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // Edited placements are sandbox-only and never modify the original
         // imported CML/JSON scene or UCM files.
         view.addGestureRecognizer(drag)
+        // While arranging a level, native SceneKit camera control is off so
+        // one-finger movement can edit unlocked pieces. Provide a distinct
+        // two-finger pan for inspecting sections of large original puzzles.
+        let cameraPan = UIPanGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.panCamera(_:))
+        )
+        cameraPan.minimumNumberOfTouches = 2
+        cameraPan.maximumNumberOfTouches = 2
+        cameraPan.delegate = context.coordinator
+        cameraPan.isEnabled = allowObjectPlacement && !experimentalPhysics
+        view.addGestureRecognizer(cameraPan)
         let rotate = UIRotationGestureRecognizer(
             target: context.coordinator,
             action: #selector(Coordinator.rotateSelected(_:))
@@ -903,6 +915,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private weak var dragging: SCNNode?
         private var dragInitialPosition: SCNVector3?
         private var lastDragPoint: CGPoint?
+        private var lastCameraPanPoint: CGPoint?
         private var dragWasActive = false
         private var rotationStartZ: Float?
         private var pinchStartFieldOfView: CGFloat?
@@ -995,6 +1008,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             if gestureRecognizer is UIPinchGestureRecognizer {
                 return !physicsEnabled
             }
+            // Two-finger camera movement must not require a selected part;
+            // single-finger object dragging still checks the unlocked owner.
+            if let pan = gestureRecognizer as? UIPanGestureRecognizer,
+               pan.minimumNumberOfTouches == 2 {
+                return !physicsEnabled
+            }
             guard gestureRecognizer is UIPanGestureRecognizer else { return true }
             guard let view = gestureRecognizer.view as? SCNView,
                   let selected = highlighted,
@@ -1009,6 +1028,59 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                                shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
             false
+        }
+
+        @objc func panCamera(_ gesture: UIPanGestureRecognizer) {
+            guard !physicsEnabled,
+                  let view = gesture.view as? SCNView,
+                  let camera = view.pointOfView else {
+                lastCameraPanPoint = nil
+                return
+            }
+            let point = gesture.location(in: view)
+            switch gesture.state {
+            case .began:
+                lastCameraPanPoint = point
+            case .changed:
+                guard let previous = lastCameraPanPoint else {
+                    lastCameraPanPoint = point
+                    return
+                }
+                // Project a point on the camera's own forward axis. Using a
+                // common projection depth converts a screen-space movement
+                // into a true world-space translation at any scene scale.
+                let focus = camera.presentation.convertPosition(
+                    SCNVector3(0, 0, -1), to: nil
+                )
+                let depth = view.projectPoint(focus).z
+                guard depth.isFinite else { return }
+                let from = view.unprojectPoint(SCNVector3(
+                    Float(previous.x), Float(view.bounds.height - previous.y),
+                    depth
+                ))
+                let to = view.unprojectPoint(SCNVector3(
+                    Float(point.x), Float(view.bounds.height - point.y),
+                    depth
+                ))
+                // Move the camera opposite the finger's world-space motion
+                // so the original meshes track the two-finger drag. The
+                // imported level geometry and saved object poses are intact.
+                let next = SCNVector3(
+                    camera.position.x + from.x - to.x,
+                    camera.position.y + from.y - to.y,
+                    camera.position.z + from.z - to.z
+                )
+                if [next.x, next.y, next.z].allSatisfy({
+                    $0.isFinite && abs($0) < 1_000_000
+                }) {
+                    camera.position = next
+                    lastCameraPanPoint = point
+                }
+            case .ended, .cancelled, .failed:
+                lastCameraPanPoint = nil
+            default:
+                break
+            }
         }
 
         @objc func zoomCamera(_ gesture: UIPinchGestureRecognizer) {
