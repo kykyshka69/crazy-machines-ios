@@ -47,6 +47,8 @@ struct CMOriginalLevelBrowserView: View {
                         .font(.caption)
                     Button("Import original CML laboratory") { importingCML = true }
                         .disabled(decodingCML)
+                    Button("Decode previously imported CML") { decodeStoredCML() }
+                        .disabled(decodingCML)
                     if decodingCML { ProgressView("Decoding original CML levels") }
                     Button("Import original levels") { importing = true }
                     Button("Import entire exported levels folder") { importingFolder = true }
@@ -373,6 +375,39 @@ struct CMOriginalLevelBrowserView: View {
         }
         visit(root)
         return result
+    }
+
+    /// Decode the CML already imported through the Original files tab.
+    /// iOS does not expose another app's private Application Support folder
+    /// to the document picker, so a second file import must not be required.
+    private func decodeStoredCML() {
+        let candidates = (try? FileManager.default.contentsOfDirectory(
+            at: originalStorage, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
+            options: [.skipsHiddenFiles]
+        )) ?? []
+        var best: (count: Int, url: URL)?
+        for url in candidates where url.pathExtension.lowercased() == "cml" {
+            guard let attrs = try? url.resourceValues(
+                forKeys: [.isRegularFileKey, .fileSizeKey]),
+                  attrs.isRegularFile == true, let size = attrs.fileSize,
+                  (256...64 * 1024 * 1024).contains(size),
+                  let handle = try? FileHandle(forReadingFrom: url) else { continue }
+            let header = try? handle.read(upToCount: 24)
+            try? handle.close()
+            guard let header, header.count == 24,
+                  let decoded = try? CMOriginalCMLDecoder.decodeFrame(Array(header), size: 4),
+                  decoded.count == 4 else { continue }
+            let count = Int(decoded[0]) | (Int(decoded[1]) << 8) |
+                (Int(decoded[2]) << 16) | (Int(decoded[3]) << 24)
+            if (1...102).contains(count), best == nil || count > best!.count {
+                best = (count, url)
+            }
+        }
+        guard let best else {
+            errorMessage = "No valid nonempty original .cml laboratory in Original files."
+            return
+        }
+        importOriginalCML(best.url)
     }
 
     /// Import the original Windows laboratory directly on iPhone. There is
