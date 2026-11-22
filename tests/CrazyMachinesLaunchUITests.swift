@@ -47,7 +47,9 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         let originalLevels = app.tabBars.buttons["Original levels"]
         XCTAssertTrue(originalLevels.waitForExistence(timeout: 20))
         XCTAssertTrue(originalLevels.isSelected)
-        XCTAssertTrue(app.buttons["Import original levels"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Import original CML laboratory"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Decode previously imported CML"].exists)
+        XCTAssertTrue(app.buttons["Import original levels"].exists)
         XCTAssertTrue(app.buttons["Import entire exported levels folder"].exists)
     }
 
