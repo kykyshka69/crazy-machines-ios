@@ -920,7 +920,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     // Win32 pocketlamp source state +0xEC begins zero.
                     // Show the genuine original glow TGA only when the
                     // actual source has been toggled to 1.
-                    node.opacity = 0
+                    node.opacity = self.session?
+                        .originalPocketLampStates[pocketlampID] == true ? 1 : 0
                 }
                 if node.name == "original-effect-glow-to_power_lamp_bulb_bb",
                    let bulbID = self.owningOriginalObjectID(for: node),

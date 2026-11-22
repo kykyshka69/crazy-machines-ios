@@ -42,6 +42,21 @@ public struct CMOriginalGameplaySession {
     // state is separate from its native light-ray orientation and GOAL.
     public private(set) var originalPocketLampStates: [String: Bool] = [:]
 
+    /// The owner's original level 92 has VALF 1.000000 on one genuine
+    /// tmo_light_pocketlamp. Retain that authored starting source state,
+    /// while all absent VALF pocketlamps start at 0.
+    private var authoredPocketLampStates: [String: Bool] {
+        Dictionary(uniqueKeysWithValues: objects.compactMap {
+            object -> (String, Bool)? in
+            guard object.type == "tmo_light_pocketlamp",
+                  let raw = object.fields["VALF"]?.first,
+                  let value = Float(raw.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                  )), value == 1 else { return nil }
+            return (object.id, true)
+        })
+    }
+
     /// Toggle an imported PC switch independently of experimental reactions.
     /// Return nil for an unknown object, a non-switch or a paused/stopped run.
     /// This permits multiple switches to retain separate positions.
@@ -492,7 +507,7 @@ public struct CMOriginalGameplaySession {
         guard phase == .ready || phase == .stopped else { return }
         elapsedSimulationTime = 0
         originalSwitchStates.removeAll()
-        originalPocketLampStates.removeAll()
+        originalPocketLampStates = authoredPocketLampStates
         recentContacts.removeAll()
         contactCounts.removeAll()
         activations.removeAll()
@@ -525,7 +540,7 @@ public struct CMOriginalGameplaySession {
     public mutating func reset() {
         elapsedSimulationTime = 0
         originalSwitchStates.removeAll()
-        originalPocketLampStates.removeAll()
+        originalPocketLampStates = authoredPocketLampStates
         recentContacts.removeAll()
         contactCounts.removeAll()
         activations.removeAll()
