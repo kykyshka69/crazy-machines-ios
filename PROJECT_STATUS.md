@@ -92,6 +92,20 @@ Primary goal: load and play the **original PC Crazy Machines puzzles on iPhone**
 
 **Next action:** perform an Apple-SDK build and native import of the original user-owned Professor Laboratory CML, verify 102 scenes/model availability and capture the actual first puzzle. Use `docs/native-cml-on-iphone.md`; do not restart reverse-engineering from scratch.
 
+## CRITICAL: branch divergence / avoid duplicated implementation (2026-11-22)
+
+Verified GitHub branch comparison (merge base `ef3151d6c2fef5248501d645ded3b7dd1aa4f9a2`):
+
+- `main` at `e8ce55e1` had **64 commits not in** `work/original-3d-scene-batch`.
+- `work/original-3d-scene-batch` at `d4793cc0` had **168 commits not in** `main`.
+- These are divergent branches, **not** one ahead of the other. Do not erase either branch or fast-forward blindly.
+- **Actual feature overlap:** both independently implement CML decoding, 12-bit LZW, Windows-1251 scene parsing, original-level import and 3D scene UI. The `main` implementation `CMOriginalCMLDecoder.swift` duplicates the work branch's separate `CMOriginalCMLContainer.swift`, `CMOriginalLZW12.swift`, `CMOriginalWindows1251.swift`, `CMOriginalSceneTextParser.swift` and `CMOriginalLaboratorySceneInstaller.swift`. Both also implement original model resolution/3D assembly and first-level screenshots.
+- **Important code unique to work branch:** `CMOriginalQuickPlayView.swift`, `CMOriginalAssetPackImporter.swift`, `CMOriginalFirstLevelRun.swift`, scene/physics role planners, collision/contact components, native game start flow and a private original-resource-pack test + signed-device build script.
+- **Important work unique to main:** `CMOriginalAssetAudit.swift`, `CMOriginalAssetAuditView.swift`, `tools/select_first_level_screenshot.py`, the strict screenshot authenticity checks and standalone user-owned CML staging/selection scripts.
+- **Integration decision needed before further overlapping code:** use `work/original-3d-scene-batch` as the provisional integration baseline because it includes the richer in-app game flow. Make a separate integration branch, bring over compatible main-only safety checks and workflows, and resolve overlapping SwiftUI/SceneKit/CML changes explicitly. Run portable tests, then Xcode/iPhone Simulator checks before moving `main`.
+- **Do not treat work-branch CI or screenshots as verified passes:** connected GitHub combined status returned no status checks for either branch head during this review. Read real logs/artifacts before making claims.
+- Avoid writing a third CML decoder, a third original-level screen or a separate first-level launch path before this reconciliation.
+
 ## Priority blockers / work order
 
 1. **DONE IN CODE, AWAITING APP/CI VERIFICATION:** the original level model inventory now calls `CMOriginalModelResolver.allModelNames(in:)`; this collects UCM references from nested `tmo_*` owners, preserves object-local resolution, and de-duplicates case-insensitively. UI readiness and per-level preview selection use it. Regression assertions added, CI Swift compiler inputs corrected. Verify in the actual iOS level browser with user-owned original assets.
