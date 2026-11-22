@@ -128,6 +128,10 @@ swiftc ios/CMOriginalWindowsAmmeter.swift tests/OriginalWindowsAmmeterSmoke.swif
 swiftc ios/CMOriginalWindowsWindmill.swift tests/OriginalWindowsWindmillSmoke.swift \
   -o "$tmp/original-windmill"
 "$tmp/original-windmill"
+swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
+  ios/CMOriginalWindowsWindmill.swift tests/OriginalWindmillIdentitySmoke.swift \
+  -o "$tmp/original-windmill-identity"
+"$tmp/original-windmill-identity"
 # Original motor GOAL is separate from rotor start/stop.
 # The SceneKit torque/speed curve is still a declared bounded prototype.
 swiftc ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalMotorActuator.swift \

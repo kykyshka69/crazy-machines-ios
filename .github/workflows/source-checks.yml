@@ -332,6 +332,8 @@ jobs:
         run: |
           swiftc ios/CMOriginalWindowsWindmill.swift tests/OriginalWindowsWindmillSmoke.swift -o /tmp/cm-original-windmill
           /tmp/cm-original-windmill
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalWindowsWindmill.swift tests/OriginalWindmillIdentitySmoke.swift -o /tmp/cm-windmill-identity
+          /tmp/cm-windmill-identity
 
   original-motor-rotor-drive:
     runs-on: ubuntu-latest
