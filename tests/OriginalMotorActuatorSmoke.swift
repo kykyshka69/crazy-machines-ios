@@ -34,6 +34,19 @@ struct OriginalMotorActuatorSmoke {
         let resting = Motor.prototypeStep(signedAngularSpeed: -0.1,
                                          targetSpeed: 0, elapsedSeconds: 0.1)!
         precondition(resting == 0)
+        // A direct caller cannot drive the SceneKit prototype past its
+        // declared speed limit with an unchecked finite target command.
+        let capped = Motor.prototypeStep(signedAngularSpeed: 2.9,
+                                         targetSpeed: 1000, elapsedSeconds: 0.2)!
+        precondition(capped == Motor.prototypeMaximumAngularSpeed)
+        let reverseCap = Motor.prototypeStep(signedAngularSpeed: -2.9,
+                                            targetSpeed: -1000, elapsedSeconds: 0.2)!
+        precondition(reverseCap == -Motor.prototypeMaximumAngularSpeed)
+        // An already out-of-bounds measured speed is decelerated, not
+        // teleported instantly to the declared prototype maximum.
+        let recovery = Motor.prototypeStep(signedAngularSpeed: 5,
+                                           targetSpeed: 0, elapsedSeconds: 0.1)!
+        precondition(recovery < 5 && recovery > 3)
         precondition(Motor.prototypeStep(signedAngularSpeed: .nan,
                                         targetSpeed: 0, elapsedSeconds: 0.1) == nil)
         precondition(Motor.prototypeStep(signedAngularSpeed: 0,
