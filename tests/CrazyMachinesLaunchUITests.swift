@@ -80,6 +80,41 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         XCTAssertTrue(importedSection.exists)
     }
 
+    func testCaptureFirstRealLevel3DWhenSeeded() throws {
+        let app = XCUIApplication()
+        app.launch()
+        // The normal public CI has no copyrighted game data. Only a
+        // privately staged original first-level JSON + UCM files enables
+        // this screenshot test. Do not substitute the synthetic playground.
+        let originalLevel = app.descendants(matching: .any)["cm.original.level-1"]
+        guard originalLevel.waitForExistence(timeout: 10) else {
+            throw XCTSkip("No user-owned original first-level scene staged")
+        }
+        originalLevel.tap()
+        let open3D = app.buttons["cm.original.open-3d"]
+        XCTAssertTrue(open3D.waitForExistence(timeout: 15),
+                      "Original level must expose its authentic 3D preview")
+        open3D.tap()
+
+        let sceneView = app.descendants(matching: .any)["cm.original.assembled-scene"]
+        XCTAssertTrue(sceneView.waitForExistence(timeout: 20),
+                      "Original 3D SceneKit view never appeared")
+        // A visible canvas is not proof that the original objects loaded:
+        // require at least one actually constructed UCM mesh before capture.
+        let hasRealMeshes = NSPredicate(
+            format: "value MATCHES %@",
+            ".*rendered-original-meshes:[1-9][0-9]*.*"
+        )
+        let loaded = XCTNSPredicateExpectation(predicate: hasRealMeshes, object: sceneView)
+        XCTAssertEqual(XCTWaiter.wait(for: [loaded], timeout: 15), .completed,
+                       "Original 3D scene opened but rendered zero UCM meshes")
+        // Allow the GPU a frame after SceneKit has assembled the meshes.
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "04-real-first-original-level-3d"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
     func testOnlyOriginalGameTabsAreExposed() {
         let app = XCUIApplication()
         app.launch()
