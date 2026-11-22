@@ -267,6 +267,10 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         let next = app.buttons["cm.original.quickplay-next"]
         XCTAssertTrue(next.waitForExistence(timeout: 15))
         XCTAssertTrue(next.isEnabled)
+        // Regression: the original 12.7×16.7-point chevron was too small
+        // for reliable simulator/finger taps and silently lost level changes.
+        XCTAssertGreaterThanOrEqual(next.frame.width, 40)
+        XCTAssertGreaterThanOrEqual(next.frame.height, 40)
         next.tap() // level 2
         XCTAssertTrue(
             app.staticTexts["Original level 2: CM synthetic CI level 2"]
