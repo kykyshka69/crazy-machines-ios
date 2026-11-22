@@ -145,7 +145,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         let position = camera?.position ?? SCNVector3Zero
         let forward = camera?.convertVector(
             SCNVector3(0, 0, -1), to: nil) ?? SCNVector3Zero
-        return "; sceneMeshes=\(meshes); originalUCM=\(originalMeshes)" +
+        // Stamp the CURRENT imported level so a 102-level UI sweep cannot
+        // accidentally read the previous SceneKit view's mesh statistics
+        // while SwiftUI is replacing the scene after Next.
+        return "; sceneLevel=\(document.index); sceneMeshes=\(meshes)" +
+            "; originalUCM=\(originalMeshes)" +
             "; glowBillboards=\(visualGlowBillboards)" +
             "; calibration=\(diagnosticMarkers); camera=" +
             "\(position.x),\(position.y),\(position.z)" +

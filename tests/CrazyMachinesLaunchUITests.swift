@@ -100,6 +100,8 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
             Thread.sleep(forTimeInterval: 0.5)
             sceneStatus = (viewport.value as? String) ?? "no scene diagnostics"
         }
+        XCTAssertTrue(sceneStatus.contains("sceneLevel=1"),
+                      "SceneKit diagnostic level stamp not ready: \(sceneStatus)")
         XCTAssertTrue(calibrationPixels >= 8,
                       "SceneKit calibration is invisible (cyan=\(calibrationPixels), " +
                       "orange=\(orangePixels)); \(sceneStatus)")
@@ -300,6 +302,132 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
             app.staticTexts["Original level 4: CM synthetic CI level 4"]
                 .waitForExistence(timeout: 20),
             "Five original-style crate deliveries did not advance to level 4"
+        )
+    }
+
+    func testPrivateAll102OriginalLevelsWhenOptedIn() throws {
+        // LOCAL-ONLY, with the user's private .cmassets pack bundled into
+        // the iOS app on their Mac. Public GitHub runners never receive it.
+        // This is a 102-level import/navigation/SceneKit-graph smoke test,
+        // NOT an attempt to auto-solve 102 original Windows puzzles.
+        let env = ProcessInfo.processInfo.environment
+        guard env["CM_PRIVATE_ORIGINAL_PACK_TEST"] == "1",
+              env["CM_PRIVATE_ALL_LEVELS_TEST"] == "1" else {
+            throw XCTSkip("All 102 authentic levels require the owner's local pack")
+        }
+
+        let app = XCUIApplication()
+        app.launch()
+        let play = app.buttons["cm.menu.play"]
+        XCTAssertTrue(play.waitForExistence(timeout: 35))
+        let installed = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "enabled == true"), object: play)
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [installed], timeout: 120), .completed,
+            "Private 102-level original pack did not finish installing"
+        )
+        guard play.isEnabled else { return }
+        play.tap()
+
+        let title = app.staticTexts["cm.original.quickplay-level"]
+        let viewport = app.otherElements["cm.original.assembled-scene"]
+        let next = app.buttons["cm.original.quickplay-next"]
+        var results = [
+            "level,title,loaded_ucm_nodes,glow_billboards,status"
+        ]
+        var issues: [String] = []
+        var examined = 0
+
+        func csvField(_ raw: String) -> String {
+            "\"" + raw.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+        }
+
+        func diagnosticCount(_ key: String, in status: String) -> Int? {
+            guard let match = status.range(of: key + "=") else { return nil }
+            let digits = status[match.upperBound...].prefix(while: { $0.isNumber })
+            return Int(digits)
+        }
+
+        for level in 1...102 {
+            let expectedPrefix = "Original level \(level):"
+            let titleAppeared = XCTNSPredicateExpectation(
+                predicate: NSPredicate(
+                    format: "label BEGINSWITH %@", expectedPrefix),
+                object: title)
+            guard XCTWaiter.wait(
+                for: [titleAppeared], timeout: 18
+            ) == .completed else {
+                issues.append("Level \(level): original title/scene did not open")
+                break
+            }
+            examined += 1
+
+            // SceneKit rebuilding is asynchronous relative to SwiftUI's
+            // title change. The sceneLevel stamp prevents accepting stale
+            // mesh counts from the PREVIOUS level.
+            var ucm: Int?
+            var glows: Int?
+            var sceneValue = ""
+            if viewport.waitForExistence(timeout: 8) {
+                for _ in 0..<20 {
+                    sceneValue = (viewport.value as? String) ?? ""
+                    if diagnosticCount("sceneLevel", in: sceneValue) == level {
+                        ucm = diagnosticCount("originalUCM", in: sceneValue)
+                        glows = diagnosticCount("glowBillboards", in: sceneValue)
+                        if (ucm ?? 0) > 0 { break }
+                    }
+                    Thread.sleep(forTimeInterval: 0.3)
+                }
+            }
+            var state = "loaded"
+            if (ucm ?? 0) < 1 {
+                state = "missing-original-meshes"
+                issues.append("Level \(level): no authentic UCM in SceneKit (\(sceneValue))")
+            }
+            results.append([
+                String(level), csvField(title.label),
+                ucm.map { String($0) } ?? "",
+                glows.map { String($0) } ?? "", state
+            ].joined(separator: ","))
+
+            // Take only a small set of samples to keep the private report
+            // inspectable; every level is still checked for live SceneKit
+            // original meshes and successful navigation.
+            if level == 1 || level % 10 == 0 || level == 102 ||
+               state != "loaded" {
+                attachScreenshot(
+                    app, named: String(
+                        format: "PRIVATE-original-batch-level-%03d", level))
+            }
+
+            if level < 102 {
+                guard next.waitForExistence(timeout: 8), next.isEnabled else {
+                    issues.append("Level \(level): cannot navigate to \(level + 1)")
+                    break
+                }
+                next.tap()
+            }
+        }
+
+        // Exported by xcresulttool as a local-only private attachment. The
+        // test never uploads the game artwork, names or asset pack to CI.
+        let report = results.joined(separator: "\n") + "\n"
+        let reportAttachment = XCTAttachment(
+            data: Data(report.utf8),
+            uniformTypeIdentifier: "public.comma-separated-values"
+        )
+        reportAttachment.name = "PRIVATE-102-original-levels-SceneKit.csv"
+        reportAttachment.lifetime = .keepAlways
+        add(reportAttachment)
+
+        XCTAssertEqual(
+            examined, 102,
+            "Not all 102 authentic levels opened. \(issues.joined(separator: "; "))"
+        )
+        XCTAssertTrue(
+            issues.isEmpty,
+            "Authentic SceneKit batch contains failures: " +
+            issues.joined(separator: "; ")
         )
     }
 
