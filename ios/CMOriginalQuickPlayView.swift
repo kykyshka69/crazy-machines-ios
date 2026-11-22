@@ -220,22 +220,35 @@ struct CMOriginalQuickPlayView: View {
                 .padding(10)
             }
             .overlay(alignment: .topLeading) {
-                // The objective must remain readable while watching the
-                // original 3D board. Previously the only 0/4 counter was
-                // buried in a short scrollable control panel below the scene.
+                // The original goal must remain visible over the 3D board.
+                // The continue action must ALSO remain reachable when the
+                // bottom controls are clipped/scrollable on a small iPhone.
                 if let run = firstLevelRun {
-                    HStack(spacing: 6) {
-                        Image(systemName: run.isSatisfied
-                              ? "checkmark.seal.fill" : "scope")
-                        Text("Prototype deliveries: \(run.deliveredCount)/\(run.totalCount)")
-                            .monospacedDigit()
+                    HStack(spacing: 8) {
+                        HStack(spacing: 6) {
+                            Image(systemName: run.isSatisfied
+                                  ? "checkmark.seal.fill" : "scope")
+                            Text("Deliveries: \(run.deliveredCount)/\(run.totalCount)")
+                                .monospacedDigit()
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(run.isSatisfied ? Color.green : Color.primary)
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 8)
+                        .background(.regularMaterial, in: Capsule())
+                        .accessibilityIdentifier("cm.original.first-level-hud")
+                        if run.isSatisfied {
+                            Button {
+                                changeLevel(by: 1)
+                            } label: {
+                                Label("Level 2", systemImage: "arrow.right")
+                            }
+                            .font(.caption.weight(.semibold))
+                            .buttonStyle(.borderedProminent)
+                            .disabled(scene(at: document.index + 1) == nil)
+                            .accessibilityIdentifier("cm.original.first-level-next")
+                        }
                     }
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(run.isSatisfied ? Color.green : Color.primary)
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 8)
-                    .background(.regularMaterial, in: Capsule())
-                    .accessibilityIdentifier("cm.original.first-level-hud")
                     .padding(10)
                 }
             }
@@ -392,11 +405,9 @@ struct CMOriginalQuickPlayView: View {
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(.green)
                             .accessibilityIdentifier("cm.original.first-level-prototype-complete")
-                        Button("Continue to original level 2") {
-                            changeLevel(by: 1)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .accessibilityIdentifier("cm.original.first-level-next")
+                        // The actionable Continue control lives over
+                        // the 3D viewport and remains visible without
+                        // scrolling this long diagnostics panel.
                     }
                 }
                 .padding(.horizontal, 14)

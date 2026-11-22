@@ -1,5 +1,11 @@
 # Crazy Machines — original iOS port: working branch
 
+## Verified four-delivery mechanics and pinned Continue fix (2026-11-22)
+
+- **GitHub Actions [run 45015630928](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45015630928), commit `408ac2a`**: Xcode simulator compile, simulator boot, app launch and existing UI checks completed. XCTest had **one failure**, in `testLinkedZoneContactActuallyAdvancesFirstLevelPrototype`. The log explicitly shows the expectation `label == "4 / 4"` **succeeded**; the failure is at the NEXT assertion because the button `cm.original.first-level-next` was not accessible (inside a height-capped, scrollable diagnostics panel). Thus all four synthetic SceneKit contacts reached the target; end-of-level UI/navigation had not passed.
+- **New fix:** move the sole `cm.original.first-level-next` action to the always-visible overlay over the 3D board, next to the 4/4 HUD, instead of burying it in scrollable controls. Keep the lower diagnostics text but remove the duplicate button. Use a copyright-free synthetic level 2 in the same private-free test pack; test taps Continue and verifies navigation to that second scene, not merely presence of a button.
+- No original PC media was added to GitHub. Passing the synthetic 4/4 physics test validates the SceneKit-based **prototype**, not the unrecovered Windows physics / victory condition. Running the user-owned authentic first level on an Apple simulator with the private asset pack remains pending.
+
 ## Current focus — authentic first-level framing and 4/4 physics proof (2026-11-22)
 
 - Current working branch and last confirmed gameplay test: `work/original-3d-scene-batch`, commit `4356404`. The implementation consumes a credited prototype delivery to free the shared target zone; a new UI test requires **4/4 distinct synthetic deliveries and the Level 2 button**. Source, portable checks and unsigned physical iPhone compile all succeeded.

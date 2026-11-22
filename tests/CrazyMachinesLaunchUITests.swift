@@ -186,10 +186,19 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
             "Four distinct original-style linked objects did not reach " +
             "the shared capture zone; last progress: \(progress.label)"
         )
-        XCTAssertTrue(app.buttons["cm.original.first-level-next"]
-            .waitForExistence(timeout: 10),
-            "The first-level prototype did not reveal Continue after 4 / 4")
+        let continueToLevel2 = app.buttons["cm.original.first-level-next"]
+        XCTAssertTrue(continueToLevel2.waitForExistence(timeout: 10),
+                      "Continue must remain accessible over the 3D viewport at 4/4")
+        XCTAssertTrue(continueToLevel2.isEnabled,
+                      "Level 2 was imported but Continue is disabled")
         attachScreenshot(app, named: "07-synthetic-four-linked-deliveries-complete")
+        continueToLevel2.tap()
+        XCTAssertTrue(
+            app.staticTexts["Original level 2: CM synthetic CI level 2"]
+                .waitForExistence(timeout: 20),
+            "Completing four real 3D contacts did not navigate to level 2"
+        )
+        attachScreenshot(app, named: "08-synthetic-original-level-two-navigation")
     }
 
     func testPrivateOriginalLevelOneWhenOptedIn() throws {

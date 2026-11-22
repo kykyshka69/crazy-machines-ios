@@ -42,15 +42,17 @@ enum CMOriginalCISimulatorFixture {
     private static func clearFixture() {
         let fixtureModel = originalStorage.appendingPathComponent("cm_ci_triangle.ucm")
         let solidModel = originalStorage.appendingPathComponent("cm_ci_solid.ucm")
-        let sceneURL = sceneStorage.appendingPathComponent("level-001.json")
         try? FileManager.default.removeItem(at: fixtureModel)
         try? FileManager.default.removeItem(at: solidModel)
-        // Remove only the exact synthetic scene, never delete a user's
-        // authentic imported level-001.json or other original game files.
-        if let contents = try? Data(contentsOf: sceneURL),
-           let content = String(data: contents, encoding: .utf8),
-           content.contains("CM synthetic CI 3D") {
-            try? FileManager.default.removeItem(at: sceneURL)
+        // Remove only exact synthetic scenes; NEVER delete imported PC
+        // levels (including a real level 2) during CI fixture cleanup.
+        for filename in ["level-001.json", "level-002.json"] {
+            let sceneURL = sceneStorage.appendingPathComponent(filename)
+            if let contents = try? Data(contentsOf: sceneURL),
+               let content = String(data: contents, encoding: .utf8),
+               content.contains("CM synthetic CI") {
+                try? FileManager.default.removeItem(at: sceneURL)
+            }
         }
     }
 
@@ -146,6 +148,23 @@ enum CMOriginalCISimulatorFixture {
         return try JSONSerialization.data(withJSONObject: scene, options: [.sortedKeys])
     }
 
+    /// The second screen contains no copyrighted media and verifies that a
+    /// completed first-level prototype can navigate into the next imported
+    /// level rather than just display a hidden/disabled Continue button.
+    private static func makeSecondScene() throws -> Data {
+        guard var document = try JSONSerialization.jsonObject(
+            with: makeScene()
+        ) as? [String: Any] else {
+            throw NSError(domain: "CMSyntheticScene", code: 2)
+        }
+        document["index"] = 2
+        document["title"] = "CM synthetic CI level 2"
+        document["scene_sha256"] = String(repeating: "c", count: 64)
+        return try JSONSerialization.data(
+            withJSONObject: document, options: [.sortedKeys]
+        )
+    }
+
     /// A synthetic physical sensor and moving source exercise the ACTUAL
     /// SCNPhysicsContact -> original object-ID -> CONNECTED_TO -> SwiftUI
     /// delivery path, which the orange triangle rendering smoke never tests.
@@ -207,7 +226,8 @@ enum CMOriginalCISimulatorFixture {
             ? [
                 ("cm_ci_triangle.ucm", makeModel()),
                 ("cm_ci_solid.ucm", makeSolidModel()),
-                ("level-001.json", try makeLinkedZoneScene())
+                ("level-001.json", try makeLinkedZoneScene()),
+                ("level-002.json", try makeSecondScene())
             ]
             : [
                 ("cm_ci_triangle.ucm", makeModel()),
