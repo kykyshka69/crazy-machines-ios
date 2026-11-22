@@ -120,6 +120,10 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   ios/CMOriginalWindowsPowerScalar.swift \
   tests/OriginalWindowsPowerDisrupterSmoke.swift -o "$tmp/original-disrupter"
 "$tmp/original-disrupter"
+# Native original ammeter max+clamp and exact Z-axis indicator angle.
+swiftc ios/CMOriginalWindowsAmmeter.swift tests/OriginalWindowsAmmeterSmoke.swift \
+  -o "$tmp/original-ammeter"
+"$tmp/original-ammeter"
 # Original motor GOAL is separate from rotor start/stop.
 # The SceneKit torque/speed curve is still a declared bounded prototype.
 swiftc ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalMotorActuator.swift \

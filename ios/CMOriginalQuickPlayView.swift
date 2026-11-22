@@ -141,6 +141,22 @@ struct CMOriginalQuickPlayView: View {
             disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
     }
 
+    // Three authentic original PC ammeters are present on levels 40,
+    // 54 and 94. Native +0xFE instrument input is not decoded yet.
+    // In the opt-in wiring prototype only actual main electrical
+    // readings can drive their imported original UCM indicators.
+    private var originalAmmeterPowerSignals: [String: Float]? {
+        guard experimentalPhysics && experimentalWiredPower else { return nil }
+        let power = experimentalPowerSignals
+        return Dictionary(uniqueKeysWithValues:
+            originalSession.objects.compactMap { item -> (String, Float)? in
+                guard item.type == "tmo_power_amperemeter",
+                      let value = power[item.id], value.isFinite
+                else { return nil }
+                return (item.id, value)
+            })
+    }
+
     private var originalLampVisualFactors: [String: Float]? {
         guard experimentalPhysics && experimentalWiredPower else { return nil }
         let powerByID = experimentalPowerSignals
@@ -338,6 +354,7 @@ struct CMOriginalQuickPlayView: View {
                 poweredMotorRotorObjectIDs: wiredMotorRotorIDs,
                 poweredMotorRotorDriveSignals: wiredMotorRotorDriveSignals,
                 originalLampVisualFactors: originalLampVisualFactors,
+                originalAmmeterPowerSignals: originalAmmeterPowerSignals,
                 configuredPhysicsRoles: experimentalPhysicsRoles,
                 onOriginalZoneContact: { type in
                     // Callback is posted to the main thread by SceneKit bridge.

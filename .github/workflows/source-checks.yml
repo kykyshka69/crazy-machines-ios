@@ -315,6 +315,15 @@ jobs:
           /tmp/cm-original-disrupter
           python3 -m unittest discover -s tools -p 'test_audit_windows_disrupter.py'
 
+  original-win32-ammeter-needle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify native ammeter power max, clamp, indicator angle and goal cutoff
+        run: |
+          swiftc ios/CMOriginalWindowsAmmeter.swift tests/OriginalWindowsAmmeterSmoke.swift -o /tmp/cm-original-ammeter
+          /tmp/cm-original-ammeter
+
   original-motor-rotor-drive:
     runs-on: ubuntu-latest
     steps:

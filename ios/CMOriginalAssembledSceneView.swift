@@ -138,6 +138,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // Optional experimental electrical power, expressed with the actual
     // Win32 lamp visual factor (+0x40 / 10). Nil means no wired experiment.
     var originalLampVisualFactors: [String: Float]? = nil
+    var originalAmmeterPowerSignals: [String: Float]? = nil
     var configuredPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
     var configuredReactions: [CMOriginalGameplaySession.ReactionRule] = []
     var switchPressCount = 0
@@ -428,6 +429,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             context.coordinator.configurePhysicsRoles(configuredPhysicsRoles)
             context.coordinator.configureExperimentalReactions(configuredReactions)
             context.coordinator.setOriginalLampVisualFactors(originalLampVisualFactors)
+            context.coordinator.setOriginalAmmeterSignals(originalAmmeterPowerSignals)
         }
         // Assign a fixed simulation step to reduce device-dependent solver
         // behavior and tunneling through thin imported mechanisms.
@@ -509,6 +511,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.setPoweredMotorRotorIDs(poweredMotorRotorObjectIDs)
         context.coordinator.setPoweredMotorDriveSignals(poweredMotorRotorDriveSignals)
         context.coordinator.setOriginalLampVisualFactors(originalLampVisualFactors)
+            context.coordinator.setOriginalAmmeterSignals(originalAmmeterPowerSignals)
         if context.coordinator.lastUndoPlacementRevision != undoPlacementRevision {
             context.coordinator.lastUndoPlacementRevision = undoPlacementRevision
             context.coordinator.undoPlacement(in: uiView)
@@ -616,6 +619,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalOpticalSightlines: (([CMOriginalOpticalSightline]) -> Void)?
         private var opticalEmitterMeshes: [String: SCNNode] = [:]
         private var opticalSolarMeshes: [String: SCNNode] = [:]
+        private var originalAmmeterNeedles: [String: SCNNode] = [:]
+        private var originalAmmeterRestAngles: [String: Float] = [:]
+        private var requestedAmmeterPowerSignals: [String: Float]? = nil
         // Real original pocketlamp glow TGA; owner toggles +0xEC from
         // exact 0 to 1 on native Win32 mouse activation (0x434ACA).
         private var originalPocketLampGlowNodes: [String: [SCNNode]] = [:]
@@ -631,6 +637,37 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var opticalEmitterByPartID: [String: String] = [:]
         private var lastOpticalSampleTime: TimeInterval = -1
         private var previousOpticalSightlines: [CMOriginalOpticalSightline] = []
+
+        func setOriginalAmmeterSignals(_ signals: [String: Float]?) {
+            requestedAmmeterPowerSignals = signals?.filter { $0.value.isFinite }
+            applyOriginalAmmeterSignals()
+        }
+
+        private func applyOriginalAmmeterSignals() {
+            for (deviceID, needle) in originalAmmeterNeedles {
+                guard let initial = originalAmmeterRestAngles[deviceID] else {
+                    continue
+                }
+                // Native x86 0x450FF2 computes this exact target angle
+                // from max(actual power, secondary +0xFE), capped at 10.
+                // Unknown secondary input is set to 0 only in this
+                // clearly labeled experimental display, not goal logic.
+                let measured = requestedAmmeterPowerSignals?[deviceID] ?? 0
+                let angle = CMOriginalWindowsAmmeter.needleAngle(
+                    incomingPower: measured, sensorInput: 0
+                ) ?? CMOriginalWindowsAmmeter.zeroNeedleAngle
+                var euler = needle.eulerAngles
+                euler.z = initial + angle -
+                    CMOriginalWindowsAmmeter.zeroNeedleAngle
+                if abs(needle.eulerAngles.z - euler.z) > 0.0001 {
+                    // Win32's time-scale +0x128 has not yet been ported.
+                    SCNTransaction.begin()
+                    SCNTransaction.animationDuration = 0.12
+                    needle.eulerAngles = euler
+                    SCNTransaction.commit()
+                }
+            }
+        }
 
         func setOriginalLampVisualFactors(_ values: [String: Float]?) {
             sessionLock.lock()
@@ -811,6 +848,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             flippedSwitchIDs.removeAll()
             opticalEmitterMeshes.removeAll()
             opticalSolarMeshes.removeAll()
+            originalAmmeterNeedles.removeAll()
+            originalAmmeterRestAngles.removeAll()
             originalPocketLampGlowNodes.removeAll()
             originalLampBulbMaterials.removeAll()
             originalLampGlowNodes.removeAll()
@@ -976,6 +1015,19 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                 }
                 if let owner = node as? CMOriginalPhysicsOwnerNode,
+                   let indicatorID = owner.originalObjectID,
+                   self.originalTypesByID[indicatorID] ==
+                       "tmo_power_amperemeter_indicator",
+                   let ammeterID = originalObjects.first(where: {
+                       $0.id == indicatorID
+                   })?.parentID,
+                   self.originalTypesByID[ammeterID] ==
+                       "tmo_power_amperemeter" {
+                    self.originalAmmeterNeedles[ammeterID] = owner
+                    self.originalAmmeterRestAngles[ammeterID] =
+                        owner.eulerAngles.z
+                }
+                if let owner = node as? CMOriginalPhysicsOwnerNode,
                    let leverID = owner.originalObjectID,
                    let switchID = switchByLeverID[leverID] {
                     self.switchLeverNodes[switchID] = owner
@@ -1012,6 +1064,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
             }
             applyOriginalLampVisualFactors()
+            applyOriginalAmmeterSignals()
             // Each original conveyor has a distinct child tmo_belt_conveyer_wheel
             // whose rotational velocity determines its belt movement. Never
             // connect unrelated conveyors or activate a motionless wheel.
