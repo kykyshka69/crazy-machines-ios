@@ -335,6 +335,15 @@ jobs:
         run: |
           python3 -m unittest discover -s tools -p 'test_audit_windows_goal_calls.py'
 
+  original-win32-pocketlamp-switch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test original pocketlamp click source state and pause isolation
+        run: |
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift tests/OriginalWindowsPocketLampStateSmoke.swift -o /tmp/cm-pocketlamp-switch
+          /tmp/cm-pocketlamp-switch
+
   original-win32-beam-region:
     runs-on: ubuntu-latest
     steps:
