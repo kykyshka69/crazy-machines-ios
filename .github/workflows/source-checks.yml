@@ -206,3 +206,5 @@ jobs:
         run: |
           swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalModelResolver.swift ios/CMOriginalGameplaySession.swift tests/OriginalSceneDocumentSmoke.swift -o /tmp/cm-original-scene
           /tmp/cm-original-scene
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalLevelDocumentCache.swift tests/OriginalSceneCacheSmoke.swift -o /tmp/cm-original-scene-cache
+          /tmp/cm-original-scene-cache

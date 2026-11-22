@@ -1,5 +1,12 @@
 # Crazy Machines — original iOS port: working branch
 
+## Stronger original 102-level runtime parity and faster browsing (2026-11-22)
+
+- Follow-on work strengthens the private Xcode iPhone Simulator test for all **102 genuine Professor levels**. Instead of accepting any nonempty SceneKit view, the DEBUG renderer now counts **every 3DO model instance** it expects from the original document hierarchy, including separately accounted original TGA-only glow/billboard references, and compares those counts with actual live SceneKit UCM and billboard drawables. Model names are deliberately **not deduplicated**: multiple physical objects can share the same source mesh. The UI test records six counters plus status for each level in the locally exported CSV, and flags any mismatch.
+- The strict private CSV exporter validates level sequence, counter syntax and genuine loaded==expected parity, with source regression tests for false positives, mismatched counts, synthetic/public attachment confusion and malformed data. A successful metadata-only 102-level audit is not a substitute.
+- The iOS Quick Play navigation now reuses decoded neighbor scenes through a **bounded 5-document in-memory LRU**. Previously SwiftUI repeatedly decoded previous/next JSON from disk on every status/contact redraw. A portable Swift smoke test verifies correct indexes, missing/invalid scenes, eviction and reload after eviction. This does not alter the original private scene files or gameplay rules.
+- Required next proof: physically run the opt-in 102-level test on a Mac iPhone Simulator **with the owner's private .cmassets**; public GitHub CI intentionally skips that proprietary-data test. Source/portable/device builds verify integration only, not 102-level real-device gameplay or Windows engine fidelity.
+
 ## iPhone Simulator verified + 102-level private runtime sweep prepared (2026-11-22)
 
 - Latest [GitHub Actions iOS Simulator run 45021208552](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45021208552) at `adad361` completed **SUCCESS**. All **9 XCTest cases executed: 8 passed, 1 private-pack-only case intentionally skipped, 0 failed**. This verified real SceneKit source→zone contacts and next-level navigation for synthetic level 1 (4/4), basketball→crate contact for synthetic level 2 (1/1), five crate deliveries for synthetic level 3 (5/5), navigation to synthetic level 4, and a synthetic original-style 3DO glow TGA billboard. Source checks, portable checks and unsigned physical-iPhone compilation also all succeeded.

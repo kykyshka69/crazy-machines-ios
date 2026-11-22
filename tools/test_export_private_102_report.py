@@ -19,8 +19,8 @@ class Private102ReportTests(unittest.TestCase):
         self.filename = "private-evidence-001.csv"
         self.body = (
             ",".join(HEADER) + "\n" +
-            '1,"Original level one",30,0,loaded\n' +
-            '2,"Original, level two",66,1,loaded\n'
+            '1,"Original level one",30,30,0,0,loaded\n' +
+            '2,"Original, level two",66,66,1,1,loaded\n'
         )
         (self.attachments / self.filename).write_text(
             self.body, encoding="utf-8")
@@ -49,17 +49,29 @@ class Private102ReportTests(unittest.TestCase):
         self.assertFalse(self.output.exists())
 
     def test_rejects_duplicated_or_missing_levels(self):
-        bad = ",".join(HEADER) + "\n1,x,30,0,loaded\n3,y,20,0,loaded\n"
+        bad = ",".join(HEADER) + "\n1,x,30,30,0,0,loaded\n3,y,20,20,0,0,loaded\n"
         (self.attachments / self.filename).write_text(bad, encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "out of order"):
             export_private_report(self.attachments, self.output)
+
+    def test_rejects_false_loaded_render_count(self):
+        bad = ",".join(HEADER) + "\n1,x,29,30,0,0,loaded\n"
+        (self.attachments / self.filename).write_text(bad, encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "Incorrectly marked"):
+            export_private_report(self.attachments, self.output)
+
+    def test_preserves_incomplete_level_report_for_diagnosis(self):
+        bad = ",".join(HEADER) + "\n1,x,29,30,0,0,mismatch\n"
+        (self.attachments / self.filename).write_text(bad, encoding="utf-8")
+        self.assertEqual(export_private_report(self.attachments, self.output), 1)
+        self.assertIn("mismatch", self.output.read_text(encoding="utf-8"))
 
     def test_rejects_parent_path_and_unexpected_status(self):
         self.write_manifest(TEST_ID, ATTACHMENT, "../other.csv")
         with self.assertRaisesRegex(ValueError, "Unsafe"):
             export_private_report(self.attachments, self.output)
         self.write_manifest(TEST_ID, ATTACHMENT)
-        bad = ",".join(HEADER) + "\n1,x,30,0,solved\n"
+        bad = ",".join(HEADER) + "\n1,x,30,30,0,0,solved\n"
         (self.attachments / self.filename).write_text(bad, encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "Unexpected status"):
             export_private_report(self.attachments, self.output)

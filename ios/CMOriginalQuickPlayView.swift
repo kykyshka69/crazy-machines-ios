@@ -11,11 +11,20 @@ struct CMOriginalQuickPlayView: View {
     // recomputes these properties on every physics/status update; rebuilding
     // a 1000-object registry for each frame adds avoidable latency.
     @State private var originalSession: CMOriginalGameplaySession
+    // Bounded LRU avoids re-decoding previous/next original JSON levels
+    // every time SwiftUI redraws after a physics contact.
+    @State private var sceneCache: CMOriginalLevelDocumentCache
 
     init(document: CMOriginalSceneDocument, assetDirectory: URL) {
         self.assetDirectory = assetDirectory
         _document = State(initialValue: document)
         _originalSession = State(initialValue: CMOriginalGameplaySession(document: document))
+        let support = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let directory = support.appendingPathComponent(
+            "OriginalScenes", isDirectory: true)
+        _sceneCache = State(initialValue: CMOriginalLevelDocumentCache(
+            initial: document, sceneDirectory: directory))
         _firstLevelRun = State(initialValue: CMOriginalFirstLevelRun(document: document))
         _secondLevelRun = State(initialValue: CMOriginalSecondLevelRun(document: document))
         _thirdLevelRun = State(initialValue: CMOriginalThirdLevelRun(document: document))
@@ -98,16 +107,7 @@ struct CMOriginalQuickPlayView: View {
     /// There are no synthetic fallback puzzles: missing or invalid levels
     /// are not offered. User arrangements remain separate for each scene hash.
     private func scene(at index: Int) -> CMOriginalSceneDocument? {
-        guard (1...102).contains(index) else { return nil }
-        let support = FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let name = String(format: "level-%03d.json", index)
-        let url = support.appendingPathComponent("OriginalScenes", isDirectory: true)
-            .appendingPathComponent(name)
-        guard let data = try? Data(contentsOf: url),
-              let result = try? CMOriginalSceneDocument.read(data),
-              result.index == index else { return nil }
-        return result
+        sceneCache.scene(at: index)
     }
 
     private func changeLevel(by step: Int) {

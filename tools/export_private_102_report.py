@@ -16,7 +16,8 @@ TEST_ID = (
 )
 ATTACHMENT = "PRIVATE-102-original-levels-SceneKit.csv"
 HEADER = [
-    "level", "title", "loaded_ucm_nodes", "glow_billboards", "status"
+    "level", "title", "loaded_ucm_nodes", "expected_ucm_nodes",
+    "glow_billboards", "expected_glow_billboards", "status"
 ]
 
 
@@ -43,10 +44,17 @@ def export_private_report(attachments: Path, output: Path) -> int:
     if not 1 <= len(records) - 1 <= 102:
         raise ValueError("Invalid number of reported original levels")
     for index, row in enumerate(records[1:], 1):
-        if len(row) != 5 or row[0] != str(index):
+        if len(row) != len(HEADER) or row[0] != str(index):
             raise ValueError(f"Original level {index} missing or out of order")
-        if row[4] not in ("loaded", "missing-original-meshes"):
+        if row[6] not in ("loaded", "mismatch"):
             raise ValueError(f"Unexpected status for original level {index}")
+        if any(value and not value.isdecimal() for value in row[2:6]):
+            raise ValueError(f"Invalid SceneKit count at level {index}")
+        if row[6] == "loaded":
+            if not all(row[2:6]) or int(row[3]) < 1 or (
+                row[2] != row[3] or row[4] != row[5]
+            ):
+                raise ValueError(f"Incorrectly marked level {index} as loaded")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_bytes(content)
     return len(records) - 1

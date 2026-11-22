@@ -140,6 +140,30 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 diagnosticMarkers += 1
             }
         }
+        // Count expected renderable 3DO instances from the SAME traversal
+        // rules used by buildScene. Never deduplicate model names here:
+        // separate balls or beams using one UCM still need separate nodes.
+        var expectedOriginalMeshes = 0
+        var expectedVisualGlows = 0
+        func countReference(_ name: String) {
+            if CMOriginalEffectBillboard.specification(for: name) != nil {
+                expectedVisualGlows += 1
+            } else {
+                expectedOriginalMeshes += 1
+            }
+        }
+        func visitReferences(_ item: CMOriginalSceneDocument.Node) {
+            if item.name.hasPrefix("3DO ") {
+                countReference(String(item.name.dropFirst(4)))
+            }
+            for name in CMOriginalModelResolver.fallbackModelNames(in: item) {
+                countReference(name)
+            }
+            for child in item.children {
+                visitReferences(child)
+            }
+        }
+        visitReferences(document.root)
         let camera = scene.rootNode.childNode(
             withName: "original-level-camera", recursively: false)
         let position = camera?.position ?? SCNVector3Zero
@@ -150,7 +174,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // while SwiftUI is replacing the scene after Next.
         return "; sceneLevel=\(document.index); sceneMeshes=\(meshes)" +
             "; originalUCM=\(originalMeshes)" +
+            "; expectedUCM=\(expectedOriginalMeshes)" +
             "; glowBillboards=\(visualGlowBillboards)" +
+            "; expectedGlows=\(expectedVisualGlows)" +
             "; calibration=\(diagnosticMarkers); camera=" +
             "\(position.x),\(position.y),\(position.z)" +
             "; forward=\(forward.x),\(forward.y),\(forward.z)"

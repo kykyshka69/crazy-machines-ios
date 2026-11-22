@@ -333,7 +333,7 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         let viewport = app.otherElements["cm.original.assembled-scene"]
         let next = app.buttons["cm.original.quickplay-next"]
         var results = [
-            "level,title,loaded_ucm_nodes,glow_billboards,status"
+            "level,title,loaded_ucm_nodes,expected_ucm_nodes,glow_billboards,expected_glow_billboards,status"
         ]
         var issues: [String] = []
         var examined = 0
@@ -366,28 +366,45 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
             // title change. The sceneLevel stamp prevents accepting stale
             // mesh counts from the PREVIOUS level.
             var ucm: Int?
+            var expectedUCM: Int?
             var glows: Int?
+            var expectedGlows: Int?
             var sceneValue = ""
             if viewport.waitForExistence(timeout: 8) {
                 for _ in 0..<20 {
                     sceneValue = (viewport.value as? String) ?? ""
                     if diagnosticCount("sceneLevel", in: sceneValue) == level {
                         ucm = diagnosticCount("originalUCM", in: sceneValue)
+                        expectedUCM = diagnosticCount("expectedUCM", in: sceneValue)
                         glows = diagnosticCount("glowBillboards", in: sceneValue)
-                        if (ucm ?? 0) > 0 { break }
+                        expectedGlows = diagnosticCount("expectedGlows", in: sceneValue)
+                        if ucm != nil && expectedUCM != nil &&
+                           glows != nil && expectedGlows != nil { break }
                     }
                     Thread.sleep(forTimeInterval: 0.3)
                 }
             }
+            // The strongest non-visual proof of source parity: every
+            // original 3DO mesh/effect reference in the imported scene
+            // graph must be represented by one live SceneKit drawable.
             var state = "loaded"
-            if (ucm ?? 0) < 1 {
-                state = "missing-original-meshes"
-                issues.append("Level \(level): no authentic UCM in SceneKit (\(sceneValue))")
+            if expectedUCM == nil || expectedGlows == nil ||
+               (expectedUCM ?? 0) < 1 || ucm != expectedUCM ||
+               glows != expectedGlows {
+                state = "mismatch"
+                issues.append(
+                    "Level \(level): UCM \(ucm.map { String($0) } ?? "?")/" +
+                    "\(expectedUCM.map { String($0) } ?? "?"), glows " +
+                    "\(glows.map { String($0) } ?? "?")/" +
+                    "\(expectedGlows.map { String($0) } ?? "?"); \(sceneValue)")
             }
             results.append([
                 String(level), csvField(title.label),
                 ucm.map { String($0) } ?? "",
-                glows.map { String($0) } ?? "", state
+                expectedUCM.map { String($0) } ?? "",
+                glows.map { String($0) } ?? "",
+                expectedGlows.map { String($0) } ?? "",
+                state
             ].joined(separator: ","))
 
             // Take only a small set of samples to keep the private report

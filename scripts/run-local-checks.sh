@@ -24,6 +24,11 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalModelResolver.swift tests/OriginalModelResolverSmoke.swift -o "$tmp/model-resolution"
 "$tmp/model-resolution"
 "$tmp/original-scenes"
+# Avoid repeatedly decoding identical previous/next PC scenes while moving
+# through all 102 levels on iPhone.
+swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalLevelDocumentCache.swift \
+  tests/OriginalSceneCacheSmoke.swift -o "$tmp/original-scene-cache"
+"$tmp/original-scene-cache"
 swiftc ios/CMOriginalLZW12.swift tests/OriginalLZW12Smoke.swift -o "$tmp/original-lzw"
 "$tmp/original-lzw"
 # Native CML decryption + scene export are portable Swift, not iOS-only stubs.
