@@ -62,7 +62,10 @@ jobs:
           mkdir -p /tmp/crazy-machines-build-logs
           DEVICE_ID="$CM_BOOTED_IPHONE_UDID"
           test -n "$DEVICE_ID"
-          xcodebuild -project CrazyMachinesIOS.xcodeproj -scheme CrazyMachinesIOS -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath /tmp/crazy-machines-derived -resultBundlePath /tmp/CrazyMachinesUITests.xcresult CODE_SIGNING_ALLOWED=NO test 2>&1 | tee /tmp/crazy-machines-build-logs/ui-tests.log
+          # Avoid launching extra parallel XCTest simulator clones on
+          # macOS CI. Reuse the iPhone already booted and smoke-tested
+          # by the preceding step, reducing CoreSimulator contention.
+          xcodebuild -project CrazyMachinesIOS.xcodeproj -scheme CrazyMachinesIOS -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE_ID" -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 -derivedDataPath /tmp/crazy-machines-derived -resultBundlePath /tmp/CrazyMachinesUITests.xcresult CODE_SIGNING_ALLOWED=NO test 2>&1 | tee /tmp/crazy-machines-build-logs/ui-tests.log
       - name: Export UI test screenshots for direct inspection
         if: always()
         run: |

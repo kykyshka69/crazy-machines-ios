@@ -7,10 +7,15 @@ struct CMOriginalQuickPlayView: View {
     let assetDirectory: URL
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var document: CMOriginalSceneDocument
+    // Decode the original hierarchy once per loaded level. SwiftUI
+    // recomputes these properties on every physics/status update; rebuilding
+    // a 1000-object registry for each frame adds avoidable latency.
+    @State private var originalSession: CMOriginalGameplaySession
 
     init(document: CMOriginalSceneDocument, assetDirectory: URL) {
         self.assetDirectory = assetDirectory
         _document = State(initialValue: document)
+        _originalSession = State(initialValue: CMOriginalGameplaySession(document: document))
         _firstLevelRun = State(initialValue: CMOriginalFirstLevelRun(document: document))
     }
 
@@ -33,7 +38,7 @@ struct CMOriginalQuickPlayView: View {
     // The original 0-based indices refer to level_elements.children,
     // not the nested SceneKit hierarchy. GOAL is not a victory rule.
     private var originalConnections: [CMOriginalGameplaySession.OriginalConnection] {
-        CMOriginalGameplaySession(document: document).originalConnections
+        originalSession.originalConnections
     }
 
     private var originalZoneConnections: [CMOriginalGameplaySession.OriginalConnection] {
@@ -48,8 +53,7 @@ struct CMOriginalQuickPlayView: View {
     /// registry as SceneKit bodies and CONNECTED_TO links. Nested mount
     /// objects must not make the object IDs drift.
     private var experimentalPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] {
-        CMOriginalPhysicsRolePlanner.roles(
-            for: CMOriginalGameplaySession(document: document))
+        CMOriginalPhysicsRolePlanner.roles(for: originalSession)
     }
 
     /// Identifies parts the original PC level explicitly lets the player
@@ -105,6 +109,7 @@ struct CMOriginalQuickPlayView: View {
     private func changeLevel(by step: Int) {
         guard let next = scene(at: document.index + step) else { return }
         document = next
+        originalSession = CMOriginalGameplaySession(document: next)
         firstLevelRun = CMOriginalFirstLevelRun(document: next)
         showFirstLevelObjectiveDetails = false
         experimentalPhysics = false
