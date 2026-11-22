@@ -12,6 +12,15 @@ Do not resume two independent CML/SceneKit implementations.
 — passed. This includes the new UCM integrity smoke and screenshot-selector
 regressions. The macOS `iOS simulator build` job has now **successfully completed its Xcode compilation** for the iPhone Simulator (GitHub run `44993963653`, job `137120900299`, step `Build for iOS Simulator without signing`: success). Simulator boot/launch, UI tests and screenshot artifacts were **not yet confirmed** at this review. This is **not** a genuine original level-one screenshot.
 
+## Simulator startup reliability and direct work-branch CI (2026-11-22)
+
+- `6f54dded`: new `tools/boot_iphone_simulator_ci.py` selects a booted/available iPhone, limits blocking `simctl bootstatus` to 130 seconds per attempt and tries one additional iPhone rather than hanging forever.
+- `0d23ceed`: nine tests for simulator selection, retry, invalid device lists and timeout handling, using fake `simctl` responses (no Apple SDK or copyrighted game assets needed).
+- `9effab1b`: iOS workflow uses that bounded boot helper, preserves the selected simulator ID for UI tests, and enables simulator UI tests on pushes to the **work branch**.
+- `e46efd7f`, `08bc87f3`: source and portable GitHub Actions now run on pushes to the work branch (instead of waiting for a separate PR to `main`). The new boot tests are in Python CI.
+- **Verified from the earlier PR #4 macOS run** `44993963653`: compilation succeeded, and the Simulator boot/initial launch step later also reported success. The UI test step was still **running** at the last check; the actual scene screenshots and final UI result were not yet available.
+- **Verification limits:** the newly committed timeout/retry code and nine CI tests still need their own fresh run results. The earlier successful Xcode build was for integration commit `1a744a9e`, not these subsequent workflow changes. The original user-owned PC game resources remain unavailable in public CI.
+
 **New player-facing fixes**: imported CML now decrypts and converts the
 original levels away from the SwiftUI main thread; original first-level
 Play requires parsed, valid UCM geometry rather than checking only filenames.
