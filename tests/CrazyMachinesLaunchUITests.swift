@@ -149,6 +149,14 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         app.launch()
         let play = app.buttons["cm.menu.play"]
         XCTAssertTrue(play.waitForExistence(timeout: 35))
+        // The private original .cmassets pack is verified and installed on a
+        // background thread. Never tap Play before the original UCM files
+        // have passed validation and the app has enabled the button.
+        let installed = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "enabled == true"), object: play
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [installed], timeout: 120), .completed,
+                       "Private original resource pack did not finish installation")
         play.tap()
 
         let title = app.staticTexts.matching(NSPredicate(
