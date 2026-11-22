@@ -1,4 +1,25 @@
-# Crazy Machines — Unified original iOS game, integration status
+# Crazy Machines — original iOS port: working branch
+
+**Primary development branch: `work/original-3d-scene-batch`.**
+The former `integration/original-game-unified` changes were merged into this
+branch via [PR #4](https://github.com/kykyshka69/crazy-machines-ios/pull/4),
+merge commit `f86fb90ca34fc13b4883f696a4db9c35d11b0ba4`. The redundant draft
+PR #3 against `main` was closed without merging; `main` remains unchanged.
+Do not resume two independent CML/SceneKit implementations.
+
+**Actual connected GitHub Actions evidence for PR #4 at integration commit
+`1a744a9e`**: `Source checks` — all **16 jobs passed**; `Portable checks`
+— passed. This includes the new UCM integrity smoke and screenshot-selector
+regressions. The macOS `iOS simulator build` job was **in progress** at this
+review; its Xcode build/UI test result is **not yet confirmed**. This is
+not a genuine original level-one screenshot.
+
+**New player-facing fixes**: imported CML now decrypts and converts the
+original levels away from the SwiftUI main thread; original first-level
+Play requires parsed, valid UCM geometry rather than checking only filenames.
+The original Quick Play, CML import, 3D renderer and prototype physics were
+retained from the main work branch.
+
 
 Updated: 2026-11-22. Branch: `integration/original-game-unified`.
 
