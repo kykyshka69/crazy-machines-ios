@@ -1,5 +1,16 @@
 # Crazy Machines — original iOS port: working branch
 
+## Working-branch verified handoff (2026-11-22)
+
+- **Single active development branch:** `work/original-3d-scene-batch`. The old integration work was incorporated previously; do not restart a second implementation on `main`.
+- **Gameplay UI/renderer already committed:** one-finger direct drag of authentic `UNLOCKED` original pieces, two-finger camera pan, camera recenter, flexible 3D viewport, and a scene-scoped decoded TGA cache. Commits `b3d653d`, `2297d82`, `d517221`, `3994e9c`, `b33fa5f`, `f656c8f`. These changes preserve original CML imports and experimental SceneKit physics.
+- **Specific simulator failure diagnosed:** run [45001077011](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45001077011) **successfully compiled** both simulator architectures, but the hosted macOS CoreSimulator command `simctl list devices booted -j` stalled **after the targeted `bootstatus` returned**. The follow-up device boot command also timed out; consequently no UI tests or new screen captures were produced in that run. This was not an Xcode compile failure.
+- **Fix committed:** `91b331f` avoids re-querying the global simulator inventory after the selected device's successful `bootstatus -b`; removes an extra unbounded `simctl list` in CI; adds an explicit regression test for the stalled global-list scenario.
+- **Confirmed for `91b331f`:** GitHub [Source checks](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45006370267) and [Portable checks](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45006370242) completed successfully. In [iOS simulator build](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45006370276), the Xcode build step completed successfully. The subsequent boot/launch and UI checks were still in progress at this handoff, so do not claim an iPhone runtime pass yet.
+- **Authentic original level 1 still needs private verification:** Public CI intentionally has no copyrighted PC asset pack. Real original Professor level-one screenshot requires the user-owned `CrazyMachines_Original_102Levels.cmassets`, 25+ original UCM meshes and the private XCTest. Previous public screenshots are a synthetic orange SceneKit UCM fixture, *not* screenshots of the authentic original PC level.
+
+Older integration and CI notes remain below as historical milestones, not the current test status.
+
 **Primary development branch: `work/original-3d-scene-batch`.**
 The former `integration/original-game-unified` changes were merged into this
 branch via [PR #4](https://github.com/kykyshka69/crazy-machines-ios/pull/4),
