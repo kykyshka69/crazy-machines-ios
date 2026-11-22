@@ -198,8 +198,14 @@ enum CMOriginalCISimulatorFixture {
         // and object placements are copyright-free synthetic test values.
         let elements: [[String: Any]] = [
             object("tmo_board", x: 0, y: -1.0, extra: ["VALB 64"]),
-            object("tmo_crate", x: 0, y: 0.0, extra: ["VALB 72"]),
-            object("tmo_ball_basket", x: 0, y: 1.05,
+            // In this copyright-free *test* scene, anchor the receiving
+            // crate and leave an actual gap above it. Previously both
+            // dynamic bodies could free-fall together before ever touching,
+            // so a missing event did not distinguish a bad test arrangement
+            // from a broken original CONNECTED_TO contact callback.
+            // This is NOT a change to the authentic PC level's crate role.
+            object("tmo_crate", x: 0, y: 0.0, extra: ["VALB 64"]),
+            object("tmo_ball_basket", x: 0, y: 1.8,
                    extra: ["CONNECTED_TO 1", "VALB 72"]),
             object("tmo_domino", x: -3, y: 0,
                    extra: ["UNLOCKED 1", "VALB 8"]),
