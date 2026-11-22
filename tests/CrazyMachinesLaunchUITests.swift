@@ -174,7 +174,22 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
             "A real SceneKit ball/zone collision never reached the linked " +
             "source/target callback; last progress: \(progress.label)"
         )
-        attachScreenshot(app, named: "07-synthetic-linked-zone-contact-proved")
+        // Multiple genuine SceneKit collisions must be credited once
+        // each. Removing the collected prototype-only source body keeps
+        // already-delivered objects from clogging the same target zone.
+        let allDelivered = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label == %@", "4 / 4"),
+            object: progress
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [allDelivered], timeout: 40), .completed,
+            "Four distinct original-style linked objects did not reach " +
+            "the shared capture zone; last progress: \(progress.label)"
+        )
+        XCTAssertTrue(app.buttons["cm.original.first-level-next"]
+            .waitForExistence(timeout: 10),
+            "The first-level prototype did not reveal Continue after 4 / 4")
+        attachScreenshot(app, named: "07-synthetic-four-linked-deliveries-complete")
     }
 
     func testPrivateOriginalLevelOneWhenOptedIn() throws {

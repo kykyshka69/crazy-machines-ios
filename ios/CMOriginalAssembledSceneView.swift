@@ -293,6 +293,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.diagnosticTapImpulses = diagnosticTapImpulses
         context.coordinator.setExperimentalMotorDrive(experimentalMotorDrive)
         context.coordinator.session = CMOriginalGameplaySession(document: document)
+        // Only the evidence-derived four-delivery prototype for original
+        // Professor level 1 may consume linked sources. Other original
+        // levels retain their physics bodies until their mechanics are known.
+        context.coordinator.firstLevelPrototypeTargets = Set(
+            (CMOriginalFirstLevelRun(document: document)?.targets ?? []).map(\.id)
+        )
         context.coordinator.onOriginalZoneContact = onOriginalZoneContact
         context.coordinator.onLinkedZoneContact = onLinkedZoneContact
         context.coordinator.onOriginalConnectionContact = onOriginalConnectionContact
@@ -458,6 +464,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onLinkedZoneContact: ((String, String) -> Void)?
         var onOriginalConnectionContact: ((String, String) -> Void)?
         private var reportedZoneContacts = Set<String>()
+        var firstLevelPrototypeTargets = Set<String>()
+        private var collectedPrototypeSources = Set<String>()
         private var reportedOriginalConnections = Set<String>()
         private var physicsNodesByObjectID: [String: [SCNNode]] = [:]
         // All 46 original balloon objects are identified by their PC tmo_
@@ -571,6 +579,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
 
         func registerPhysicsNodes(in scene: SCNScene) {
+            collectedPrototypeSources.removeAll()
             physicsNodesByObjectID.removeAll()
             appliedPhysicsRoles.removeAll()
             conveyorWheelNodes.removeAll()
@@ -838,6 +847,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                   asImpulse: false)
         }
 
+        /// Consume ONLY a verified original first-level delivery, so later
+        /// balls/crates can also enter the same capture zone. Keep the
+        /// imported UCM model and its original authored position untouched;
+        /// removing the transient SceneKit physics body is prototype-only.
+        private func collectFirstLevelPrototypeSource(_ sourceID: String) {
+            guard collectedPrototypeSources.insert(sourceID).inserted else { return }
+            for node in physicsNodesByObjectID.removeValue(forKey: sourceID) ?? [] {
+                node.physicsBody = nil
+                node.isHidden = true
+            }
+        }
+
         func physicsWorld(_ world: SCNPhysicsWorld, didUpdate contact: SCNPhysicsContact) {
             guard physicsEnabled else { return }
             sessionLock.lock()
@@ -905,6 +926,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
             let contactType: String?
             let contactIDs: (String, String)?
+            let collectibleSourceID: String?
             // Each source-zone pair counts once. Original puzzles may have
             // multiple zones, and a random zone must not count as the
             // CONNECTED_TO target encoded by the Windows scene.
@@ -914,9 +936,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                reportedZoneContacts.insert(candidate + "|" + zoneID).inserted {
                 contactType = types[candidate]
                 contactIDs = (candidate, zoneID)
+                collectibleSourceID = firstLevelPrototypeTargets.contains(
+                    candidate + "|" + zoneID
+                ) ? candidate : nil
             } else {
                 contactType = nil
                 contactIDs = nil
+                collectibleSourceID = nil
             }
             sessionLock.unlock()
             // Never mutate SwiftUI state from the SceneKit renderer thread.
@@ -925,6 +951,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     if let contactType, let contactIDs {
                         self?.onOriginalZoneContact?(contactType)
                         self?.onLinkedZoneContact?(contactIDs.0, contactIDs.1)
+                        // SceneKit contact delegates run on the renderer
+                        // thread; never delete a physics node mid-callback.
+                        // The SwiftUI progress callback runs first.
+                        if let collectibleSourceID {
+                            self?.collectFirstLevelPrototypeSource(
+                                collectibleSourceID
+                            )
+                        }
                     }
                     for (sourceID, targetID) in newlyObservedConnections {
                         self?.onOriginalConnectionContact?(sourceID, targetID)
@@ -2174,6 +2208,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         "element_bars_pult": "element_bars_pult",
         "hammer_body": "hammer", "heat_dynamite": "heat_dynamite",
         "h_iron": "h_iron", "magnetic_permanent": "magnetic_permanent",
+        // These original support pieces occur 14 times in Professor level 1.
+        // Their on-disk UCM and TGA basenames match exactly; use the
+        // recovered PC texture instead of the fallback gray material.
+        "mount_bar": "mount_bar", "mount_wood": "mount_wood",
+        "mount_shear": "mount_shear",
         "power_lamp_base": "power_lamp",
         "power_motor_rotor": "power_motor",
         "power_plug": "power_plug", "power_solarcell": "power_solarcell",

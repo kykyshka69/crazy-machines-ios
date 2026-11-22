@@ -166,11 +166,11 @@ enum CMOriginalCISimulatorFixture {
             object("tmo_board", x: 4, y: -2, extra: ["UNLOCKED 1", "VALB 64"]),
             object("tmo_ball_tennis", x: 0, y: 1.1,
                    extra: ["CONNECTED_TO 0", "VALB 72"]),
-            object("tmo_ball_beach", x: 0.9, y: 2.3,
+            object("tmo_ball_beach", x: 0, y: 2.5,
                    extra: ["CONNECTED_TO 0", "VALB 72"]),
-            object("tmo_ball_basket", x: -0.9, y: 2.9,
+            object("tmo_ball_basket", x: 0, y: 3.9,
                    extra: ["CONNECTED_TO 0", "VALB 72"]),
-            object("tmo_crate", x: 1.5, y: 3.5,
+            object("tmo_crate", x: 0, y: 5.3,
                    extra: ["CONNECTED_TO 0", "VALB 72"])
         ]
         let root: [String: Any] = [
