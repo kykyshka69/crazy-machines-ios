@@ -73,3 +73,24 @@ instances were attached, and captures arrangement/physics screenshots.
 It is automatically **skipped** in public GitHub Actions. Do not push
 the `cmassets` file, private screenshots, or `xcresult` containing the
 original artwork to public CI/artifacts.
+
+### Integrated strict original first-level screenshot capture
+
+The unified branch preserves the existing Quick Play UI and its private
+`testPrivateOriginalLevelOneWhenOptedIn` assertion: level one must load at
+least **25 authentic UCM mesh instances** and expose the original four-target
+prototype before accepting a screenshot.
+
+To build and capture the actual original Professor first level on **your Mac**
+from your own private asset pack, run:
+
+```bash
+bash scripts/capture-private-professor-level-one.sh \
+  "/private/path/CrazyMachines_Original_102Levels.cmassets"
+```
+
+The script exports `REAL-original-professor-level-001.png` **only if** the
+private UI test passes, is not skipped, and its exact named screenshot is
+present in the Xcode results. It never falls back to a synthetic CI screenshot
+or the first arbitrary PNG. Real Xcode/iPhone execution has not yet been
+confirmed in this environment. The pack and screenshot must remain private.
