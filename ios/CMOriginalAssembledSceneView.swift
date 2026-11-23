@@ -1349,7 +1349,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     $0.name?.hasPrefix("original-ucm-anchor-heat-") == true
                 }
                 guard sourceNodes.count == 1,
-                      let sourceNode = sourceNodes.first else { continue }
+                      let sourceNode = sourceNodes.first,
+                      let originalSourceName = sourceNode.userData?[
+                        "originalUCMMarkerName"
+                      ] as? String,
+                      CMOriginalWindowsNamedRegionRegistry
+                        .isHeatRegionCandidate(originalSourceName)
+                else { continue }
                 let s = sourceNode.presentation.simdWorldTransform.columns.3
                 for rocket in complete {
                     guard heatPairs.count < 512,
@@ -1360,6 +1366,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             candleID: candleID,
                             sourceType: originalTypesByID[candleID] ?? "",
                             sourceLit: true,
+                            sourceOriginalUCMMarkerName: originalSourceName,
                             sourceHeatWorld: .init(s.x, s.y, s.z),
                             rocketParentID: parentID,
                             rocketChildID: rocket.rocketChildID,
@@ -1367,6 +1374,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             childType: originalTypesByID[
                                 rocket.rocketChildID
                             ] ?? "",
+                            rocketOriginalUCMMarkerName: rocket.heat.name,
                             targetHeatWorld: .init(
                                 rocket.heat.worldOrigin.x,
                                 rocket.heat.worldOrigin.y,
@@ -3004,6 +3012,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                 frame.name = "original-ucm-anchor-" +
                                     attachment.name.lowercased() +
                                     "-\(attachment.slot)"
+                                // Retain the exact original UCM label,
+                                // not just its lowercased scene node name.
+                                // Win32 0x425250 uses this name to select
+                                // native type +0x10 (Heat -> selector 3).
+                                frame.userData = NSMutableDictionary(
+                                    dictionary: [
+                                        "originalUCMMarkerName": attachment.name
+                                    ])
                                 // Preserve original full basis AND position.
                                 // UCM stores row-major vectors with translation
                                 // in its final row; SIMD uses column vectors,

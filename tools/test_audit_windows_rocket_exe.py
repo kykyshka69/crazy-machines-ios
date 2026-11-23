@@ -2,7 +2,7 @@ import unittest
 import sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
-from audit_windows_rocket_exe import verify, SITES, REGION_SITES, FORCE_SITES, VELOCITY_SITES, CANDLE_HEAT_PATH_SITES, CANDLE_HEAT_FACTORY_SITES
+from audit_windows_rocket_exe import verify, SITES, REGION_SITES, FORCE_SITES, VELOCITY_SITES, CANDLE_HEAT_PATH_SITES, CANDLE_HEAT_FACTORY_SITES, NAMED_REGION_REGISTRATION_SITES
 
 class RocketAuditSmoke(unittest.TestCase):
     def test_wrong_exe_rejected(self):
@@ -73,6 +73,19 @@ class RocketAuditSmoke(unittest.TestCase):
         self.assertEqual(CANDLE_HEAT_FACTORY_SITES[0x432060], "68 cd cc 4c 3e")
         self.assertEqual(CANDLE_HEAT_FACTORY_SITES[0x43206D], "68 cd cc 4c 3f")
         self.assertEqual(CANDLE_HEAT_FACTORY_SITES[0x4320A9], "89 51 20")
+
+    def test_real_named_ucm_marker_heat_is_selector_three(self):
+        self.assertEqual(len(NAMED_REGION_REGISTRATION_SITES), 15)
+        self.assertEqual(NAMED_REGION_REGISTRATION_SITES[0x42FF72],
+                         "6a 00 6a 03 68 d0 9c 4e 00")
+        self.assertEqual(NAMED_REGION_REGISTRATION_SITES[0x42FF50],
+                         "6a 00 6a 02 68 c8 9c 4e 00")
+        self.assertEqual(NAMED_REGION_REGISTRATION_SITES[0x42FF94],
+                         "6a 00 6a 04 68 d8 9c 4e 00")
+        self.assertEqual(NAMED_REGION_REGISTRATION_SITES[0x4252B4],
+                         "8a 55 0c 88 51 10")
+        self.assertEqual(NAMED_REGION_REGISTRATION_SITES[0x42FF8F],
+                         "e8 bc 52 ff ff")
 
     def test_empty_rejected(self):
         with self.assertRaisesRegex(ValueError, "SHA-256"):

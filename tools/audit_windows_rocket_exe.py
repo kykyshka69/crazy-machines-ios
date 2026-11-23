@@ -103,6 +103,26 @@ CANDLE_HEAT_FACTORY_SITES = {
     0x432094:"8b 45 08 83 c0 24",
     0x4320A9:"89 51 20",
 }
+# Native named-region registration 0x425250. Each original UCM
+# label and selector are an authenticated exact binary instruction pair.
+# 0x4252B4 writes type to registered linked-object +0x10.
+NAMED_REGION_REGISTRATION_SITES = {
+    0x42FE12:"6a 00 6a 01 68 78 9c 4e 00",
+    0x42FE34:"6a 00 6a 01 68 80 9c 4e 00",
+    0x42FE56:"6a 00 6a 05 68 88 9c 4e 00",
+    0x42FE78:"6a 00 6a 0a 68 90 9c 4e 00",
+    0x42FE9A:"6a 00 6a 0b 68 9c 9c 4e 00",
+    0x42FEBC:"6a 00 68 fd 00 00 00 68 a8 9c 4e 00",
+    0x42FEE1:"6a 00 68 fe 00 00 00 68 b0 9c 4e 00",
+    0x42FF06:"6a 00 68 fd 00 00 00 68 b8 9c 4e 00",
+    0x42FF2B:"6a 00 68 ff 00 00 00 68 c0 9c 4e 00",
+    0x42FF50:"6a 00 6a 02 68 c8 9c 4e 00",
+    0x42FF72:"6a 00 6a 03 68 d0 9c 4e 00",
+    0x42FF94:"6a 00 6a 04 68 d8 9c 4e 00",
+    0x4252B4:"8a 55 0c 88 51 10",
+    0x4252BD:"8b 4d 10 89 48 14",
+    0x42FF8F:"e8 bc 52 ff ff",
+}
 def verify(exe: bytes) -> dict:
     if hashlib.sha256(exe).hexdigest()!=SHA:
         raise ValueError("Original CrazyMachines.exe SHA-256 mismatch")
@@ -126,12 +146,16 @@ def verify(exe: bytes) -> dict:
                 pos=raw+va-start
                 if pos+n<=len(exe):return exe[pos:pos+n]
         raise ValueError("Native original rocket address not mapped")
-    for address,code in {**SITES,**REGION_SITES,**FORCE_SITES,**VELOCITY_SITES,**CANDLE_HEAT_PATH_SITES,**CANDLE_HEAT_FACTORY_SITES}.items():
+    for address,code in {**SITES,**REGION_SITES,**FORCE_SITES,**VELOCITY_SITES,**CANDLE_HEAT_PATH_SITES,**CANDLE_HEAT_FACTORY_SITES,**NAMED_REGION_REGISTRATION_SITES}.items():
         expected=bytes.fromhex(code)
         if read(address,len(expected))!=expected:
             raise ValueError("Native original rocket x86 mismatch at "+hex(address))
     if read(0x4E9430,9)!=b"VELOCITY\0":
         raise ValueError("Original native VELOCITY script keyword mismatch")
+    if read(0x4E9CD0,5)!=b"Heat\0":
+        raise ValueError("Original native selector-3 Heat name mismatch")
+    if read(0x4E9CC8,6)!=b"Light\0" or read(0x4E9CD8,5)!=b"Wind\0":
+        raise ValueError("Original registered neighbouring names mismatch")
     if read(0x4ED2A8,11)!=b"tmo_candle\0":
         raise ValueError("Original candle cone constructor type mismatch")
     if read(0x4EC8A0,11)!=b"tmo_candle\0":
@@ -154,6 +178,8 @@ def verify(exe: bytes) -> dict:
             "native_velocity_sites":len(VELOCITY_SITES),
             "native_candle_heat_path_sites":len(CANDLE_HEAT_PATH_SITES),
             "native_candle_heat_factory_sites":len(CANDLE_HEAT_FACTORY_SITES),
+            "native_named_region_registration_sites":
+                len(NAMED_REGION_REGISTRATION_SITES),
             "native_region_plane":"XY", "ignited_state":1,
             "native_candle_ignition_cutoff":
                 struct.unpack("<f",read(0x4EDDE8,4))[0],

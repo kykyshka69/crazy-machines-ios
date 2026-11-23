@@ -419,7 +419,9 @@ jobs:
         run: |
           swiftc ios/CMOriginalRocketAnchorTelemetry.swift tests/OriginalRocketAnchorTelemetrySmoke.swift -o /tmp/cm-original-rocket-anchors
           /tmp/cm-original-rocket-anchors
-          swiftc ios/CMOriginalRocketCandleHeatPair.swift tests/OriginalRocketCandleHeatPairSmoke.swift -o /tmp/cm-candle-rocket-heat
+          swiftc ios/CMOriginalWindowsNamedRegionRegistry.swift tests/OriginalWindowsNamedRegionRegistrySmoke.swift -o /tmp/cm-native-marker-registry
+          /tmp/cm-native-marker-registry
+          swiftc ios/CMOriginalWindowsNamedRegionRegistry.swift ios/CMOriginalRocketCandleHeatPair.swift tests/OriginalRocketCandleHeatPairSmoke.swift -o /tmp/cm-candle-rocket-heat
           /tmp/cm-candle-rocket-heat
           swiftc ios/CMOriginalWindowsRocketVelocity.swift tests/OriginalWindowsRocketVelocitySmoke.swift -o /tmp/cm-native-rocket-velocity
           /tmp/cm-native-rocket-velocity

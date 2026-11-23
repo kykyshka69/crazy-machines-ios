@@ -9,16 +9,27 @@ struct OriginalRocketCandleHeatPairSmoke {
                      r: String = "rocket-child-1",
                      pt: String = "tmo_heat_rocket",
                      rt: String = "tmo_heat_rocket_rocket",
+                     sourceMarker: String = "Heat",
+                     rocketMarker: String = "Heat",
                      from: H.Position? = .init(2, 3, 5),
                      to: H.Position? = .init(5, -1, -9)) -> H.Observation? {
             H.measure(candleID: c, sourceType: source, sourceLit: lit,
+                      sourceOriginalUCMMarkerName: sourceMarker,
                       sourceHeatWorld: from, rocketParentID: p,
                       rocketChildID: r, parentType: pt, childType: rt,
+                      rocketOriginalUCMMarkerName: rocketMarker,
                       targetHeatWorld: to)
         }
         precondition(measure()?.sourceToTargetXY == .init(3, -4, 0))
         precondition(measure()?.xyDistanceSquared == 25)
         precondition(measure(lit: false) == nil)
+        precondition(measure(sourceMarker: "Light") == nil)
+        precondition(measure(sourceMarker: "Wind") == nil)
+        precondition(measure(sourceMarker: "heat") == nil)
+        precondition(measure(sourceMarker: "Engine") == nil)
+        precondition(measure(rocketMarker: "Light") == nil)
+        precondition(measure(rocketMarker: "Fire") == nil)
+        precondition(measure(rocketMarker: "") == nil)
         precondition(measure(source: "tmo_candle_dyn") == nil)
         precondition(measure(source: "tmo_heat_blowtorch") == nil)
         precondition(measure(pt: "tmo_ball") == nil)

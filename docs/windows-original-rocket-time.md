@@ -298,3 +298,30 @@ axis (the original local `0,1,0` is not automatically the world vector),
 the receiver's native region position, actual thermal ignition effect
 and the two real rocket clocks. Do not award a GOAL based on UCM
 marker distance or these constants alone.
+
+## Authenticated original UCM marker-name to native region-selector mapping
+
+Disassembled the genuine owner-original PE32 at
+`0x42FE12..0x42FFB1`: it registers twelve named UCM slots through
+native `0x425250`. At `0x42FF72`, the EXACT sequence
+`push 0; push 3; push "Heat"` registers `Heat` with numeric
+selector **3**; adjacent `Light` has selector **2** and `Wind` has
+**4**. The constructor `0x4252B4..0x4252B7` writes that exact
+selector byte into each linked region record's native object `+0x10`,
+which later matches `0x420522` / `0x420526` heat lookups. Twelve
+registration call sites and three helper instructions (15 exact x86
+sites) are now SHA-pinned and checked directly against the original EXE.
+
+`CMOriginalWindowsNamedRegionRegistry` preserves all 11 distinct
+original names: Pipe=1, Light=2, Heat=3, Wind=4, Gear=5,
+Mechanic=10, Magnetic=11, Fire/Rope=0xfd, Power=0xfe, Wheel=0xff.
+`CMOriginalAssembledSceneView` now retains the EXACT original UCM
+marker label as SCNNode data (not just a lowercased debug name), and
+`CMOriginalRocketCandleHeatPair` requires both real source and
+receiver marker names to be accepted as native type-3 candidates.
+Regressions reject neighbouring Light/Wind/Fire and fabricated names.
+
+This closes the name/selector identity gap, **not** native region
+materialization: the actual source cone, world/local transforms, linked
+runtime region records, ignition effects and clocks are separately
+necessary. Do not credit a rocket GOAL from UCM marker visibility.

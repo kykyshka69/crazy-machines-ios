@@ -24,9 +24,11 @@ public enum CMOriginalRocketCandleHeatPair {
     }
     public static func measure(
         candleID: String, sourceType: String, sourceLit: Bool,
+        sourceOriginalUCMMarkerName: String,
         sourceHeatWorld: Position?,
         rocketParentID: String, rocketChildID: String,
         parentType: String, childType: String,
+        rocketOriginalUCMMarkerName: String,
         targetHeatWorld: Position?
     ) -> Observation? {
         guard !candleID.isEmpty, !rocketParentID.isEmpty,
@@ -34,6 +36,13 @@ public enum CMOriginalRocketCandleHeatPair {
               candleID != rocketParentID, candleID != rocketChildID,
               rocketParentID != rocketChildID,
               sourceType == "tmo_candle", sourceLit,
+              // Win32 0x42FF72 registers literal "Heat" with selector=3
+              // in linked original +0x10. Don't accept a similarly
+              // positioned "Light", "Fire" or generic SceneKit node.
+              CMOriginalWindowsNamedRegionRegistry.isHeatRegionCandidate(
+                  sourceOriginalUCMMarkerName),
+              CMOriginalWindowsNamedRegionRegistry.isHeatRegionCandidate(
+                  rocketOriginalUCMMarkerName),
               parentType == "tmo_heat_rocket",
               childType == "tmo_heat_rocket_rocket",
               let sourceHeatWorld, sourceHeatWorld.isFinite,

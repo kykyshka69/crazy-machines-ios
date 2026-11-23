@@ -195,9 +195,13 @@ swiftc ios/CMOriginalWindowsRocketForce.swift ios/CMOriginalRocketForceDelivery.
 "$tmp/rocket-delivery"
 swiftc ios/CMOriginalWindowsRocketVelocity.swift tests/OriginalWindowsRocketVelocitySmoke.swift -o "$tmp/original-rocket-velocity"
 "$tmp/original-rocket-velocity"
+# Native Win32 0x42FE12..0x42FFB1: named original UCM label -> selector.
+# This is the missing source/receiver identity bridge (Heat -> type 3).
+swiftc ios/CMOriginalWindowsNamedRegionRegistry.swift tests/OriginalWindowsNamedRegionRegistrySmoke.swift -o "$tmp/native-marker-registry"
+"$tmp/native-marker-registry"
 # Genuine lit original candle -> real UCM rocket Heat marker XY.
 # This cannot trigger Win32 native selector-3 ignition by itself.
-swiftc ios/CMOriginalRocketCandleHeatPair.swift tests/OriginalRocketCandleHeatPairSmoke.swift -o "$tmp/candle-rocket-heat"
+swiftc ios/CMOriginalWindowsNamedRegionRegistry.swift ios/CMOriginalRocketCandleHeatPair.swift tests/OriginalRocketCandleHeatPairSmoke.swift -o "$tmp/candle-rocket-heat"
 "$tmp/candle-rocket-heat"
 # Owner-original candle cone constructor: 17 degrees / near 0.2 /
 # far +0.8; derived x86 0x431E80, NOT a guessed proximity radius.
