@@ -145,6 +145,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // genuinely observable; never infer them from VALF/VELOCITY.
     var originalNativeRocketEngineObservations:
         [CMOriginalRocketForceDelivery.Observation] = []
+    // Playable approximation using ORIGINAL moving UCM markers, not native GOAL.
+    var experimentalOriginalRocketFlight = false
+    var initialOriginalRocketVelocities: [String: Float] = [:]
     var configuredPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
     var configuredReactions: [CMOriginalGameplaySession.ReactionRule] = []
     var switchPressCount = 0
@@ -401,6 +404,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.setExperimentalMagnetism(experimentalMagnetism)
         context.coordinator.setPoweredMotorRotorIDs(poweredMotorRotorObjectIDs)
         context.coordinator.setPoweredMotorDriveSignals(poweredMotorRotorDriveSignals)
+        context.coordinator.experimentalOriginalRocketFlight = experimentalOriginalRocketFlight
+        context.coordinator.setOriginalRocketInitialVelocities(initialOriginalRocketVelocities)
         context.coordinator.session = CMOriginalGameplaySession(document: document)
         // Only evidence-derived zone-delivery prototypes collect bodies:
         // four distinct linked objects in Professor level 1, or five
@@ -539,6 +544,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.setExperimentalMagnetism(experimentalMagnetism)
         context.coordinator.setPoweredMotorRotorIDs(poweredMotorRotorObjectIDs)
         context.coordinator.setPoweredMotorDriveSignals(poweredMotorRotorDriveSignals)
+        context.coordinator.experimentalOriginalRocketFlight = experimentalOriginalRocketFlight
+        context.coordinator.setOriginalRocketInitialVelocities(initialOriginalRocketVelocities)
         context.coordinator.setOriginalNativeRocketEngineObservations(
             originalNativeRocketEngineObservations)
         context.coordinator.setOriginalLampVisualFactors(originalLampVisualFactors)
@@ -603,6 +610,21 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             [CMOriginalRocketForceDelivery.Observation] = []
         private var lastNativeRocketEngineSequenceByChildID:
             [String: UInt64] = [:]
+        var experimentalOriginalRocketFlight = false
+        private struct RocketSceneStage {
+            var phase = 0 // 0=unlit, 1=fuse, 2=flying, 3=flight ended
+            var ignitionTime: Double?
+            var engineTime: Double?
+        }
+        private var rocketSceneStages: [String: RocketSceneStage] = [:]
+        private var rocketInitialFCByChildID: [String: Float] = [:]
+        func setOriginalRocketInitialVelocities(_ values: [String: Float]) {
+            sessionLock.lock()
+            rocketInitialFCByChildID = values.filter {
+                $0.value.isFinite && $0.value > 0
+            }
+            sessionLock.unlock()
+        }
         func setOriginalNativeRocketEngineObservations(
             _ observations: [CMOriginalRocketForceDelivery.Observation]
         ) {
@@ -927,6 +949,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             originalNamedAnchorNodesByObjectID.removeAll()
             originalRocketChildIDs.removeAll()
             originalRocketParentByChildID.removeAll()
+            rocketSceneStages.removeAll()
             pendingNativeRocketEngineObservations.removeAll()
             lastNativeRocketEngineSequenceByChildID.removeAll()
             previousOriginalRocketAnchorSnapshots.removeAll()
@@ -1640,8 +1663,116 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
             }
             session?.advance(by: delta)
+            if let clock = session?.elapsedSimulationTime {
+                advanceExperimentalRocketFlight(at: clock)
+            }
         }
 
+
+        private func exactOriginalAnchor(
+            _ name: String, on ownerID: String
+        ) -> SCNNode? {
+            let nodes = (originalNamedAnchorNodesByObjectID[ownerID] ?? [])
+                .filter { node in
+                    guard let full = node.name else { return false }
+                    return CMOriginalRocketAnchorTelemetry.originalName(
+                        inSceneNodeName: full) == name
+                }
+            return nodes.count == 1 ? nodes[0] : nil
+        }
+
+        /// A playable original-geometry reconstruction: live lit-candle
+        /// Heat and rocket Heat/Direction UCM frames, verified PC 17-degree
+        /// cone shape and >0.84 heat cutoff, then two separate >3s phases.
+        /// In Stage 1 this is explicitly experimental: actual native
+        /// selector-3 records, current +0xFC, Engine effect and GOAL still
+        /// require independent recovery. Never credit victory here.
+        private func advanceExperimentalRocketFlight(at clock: Double) {
+            guard experimentalOriginalRocketFlight, clock.isFinite,
+                  clock >= 0 else { return }
+            let litCandles = (session?.originalHeatSourceStates ?? [:])
+                .filter { $0.value && originalTypesByID[$0.key] == "tmo_candle" }
+                .map { $0.key }.sorted().prefix(64)
+            let sources: [simd_float4x4] = litCandles.compactMap { candleID in
+                exactOriginalAnchor("Heat", on: candleID)?
+                    .presentation.simdWorldTransform
+            }
+            for childID in originalRocketChildIDs.sorted() {
+                guard let parentID = originalRocketParentByChildID[childID],
+                      originalTypesByID[parentID] == "tmo_heat_rocket",
+                      originalTypesByID[childID] == "tmo_heat_rocket_rocket"
+                else { continue }
+                let target = exactOriginalAnchor("Heat", on: childID)?
+                    .presentation.simdWorldTransform.columns.3
+                let direction = exactOriginalAnchor("Direction", on: childID)?
+                    .presentation.simdWorldTransform.columns.1
+                let body = physicsNodesByObjectID[childID]?
+                    .first(where: { $0.physicsBody?.type == .dynamic })?
+                    .physicsBody
+                let initialFC = rocketInitialFCByChildID[childID]
+                var projectedFraction: Float?
+                if let target {
+                    for source in sources {
+                        let origin = source.columns.3
+                        let axis = source.columns.1
+                        guard let cone = CMOriginalWindowsCandleHeatFactory
+                            .parameters(observedNativeAxis: .init(
+                                axis.x, axis.y, axis.z)),
+                              let fraction = CMOriginalWindowsWindRegion
+                                .measuredFraction(
+                                    nativeDisplacement: .init(
+                                        target.x - origin.x,
+                                        target.y - origin.y, 0),
+                                    region: cone)
+                        else { continue }
+                        projectedFraction = max(
+                            projectedFraction ?? fraction, fraction)
+                    }
+                }
+                let force: SCNVector3?
+                if let direction, let initialFC,
+                   direction.x.isFinite, direction.y.isFinite,
+                   initialFC.isFinite, initialFC > 0,
+                   Double(direction.x) * Double(direction.x)
+                     + Double(direction.y) * Double(direction.y) > 0 {
+                    let x = Double(direction.x) * Double(initialFC)
+                    let y = Double(direction.y) * Double(initialFC)
+                    if x.isFinite && y.isFinite,
+                       abs(x) <= Double(Float.greatestFiniteMagnitude),
+                       abs(y) <= Double(Float.greatestFiniteMagnitude) {
+                        force = SCNVector3(Float(x), Float(y), 0)
+                    } else { force = nil }
+                } else { force = nil }
+                var state = rocketSceneStages[childID] ?? RocketSceneStage()
+                switch state.phase {
+                case 0:
+                    if let fraction = projectedFraction,
+                       fraction > CMOriginalWindowsRocketTimer.candleIgnitionCutoff {
+                        state.phase = 1
+                        state.ignitionTime = clock
+                    }
+                case 1:
+                    if let initial = state.ignitionTime,
+                       clock - initial > CMOriginalWindowsRocketTimer.fuseSeconds,
+                       body != nil, force != nil {
+                        state.phase = 2
+                        state.engineTime = clock
+                    }
+                case 2:
+                    if let initial = state.engineTime,
+                       clock - initial > CMOriginalWindowsRocketTimer.fuseSeconds {
+                        state.phase = 3
+                    }
+                default: break
+                }
+                rocketSceneStages[childID] = state
+                // One actual continuous physical force per simulation tick:
+                // not a fabricated impulse and never an original Win32 GOAL.
+                if state.phase == 2, let body, let force {
+                    body.applyForce(force, asImpulse: false)
+                }
+            }
+        }
 
         /// Win32 0x44F1DD..0x44F27D applies a continuous force at the
         /// real rocket child's physical body center every engine tick.
