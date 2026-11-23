@@ -91,6 +91,10 @@ struct CMOriginalQuickPlayView: View {
     @State private var observedOriginalLeverStrikers = Set<String>()
     // Actual measured UCM mesh sightlines; not yet Win32 light rays.
     @State private var originalOpticalSightlines: [CMOriginalOpticalSightline] = []
+    // Live actual SceneKit original rocket UCM frames. These measurements
+    // neither establish original Engine thrust nor dispatch a GOAL.
+    @State private var observedOriginalRocketAnchors:
+        [CMOriginalRocketAnchorTelemetry.Complete] = []
     @State private var firstLevelRun: CMOriginalFirstLevelRun?
     @State private var secondLevelRun: CMOriginalSecondLevelRun?
     @State private var thirdLevelRun: CMOriginalThirdLevelRun?
@@ -281,6 +285,7 @@ struct CMOriginalQuickPlayView: View {
         flippedOriginalSwitchIDs.removeAll()
         observedOriginalLeverStrikers.removeAll()
         originalOpticalSightlines.removeAll()
+        observedOriginalRocketAnchors.removeAll()
         generatorRotorSpeedsByDeviceID.removeAll()
         disrupterAnglesByDeviceID.removeAll()
         firstLevelRun?.reset()
@@ -307,6 +312,7 @@ struct CMOriginalQuickPlayView: View {
         flippedOriginalSwitchIDs.removeAll()
         observedOriginalLeverStrikers.removeAll()
         originalOpticalSightlines.removeAll()
+        observedOriginalRocketAnchors.removeAll()
         generatorRotorSpeedsByDeviceID.removeAll()
         disrupterAnglesByDeviceID.removeAll()
         firstLevelRun?.reset()
@@ -596,6 +602,11 @@ struct CMOriginalQuickPlayView: View {
                         hit.switchID + "|" + hit.strikingObjectID
                     )
                 },
+                onOriginalRocketAnchorSnapshots: { snapshots in
+                    guard eventRevision == sceneRevision,
+                          experimentalPhysics && !physicsPaused else { return }
+                    observedOriginalRocketAnchors = snapshots
+                },
                 onOriginalOpticalSightlines: { observations in
                     guard eventRevision == sceneRevision else { return }
                     // SceneKit dispatches observations asynchronously. A queued
@@ -849,6 +860,7 @@ struct CMOriginalQuickPlayView: View {
                         flippedOriginalSwitchIDs.removeAll()
                         observedOriginalLeverStrikers.removeAll()
                         originalOpticalSightlines.removeAll()
+        observedOriginalRocketAnchors.removeAll()
                         generatorRotorSpeedsByDeviceID.removeAll()
         disrupterAnglesByDeviceID.removeAll()
                         firstLevelRun?.reset()
@@ -880,6 +892,16 @@ struct CMOriginalQuickPlayView: View {
             }
             .padding(.horizontal, 14)
             .padding(.top, 10)
+
+            // Only observed imported rocket-child UCM frames are counted.
+            // Do not translate these anchors into guessed native force.
+            if experimentalPhysics && originalSession.objects.contains(where: {
+                $0.type == "tmo_heat_rocket_rocket"
+            }) {
+                Text("Original rocket Heat/Engine/Explode/Direction frames observed: \\(observedOriginalRocketAnchors.count)")
+                    .font(.caption.weight(.medium))
+                    .accessibilityIdentifier("cm.original.rocket-frames")
+            }
 
             if experimentalPhysics && hasOriginalSolarCell {
                 VStack(alignment: .leading, spacing: 3) {
@@ -1040,6 +1062,7 @@ struct CMOriginalQuickPlayView: View {
                     flippedOriginalSwitchIDs.removeAll()
                     observedOriginalLeverStrikers.removeAll()
                     originalOpticalSightlines.removeAll()
+        observedOriginalRocketAnchors.removeAll()
                     firstLevelRun?.reset()
         secondLevelRun?.reset()
                         thirdLevelRun?.reset()

@@ -35,3 +35,22 @@ imported UCM object transform.
 The portable smoke and actual owner-private Candle+Rocket UCM decoder
 tests now explicitly verify nonidentity basis and the opposed native
 Engine/Direction axes. No native force, heat radius or GOAL is inferred.
+
+## Live authentic SceneKit rocket anchor frame observation (2026-11-23)
+
+`CMOriginalRocketAnchorTelemetry` validates the actual four named
+world-space frames `Heat`, `Engine`, `Explode`, `Direction` from ONE
+nested rocket child whose original parent is `tmo_heat_rocket`.
+It rejects duplicate frames, missing models, wrong owners, nonfinite
+positions and degenerate orientation axes. The real UCM Engine and
+Direction markers have world-space Y axes that can point entirely
+along Z, which is retained rather than being falsely discarded by
+the planar heat intersection test.
+
+The SceneKit renderer now samples the imported marker nodes' actual
+`presentation.simdWorldTransform` at a bounded cadence during moving
+physics, and passes unique complete sets back to the original level
+view with strict scene-revision checks. This is live world-space
+model ownership and marker motion — no fabricated thermal region,
+Win32 `Direction +0x30` source, runtime `+0xFC`, physical impulse,
+explosion, or GOAL.

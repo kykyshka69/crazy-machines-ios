@@ -36,6 +36,8 @@ swiftc ios/CMOriginalWindowsRegionSelector.swift tests/OriginalWindowsRegionSele
 swiftc ios/CMOriginalWindowsRocketForce.swift tests/OriginalWindowsRocketForceSmoke.swift -o "$tmp/original-rocket-force"
 "$tmp/original-rocket-force"
 
+swiftc ios/CMOriginalRocketAnchorTelemetry.swift tests/OriginalRocketAnchorTelemetrySmoke.swift -o "$tmp/rocket-anchors"
+"$tmp/rocket-anchors"
 # Both ORIGINAL rocket phases 1→2 and 2→3 use separate engine
 # clocks and strict >3 seconds. No fabricated heat ignition or GOAL.
 swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsRegionSelector.swift ios/CMOriginalWindowsRocketTimer.swift tests/OriginalWindowsRocketTimerSmoke.swift -o "$tmp/original-rocket"

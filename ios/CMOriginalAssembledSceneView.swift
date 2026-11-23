@@ -169,6 +169,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalSwitchContact: ((CMOriginalSwitchContactMapper.Hit) -> Void)? = nil
     // Real UCM mesh-to-mesh visibility, NOT a decoded Win32 ray or GOAL.
     var onOriginalOpticalSightlines: (([CMOriginalOpticalSightline]) -> Void)? = nil
+    // Real moving original rocket child UCM marker poses, NOT rocket GOAL.
+    var onOriginalRocketAnchorSnapshots:
+        (([CMOriginalRocketAnchorTelemetry.Complete]) -> Void)? = nil
 
     private var physicsAccessibilityStatus: String {
         let state = experimentalPhysics ? (physicsPaused ? "paused" : "running") : "off"
@@ -408,6 +411,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
         context.coordinator.onOriginalOpticalSightlines = onOriginalOpticalSightlines
+        context.coordinator.onOriginalRocketAnchorSnapshots = onOriginalRocketAnchorSnapshots
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
         context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
         context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal
@@ -636,6 +640,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalSwitchToggle: ((String, Bool) -> Void)?
         var onOriginalSwitchContact: ((CMOriginalSwitchContactMapper.Hit) -> Void)?
         var onOriginalOpticalSightlines: (([CMOriginalOpticalSightline]) -> Void)?
+        var onOriginalRocketAnchorSnapshots:
+            (([CMOriginalRocketAnchorTelemetry.Complete]) -> Void)?
+        private var originalRocketChildIDs = Set<String>()
+        private var lastOriginalRocketAnchorPollTime: TimeInterval = -1
+        private var previousOriginalRocketAnchorSnapshots:
+            [CMOriginalRocketAnchorTelemetry.Complete] = []
         private var opticalEmitterMeshes: [String: SCNNode] = [:]
         private var opticalSolarMeshes: [String: SCNNode] = [:]
         private var originalAmmeterNeedles: [String: SCNNode] = [:]
@@ -878,6 +888,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             originalPocketLampGlowNodes.removeAll()
             originalCandleGlowNodes.removeAll()
             originalNamedAnchorNodesByObjectID.removeAll()
+            originalRocketChildIDs.removeAll()
+            previousOriginalRocketAnchorSnapshots.removeAll()
+            lastOriginalRocketAnchorPollTime = -1
             originalLampBulbMaterials.removeAll()
             originalLampGlowNodes.removeAll()
             originalLampDiffuseIntensity.removeAll()
@@ -917,6 +930,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             originalTypesByID = Dictionary(
                 uniqueKeysWithValues: originalObjects.map { ($0.id, $0.type) }
             )
+            originalRocketChildIDs = Set(originalObjects.compactMap { object in
+                guard object.type == "tmo_heat_rocket_rocket",
+                      let parentID = object.parentID,
+                      originalTypesByID[parentID] == "tmo_heat_rocket"
+                else { return nil }
+                return object.id
+            })
             originalMechanicalVALFByID = Dictionary(
                 uniqueKeysWithValues: originalObjects.compactMap { object
                     -> (String, Float)? in
@@ -1215,6 +1235,49 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
 
+
+        /// Observe actual model-space -> world-space motion on the imported
+        /// original UCM frames. Source names and ownership are validated
+        /// before emitting; this is NOT original heat-region or thrust data.
+        private func sampleOriginalRocketAnchorFrames(at time: TimeInterval) {
+            guard !originalRocketChildIDs.isEmpty,
+                  time - lastOriginalRocketAnchorPollTime >= 0.4 else { return }
+            lastOriginalRocketAnchorPollTime = time
+            var complete: [CMOriginalRocketAnchorTelemetry.Complete] = []
+            let required = ["Heat", "Engine", "Explode", "Direction"]
+            let prefix = "original-ucm-anchor-"
+            for childID in originalRocketChildIDs.sorted() {
+                var frames: [CMOriginalRocketAnchorTelemetry.Frame] = []
+                for node in originalNamedAnchorNodesByObjectID[childID] ?? [] {
+                    guard let fullName = node.name,
+                          fullName.hasPrefix(prefix) else { continue }
+                    guard let name = required.first(where: {
+                        fullName.hasPrefix(prefix + $0.lowercased() + "-")
+                    }) else { continue }
+                    let matrix = node.presentation.simdWorldTransform
+                    let p = matrix.columns.3
+                    let y = matrix.columns.1
+                    frames.append(.init(
+                        rocketChildID: childID, name: name,
+                        worldOrigin: .init(p.x, p.y, p.z),
+                        worldYAxis: .init(y.x, y.y, y.z)
+                    ))
+                }
+                if let record = CMOriginalRocketAnchorTelemetry.complete(
+                    rocketChildID: childID,
+                    originalParentType: "tmo_heat_rocket",
+                    frames: frames
+                ) {
+                    complete.append(record)
+                }
+            }
+            guard complete != previousOriginalRocketAnchorSnapshots else { return }
+            previousOriginalRocketAnchorSnapshots = complete
+            DispatchQueue.main.async { [weak self] in
+                self?.onOriginalRocketAnchorSnapshots?(complete)
+            }
+        }
+
         /// Reactions must be explicitly configured; imported scene data
         /// alone does not authorize an invented impulse or activation.
         func configureExperimentalReactions(_ rules: [CMOriginalGameplaySession.ReactionRule]) {
@@ -1286,6 +1349,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // independent of electric power propagation and cannot energize
             // solar cells without original ray emission/hit validation.
             sampleOriginalOpticalSightlines(renderer: renderer, at: time)
+            sampleOriginalRocketAnchorFrames(at: time)
             if time - lastGeneratorPollTime >= 0.16 {
                 lastGeneratorPollTime = time
                 // Win32 0x44CA59..0x44CAC8: the wheel angle modulo Pi is
