@@ -140,6 +140,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // Win32 lamp visual factor (+0x40 / 10). Nil means no wired experiment.
     var originalLampVisualFactors: [String: Float]? = nil
     var originalAmmeterPowerSignals: [String: Float]? = nil
+    // Optional per-physics-update ORIGINAL Engine samples. Empty in the
+    // player until native +0xFC, parent state, and Engine activation are
+    // genuinely observable; never infer them from VALF/VELOCITY.
+    var originalNativeRocketEngineObservations:
+        [CMOriginalRocketForceDelivery.Observation] = []
     var configuredPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
     var configuredReactions: [CMOriginalGameplaySession.ReactionRule] = []
     var switchPressCount = 0
@@ -392,6 +397,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.setExperimentalMagnetism(experimentalMagnetism)
         context.coordinator.setPoweredMotorRotorIDs(poweredMotorRotorObjectIDs)
         context.coordinator.setPoweredMotorDriveSignals(poweredMotorRotorDriveSignals)
+        context.coordinator.setOriginalNativeRocketEngineObservations(
+            originalNativeRocketEngineObservations)
         context.coordinator.session = CMOriginalGameplaySession(document: document)
         // Only evidence-derived zone-delivery prototypes collect bodies:
         // four distinct linked objects in Professor level 1, or five
@@ -580,6 +587,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // cable/switch/generator stops supplying its motor.
         private var coastingMotorRotorIDs = Set<String>()
         private var poweredMotorDriveSignals: [String: Float] = [:]
+        // Consumed exactly ONCE per frame, not replayed during a stalled
+        // SwiftUI snapshot. New forces require fresh real-native evidence.
+        private var pendingNativeRocketEngineObservations:
+            [CMOriginalRocketForceDelivery.Observation] = []
+        func setOriginalNativeRocketEngineObservations(
+            _ observations: [CMOriginalRocketForceDelivery.Observation]
+        ) {
+            sessionLock.lock()
+            pendingNativeRocketEngineObservations =
+                observations.count <= 128 ? observations : []
+            sessionLock.unlock()
+        }
         var onOriginalPowerPlugTap: ((String) -> Void)?
         func setPoweredMotorDriveSignals(_ signals: [String: Float]) {
             sessionLock.lock()
@@ -644,6 +663,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalRocketAnchorSnapshots:
             (([CMOriginalRocketAnchorTelemetry.Complete]) -> Void)?
         private var originalRocketChildIDs = Set<String>()
+        private var originalRocketParentByChildID: [String: String] = [:]
         private var lastOriginalRocketAnchorPollTime: TimeInterval = -1
         private var previousOriginalRocketAnchorSnapshots:
             [CMOriginalRocketAnchorTelemetry.Complete] = []
@@ -890,6 +910,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             originalCandleGlowNodes.removeAll()
             originalNamedAnchorNodesByObjectID.removeAll()
             originalRocketChildIDs.removeAll()
+            originalRocketParentByChildID.removeAll()
+            pendingNativeRocketEngineObservations.removeAll()
             previousOriginalRocketAnchorSnapshots.removeAll()
             lastOriginalRocketAnchorPollTime = -1
             originalLampBulbMaterials.removeAll()
@@ -930,6 +952,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             })
             originalTypesByID = Dictionary(
                 uniqueKeysWithValues: originalObjects.map { ($0.id, $0.type) }
+            )
+            originalRocketParentByChildID = Dictionary(
+                uniqueKeysWithValues: originalObjects.compactMap { child
+                    -> (String, String)? in
+                    guard child.type == "tmo_heat_rocket_rocket",
+                          let parentID = child.parentID,
+                          originalTypesByID[parentID] == "tmo_heat_rocket"
+                    else { return nil }
+                    return (child.id, parentID)
+                }
             )
             originalRocketChildIDs = Set(originalObjects.compactMap { object in
                 guard object.type == "tmo_heat_rocket_rocket",
@@ -1522,6 +1554,48 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             session?.advance(by: delta)
         }
 
+
+        /// Win32 0x44F1DD..0x44F27D applies a continuous force at the
+        /// real rocket child's physical body center every engine tick.
+        /// SceneKit's applyForce without a custom point uses its center
+        /// of mass; a custom mesh anchor must NOT add artificial torque.
+        /// No source supplies actual +0xFC yet, so normal gameplay is
+        /// inert here until an independently observed Engine sample arrives.
+        private func deliverObservedNativeRocketForces() {
+            sessionLock.lock()
+            let fresh = pendingNativeRocketEngineObservations
+            pendingNativeRocketEngineObservations.removeAll()
+            sessionLock.unlock()
+            guard !fresh.isEmpty else { return }
+            var seen = Set<String>()
+            for observed in fresh {
+                guard seen.insert(observed.rocketChildID).inserted,
+                      let parentID = originalRocketParentByChildID[
+                        observed.rocketChildID
+                      ],
+                      let owner = physicsNodesByObjectID[
+                        observed.rocketChildID
+                      ]?.first,
+                      let body = owner.physicsBody else { continue }
+                guard let native = CMOriginalRocketForceDelivery.force(
+                    observed: observed,
+                    realParentID: parentID,
+                    realChildID: observed.rocketChildID,
+                    actualParentType: originalTypesByID[parentID] ?? "",
+                    actualChildType: originalTypesByID[
+                        observed.rocketChildID
+                    ] ?? "",
+                    childPhysicsIsDynamic: body.type == .dynamic
+                ) else { continue }
+                // Native physics at 0x486400 accumulates force each
+                // update, never an instantaneous 3.0 or 4.0 impulse.
+                body.applyForce(
+                    SCNVector3(native.force.x, native.force.y, native.force.z),
+                    asImpulse: false
+                )
+            }
+        }
+
         func renderer(_ renderer: SCNSceneRenderer, didSimulatePhysicsAtTime time: TimeInterval) {
             guard physicsEnabled else { return }
             applyPendingActions()
@@ -1529,6 +1603,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             let running = session?.phase == .running
             sessionLock.unlock()
             guard running else { return }
+            // The original force is applied ONLY with real Engine
+            // telemetry and only to the matching dynamic rocket child.
+            deliverObservedNativeRocketForces()
 
             // Win32 0x44D874..0x44D9A2: actual ball center must approach
             // the original target's Catch/Test helper at distance <0.1.

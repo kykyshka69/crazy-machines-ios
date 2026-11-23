@@ -172,3 +172,28 @@ vector AND body center. It returns a planar force-at-body-center
 command, NOT a level GOAL or time-triggered fake rocket impulse.
 SceneKit's live native +0xFC producer and physical force dispatcher are
 still unimplemented. They must be connected before flight is real.
+
+## SceneKit physical Engine force dispatch wired (2026-11-23)
+
+The original Win32 rocket launch loop at `0x44F1DD..0x44F27D`
+applies a **continuous planar force at the genuine physics body center**.
+Added `CMOriginalRocketForceDelivery` to require all of the original:
+- exact `tmo_heat_rocket` parent and its own `tmo_heat_rocket_rocket`
+  child, plus a dynamic SceneKit physical body;
+- real parent +0xEC state 2 (flying), independently activated Engine
+  child, genuine observed runtime `+0xFC` scalar, and native
+  `Direction+0x30` vector plus observed body center.
+
+The SceneKit physics coordinator now has a live input stream for
+these **observed** Engine samples, consumes each sample **at most
+once** per simulation frame, and calls actual
+`SCNPhysicsBody.applyForce(_,asImpulse:false)` on the matching
+original rocket child. It does not inject a 3.0 or 4.0 fake impulse,
+invent thermal ignition or emit a puzzle GOAL. Stale inputs cannot
+continue producing constant force because the queue is emptied.
+
+**Unfinished producer:** the actual original renderer does not yet
+observe +0xFC or an activated Engine child, so its new input is empty
+by default. This patch establishes the real physical force delivery
+path, not an authentic successfully flying rocket. Owner-real runtime
+telemetry + genuine source heat regions remain necessary.

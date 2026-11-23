@@ -420,6 +420,8 @@ jobs:
           swiftc ios/CMOriginalRocketAnchorTelemetry.swift tests/OriginalRocketAnchorTelemetrySmoke.swift -o /tmp/cm-original-rocket-anchors
           /tmp/cm-original-rocket-anchors
           swiftc ios/CMOriginalWindowsRocketForce.swift tests/OriginalWindowsRocketForceSmoke.swift -o /tmp/cm-original-rocket-force
+          swiftc ios/CMOriginalWindowsRocketForce.swift ios/CMOriginalRocketForceDelivery.swift tests/OriginalRocketForceDeliverySmoke.swift -o /tmp/cm-original-rocket-delivery
+          /tmp/cm-original-rocket-delivery
           /tmp/cm-original-rocket-force
           swiftc ios/CMOriginalWindowsRegionSelector.swift tests/OriginalWindowsRegionSelectorSmoke.swift -o /tmp/cm-native-regions
           /tmp/cm-native-regions
