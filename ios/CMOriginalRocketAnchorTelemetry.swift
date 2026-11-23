@@ -48,6 +48,27 @@ public enum CMOriginalRocketAnchorTelemetry {
         public let explode: Frame
         public let direction: Frame
     }
+    /// Retrieve the raw original UCM name without requiring unavailable
+    /// SceneKit SCNNode.userData. The SceneKit node name is constructed
+    /// ONLY by the original UCM decoder as `original-ucm-anchor-<name>-<slot>`;
+    /// its last hyphen separates a canonical decimal slot. Do not use a
+    /// case-folded prefix to claim Heat, Engine, or another native label.
+    public static func originalName(inSceneNodeName fullName: String) -> String? {
+        let prefix = "original-ucm-anchor-"
+        guard fullName.hasPrefix(prefix) else { return nil }
+        let tail = fullName.dropFirst(prefix.count)
+        guard let separator = tail.lastIndex(of: "-") else { return nil }
+        let original = String(tail[..<separator])
+        let slotText = tail[tail.index(after: separator)...]
+        guard !original.isEmpty,
+              original.utf8.allSatisfy({ $0 >= 33 && $0 <= 126 }),
+              !slotText.isEmpty,
+              slotText.utf8.allSatisfy({ $0 >= 48 && $0 <= 57 }),
+              let slot = Int(slotText), slot >= 0,
+              String(slot) == slotText else { return nil }
+        return original
+    }
+
     /// Reject missing/duplicated, nonfinite or wrong-owner records.
     /// World-space rocket marker Y may point purely along Z in the
     /// owner's original UCM; do NOT reject it using XY-only length.

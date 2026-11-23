@@ -1296,17 +1296,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             lastOriginalRocketAnchorPollTime = time
             var complete: [CMOriginalRocketAnchorTelemetry.Complete] = []
             let required = ["Heat", "Engine", "Explode", "Direction"]
-            let prefix = "original-ucm-anchor-"
             for childID in originalRocketChildIDs.sorted() {
                 var frames: [CMOriginalRocketAnchorTelemetry.Frame] = []
                 for node in originalNamedAnchorNodesByObjectID[childID] ?? [] {
                     guard let fullName = node.name,
-                          fullName.hasPrefix(prefix) else { continue }
-                    guard let name = required.first(where: {
-                        fullName.hasPrefix(prefix + $0.lowercased() + "-")
-                    }), let originalName = node.userData?[
-                        "originalUCMMarkerName"
-                    ] as? String else { continue }
+                          let originalName = CMOriginalRocketAnchorTelemetry
+                            .originalName(inSceneNodeName: fullName),
+                          required.contains(originalName) else { continue }
+                    let name = originalName
                     let matrix = node.presentation.simdWorldTransform
                     let p = matrix.columns.3
                     let y = matrix.columns.1
@@ -1349,13 +1346,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 let sourceNodes = (originalNamedAnchorNodesByObjectID[
                     candleID
                 ] ?? []).filter {
-                    $0.name?.hasPrefix("original-ucm-anchor-heat-") == true
+                    guard let fullName = $0.name else { return false }
+                    return CMOriginalRocketAnchorTelemetry
+                        .originalName(inSceneNodeName: fullName) == "Heat"
                 }
                 guard sourceNodes.count == 1,
                       let sourceNode = sourceNodes.first,
-                      let originalSourceName = sourceNode.userData?[
-                        "originalUCMMarkerName"
-                      ] as? String,
+                      let fullSourceName = sourceNode.name,
+                      let originalSourceName = CMOriginalRocketAnchorTelemetry
+                        .originalName(inSceneNodeName: fullSourceName),
                       CMOriginalWindowsNamedRegionRegistry
                         .isHeatRegionCandidate(originalSourceName)
                 else { continue }
@@ -3013,17 +3012,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             }
                             for attachment in anchors where attachment.group == 0 {
                                 let frame = SCNNode()
+                                // Preserve the raw, case-sensitive original
+                                // UCM marker name in the SceneKit node name.
+                                // SCNNode has no `userData` on iOS; the
+                                // telemetry decoder strictly parses the final
+                                // decimal slot instead of guessing from a
+                                // lowercased Heat prefix.
                                 frame.name = "original-ucm-anchor-" +
-                                    attachment.name.lowercased() +
-                                    "-\(attachment.slot)"
-                                // Retain the exact original UCM label,
-                                // not just its lowercased scene node name.
-                                // Win32 0x425250 uses this name to select
-                                // native type +0x10 (Heat -> selector 3).
-                                frame.userData = NSMutableDictionary(
-                                    dictionary: [
-                                        "originalUCMMarkerName": attachment.name
-                                    ])
+                                    attachment.name + "-\(attachment.slot)"
                                 // Preserve original full basis AND position.
                                 // UCM stores row-major vectors with translation
                                 // in its final row; SIMD uses column vectors,

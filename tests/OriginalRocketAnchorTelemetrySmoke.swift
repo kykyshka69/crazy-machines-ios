@@ -22,6 +22,26 @@ struct OriginalRocketAnchorTelemetrySmoke {
         let good = T.complete(rocketChildID: "original-rocket-child",
                               originalParentType: "tmo_heat_rocket", frames: realBasis)
         precondition(good != nil && good?.direction.name == "Direction")
+        precondition(T.originalName(inSceneNodeName:
+            "original-ucm-anchor-Heat-5") == "Heat")
+        precondition(T.originalName(inSceneNodeName:
+            "original-ucm-anchor-heat-5") == "heat")
+        precondition(T.originalName(inSceneNodeName:
+            "original-ucm-anchor-Engine-1") == "Engine")
+        precondition(T.originalName(inSceneNodeName:
+            "original-ucm-anchor-Heat-1-3") == "Heat-1")
+        for bad in ["original-ucm-anchor-Heat", "original-ucm-anchor-Heat-",
+                    "original-ucm-anchor-Heat-001", "original-ucm-anchor-Heat-a",
+                    "original-ucm-anchor-Heat--1", "other-prefix-Heat-1",
+                    "original-ucm-anchor--1", "original-ucm-anchor-Тепло-1"] {
+            if bad == "original-ucm-anchor-Heat--1" {
+                // A suffix after the final separator is canonical 1;
+                // its original name is actually `Heat-`, NOT `Heat`.
+                precondition(T.originalName(inSceneNodeName: bad) == "Heat-")
+            } else {
+                precondition(T.originalName(inSceneNodeName: bad) == nil)
+            }
+        }
         precondition(good?.heat.originalUCMMarkerName == "Heat")
         for mismatchedName in ["Light", "Wind", "heat", "", "Heat01"] {
             let spoofed = [frame("Heat", originalName: mismatchedName)]
