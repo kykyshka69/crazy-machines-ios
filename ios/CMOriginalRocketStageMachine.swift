@@ -57,3 +57,23 @@ public struct CMOriginalRocketStageMachine {
         return phase
     }
 }
+
+/// The original Win32 terminal flight branch 0x44F2AD..0x44F354
+/// emits the separate Explode effect, deactivates the rocket child,
+/// removes its registered rigid body (0x428770), and only then fires
+/// native GOAL. SceneKit must retire that physical child exactly once
+/// instead of letting an already exploded rocket keep colliding.
+/// Native GOAL is deliberately NOT inferred from this experimental
+/// stage; this gate only controls playable visual/physics cleanup.
+public struct CMOriginalRocketTerminalGate {
+    private var deliveredChildIDs = Set<String>()
+    public init() {}
+
+    @discardableResult
+    public mutating func consume(
+        childID: String, phase: CMOriginalRocketStageMachine.Phase
+    ) -> Bool {
+        guard !childID.isEmpty, phase == .ended else { return false }
+        return deliveredChildIDs.insert(childID).inserted
+    }
+}

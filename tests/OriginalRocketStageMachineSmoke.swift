@@ -41,6 +41,16 @@ import Foundation
         precondition(fake.advance(time: 2, projectedCandleHeat: .infinity,
             projectedBlowtorchHit: false, rocketBodyPresent: true,
             directionAndInitialVelocityUsable: true) == .mounted)
-        print("Real UCM rocket SceneKit playback stages: PASS")
+        // The native terminal handler is a one-shot event, not a
+        // per-frame repeat. It does not dispatch synthetic puzzle GOAL.
+        var terminal = CMOriginalRocketTerminalGate()
+        precondition(!terminal.consume(childID: "rocket-1", phase: .fuse))
+        precondition(!terminal.consume(childID: "rocket-1", phase: .flying))
+        precondition(!terminal.consume(childID: "", phase: .ended))
+        precondition(terminal.consume(childID: "rocket-1", phase: .ended))
+        precondition(!terminal.consume(childID: "rocket-1", phase: .ended))
+        precondition(terminal.consume(childID: "rocket-2", phase: .ended))
+        precondition(!terminal.consume(childID: "rocket-2", phase: .ended))
+        print("Real UCM rocket SceneKit stages and one-shot physics cleanup: PASS")
     }
 }

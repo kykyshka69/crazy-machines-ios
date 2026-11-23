@@ -613,6 +613,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var experimentalOriginalRocketFlight = false
         private var rocketSceneStages:
             [String: CMOriginalRocketStageMachine] = [:]
+        private var rocketSceneTerminalGate =
+            CMOriginalRocketTerminalGate()
         // Real imported rocket_effect.tga on the original UCM Explode
         // attachment. Visual only, never an invented explosion impulse/GOAL.
         private var rocketOriginalExplosionSpritesByChildID:
@@ -950,6 +952,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             originalRocketChildIDs.removeAll()
             originalRocketParentByChildID.removeAll()
             rocketSceneStages.removeAll()
+            rocketSceneTerminalGate = CMOriginalRocketTerminalGate()
             rocketOriginalExplosionSpritesByChildID.removeAll()
             pendingNativeRocketEngineObservations.removeAll()
             lastNativeRocketEngineSequenceByChildID.removeAll()
@@ -1862,18 +1865,42 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 ] ?? [] {
                     glow.opacity = visualOpacity
                 }
-                // SceneKit gravity is -9.8 whereas the original authored
-                // initial rocket VELOCITY scalar can be only 4.0. Using
-                // SceneKit's default gravity during the three-second Engine
-                // interval cancels the upwards force and makes a correctly
-                // aimed genuine UCM rocket FALL rather than launch.
-                // Suspend the *experimental* SceneKit gravity only while
-                // Engine force is active, and restore it at flight end.
-                // This is an iOS solver approximation, NOT a recovered
-                // native Windows gravitational/Engine equation.
-                if phase == .ended, let body,
-                   body.type == .dynamic {
-                    body.isAffectedByGravity = true
+                // Native EXE branch 0x44F2AD..0x44F354 emits Explode
+                // BEFORE deactivating/removing the rocket rigid body via
+                // 0x420A80/0x428770. Keep the authentic rocket_effect.tga
+                // visible at the moving original Explode UCM frame by
+                // preserving its world transform, then detach it from the
+                // child BEFORE hiding/removing the exploded child mesh.
+                // There is NO radial impulse in the verified x86 branch:
+                // do not invent damage/force/GOAL from a texture flash.
+                if phase == .ended,
+                   let owner = physicsNodesByObjectID[childID]?
+                       .first(where: { $0.physicsBody != nil }),
+                   rocketSceneTerminalGate.consume(
+                       childID: childID, phase: phase) {
+                    for sprite in rocketOriginalExplosionSpritesByChildID[
+                        childID
+                    ] ?? [] {
+                        let originalWorld = sprite.presentation.simdWorldTransform
+                        var sceneRoot: SCNNode = sprite
+                        while let parent = sceneRoot.parent {
+                            sceneRoot = parent
+                        }
+                        sprite.removeFromParentNode()
+                        sceneRoot.addChildNode(sprite)
+                        sprite.simdWorldTransform = originalWorld
+                    }
+                    owner.enumerateChildNodes { child, _ in
+                        guard let originalMesh = child
+                            as? CMOriginalObjectMeshNode,
+                            originalMesh.originalObjectID == childID
+                        else { return }
+                        originalMesh.isHidden = true
+                    }
+                    // One physical cleanup only. The original owner mount
+                    // remains; no after-explosion ghost rigid body can
+                    // trigger SceneKit contacts or fall through the level.
+                    owner.physicsBody = nil
                 }
                 // Physically release the real original rocket child from
                 // its launch mount ONLY when heat/fuse and Engine force
