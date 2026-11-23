@@ -4,6 +4,9 @@
 # group is ready, not on every small implementation commit.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Fail fast if a Git tree update accidentally dropped a referenced
+# original physics source, before spending minutes compiling Xcode/Swift.
+python3 tools/check_stage1_source_references.py
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 swiftc ios/CMOriginalGeneratorRotorObservation.swift     tests/OriginalGeneratorRotorObservationSmoke.swift -o "$tmp/generator"
