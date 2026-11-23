@@ -613,6 +613,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var experimentalOriginalRocketFlight = false
         private var rocketSceneStages:
             [String: CMOriginalRocketStageMachine] = [:]
+        // Real imported rocket_effect.tga on the original UCM Explode
+        // attachment. Visual only, never an invented explosion impulse/GOAL.
+        private var rocketOriginalExplosionSpritesByChildID:
+            [String: [SCNNode]] = [:]
         private var rocketInitialFCByChildID: [String: Float] = [:]
         func setOriginalRocketInitialVelocities(_ values: [String: Float]) {
             sessionLock.lock()
@@ -946,6 +950,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             originalRocketChildIDs.removeAll()
             originalRocketParentByChildID.removeAll()
             rocketSceneStages.removeAll()
+            rocketOriginalExplosionSpritesByChildID.removeAll()
             pendingNativeRocketEngineObservations.removeAll()
             lastNativeRocketEngineSequenceByChildID.removeAll()
             previousOriginalRocketAnchorSnapshots.removeAll()
@@ -1103,6 +1108,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                    let owner = self.owningOriginalObjectID(for: node) {
                     self.originalNamedAnchorNodesByObjectID[owner, default: []]
                         .append(node)
+                }
+                if node.name == "original-rocket-effect-original-tga",
+                   let owner = self.owningOriginalObjectID(for: node),
+                   self.originalRocketChildIDs.contains(owner) {
+                    self.rocketOriginalExplosionSpritesByChildID[
+                        owner, default: []
+                    ].append(node)
+                    node.opacity = 0
                 }
                 if node.name == "original-effect-glow-to_candle_glow",
                    let heatID = self.owningOriginalObjectID(for: node),
@@ -1831,6 +1844,24 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     rocketBodyPresent: body != nil,
                     directionAndInitialVelocityUsable: force != nil)
                 rocketSceneStages[childID] = state
+                // Show only the genuine user's rocket_effect.tga on the
+                // actual imported Explode attachment; never a fabricated
+                // SceneKit particle texture or native GOAL. Playback timing
+                // of this 0.45s glow is explicitly experimental until the
+                // Win32 effect object's own animation is recovered.
+                let visualOpacity: CGFloat
+                if phase == .ended, let launchTime = state.launchTime {
+                    let elapsedAfterFuse = clock - launchTime - 3
+                    visualOpacity = CGFloat(max(0, min(1,
+                        1 - elapsedAfterFuse / 0.45)))
+                } else {
+                    visualOpacity = 0
+                }
+                for glow in rocketOriginalExplosionSpritesByChildID[
+                    childID
+                ] ?? [] {
+                    glow.opacity = visualOpacity
+                }
                 // SceneKit gravity is -9.8 whereas the original authored
                 // initial rocket VELOCITY scalar can be only 4.0. Using
                 // SceneKit's default gravity during the three-second Engine
@@ -3253,6 +3284,37 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                     SIMD4<Float>(a[12], a[13], a[14], a[15])
                                 ))
                                 mesh.addChildNode(frame)
+                                // The original PC installation includes a
+                                // 32x32 rocket_effect.tga. Attach that REAL
+                                // texture to its own rocket's authentic UCM
+                                // Explode frame (never to a guessed center).
+                                // The exact Win32 sprite animation is still
+                                // unrecovered; rendering is a visual-only
+                                // SceneKit approximation, initially hidden.
+                                if attachment.name == "Explode",
+                                   url.lastPathComponent.lowercased()
+                                     == "heat_rocket_rocket.ucm",
+                                   let picture = textureCache.image(
+                                     named: "rocket_effect") {
+                                    let plane = SCNPlane(
+                                        width: 0.55, height: 0.55)
+                                    let material = SCNMaterial()
+                                    material.lightingModel = .constant
+                                    material.diffuse.contents = picture
+                                    material.blendMode = .add
+                                    material.isDoubleSided = true
+                                    material.writesToDepthBuffer = false
+                                    plane.materials = [material]
+                                    let glow = SCNNode(geometry: plane)
+                                    glow.name =
+                                        "original-rocket-effect-original-tga"
+                                    let facing = SCNBillboardConstraint()
+                                    facing.freeAxes = .all
+                                    glow.constraints = [facing]
+                                    glow.renderingOrder = 12
+                                    glow.opacity = 0
+                                    frame.addChildNode(glow)
+                                }
                             }
                             // Collision bodies are attached to the owning tmo_
                             // transform below, including single-mesh objects.
