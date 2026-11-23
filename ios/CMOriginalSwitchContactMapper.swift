@@ -82,6 +82,15 @@ public struct CMOriginalSwitchContactMapper {
         switchByLever = levers
     }
 
+    /// Resolve the ACTUAL original CML switch owner of a lever, walking
+    /// genuine intermediate mounts rather than assuming a direct parent.
+    /// Returns nil for bases, housings, unrelated/leaked lever objects
+    /// and disconnected hierarchy. This is the SAME lookup used for the
+    /// authenticated physical contacts, so touch and impact agree.
+    public func originalSwitchID(forLeverID id: String) -> String? {
+        switchByLever[id]
+    }
+
     /// Emits a contact only when SceneKit identifies the actual original
     /// lever, not a base or nearby housing. The striker must be movable and
     /// outside that switch's original child hierarchy. A sustained collision

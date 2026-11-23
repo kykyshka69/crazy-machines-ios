@@ -14,6 +14,13 @@ struct OriginalSwitchContactSmoke {
             .init(id: "lever-B", type: "tmo_power_switch_lever", parentID: "switch-B")
         ]
         var mapper = CMOriginalSwitchContactMapper(objects: objects)
+        // The imported level can place a lever UNDER another CML mount.
+        // Touch selection and physics must resolve the SAME switch owner.
+        precondition(mapper.originalSwitchID(forLeverID: "lever-A") == "switch-A")
+        precondition(mapper.originalSwitchID(forLeverID: "lever-B") == "switch-B")
+        precondition(mapper.originalSwitchID(forLeverID: "mount-A") == nil)
+        precondition(mapper.originalSwitchID(forLeverID: "base-A") == nil)
+        precondition(mapper.originalSwitchID(forLeverID: "missing") == nil)
         // The base can be struck, but that is not an authentic lever contact.
         precondition(mapper.beginContact("base-A", "ball", impulse: 1,
                                          aIsMovable: false, bIsMovable: true) == nil)
@@ -115,6 +122,7 @@ struct OriginalSwitchContactSmoke {
         ])
         precondition(noLever.beginContact("lever", "ball", impulse: 1,
                                           aIsMovable: false, bIsMovable: true) == nil)
-        print("Original PC switch lever-to-striker contact mapping: OK")
+        precondition(noLever.originalSwitchID(forLeverID: "lever") == nil)
+        print("Original CML nested switch lever touch/impact mapping: OK")
     }
 }

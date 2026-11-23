@@ -1311,13 +1311,17 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
             )
             opticalEmitterByPartID = emitterByPartID
+            // Match the real CML ancestor traversal already authenticated
+            // by the physical switch contact mapper. A genuine lever can
+            // be nested under an original mount; direct parent-only
+            // mapping silently omitted such playable switches.
             let switchByLeverID = Dictionary(uniqueKeysWithValues:
                 originalObjects.compactMap { part -> (String, String)? in
                     guard part.type == "tmo_power_switch_lever",
-                          let parent = part.parentID,
-                          originalTypesByID[parent] == "tmo_power_switch"
+                          let actualOwner = switchContacts?
+                            .originalSwitchID(forLeverID: part.id)
                     else { return nil }
-                    return (part.id, parent)
+                    return (part.id, actualOwner)
                 }
             )
             scene.rootNode.enumerateChildNodes { node, _ in
@@ -3231,12 +3235,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             let switchID: String
             if originalTypesByID[objectID] == "tmo_power_switch" {
                 switchID = objectID
-            } else if originalTypesByID[objectID] == "tmo_power_switch_lever",
-                      let parent = session?.objects.first(
-                          where: { $0.id == objectID }
-                      )?.parentID,
-                      originalTypesByID[parent] == "tmo_power_switch" {
-                switchID = parent
+            } else if originalTypesByID[objectID] == "tmo_power_switch_lever" {
+                // Resolve the real switch through zero or more original
+                // mounting ancestors, not only a direct CML parent.
+                sessionLock.lock()
+                let owner = switchContacts?
+                    .originalSwitchID(forLeverID: objectID)
+                sessionLock.unlock()
+                guard let owner else { return false }
+                switchID = owner
             } else {
                 return false
             }
