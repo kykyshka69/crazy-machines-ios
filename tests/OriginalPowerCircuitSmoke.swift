@@ -83,7 +83,8 @@ struct OriginalPowerCircuitSmoke {
         precondition(loaded.cableCount == 0)
         precondition(loaded.restoreSnapshot(snapshot))
         precondition(loaded.cables == net.cables)
-        precondition(loaded.snapshotData() == snapshot)
+        let reencoded = try loaded.snapshotData()
+        precondition(reencoded == snapshot)
         // Bad data, unknown versions, cross-level files, duplicate wires,
         // wrong source IDs and occupied plugs all fail atomically.
         let originalCables = loaded.cables
