@@ -6,6 +6,26 @@ import struct
 from pathlib import Path
 SHA="51f9beecd9842c67834da9c4fc73be7a1452c9e8149d059729b130a2b9d601e6"
 SITES={
+    # Lit native tmo_candle -> original rocket heat region (0x409650)
+    0x44E112:"68 a0 c8 4e 00",
+    0x44E378:"d9 81 ec 00 00 00",
+    0x44E3BD:"e8 8e b2 fb ff",
+    0x44E3CC:"d8 1d e8 dd 4e 00",
+    0x44E3D7:"75 64",
+    0x44E3E6:"e8 45 e9 ff ff",
+    # Original 0x44CD30 sets +0xEC =1 and parent ignition clock
+    0x44CD79:"c7 81 ec 00 00 00 00 00 80 3f",
+    0x44CD91:"dd 99 30 01 00 00",
+    # After the parent's first 3-second clock, activate Engine child
+    0x44EC51:"d9 81 ec 00 00 00",
+    0x44EC72:"dc a1 30 01 00 00",
+    0x44EC78:"dc 1d c8 9b 4e 00",
+    0x44EC83:"0f 85 aa 03 00 00",
+    0x44EE2B:"68 2c ca 4e 00",
+    0x44EF5F:"8b 82 24 01 00 00",
+    0x44EF6D:"dd 99 30 01 00 00",
+    0x44F029:"c7 82 ec 00 00 00 00 00 00 40",
+    # Separate flight clock -> physical Engine/Explode -> state 3 + GOAL
     0x44F03B:"d9 05 ac 74 4e 00",
     0x44F041:"d9 80 ec 00 00 00",
     0x44F04B:"f6 c4 44",
@@ -47,14 +67,26 @@ def verify(exe: bytes) -> dict:
         expected=bytes.fromhex(code)
         if read(address,len(expected))!=expected:
             raise ValueError("Native original rocket x86 mismatch at "+hex(address))
+    if read(0x4EC8A0,11)!=b"tmo_candle\0":
+        raise ValueError("Original candle heat source selector mismatch")
+    if read(0x4ECA2C,16)!=b"tmo_heat_rocket\0":
+        raise ValueError("Original pre-launch rocket type selector mismatch")
+    if read(0x4EDDE8,4)!=bytes.fromhex("3d0a573f"):
+        raise ValueError("Original physical candle ignition threshold mismatch")
+    if struct.unpack("<f",read(0x4F3B9C,4))[0]!=0:
+        raise ValueError("Original idle heat target state mismatch")
     if read(0x4ECA98,16)!=b"tmo_heat_rocket\0":
         raise ValueError("Original rocket type selector mismatch")
     if struct.unpack("<f",read(0x4E74AC,4))[0]!=2.0:
         raise ValueError("Native rocket flying state mismatch")
     if struct.unpack("<d",read(0x4E9BC8,8))[0]!=3.0:
         raise ValueError("Native original rocket fuse mismatch")
-    return {"x86_sites":len(SITES),"flying_state":2,
-            "strict_fuse_seconds":3,"exploded_state":3}
+    return {"x86_sites":len(SITES), "ignited_state":1,
+            "native_candle_ignition_cutoff":
+                struct.unpack("<f",read(0x4EDDE8,4))[0],
+            "prelaunch_strict_seconds":3, "flying_state":2,
+            "flight_strict_seconds":3, "exploded_state":3,
+            "separate_rocket_and_engine_clocks":True}
 if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("original_exe",type=Path)
