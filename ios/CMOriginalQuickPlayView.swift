@@ -411,6 +411,9 @@ struct CMOriginalQuickPlayView: View {
                 originalAmmeterPowerSignals: originalAmmeterPowerSignals,
                 experimentalOriginalRocketFlight: true,
                 initialOriginalRocketVelocities: initialOriginalRocketVelocities,
+                originalPlayerPowerCables: powerCircuit.map {
+                    Array($0.cables)
+                } ?? [],
                 configuredPhysicsRoles: experimentalPhysicsRoles,
                 onOriginalZoneContact: { type in
                     guard eventRevision == sceneRevision else { return }
@@ -1029,7 +1032,7 @@ struct CMOriginalQuickPlayView: View {
                         .font(.caption.weight(.semibold))
                         .accessibilityIdentifier("cm.original.power-cable-count")
                     if !experimentalPhysics {
-                        Text("Tap two original 3D power plugs to connect/remove their terminals. Original cable geometry is not faked.")
+                        Text("Tap two genuine 3D power plugs to connect or disconnect them. Connected pairs are drawn with the original power_cable.tga; the SceneKit tube shape is approximate.")
                             .font(.caption2).foregroundStyle(.secondary)
                         if pendingPowerPlugID != nil {
                             Text("First plug selected; tap a second original plug")

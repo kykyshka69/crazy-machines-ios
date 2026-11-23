@@ -148,6 +148,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // Playable approximation using ORIGINAL moving UCM markers, not native GOAL.
     var experimentalOriginalRocketFlight = false
     var initialOriginalRocketVelocities: [String: Float] = [:]
+    // Real player-authored original power-plug pairs. Cable visuals use
+    // genuine power_cable.tga and exact original plug transforms. No
+    // artificial wires are inferred from VALF IDs or object proximity.
+    var originalPlayerPowerCables: [CMOriginalPowerCircuit.Cable] = []
     var configuredPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
     var configuredReactions: [CMOriginalGameplaySession.ReactionRule] = []
     var switchPressCount = 0
@@ -452,6 +456,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             scene.physicsWorld.gravity = SCNVector3(0, -9.8, 0)
         }
         view.scene = scene
+        context.coordinator.syncOriginalPowerCables(
+            originalPlayerPowerCables, in: scene,
+            originalDirectory: assetDirectory)
         #if DEBUG && targetEnvironment(simulator)
         view.accessibilityValue = physicsAccessibilityStatus +
             sceneDebugStatus(scene)
@@ -554,6 +561,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.setPoweredMotorDriveSignals(poweredMotorRotorDriveSignals)
         context.coordinator.experimentalOriginalRocketFlight = experimentalOriginalRocketFlight
         context.coordinator.setOriginalRocketInitialVelocities(initialOriginalRocketVelocities)
+        if let scene = uiView.scene {
+            context.coordinator.syncOriginalPowerCables(
+                originalPlayerPowerCables, in: scene,
+                originalDirectory: assetDirectory)
+        }
         context.coordinator.setOriginalNativeRocketEngineObservations(
             originalNativeRocketEngineObservations)
         context.coordinator.setOriginalLampVisualFactors(originalLampVisualFactors)
@@ -731,6 +743,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // Per-object genuine source UCM attachment frames. No invented
         // native region size, thrust impulse or completion events.
         private var originalNamedAnchorNodesByObjectID: [String: [SCNNode]] = [:]
+        // Native Windows 0x42FCB0 creates power_cable from TWO real ends.
+        // SceneKit lines are non-colliding visible representations using
+        // the original 8px power_cable.tga; native tube tessellation is
+        // not independently known. The user's exact CML plug IDs govern.
+        private var originalCablePlugOwners: [String: SCNNode] = [:]
+        private var originalCableNodes:
+            [CMOriginalPowerCircuit.Cable: SCNNode] = [:]
+        private weak var originalCableSceneRoot: SCNNode?
+        private var originalCableMaterial: SCNMaterial?
+        private let originalCableVisualLock = NSLock()
         // Each lightbulb has its own copied original UCM materials. Never
         // change the shared cross-level geometry cache or another lamp.
         private var originalLampBulbMaterials: [String: [SCNMaterial]] = [:]
@@ -939,6 +961,121 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 current = candidate.parent
             }
             return nil
+        }
+
+        /// Draw actual player-paired original PC power plugs with the
+        /// user's ORIGINAL power_cable.tga texture. Never use VALF as a
+        /// cable ID, invent cables from nearby parts, or add physical
+        /// collision shapes. Segment shape is explicitly SceneKit-only.
+        func syncOriginalPowerCables(
+            _ requested: [CMOriginalPowerCircuit.Cable],
+            in scene: SCNScene,
+            originalDirectory: URL
+        ) {
+            originalCableVisualLock.lock()
+            defer { originalCableVisualLock.unlock() }
+            if originalCableSceneRoot !== scene.rootNode {
+                for cable in originalCableNodes.values {
+                    cable.removeFromParentNode()
+                }
+                originalCableNodes.removeAll()
+                originalCablePlugOwners.removeAll()
+                originalCableMaterial = nil
+                originalCableSceneRoot = scene.rootNode
+                let known = Set((session?.objects ?? [])
+                    .filter { $0.type == "tmo_power_plug" }.map(\.id))
+                var duplicates = Set<String>()
+                scene.rootNode.enumerateChildNodes { node, _ in
+                    guard let original = node as? CMOriginalPhysicsOwnerNode,
+                          let id = original.originalObjectID,
+                          known.contains(id) else { return }
+                    if originalCablePlugOwners[id] == nil {
+                        originalCablePlugOwners[id] = original
+                    } else {
+                        duplicates.insert(id)
+                    }
+                }
+                for duplicate in duplicates {
+                    originalCablePlugOwners.removeValue(forKey: duplicate)
+                }
+            }
+            let desired = Set(requested.filter {
+                $0.firstPlugID != $0.secondPlugID &&
+                originalCablePlugOwners[$0.firstPlugID] != nil &&
+                originalCablePlugOwners[$0.secondPlugID] != nil
+            })
+            for (pair, cable) in originalCableNodes
+                where !desired.contains(pair) {
+                cable.removeFromParentNode()
+                originalCableNodes.removeValue(forKey: pair)
+            }
+            guard !desired.isEmpty else { return }
+            if originalCableMaterial == nil {
+                // Missing original texture must not create a guessed color.
+                guard let image = OriginalTextureCache(
+                    directory: originalDirectory).image(
+                        named: "power_cable") else { return }
+                let material = SCNMaterial()
+                material.lightingModel = .constant
+                material.diffuse.contents = image
+                material.isDoubleSided = true
+                originalCableMaterial = material
+            }
+            for pair in desired where originalCableNodes[pair] == nil {
+                let cylinder = SCNCylinder(radius: 0.010, height: 1)
+                cylinder.radialSegmentCount = 8
+                cylinder.materials = [originalCableMaterial!]
+                let visual = SCNNode(geometry: cylinder)
+                visual.name = "original-player-power-cable"
+                visual.castsShadow = false
+                visual.physicsBody = nil
+                scene.rootNode.addChildNode(visual)
+                originalCableNodes[pair] = visual
+            }
+            refreshOriginalCableGeometryLocked()
+        }
+
+        /// SceneKit cylinders are oriented from real moving plug-owner
+        /// centers every frame. Exact original source/receiver CML IDs
+        /// are preserved. This is presentation only, never power physics.
+        private func refreshOriginalCableGeometryLocked() {
+            for (pair, visual) in originalCableNodes {
+                guard let left = originalCablePlugOwners[pair.firstPlugID],
+                      let right = originalCablePlugOwners[pair.secondPlugID]
+                else { visual.isHidden = true; continue }
+                let a = left.presentation.simdWorldPosition
+                let b = right.presentation.simdWorldPosition
+                let difference = b - a
+                let length = simd_length(difference)
+                guard a.x.isFinite, a.y.isFinite, a.z.isFinite,
+                      b.x.isFinite, b.y.isFinite, b.z.isFinite,
+                      length.isFinite, length >= 0.002,
+                      length <= 30 else {
+                    visual.isHidden = true
+                    continue
+                }
+                let direction = difference / length
+                let up = SIMD3<Float>(0, 1, 0)
+                let dot = simd_dot(up, direction)
+                visual.isHidden = false
+                visual.simdPosition = (a + b) * 0.5
+                // Explicit 180-degree case avoids undefined quaternion
+                // when the cable points exactly down in the XY plane.
+                if dot < -0.9999 {
+                    visual.simdOrientation = simd_quatf(
+                        angle: .pi, axis: SIMD3<Float>(1, 0, 0))
+                } else {
+                    visual.simdOrientation = simd_quatf(
+                        from: up, to: direction)
+                }
+                (visual.geometry as? SCNCylinder)?.height = CGFloat(length)
+            }
+        }
+
+        private func refreshOriginalCableGeometry() {
+            originalCableVisualLock.lock()
+            refreshOriginalCableGeometryLocked()
+            originalCableVisualLock.unlock()
         }
 
         func registerPhysicsNodes(in scene: SCNScene) {
@@ -1507,6 +1644,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
 
         func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+            // Real original power-plug endpoints follow the imported bodies
+            // in both editor and physics scenes. Geometry is non-colliding.
+            refreshOriginalCableGeometry()
             guard physicsEnabled else { return }
             // The renderer clock may continue while SwiftUI pauses playback.
             // Discard the first delta after pause/resume rather than crediting
@@ -2662,6 +2802,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 let next = initial + Float(gesture.rotation)
                 if next.isFinite && abs(next) <= 100_000 {
                     owner.eulerAngles.z = next
+                    refreshOriginalCableGeometry()
                 }
             case .ended:
                 if let identifier = owner.name,
@@ -2727,6 +2868,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                       target.position.z + delta.z)
                 if next.x.isFinite && next.y.isFinite && next.z.isFinite {
                     target.position = next
+                    refreshOriginalCableGeometry()
                     lastDragPoint = point
                 }
              default:
