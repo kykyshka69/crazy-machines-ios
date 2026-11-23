@@ -321,7 +321,13 @@ public struct CMOriginalPowerCircuit {
                 disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID,
                 switchContactsByDeviceID: switchContactsByDeviceID
             ) {
-                if let previous = power[id], previous != signal {
+                // Two distinct *physical* sources are ambiguous even if
+                // both happen to output the SAME numeric scalar (e.g. two
+                // native 10.0 batteries). Equality does not prove that
+                // Windows permits paralleling them, nor can it establish
+                // current direction or reverse-feed safety. Fail closed.
+                // Ambiguity remains sticky for this observation pass.
+                if power[id] != nil {
                     ambiguous.insert(id)
                 } else {
                     power[id] = signal

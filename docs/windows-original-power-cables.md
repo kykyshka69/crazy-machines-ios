@@ -82,3 +82,16 @@ revision before delivering GOAL/CONNECTED_TO/motor/switch events. An old
 renderer cannot credit the new puzzle just because its physics toggle is
 running. Unit tests cover snapshot round-trip and malformed/foreign/duplicate
 cable rejection; iPhone CI is required for SwiftUI integration verification.
+
+## Ambiguous parallel electrical sources (2026-11-23)
+
+Experimental iOS network traversal now rejects *all* multiply-fed nodes,
+including when two independent original battery sources both output the
+same native scalar **10**. Earlier code compared only numeric power and
+mistakenly treated equal-valued batteries as a single unambiguous source.
+This correction deliberately avoids inventing the Windows source-paralleling,
+voltage balancing, short circuit, or current rules. The node becomes active
+again when one source path is physically disconnected. The generator-circuit
+regression includes a genuine-format original-plug tree with two equal
+battery sources converging on a distributor and lamp. This is a fail-closed
+safety/correctness change, *not* the full Win32 electrical solver.

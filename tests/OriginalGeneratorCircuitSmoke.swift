@@ -74,6 +74,52 @@ struct OriginalGeneratorCircuitSmoke {
         precondition(circuit.experimentalNetworkSignals(
             closedSwitchIDs: [sw],
             generatorRotorCommandsByDeviceID: [generator: 2])[motor] == nil)
+        // A second full 10.0 battery is NOT independent evidence that
+        // paralleling the sources is safe. Numeric equality is insufficient:
+        // the original game's multi-source electrical solver is not ported.
+        // The common distributor and its load must fail closed until only
+        // one physical source feeds that wired section.
+        let twoBatteries: [String: Any] = [
+            "schema": "crazy-machines-original-scene-v1",
+            "index": 21, "title": "Genuine-format parallel source isolation",
+            "scene_sha256": String(repeating: "b", count: 64),
+            "root": ["name": "level", "fields": [], "children": [
+                ["name": "level_elements", "fields": [], "children": [
+                    device("tmo_power_battery", [1]),
+                    device("tmo_power_battery", [2]),
+                    device("tmo_power_distributor", [3, 4, 5]),
+                    device("tmo_power_lamp", [6])
+                ]]
+            ]]
+        ]
+        let dualDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: twoBatteries))
+        var dual = CMOriginalPowerCircuit(
+            session: CMOriginalGameplaySession(document: dualDoc))!
+        func terminal(_ number: Int) -> String {
+            dual.terminals.first { $0.number == number }!.plugID
+        }
+        let junction = dual.terminals.first {
+            $0.deviceType == "tmo_power_distributor"
+        }!.deviceID
+        let load = dual.terminals.first {
+            $0.deviceType == "tmo_power_lamp"
+        }!.deviceID
+        precondition(dual.toggleCable(between: terminal(1),
+                                      and: terminal(3)) == .connected)
+        precondition(dual.toggleCable(between: terminal(2),
+                                      and: terminal(4)) == .connected)
+        precondition(dual.toggleCable(between: terminal(5),
+                                      and: terminal(6)) == .connected)
+        let unknownMix = dual.experimentalNetworkSignals()
+        precondition(unknownMix[junction] == nil)
+        precondition(unknownMix[load] == nil)
+        precondition(dual.toggleCable(between: terminal(2),
+                                      and: terminal(4)) == .disconnected)
+        let isolated = dual.experimentalNetworkSignals()
+        precondition(isolated[junction] == 10)
+        precondition(isolated[load] == 10)
+
         print("Original generator rotor → abs power signal → wired switch → motor, no source hallucination")
     }
 }
