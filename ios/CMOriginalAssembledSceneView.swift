@@ -152,6 +152,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // genuine power_cable.tga and exact original plug transforms. No
     // artificial wires are inferred from VALF IDs or object proximity.
     var originalPlayerPowerCables: [CMOriginalPowerCircuit.Cable] = []
+    // Live, matched experimental network signals for original player
+    // wires. These change cable brightness only, NEVER native current.
+    var originalPlayerCablePowerSignals:
+        [CMOriginalPowerCircuit.Cable: Float] = [:]
     var configuredPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
     var configuredReactions: [CMOriginalGameplaySession.ReactionRule] = []
     var switchPressCount = 0
@@ -458,7 +462,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         view.scene = scene
         context.coordinator.syncOriginalPowerCables(
             originalPlayerPowerCables, in: scene,
-            originalDirectory: assetDirectory)
+            originalDirectory: assetDirectory,
+            observedPower: originalPlayerCablePowerSignals)
         #if DEBUG && targetEnvironment(simulator)
         view.accessibilityValue = physicsAccessibilityStatus +
             sceneDebugStatus(scene)
@@ -564,7 +569,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         if let scene = uiView.scene {
             context.coordinator.syncOriginalPowerCables(
                 originalPlayerPowerCables, in: scene,
-                originalDirectory: assetDirectory)
+                originalDirectory: assetDirectory,
+                observedPower: originalPlayerCablePowerSignals)
         }
         context.coordinator.setOriginalNativeRocketEngineObservations(
             originalNativeRocketEngineObservations)
@@ -990,7 +996,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         func syncOriginalPowerCables(
             _ requested: [CMOriginalPowerCircuit.Cable],
             in scene: SCNScene,
-            originalDirectory: URL
+            originalDirectory: URL,
+            observedPower: [CMOriginalPowerCircuit.Cable: Float] = [:]
         ) {
             originalCableVisualLock.lock()
             defer { originalCableVisualLock.unlock() }
@@ -1076,6 +1083,20 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 visual.physicsBody = nil
                 scene.rootNode.addChildNode(visual)
                 originalCableNodes[pair] = visual
+            }
+            // Keep the ORIGINAL user-owned power_cable.tga material.
+            // The brightness does not purport to be Win32 current:
+            // 1.0 means both device ends received an identical known
+            // nonzero scalar; 0.38 is an unpowered/unverified connection.
+            // The physical circuit model, original UCM endpoints and
+            // GOAL rules remain unchanged.
+            for (pair, visual) in originalCableNodes {
+                if let value = observedPower[pair],
+                   value.isFinite && value != 0 {
+                    visual.opacity = 1
+                } else {
+                    visual.opacity = 0.38
+                }
             }
             refreshOriginalCableGeometryLocked()
         }
