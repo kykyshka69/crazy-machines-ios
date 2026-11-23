@@ -29,4 +29,13 @@ public enum CMOriginalGeneratorRotorObservation {
         }
         return speed
     }
+
+    /// The original generator is a physically sampled rotor, not a
+    /// permanent source. If SceneKit loses that original rotor body,
+    /// invalidate any previous nonzero value exactly once. A missing
+    /// observation must never leave the downstream cable graph powered.
+    public static func sourceUnavailable(previous: Float?) -> Float? {
+        guard let previous, previous != 0 else { return nil }
+        return 0
+    }
 }

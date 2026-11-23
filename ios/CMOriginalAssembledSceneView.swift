@@ -1240,6 +1240,20 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
 
+        /// When an original generator rotor loses its physical SceneKit
+        /// body (or its sample becomes nonfinite), do NOT keep the last
+        /// nonzero electrical signal alive. Dispatch the STOP once.
+        private func clearUnavailableGenerator(_ generatorID: String) {
+            guard let stopped =
+                CMOriginalGeneratorRotorObservation.sourceUnavailable(
+                    previous: lastGeneratorScalars[generatorID])
+            else { return }
+            lastGeneratorScalars[generatorID] = stopped
+            DispatchQueue.main.async { [weak self] in
+                self?.onOriginalGeneratorSignal?(generatorID, stopped)
+            }
+        }
+
         func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
             guard physicsEnabled else { return }
             // The renderer clock may continue while SwiftUI pauses playback.
@@ -1302,9 +1316,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 for (rotorID, generatorID) in generatorIDByRotorID {
                     guard let node = physicsNodesByObjectID[rotorID]?.first,
                           let body = node.physicsBody, body.type == .dynamic
-                    else { continue }
+                    else {
+                        clearUnavailableGenerator(generatorID)
+                        continue
+                    }
                     let rotation = body.angularVelocity
                     let speed = rotation.z < 0 ? -rotation.w : rotation.w
+                    guard speed.isFinite else {
+                        clearUnavailableGenerator(generatorID)
+                        continue
+                    }
                     // Do not keep an outdated nonzero generator signal
                     // just because the new speed is within the polling
                     // threshold. A rotor entering numerical rest must emit

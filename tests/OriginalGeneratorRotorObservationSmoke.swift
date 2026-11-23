@@ -22,6 +22,11 @@ struct OriginalGeneratorRotorObservationSmoke {
         precondition(P.report(previous: 0, measured: 0.1) == 0.1)
         precondition(P.report(previous: .nan, measured: 0.1) == nil)
         precondition(P.report(previous: nil, measured: .infinity) == nil)
+        precondition(P.sourceUnavailable(previous: nil) == nil)
+        precondition(P.sourceUnavailable(previous: 0) == nil)
+        precondition(P.sourceUnavailable(previous: 0.02) == 0)
+        precondition(P.sourceUnavailable(previous: -2) == 0)
+        precondition(P.sourceUnavailable(previous: .nan) == 0)
         var previous: Float? = nil
         for measured: Float in [2, 1, 0.5, 0.1, 0.04, 0.02, 0.007, 0] {
             if let result = P.report(previous: previous, measured: measured) {
@@ -29,6 +34,13 @@ struct OriginalGeneratorRotorObservationSmoke {
             }
         }
         precondition(previous == 0)
+        // A real rotor going missing after starting must emit an exact
+        // stop once; subsequent missing polls must remain silent.
+        var lost: Float? = P.report(previous: nil, measured: 2)
+        precondition(lost == 2)
+        lost = P.sourceUnavailable(previous: lost)
+        precondition(lost == 0)
+        precondition(P.sourceUnavailable(previous: lost) == nil)
         print("Original generator rotor source stop: stale low nonzero power cleared")
     }
 }
