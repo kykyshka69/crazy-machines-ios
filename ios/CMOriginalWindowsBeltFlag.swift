@@ -26,24 +26,58 @@ public enum CMOriginalWindowsBeltFlag {
         }
     }
 
+    /// Build an actual Win32-style source observation from independently
+    /// measured native region geometry and source power. Original 0x44F8F6
+    /// reverses the sign if target region depth exceeds source depth.
+    /// Never replace missing region parameters with mesh proximity.
+    public static func observedSource(
+        originalSourceID: String, originalSourceType: String,
+        originalWindPower: Float, observedNativeRegion: CMOriginalWindowsWindRegion.Parameters,
+        observedNativeDisplacement: CMOriginalWindowsWindRegion.Vector3,
+        sourceDepth: Float, targetDepth: Float
+    ) -> WindObservation? {
+        guard sourceDepth.isFinite, targetDepth.isFinite,
+              originalWindPower.isFinite,
+              !originalSourceID.isEmpty,
+              originalSourceType == "tmo_windmill"
+                || originalSourceType == "tmo_wind_bellows",
+              let fraction = CMOriginalWindowsWindRegion.measuredFraction(
+                nativeDisplacement: observedNativeDisplacement,
+                region: observedNativeRegion)
+        else { return nil }
+        let signed = targetDepth > sourceDepth ? -fraction : fraction
+        return WindObservation(
+            originalSourceID: originalSourceID,
+            originalSourceType: originalSourceType,
+            signedIntersection: signed,
+            originalWindPower: originalWindPower)
+    }
+
     /// Win32 0x44F858–0x44F932 enumerates tmo_windmill / tmo_wind_bellows
     /// and sums each physically intersecting wind contribution times 0.5.
     /// A complete observation with no sources is zero; an omitted or
     /// partial physical observation is UNKNOWN and must not credit GOAL.
     public static func nativeWindSum(
         observations: [WindObservation],
+        requiredOriginalWindSourceIDs: Set<String>,
         allOriginalWindSourcesObserved: Bool
     ) -> Float? {
         guard allOriginalWindSourcesObserved,
-              observations.count <= 1024 else { return nil }
+              observations.count <= 1024,
+              observations.count == requiredOriginalWindSourceIDs.count,
+              !requiredOriginalWindSourceIDs.contains("") else {
+            return nil
+        }
         var sources = Set<String>()
         var result = Double(0)
         for observation in observations {
             guard !observation.originalSourceID.isEmpty,
-                  sources.insert(observation.originalSourceID).inserted,
+                  requiredOriginalWindSourceIDs.contains(observation.originalSourceID),
+              sources.insert(observation.originalSourceID).inserted,
                   observation.originalSourceType == "tmo_windmill"
                     || observation.originalSourceType == "tmo_wind_bellows",
                   observation.signedIntersection.isFinite,
+                  abs(observation.signedIntersection) <= 1,
                   observation.originalWindPower.isFinite else { return nil }
             result += Double(observation.signedIntersection)
                 * Double(observation.originalWindPower)
@@ -52,6 +86,7 @@ public enum CMOriginalWindowsBeltFlag {
                   abs(result) <= Double(Float.greatestFiniteMagnitude)
             else { return nil }
         }
+        guard sources == requiredOriginalWindSourceIDs else { return nil }
         return Float(result)
     }
 

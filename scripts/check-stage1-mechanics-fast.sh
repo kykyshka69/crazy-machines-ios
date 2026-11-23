@@ -18,14 +18,16 @@ swiftc ios/CMOriginalWindowsMechanicalTransfer.swift     tests/OriginalWindowsMe
 swiftc ios/CMOriginalWindowsFlower.swift tests/OriginalWindowsFlowerSmoke.swift -o "$tmp/original-flower"
 "$tmp/original-flower"
 # Native Win32 belt-flag GOAL gate from actual level-34 telescope states.
-swiftc ios/CMOriginalWindowsBeltFlag.swift tests/OriginalWindowsBeltFlagSmoke.swift -o "$tmp/original-flag"
+swiftc ios/CMOriginalWindowsWindRegion.swift tests/OriginalWindowsWindRegionSmoke.swift -o "$tmp/original-wind-region"
+"$tmp/original-wind-region"
+swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsBeltFlag.swift tests/OriginalWindowsBeltFlagSmoke.swift -o "$tmp/original-flag"
 "$tmp/original-flag"
 
 # Actual original object GOAL resolver: run BOTH mechanical native predicates
 # alongside original electrical and steam GOAL without building the iOS app.
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsSolarSignal.swift \
-  ios/CMOriginalWindowsSteamWhistle.swift ios/CMOriginalWindowsBeltFlag.swift \
+  ios/CMOriginalWindowsSteamWhistle.swift ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsBeltFlag.swift \
   ios/CMOriginalWindowsFlower.swift ios/CMOriginalWindowsElectricalGoals.swift \
   tests/OriginalWindowsElectricalGoalsSmoke.swift -o "$tmp/original-goal-dispatch"
 "$tmp/original-goal-dispatch"

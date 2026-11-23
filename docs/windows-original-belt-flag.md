@@ -67,3 +67,34 @@ objdump -s -j .rdata --start-address=0x4ecb60 --stop-address=0x4ecba0 CrazyMachi
 ```
 
 No licensed original executable, JSON, mesh or texture is committed.
+
+## Native wind-region attenuation and exact level-34 wind-source inventory (2026-11-23)
+
+The owner-verified original PE32 routine at **0x409650–0x40985B**
+calculates the intersection fraction supplied to flag wind aggregation:
+- Compute displacement and its squared norm (native 0x408BE0 / 0x409D00).
+- Reject squared distances outside native region **+0x34..+0x38**.
+- Compute `acos(clamp(dot(displacement, region axis+0x18) /
+  (|displacement|*|axis|), -1, 1))`; reject angles larger than +0x40.
+- Calculate `(1 - (angle * region+0x44)^2) *
+  (1 - (distanceSquared - region+0x34)*region+0x3C)`;
+  clamp measured intersection fraction to **[0,1]**.
+- Original flag at 0x44F8EA–0x44F911 signs the measured
+  intersection by original source/target depth before multiplying
+  source +0x40 power and the original 0.5 scalar.
+
+`CMOriginalWindowsWindRegion` implements this **pure** Win32
+distance/angle/attenuation function from real supplied native region
+parameters. `CMOriginalWindowsBeltFlag.observedSource` combines it with
+verified original emitter kind, actually measured power and depth ordering;
+no UCM proximity guess, fake SceneKit source power, or fabricated
+native region field is inserted.
+
+Important **source completeness**: authentic `level-034.json` has exactly
+one `tmo_windmill` and no `tmo_wind_bellows`. The flag's low-wind GOAL
+branch must not activate merely because a sampler omitted that windmill.
+`nativeWindSum` now requires the full set of expected **original source
+IDs**; missing, extra or duplicate observations fail closed. The
+scene's real native region parameters / emitter +0x40 values still
+require a live original-to-SceneKit measurement pipeline. Therefore
+**no claim of solving level 34 or all 102 authentic puzzles**.

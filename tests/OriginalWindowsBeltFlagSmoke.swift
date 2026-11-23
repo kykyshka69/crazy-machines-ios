@@ -28,26 +28,59 @@ struct OriginalWindowsBeltFlagSmoke {
                   signedIntersection: factor, originalWindPower: power)
         }
         precondition(F.nativeWindSum(observations: [],
-            allOriginalWindSourcesObserved: false) == nil)
+            requiredOriginalWindSourceIDs: [], allOriginalWindSourcesObserved: false) == nil)
         precondition(F.nativeWindSum(observations: [],
-            allOriginalWindSourcesObserved: true) == 0)
+            requiredOriginalWindSourceIDs: [], allOriginalWindSourcesObserved: true) == 0)
         let actual = [wind("windmill-1", "tmo_windmill", 0.8, 4),
                       wind("bellows-1", "tmo_wind_bellows", -0.4, 2)]
         precondition(F.nativeWindSum(observations: actual,
+            requiredOriginalWindSourceIDs: ["windmill-1", "bellows-1"],
             allOriginalWindSourcesObserved: true) == 1.2)
         precondition(F.nativeWindSum(observations: actual,
+            requiredOriginalWindSourceIDs: ["windmill-1", "bellows-1"],
             allOriginalWindSourcesObserved: false) == nil)
         precondition(F.nativeWindSum(observations: [actual[0], actual[0]],
-            allOriginalWindSourcesObserved: true) == nil)
+            requiredOriginalWindSourceIDs: [], allOriginalWindSourcesObserved: true) == nil)
         precondition(F.nativeWindSum(observations: [
             wind("x", "tmo_belt_gear", 1, 10)],
-            allOriginalWindSourcesObserved: true) == nil)
+            requiredOriginalWindSourceIDs: [], allOriginalWindSourcesObserved: true) == nil)
         precondition(F.nativeWindSum(observations: [
             wind("x", "tmo_windmill", .nan, 1)],
-            allOriginalWindSourcesObserved: true) == nil)
+            requiredOriginalWindSourceIDs: [], allOriginalWindSourcesObserved: true) == nil)
         precondition(F.nativeWindSum(observations: [
             wind("x", "tmo_windmill", 1, .infinity)],
+            requiredOriginalWindSourceIDs: [], allOriginalWindSourcesObserved: true) == nil)
+        // Level 34 really contains ONE native tmo_windmill emitter. A
+        // missing observation must not turn the flag's low-wind branch on.
+        precondition(F.nativeWindSum(observations: [],
+            requiredOriginalWindSourceIDs: ["native-level-34-windmill"],
             allOriginalWindSourcesObserved: true) == nil)
-        print("Original flag: true measured wind sum, two native GOAL bounds, unknown fails closed")
+        precondition(F.nativeWindSum(observations: [actual[0]],
+            requiredOriginalWindSourceIDs: ["windmill-1", "bellows-1"],
+            allOriginalWindSourcesObserved: true) == nil)
+        precondition(F.nativeWindSum(observations: [actual[0]],
+            requiredOriginalWindSourceIDs: ["unknown"],
+            allOriginalWindSourcesObserved: true) == nil)
+        let nativeRegion = CMOriginalWindowsWindRegion.Parameters(
+            nativeAxis: .init(1, 0),
+            minRadiusSquared: 1, maxRadiusSquared: 100,
+            radialFalloff: 0.01,
+            maximumAngle: .pi / 2, angularFalloff: 2 / .pi)
+        let sample = F.observedSource(
+            originalSourceID: "native-level-34-windmill",
+            originalSourceType: "tmo_windmill",
+            originalWindPower: 10,
+            observedNativeRegion: nativeRegion,
+            observedNativeDisplacement: .init(5, 0),
+            sourceDepth: 0, targetDepth: 1)!
+        precondition(sample.signedIntersection < 0)
+        let measured = F.nativeWindSum(observations: [sample],
+            requiredOriginalWindSourceIDs: ["native-level-34-windmill"],
+            allOriginalWindSourcesObserved: true)!
+        precondition(abs(measured + 3.8) < 0.00001)
+        precondition(F.triggersGoal(.init(
+            telescopeIndicator: F.nativeTelescopeMarker,
+            flagState: 0, observedNetWindForce: measured)))
+        print("Original flag: measured wind region, complete source inventory, native GOAL bounds OK")
     }
 }
