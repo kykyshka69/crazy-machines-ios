@@ -1214,7 +1214,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     // two-stage rocket state machine actually launches it.
                     body.clearAllForces()
                     body.velocity = SCNVector3Zero
-                    body.angularVelocity = SCNVector4Zero
+                    body.angularVelocity = SCNVector4(0, 0, 0, 0)
                     body.type = .kinematic
                 }
                 if self.buoyantObjectIDs.contains(id) {
@@ -1860,7 +1860,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 if state.phase == 2, let body, let force {
                     if body.type == .kinematic {
                         body.velocity = SCNVector3Zero
-                        body.angularVelocity = SCNVector4Zero
+                        body.angularVelocity = SCNVector4(0, 0, 0, 0)
                         body.type = .dynamic
                     }
                     guard body.type == .dynamic else { continue }
