@@ -28,6 +28,14 @@ public enum CMOriginalWindowsRocketNativeHeat {
             nativeOrigin: Point,
             observedNativeAxis: CMOriginalWindowsWindRegion.Vector3
         ) -> SourceCone? {
+            // A native selector record must come from an identified
+            // original reference frame and have finite planar position.
+            // Original 0x409650 deliberately ignores source Z.
+            guard selectedRecordIndex >= 0,
+                  !coordinateFrameID.isEmpty,
+                  nativeOrigin.x.isFinite, nativeOrigin.y.isFinite else {
+                return nil
+            }
             guard let shape = CMOriginalWindowsCandleHeatFactory.parameters(
                 observedNativeAxis: observedNativeAxis) else { return nil }
             return SourceCone(selectedRecordIndex: selectedRecordIndex,

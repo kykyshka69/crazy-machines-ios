@@ -91,6 +91,18 @@ import Foundation
             selectedRecordIndex: 1, coordinateFrameID: "native-A",
             nativeOrigin: .init(10, 20),
             observedNativeAxis: .init(0, 0)) == nil)
+        precondition(H.SourceCone.originalCandle(
+            selectedRecordIndex: -1, coordinateFrameID: "native-A",
+            nativeOrigin: .init(10, 20),
+            observedNativeAxis: .init(0, 1)) == nil)
+        precondition(H.SourceCone.originalCandle(
+            selectedRecordIndex: 1, coordinateFrameID: "",
+            nativeOrigin: .init(10, 20),
+            observedNativeAxis: .init(0, 1)) == nil)
+        precondition(H.SourceCone.originalCandle(
+            selectedRecordIndex: 1, coordinateFrameID: "native-A",
+            nativeOrigin: .init(.nan, 20),
+            observedNativeAxis: .init(0, 1)) == nil)
         print("Win32 native source cone +0x20 / rocket receiver +0x24 chain: PASS")
     }
 }
