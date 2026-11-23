@@ -1747,9 +1747,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // This SceneKit Euler-Z mapping to Win32's +0xD0 scalar
                 // is approximate and is not a recovered torque constant.
                 for (wheelID, disrupterID) in disrupterIDByWheelID {
-                    guard let wheel = physicsNodesByObjectID[wheelID]?.first
-                    else { continue }
-                    let angle = wheel.presentation.eulerAngles.z
+                    // A lost original wheel must clear its last conducting
+                    // phase, not leave the connected motor/lamp energized.
+                    // NaN is an unavailable observation; the native gate
+                    // rejects it and the existing change latch sends it once.
+                    let angle: Float
+                    if let wheel = physicsNodesByObjectID[wheelID]?.first {
+                        angle = wheel.presentation.eulerAngles.z
+                    } else {
+                        angle = .nan
+                    }
                     let conducting = CMOriginalWindowsPowerDisrupter.conducts(
                         rotorAngle: angle)
                     guard lastDisrupterConduction[disrupterID] != conducting
