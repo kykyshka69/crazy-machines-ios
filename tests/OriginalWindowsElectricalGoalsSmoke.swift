@@ -24,14 +24,16 @@ struct OriginalWindowsElectricalGoalsSmoke {
                     object("tmo_pipe_whistle"),
                     object("tmo_pipe_whistle", goal: false),
                     object("tmo_belt_flag"),
-                    object("tmo_belt_flag", goal: false)
+                    object("tmo_belt_flag", goal: false),
+                    object("tmo_light_flower"),
+                    object("tmo_light_flower", goal: false)
                 ]]
             ]]
         ]
         let document = try CMOriginalSceneDocument.read(
             JSONSerialization.data(withJSONObject: root))
         let session = CMOriginalGameplaySession(document: document)
-        precondition(session.objects.count == 13)
+        precondition(session.objects.count == 15)
         let ids = session.objects.map(\.id)
         let powered = [ids[0]: Float(10), ids[1]: Float(3),
                        ids[2]: Float(1.5), ids[3]: Float(10),
@@ -112,6 +114,19 @@ struct OriginalWindowsElectricalGoalsSmoke {
         precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
             session: session, powerByDeviceID: [:],
             beltFlagRuntimeByObjectID: [ids[11]: tooShort]).isEmpty)
-        print("Recovered Win32 GOAL: electrical sources, steam and native belt-flag telescope state; no metadata-only win")
+        // Native original tmo_light_flower uses physical growth +0x130;
+        // CML GOAL or an unrelated battery does not provide that input.
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [ids[13]: 10]).isEmpty)
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            flowerNativeProgressByObjectID: [ids[13]: 0.5]) == [ids[13]])
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            flowerNativeProgressByObjectID: [ids[13]: 0.5001]).isEmpty)
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            flowerNativeProgressByObjectID: [ids[14]: 0.2]).isEmpty)
+        print("Recovered Win32 GOAL: electrical, steam, flower growth and native belt-flag state; no metadata-only win")
     }
 }

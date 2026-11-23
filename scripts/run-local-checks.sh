@@ -120,7 +120,7 @@ swiftc ios/CMOriginalWindowsPowerScalar.swift tests/OriginalWindowsPowerScalarSm
   -o "$tmp/original-win32-power-scalar"
 "$tmp/original-win32-power-scalar"
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
-  ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsSteamWhistle.swift ios/CMOriginalWindowsBeltFlag.swift ios/CMOriginalWindowsElectricalGoals.swift \
+  ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsSteamWhistle.swift ios/CMOriginalWindowsBeltFlag.swift ios/CMOriginalWindowsFlower.swift ios/CMOriginalWindowsElectricalGoals.swift \
   tests/OriginalWindowsElectricalGoalsSmoke.swift -o "$tmp/original-electrical-goals"
 "$tmp/original-electrical-goals"
 # Genuine generator is a mechanism-driven source, not an always-on battery.
@@ -162,7 +162,7 @@ swiftc ios/CMOriginalWindowsSolarSignal.swift tests/OriginalWindowsSolarSignalSm
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsSwitchContactGate.swift \
   ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalWindowsPowerScalar.swift \
-  ios/CMOriginalWindowsSteamWhistle.swift ios/CMOriginalWindowsBeltFlag.swift ios/CMOriginalWindowsElectricalGoals.swift \
+  ios/CMOriginalWindowsSteamWhistle.swift ios/CMOriginalWindowsBeltFlag.swift ios/CMOriginalWindowsFlower.swift ios/CMOriginalWindowsElectricalGoals.swift \
   tests/OriginalWindowsSolarCircuitSmoke.swift -o "$tmp/original-solar-circuit"
 "$tmp/original-solar-circuit"
 # Authentic pocketlamp angular cone / native near and far beam constants.

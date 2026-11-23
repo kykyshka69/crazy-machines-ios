@@ -22,13 +22,28 @@ public enum CMOriginalWindowsElectricalGoals {
         steamPressureByObjectID: [String: Float] = [:],
         // Native belt-flag telescopic state and accumulated travel, never
         // inferred from a rotating UCM wheel or a GOAL annotation alone.
-        beltFlagRuntimeByObjectID: [String: CMOriginalWindowsBeltFlag.ObservedState] = [:]
+        beltFlagRuntimeByObjectID: [String: CMOriginalWindowsBeltFlag.ObservedState] = [:],
+        // Original flower's *physical* growth-state scalar (+0x130),
+        // supplied only by a recovered native light/clock path.
+        flowerNativeProgressByObjectID: [String: Float] = [:]
     ) -> Set<String> {
         var active = Set<String>()
         for object in session.objects {
             guard object.goalAnnotation == "1"
                     || object.fields["GOAL"]?.contains("1") == true
             else { continue }
+            // Native 0x450018–0x450039 requires the genuine flower
+            // physical progress +0x130 <= 0.5, not just a visible lamp
+            // or unobstructed 3D line of sight. No invented photometry.
+            if object.type == "tmo_light_flower" {
+                if let progress = flowerNativeProgressByObjectID[object.id],
+                   CMOriginalWindowsFlower.triggersGoal(
+                        observedNativeProgress: progress
+                   ) {
+                    active.insert(object.id)
+                }
+                continue
+            }
             // Original level 34 carries GOAL on tmo_belt_flag. Its
             // two x86 GOAL call sites at 0x44FA58/0x44FAA1 compare the
             // actual telescope/flag/native travel state, not rotation.

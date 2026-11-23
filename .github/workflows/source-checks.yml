@@ -320,7 +320,7 @@ jobs:
         run: |
           swiftc ios/CMOriginalWindowsPowerScalar.swift tests/OriginalWindowsPowerScalarSmoke.swift -o /tmp/cm-win-power-scalar
           /tmp/cm-win-power-scalar
-          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsSteamWhistle.swift ios/CMOriginalWindowsBeltFlag.swift ios/CMOriginalWindowsElectricalGoals.swift tests/OriginalWindowsElectricalGoalsSmoke.swift -o /tmp/cm-win-electrical-goals
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsSteamWhistle.swift ios/CMOriginalWindowsBeltFlag.swift ios/CMOriginalWindowsFlower.swift ios/CMOriginalWindowsElectricalGoals.swift tests/OriginalWindowsElectricalGoalsSmoke.swift -o /tmp/cm-win-electrical-goals
           /tmp/cm-win-electrical-goals
 
   original-win32-disrupter-circuit-gate:
@@ -390,7 +390,7 @@ jobs:
         run: |
           swiftc ios/CMOriginalWindowsSolarSignal.swift tests/OriginalWindowsSolarSignalSmoke.swift -o /tmp/cm-solar-scalar
           /tmp/cm-solar-scalar
-          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsSwitchContactGate.swift ios/CMOriginalWindowsSteamWhistle.swift ios/CMOriginalWindowsBeltFlag.swift ios/CMOriginalWindowsElectricalGoals.swift tests/OriginalWindowsSolarCircuitSmoke.swift -o /tmp/cm-solar-circuit
+          swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsSwitchContactGate.swift ios/CMOriginalWindowsSteamWhistle.swift ios/CMOriginalWindowsBeltFlag.swift ios/CMOriginalWindowsFlower.swift ios/CMOriginalWindowsElectricalGoals.swift tests/OriginalWindowsSolarCircuitSmoke.swift -o /tmp/cm-solar-circuit
           /tmp/cm-solar-circuit
           python3 -m unittest discover -s tools -p 'test_audit_windows_solar_exe.py'
 
