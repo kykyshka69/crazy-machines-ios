@@ -83,6 +83,10 @@ struct OriginalPowerCircuitSmoke {
         precondition(net.experimentalCablePowerSignals(
             powerByDeviceID: [sourceID: .nan, switchID: 10]).isEmpty)
         precondition(net.experimentalCablePowerSignals(
+            powerByDeviceID: [sourceID: .infinity, switchID: 10]).isEmpty)
+        precondition(net.experimentalCablePowerSignals(
+            powerByDeviceID: [sourceID: -.infinity, switchID: 10]).isEmpty)
+        precondition(net.experimentalCablePowerSignals(
             powerByDeviceID: [sourceID: 0, switchID: 0]).isEmpty)
         precondition(CMOriginalWindowsPowerScalar.motorRotorCommand(
             from: openSignal[sourceID]!) == -10)
@@ -166,6 +170,10 @@ struct OriginalPowerCircuitSmoke {
             powerByDeviceID: net.experimentalBatterySignals(
                 closedSwitchIDs: [switchID])).count == 2)
         net.reset()
+        // Stale signal dictionaries cannot light deleted CML cables
+        // because the actual user-authored cable set has been cleared.
+        precondition(net.experimentalCablePowerSignals(
+            powerByDeviceID: closedSignal).isEmpty)
         precondition(net.unwiredTerminalCount == 8)
         precondition(net.reachableDevices() == [sourceID])
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
