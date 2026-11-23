@@ -134,3 +134,21 @@ For local validation between edits, run
 `bash scripts/check-stage1-mechanics-fast.sh`. No full iOS build is
 triggered by that script; batch source edits and run Xcode/CI only once
 at a later integration checkpoint.
+
+## Native-VALF wheel-family physical gear receivers (2026-11-23)
+
+The user's original 102 level JSON records, verified from the owner-owned
+CMASSET1 archive, contain original CML VALF for each of the nine gear-
+contact-eligible external receiver kinds. Six newly enabled receivers:
+`tmo_power_disrupter_wheel` (11, VALF 0.125), `tmo_steam_wheel`
+(23, 0.250), `tmo_windmill_wheel` (13, 0.125),
+`tmo_hammer_wheel` (3, 0.130), `tmo_belt_flag_wheel` (1, 0.125),
+`tmo_heat_grill_wheel` (1, 0.130).
+
+These native mechanism wheels can now receive SceneKit contact torque from
+an actual `tmo_belt_gear` under the same bounded native VALF ratio model
+as motors/conveyor wheels. This does NOT invent a rigid selector-5 link or
+a Win32 victory callback. Conveyor auxiliary rollers and windmill wings
+lack native VALF in original CML, so remain excluded from direct gear
+transmission. Measured contact, validated original UCM owner, dynamic body,
+original VALF on both sides and a running session remain mandatory.

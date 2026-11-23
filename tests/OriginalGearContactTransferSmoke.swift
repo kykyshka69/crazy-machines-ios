@@ -100,6 +100,39 @@ struct OriginalGearContactTransferSmoke {
             nativeFirstVALF: 0.1, nativeSecondVALF: 0.125)!
         precondition(abs(ab.first - ba.second) < 0.00001)
         precondition(abs(ab.second - ba.first) < 0.00001)
-        print("Original UCM gear contact, native VALF-scaled counterrotation and 1000 bounded cases OK")
+        // Additional authentic native wheel types with real CML VALF.
+        // A physically contacted original gear may now transmit bounded
+        // rotary torque to these mechanisms, not just motor/conveyor.
+        let originalReceivers: [(String, Float)] = [
+            ("tmo_power_motor_rotor", 0.125),
+            ("tmo_power_generator_rotor", 0.125),
+            ("tmo_belt_conveyer_wheel", 0.100),
+            ("tmo_power_disrupter_wheel", 0.125),
+            ("tmo_steam_wheel", 0.250),
+            ("tmo_windmill_wheel", 0.125),
+            ("tmo_hammer_wheel", 0.130),
+            ("tmo_belt_flag_wheel", 0.125),
+            ("tmo_heat_grill_wheel", 0.130)
+        ]
+        for (kind, nativeVALF) in originalReceivers {
+            precondition(G.accepts("tmo_belt_gear", kind))
+            precondition(G.accepts(kind, "tmo_belt_gear"))
+            guard let torque = G.correction(
+                firstKind: "tmo_belt_gear", secondKind: kind,
+                firstRadius: 0.12, secondRadius: 0.10,
+                firstAngularSpeed: 2, secondAngularSpeed: 0,
+                firstMass: 1, secondMass: 1,
+                nativeFirstVALF: 0.125, nativeSecondVALF: nativeVALF
+            ) else { preconditionFailure("Original wheel should accept real gear torque") }
+            precondition(torque.second < 0 && torque.first < 0)
+        }
+        // No invented power for visually rotating children without
+        // an independent native CML VALF (conveyor rollers/windmill wings).
+        for kind in ["tmo_belt_conveyer_roll_big",
+                     "tmo_belt_conveyer_roll_small",
+                     "tmo_windmill_wings", "tmo_rope_cage"] {
+            precondition(!G.accepts("tmo_belt_gear", kind))
+        }
+        print("Original gear drives nine native-VALF wheel families; 1000 bounded contact cases OK")
     }
 }

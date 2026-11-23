@@ -20,7 +20,17 @@ public enum CMOriginalGearContactTransfer {
             "tmo_belt_gear",
             "tmo_power_motor_rotor",
             "tmo_power_generator_rotor",
-            "tmo_belt_conveyer_wheel"
+            "tmo_belt_conveyer_wheel",
+            // The owner's original 102 CML scenes include native VALF
+            // for these additional toothed-wheel drive receivers.
+            // Only ACTUAL SCNPhysicsContact with a belt gear transmits
+            // motion; this is not an inferred Win32 selector-5 link.
+            "tmo_power_disrupter_wheel",
+            "tmo_steam_wheel",
+            "tmo_windmill_wheel",
+            "tmo_hammer_wheel",
+            "tmo_belt_flag_wheel",
+            "tmo_heat_grill_wheel"
         ]
         // Any motor/generator/conveyor involvement must touch an actual
         // original gear UCM; two unrelated powered axles are not connected.
