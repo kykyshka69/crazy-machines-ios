@@ -397,8 +397,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.setExperimentalMagnetism(experimentalMagnetism)
         context.coordinator.setPoweredMotorRotorIDs(poweredMotorRotorObjectIDs)
         context.coordinator.setPoweredMotorDriveSignals(poweredMotorRotorDriveSignals)
-        context.coordinator.setOriginalNativeRocketEngineObservations(
-            originalNativeRocketEngineObservations)
         context.coordinator.session = CMOriginalGameplaySession(document: document)
         // Only evidence-derived zone-delivery prototypes collect bodies:
         // four distinct linked objects in Professor level 1, or five
@@ -444,6 +442,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.initializeSwitchPressCount(switchPressCount)
         if experimentalPhysics {
             context.coordinator.registerPhysicsNodes(in: scene)
+            context.coordinator.setOriginalNativeRocketEngineObservations(
+                originalNativeRocketEngineObservations)
             context.coordinator.configurePhysicsRoles(configuredPhysicsRoles)
             context.coordinator.configureExperimentalReactions(configuredReactions)
             context.coordinator.setOriginalLampVisualFactors(originalLampVisualFactors)
@@ -531,6 +531,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.setExperimentalMagnetism(experimentalMagnetism)
         context.coordinator.setPoweredMotorRotorIDs(poweredMotorRotorObjectIDs)
         context.coordinator.setPoweredMotorDriveSignals(poweredMotorRotorDriveSignals)
+        context.coordinator.setOriginalNativeRocketEngineObservations(
+            originalNativeRocketEngineObservations)
         context.coordinator.setOriginalLampVisualFactors(originalLampVisualFactors)
             context.coordinator.setOriginalAmmeterSignals(originalAmmeterPowerSignals)
         if context.coordinator.lastUndoPlacementRevision != undoPlacementRevision {
@@ -591,6 +593,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // SwiftUI snapshot. New forces require fresh real-native evidence.
         private var pendingNativeRocketEngineObservations:
             [CMOriginalRocketForceDelivery.Observation] = []
+        private var lastNativeRocketEngineSequenceByChildID:
+            [String: UInt64] = [:]
         func setOriginalNativeRocketEngineObservations(
             _ observations: [CMOriginalRocketForceDelivery.Observation]
         ) {
@@ -912,6 +916,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             originalRocketChildIDs.removeAll()
             originalRocketParentByChildID.removeAll()
             pendingNativeRocketEngineObservations.removeAll()
+            lastNativeRocketEngineSequenceByChildID.removeAll()
             previousOriginalRocketAnchorSnapshots.removeAll()
             lastOriginalRocketAnchorPollTime = -1
             originalLampBulbMaterials.removeAll()
@@ -1570,12 +1575,19 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             var seen = Set<String>()
             for observed in fresh {
                 guard seen.insert(observed.rocketChildID).inserted,
+                      CMOriginalRocketForceDelivery.fresh(
+                        observed,
+                        afterLastApplied:
+                            lastNativeRocketEngineSequenceByChildID[
+                                observed.rocketChildID
+                            ]
+                      ),
                       let parentID = originalRocketParentByChildID[
                         observed.rocketChildID
                       ],
                       let owner = physicsNodesByObjectID[
                         observed.rocketChildID
-                      ]?.first,
+                      ]?.first(where: { $0.physicsBody?.type == .dynamic }),
                       let body = owner.physicsBody else { continue }
                 guard let native = CMOriginalRocketForceDelivery.force(
                     observed: observed,
@@ -1593,6 +1605,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     SCNVector3(native.force.x, native.force.y, native.force.z),
                     asImpulse: false
                 )
+                lastNativeRocketEngineSequenceByChildID[
+                    observed.rocketChildID
+                ] = observed.nativeSampleSequence
             }
         }
 

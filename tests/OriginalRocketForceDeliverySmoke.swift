@@ -6,11 +6,13 @@ struct OriginalRocketForceDeliverySmoke {
         typealias B = CMOriginalRocketForceDelivery
         typealias V = CMOriginalWindowsRocketForce.Vector3
         func observation(parent: String = "rocket-0", child: String = "rocket-part-0",
+                         sequence: UInt64 = 1,
                          state: Float = 2, active: Bool = true,
                          vector: V? = .init(2, -4, 700),
                          scalar: Float? = 0.5,
                          center: V? = .init(1, 3, -2)) -> B.Observation {
-            .init(rocketParentID: parent, rocketChildID: child,
+            .init(nativeSampleSequence: sequence,
+                  rocketParentID: parent, rocketChildID: child,
                   nativeParentState: state,
                   actualOriginalEngineActivated: active,
                   nativeDirectionVector: vector,
@@ -29,6 +31,12 @@ struct OriginalRocketForceDeliverySmoke {
                     childPhysicsIsDynamic: dynamic)
         }
         precondition(force(observation())?.force == .init(1, -2, 0))
+        precondition(B.fresh(observation(sequence: 1), afterLastApplied: nil))
+        precondition(B.fresh(observation(sequence: 2), afterLastApplied: 1))
+        precondition(!B.fresh(observation(sequence: 1), afterLastApplied: 1))
+        precondition(!B.fresh(observation(sequence: 1), afterLastApplied: 2))
+        precondition(!B.fresh(observation(sequence: 0), afterLastApplied: nil))
+        precondition(force(observation(sequence: 0)) == nil)
         precondition(force(observation())?.bodyCenter == .init(1, 3, -2))
         precondition(force(observation(), dynamic: false) == nil)
         precondition(force(observation(), parentType: "tmo_candle") == nil)
