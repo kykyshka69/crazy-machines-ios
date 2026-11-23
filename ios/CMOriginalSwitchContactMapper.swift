@@ -48,6 +48,11 @@ public struct CMOriginalSwitchContactMapper {
     private let owningSwitchByObject: [String: String]
     private let switchByLever: [String: String]
     private var activePairs: Set<Pair> = []
+    // A SceneKit contact often begins with ZERO collision impulse. The
+    // actual positive impact can arrive in didUpdate on the next frame.
+    // Track which real lever/striker PAIRS already triggered independently
+    // of ongoing contact observations. Clear only when contact ends.
+    private var impactedPairs: Set<Pair> = []
 
     public init(objects: [Item]) {
         let byID = Dictionary(objects.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -109,11 +114,44 @@ public struct CMOriginalSwitchContactMapper {
                    strikingObjectType: type, impulse: impulse)
     }
 
+    /// Called on BOTH didBegin and didUpdate. Only an already recognized
+    /// original CML lever / moving original striker pair can cause a
+    /// physical prototype toggle; a zero first impulse is not fatal.
+    /// This accepts exactly ONE positive finite impulse during each
+    /// sustained contact, preventing chattering and accidental double
+    /// switch flips on the following SceneKit frames.
+    public mutating func consumeImpact(
+        _ a: String, _ b: String, impulse: Double,
+        aIsMovable: Bool, bIsMovable: Bool
+    ) -> Hit? {
+        let pair = Pair(a, b)
+        guard activePairs.contains(pair), impulse.isFinite, impulse > 0,
+              !impactedPairs.contains(pair) else { return nil }
+        let switchID: String
+        let leverID: String
+        let strikerID: String
+        if let owner = switchByLever[a], bIsMovable,
+           owningSwitchByObject[b] == nil {
+            switchID = owner; leverID = a; strikerID = b
+        } else if let owner = switchByLever[b], aIsMovable,
+                  owningSwitchByObject[a] == nil {
+            switchID = owner; leverID = b; strikerID = a
+        } else { return nil }
+        guard let kind = objectTypes[strikerID],
+              impactedPairs.insert(pair).inserted else { return nil }
+        return Hit(switchID: switchID, leverID: leverID,
+                   strikingObjectID: strikerID,
+                   strikingObjectType: kind, impulse: impulse)
+    }
+
     public mutating func endContact(_ a: String, _ b: String) {
-        activePairs.remove(Pair(a, b))
+        let pair = Pair(a, b)
+        activePairs.remove(pair)
+        impactedPairs.remove(pair)
     }
 
     public mutating func reset() {
         activePairs.removeAll()
+        impactedPairs.removeAll()
     }
 }

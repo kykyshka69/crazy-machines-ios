@@ -2451,6 +2451,35 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             if running {
                 transferConveyorMotion(contact)
                 transferGearContact(contact)
+                // SceneKit commonly provides an initial didBegin impulse
+                // of 0, followed by the actual positive force in didUpdate.
+                // Keep the authenticated active CML pair and deliver the
+                // FIRST real physical switch impact exactly once.
+                guard let a = owningOriginalObjectID(
+                        for: physicalNode(for: contact.nodeA)),
+                      let b = owningOriginalObjectID(
+                        for: physicalNode(for: contact.nodeB)),
+                      a != b else { return }
+                sessionLock.lock()
+                let actualImpact = switchContacts?.consumeImpact(
+                    a, b, impulse: Double(contact.collisionImpulse),
+                    aIsMovable: session?.physicsRole(for: a) == .movable,
+                    bIsMovable: session?.physicsRole(for: b) == .movable)
+                var newSwitch: (id: String, on: Bool)?
+                if let hit = actualImpact,
+                   switchLeverNodes[hit.switchID] != nil,
+                   switchLeverRestAngles[hit.switchID] != nil,
+                   let state = session?.toggleOriginalSwitch(hit.switchID) {
+                    newSwitch = (hit.switchID, state)
+                }
+                sessionLock.unlock()
+                if let event = newSwitch {
+                    DispatchQueue.main.async { [weak self] in
+                        self?.animateOriginalSwitchLever(
+                            event.id, isOn: event.on)
+                        self?.onOriginalSwitchToggle?(event.id, event.on)
+                    }
+                }
             }
         }
 
@@ -2489,9 +2518,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // Original Win32 impulse threshold/contact fields are still
             // unknown. Do not award GOAL merely from this impact.
             var impactSwitchState: (id: String, on: Bool)?
-            if let hit = leverHit,
-               CMOriginalSwitchContactMapper
-                   .qualifiesForExperimentalImpact(hit),
+            let firstImpact = switchContacts?.consumeImpact(
+                a, b, impulse: Double(contact.collisionImpulse),
+                aIsMovable: session?.physicsRole(for: a) == .movable,
+                bIsMovable: session?.physicsRole(for: b) == .movable)
+            if let hit = firstImpact,
                switchLeverNodes[hit.switchID] != nil,
                switchLeverRestAngles[hit.switchID] != nil,
                let newState = session?.toggleOriginalSwitch(hit.switchID) {

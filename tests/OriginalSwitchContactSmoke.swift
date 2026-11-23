@@ -43,11 +43,19 @@ struct OriginalSwitchContactSmoke {
                 switchID: "switch-A", leverID: "lever-A",
                 strikingObjectID: "ball", strikingObjectType: "tmo_ball_iron",
                 impulse: -.infinity)) == false)
+        precondition(mapper.consumeImpact("ball", "lever-A", impulse: 0.35,
+                                         aIsMovable: true, bIsMovable: false) != nil)
+        precondition(mapper.consumeImpact("lever-A", "ball", impulse: 2,
+                                         aIsMovable: false, bIsMovable: true) == nil)
         precondition(mapper.beginContact("lever-A", "ball", impulse: 2,
                                          aIsMovable: false, bIsMovable: true) == nil)
         mapper.endContact("lever-A", "ball")
         precondition(mapper.beginContact("lever-A", "ball", impulse: 1,
                                          aIsMovable: false, bIsMovable: true) != nil)
+        precondition(mapper.consumeImpact("lever-A", "ball", impulse: 1,
+                                         aIsMovable: false, bIsMovable: true) != nil)
+        precondition(mapper.consumeImpact("lever-A", "ball", impulse: 1,
+                                         aIsMovable: false, bIsMovable: true) == nil)
         precondition(mapper.beginContact("lever-A", "ball", impulse: .nan,
                                          aIsMovable: false, bIsMovable: true) == nil)
         precondition(mapper.beginContact("lever-A", "missing", impulse: 1,
@@ -59,6 +67,22 @@ struct OriginalSwitchContactSmoke {
         precondition(next.map {
             CMOriginalSwitchContactMapper.qualifiesForExperimentalImpact($0)
         } == false)
+        // FIRST didBegin frame is a zero impulse; a later didUpdate
+        // positive impulse must still toggle the real original switch.
+        precondition(mapper.consumeImpact("ball", "lever-B", impulse: 0,
+                                         aIsMovable: true, bIsMovable: false) == nil)
+        precondition(mapper.consumeImpact("ball", "lever-B", impulse: .nan,
+                                         aIsMovable: true, bIsMovable: false) == nil)
+        precondition(mapper.consumeImpact("ball", "lever-B", impulse: 0.42,
+                                         aIsMovable: true, bIsMovable: false)?.switchID
+                     == "switch-B")
+        precondition(mapper.consumeImpact("lever-B", "ball", impulse: 2.0,
+                                         aIsMovable: false, bIsMovable: true) == nil)
+        mapper.endContact("ball", "lever-B")
+        precondition(mapper.beginContact("lever-B", "ball", impulse: 0,
+                                         aIsMovable: false, bIsMovable: true) != nil)
+        precondition(mapper.consumeImpact("lever-B", "ball", impulse: 0.3,
+                                         aIsMovable: false, bIsMovable: true) != nil)
         // Neither parent-less leaves nor a nearby switch base may act as lever.
         var noLever = CMOriginalSwitchContactMapper(objects: [
             .init(id: "switch", type: "tmo_power_switch", parentID: nil),
