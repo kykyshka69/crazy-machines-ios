@@ -1852,6 +1852,19 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 default: break
                 }
                 rocketSceneStages[childID] = state
+                // SceneKit gravity is -9.8 whereas the original authored
+                // initial rocket VELOCITY scalar can be only 4.0. Using
+                // SceneKit's default gravity during the three-second Engine
+                // interval cancels the upwards force and makes a correctly
+                // aimed genuine UCM rocket FALL rather than launch.
+                // Suspend the *experimental* SceneKit gravity only while
+                // Engine force is active, and restore it at flight end.
+                // This is an iOS solver approximation, NOT a recovered
+                // native Windows gravitational/Engine equation.
+                if state.phase == 3, let body,
+                   body.type == .dynamic {
+                    body.isAffectedByGravity = true
+                }
                 // Physically release the real original rocket child from
                 // its launch mount ONLY when heat/fuse and Engine force
                 // have both been established. No pre-ignition free fall.
@@ -1864,6 +1877,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         body.type = .dynamic
                     }
                     guard body.type == .dynamic else { continue }
+                    body.isAffectedByGravity = false
                     body.applyForce(force, asImpulse: false)
                 }
             }
