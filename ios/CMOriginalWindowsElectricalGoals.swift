@@ -30,11 +30,13 @@ public enum CMOriginalWindowsElectricalGoals {
         var active = Set<String>()
         // Level's actual native wind source IDs are authoritative.
         // A missing windmill cannot become fictional zero-wind evidence.
-        let originalWindSourceIDs = Set(session.objects.compactMap {
-            object -> String? in
-            (object.type == "tmo_windmill" ||
-             object.type == "tmo_wind_bellows") ? object.id : nil
-        })
+        let originalWindTypes = Dictionary(uniqueKeysWithValues:
+            session.objects.compactMap { object -> (String, String)? in
+                (object.type == "tmo_windmill" ||
+                 object.type == "tmo_wind_bellows")
+                    ? (object.id, object.type) : nil
+            })
+        let originalWindSourceIDs = Set(originalWindTypes.keys)
         for object in session.objects {
             guard object.goalAnnotation == "1"
                     || object.fields["GOAL"]?.contains("1") == true
@@ -57,6 +59,10 @@ public enum CMOriginalWindowsElectricalGoals {
             // Missing runtime observations MUST NOT credit a puzzle.
             if object.type == "tmo_belt_flag" {
                 if let input = beltFlagPhysicalInputsByObjectID[object.id],
+                   input.windSources.allSatisfy({
+                       originalWindTypes[$0.originalSourceID] ==
+                           $0.originalSourceType
+                   }),
                    let wind = CMOriginalWindowsBeltFlag.nativeWindSum(
                        observations: input.windSources,
                        requiredOriginalWindSourceIDs: originalWindSourceIDs,

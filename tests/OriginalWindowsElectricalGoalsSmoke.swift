@@ -112,6 +112,18 @@ struct OriginalWindowsElectricalGoalsSmoke {
         precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
             session: session, powerByDeviceID: [:],
             beltFlagPhysicalInputsByObjectID: [ids[12]: qualified]).isEmpty)
+        // Same real source ID but falsely labelled as a different
+        // native emitter kind must not count as a valid physical event.
+        let incorrectOriginalKind = Flag.PhysicalObservation(
+            telescopeIndicator: Flag.nativeTelescopeMarker, flagState: 0,
+            windSources: [.init(originalSourceID: ids[15],
+                originalSourceType: "tmo_wind_bellows",
+                signedIntersection: 0.8, originalWindPower: 10)],
+            allOriginalSourcesObserved: true)
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            beltFlagPhysicalInputsByObjectID:
+                [ids[11]: incorrectOriginalKind]).isEmpty)
         let tooShort = Flag.PhysicalObservation(
             telescopeIndicator: Flag.nativeTelescopeMarker, flagState: 0,
             windSources: [.init(originalSourceID: ids[15],
