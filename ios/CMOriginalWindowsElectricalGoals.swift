@@ -20,14 +20,21 @@ public enum CMOriginalWindowsElectricalGoals {
         // Original whistle receives steam from a real physical pressure
         // component, NOT an electrical cable or ordinary collision.
         steamPressureByObjectID: [String: Float] = [:],
-        // Native belt-flag telescope and measured instantaneous wind sum, never
+        // Native belt-flag telescope and full source observations, never
         // inferred from a rotating UCM wheel or a GOAL annotation alone.
-        beltFlagRuntimeByObjectID: [String: CMOriginalWindowsBeltFlag.ObservedState] = [:],
+        beltFlagPhysicalInputsByObjectID: [String: CMOriginalWindowsBeltFlag.PhysicalObservation] = [:],
         // Original flower's *physical* growth-state scalar (+0x130),
         // supplied only by a recovered native light/clock path.
         flowerNativeProgressByObjectID: [String: Float] = [:]
     ) -> Set<String> {
         var active = Set<String>()
+        // Level's actual native wind source IDs are authoritative.
+        // A missing windmill cannot become fictional zero-wind evidence.
+        let originalWindSourceIDs = Set(session.objects.compactMap {
+            object -> String? in
+            (object.type == "tmo_windmill" ||
+             object.type == "tmo_wind_bellows") ? object.id : nil
+        })
         for object in session.objects {
             guard object.goalAnnotation == "1"
                     || object.fields["GOAL"]?.contains("1") == true
@@ -49,8 +56,16 @@ public enum CMOriginalWindowsElectricalGoals {
             // actual telescope/flag/native WIND state, not wheel rotation.
             // Missing runtime observations MUST NOT credit a puzzle.
             if object.type == "tmo_belt_flag" {
-                if let state = beltFlagRuntimeByObjectID[object.id],
-                   CMOriginalWindowsBeltFlag.triggersGoal(state) {
+                if let input = beltFlagPhysicalInputsByObjectID[object.id],
+                   let wind = CMOriginalWindowsBeltFlag.nativeWindSum(
+                       observations: input.windSources,
+                       requiredOriginalWindSourceIDs: originalWindSourceIDs,
+                       allOriginalWindSourcesObserved:
+                           input.allOriginalSourcesObserved),
+                   CMOriginalWindowsBeltFlag.triggersGoal(.init(
+                       telescopeIndicator: input.telescopeIndicator,
+                       flagState: input.flagState,
+                       observedNetWindForce: wind)) {
                     active.insert(object.id)
                 }
                 continue

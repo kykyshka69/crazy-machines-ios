@@ -26,14 +26,15 @@ struct OriginalWindowsElectricalGoalsSmoke {
                     object("tmo_belt_flag"),
                     object("tmo_belt_flag", goal: false),
                     object("tmo_light_flower"),
-                    object("tmo_light_flower", goal: false)
+                    object("tmo_light_flower", goal: false),
+                    object("tmo_windmill", goal: false)
                 ]]
             ]]
         ]
         let document = try CMOriginalSceneDocument.read(
             JSONSerialization.data(withJSONObject: root))
         let session = CMOriginalGameplaySession(document: document)
-        precondition(session.objects.count == 15)
+        precondition(session.objects.count == 16)
         let ids = session.objects.map(\.id)
         let powered = [ids[0]: Float(10), ids[1]: Float(3),
                        ids[2]: Float(1.5), ids[3]: Float(10),
@@ -97,23 +98,42 @@ struct OriginalWindowsElectricalGoalsSmoke {
         // An electrically powered flag, generic wheel contact or
         // invented telemetry for a GOAL-free object never counts.
         typealias Flag = CMOriginalWindowsBeltFlag
-        let qualified = Flag.ObservedState(
-            telescopeIndicator: Flag.nativeTelescopeMarker,
-            flagState: 0, observedNetWindForce: 2)
+        let qualified = Flag.PhysicalObservation(
+            telescopeIndicator: Flag.nativeTelescopeMarker, flagState: 0,
+            windSources: [.init(originalSourceID: ids[15],
+                originalSourceType: "tmo_windmill",
+                signedIntersection: 0.8, originalWindPower: 10)],
+            allOriginalSourcesObserved: true)
         precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
             session: session, powerByDeviceID: [ids[11]: 10]).isEmpty)
         precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
             session: session, powerByDeviceID: [:],
-            beltFlagRuntimeByObjectID: [ids[11]: qualified]) == [ids[11]])
+            beltFlagPhysicalInputsByObjectID: [ids[11]: qualified]) == [ids[11]])
         precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
             session: session, powerByDeviceID: [:],
-            beltFlagRuntimeByObjectID: [ids[12]: qualified]).isEmpty)
-        let tooShort = Flag.ObservedState(
-            telescopeIndicator: Flag.nativeTelescopeMarker,
-            flagState: 0, observedNetWindForce: 1.99)
+            beltFlagPhysicalInputsByObjectID: [ids[12]: qualified]).isEmpty)
+        let tooShort = Flag.PhysicalObservation(
+            telescopeIndicator: Flag.nativeTelescopeMarker, flagState: 0,
+            windSources: [.init(originalSourceID: ids[15],
+                originalSourceType: "tmo_windmill",
+                signedIntersection: 0.2, originalWindPower: 10)],
+            allOriginalSourcesObserved: true)
+        // A missing actual windmill must not trigger a low-wind GOAL.
+        let missing = Flag.PhysicalObservation(
+            telescopeIndicator: 0, flagState: 0,
+            windSources: [], allOriginalSourcesObserved: true)
         precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
             session: session, powerByDeviceID: [:],
-            beltFlagRuntimeByObjectID: [ids[11]: tooShort]).isEmpty)
+            beltFlagPhysicalInputsByObjectID: [ids[11]: missing]).isEmpty)
+        let incomplete = Flag.PhysicalObservation(
+            telescopeIndicator: 0, flagState: 0,
+            windSources: qualified.windSources, allOriginalSourcesObserved: false)
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            beltFlagPhysicalInputsByObjectID: [ids[11]: incomplete]).isEmpty)
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            beltFlagPhysicalInputsByObjectID: [ids[11]: tooShort]).isEmpty)
         // Native original tmo_light_flower uses physical growth +0x130;
         // CML GOAL or an unrelated battery does not provide that input.
         precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(

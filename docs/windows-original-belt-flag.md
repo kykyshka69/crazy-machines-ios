@@ -98,3 +98,18 @@ IDs**; missing, extra or duplicate observations fail closed. The
 scene's real native region parameters / emitter +0x40 values still
 require a live original-to-SceneKit measurement pipeline. Therefore
 **no claim of solving level 34 or all 102 authentic puzzles**.
+
+## Full original-source inventory now checked in the actual GOAL resolver
+
+`CMOriginalWindowsElectricalGoals.activeGoalIDs` now derives genuine
+wind-emitter object IDs from the currently imported CML scene. A level
+cannot satisfy a flag GOAL through an arbitrary caller-supplied summed
+wind scalar: the resolver requires telescope observations AND measured
+`WindObservation` records for every actual `tmo_windmill` or
+`tmo_wind_bellows` in that level. Missing and extra source IDs fail closed.
+A portable original-format scene test includes a flag, a windmill and
+missing-source cases. Level 34 has precisely one original windmill.
+
+**The original wind-region parameters and live emitter +0x40 power have
+not yet been recovered as SceneKit runtime telemetry.** No original
+puzzle completion is claimed by this event-gate integration.

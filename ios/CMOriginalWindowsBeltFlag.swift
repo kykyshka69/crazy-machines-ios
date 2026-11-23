@@ -90,6 +90,23 @@ public enum CMOriginalWindowsBeltFlag {
         return Float(result)
     }
 
+    /// Observed original flag and COMPLETE native wind-source set.
+    /// The GOAL resolver recomputes netWind from actual original IDs.
+    public struct PhysicalObservation {
+        public let telescopeIndicator: Float
+        public let flagState: Float
+        public let windSources: [WindObservation]
+        public let allOriginalSourcesObserved: Bool
+        public init(telescopeIndicator: Float, flagState: Float,
+                    windSources: [WindObservation],
+                    allOriginalSourcesObserved: Bool) {
+            self.telescopeIndicator = telescopeIndicator
+            self.flagState = flagState
+            self.windSources = windSources
+            self.allOriginalSourcesObserved = allOriginalSourcesObserved
+        }
+    }
+
     public struct ObservedState {
         public let telescopeIndicator: Float // native second telescope +0x90
         public let flagState: Float           // native flag +0xEC
