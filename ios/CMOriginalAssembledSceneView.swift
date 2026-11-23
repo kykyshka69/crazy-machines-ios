@@ -513,6 +513,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
         context.coordinator.onOriginalOpticalSightlines = onOriginalOpticalSightlines
+        context.coordinator.onOriginalRocketAnchorSnapshots = onOriginalRocketAnchorSnapshots
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
         context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
         context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal

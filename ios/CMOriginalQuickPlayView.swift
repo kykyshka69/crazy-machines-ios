@@ -602,17 +602,17 @@ struct CMOriginalQuickPlayView: View {
                         hit.switchID + "|" + hit.strikingObjectID
                     )
                 },
-                onOriginalRocketAnchorSnapshots: { snapshots in
-                    guard eventRevision == sceneRevision,
-                          experimentalPhysics && !physicsPaused else { return }
-                    observedOriginalRocketAnchors = snapshots
-                },
                 onOriginalOpticalSightlines: { observations in
                     guard eventRevision == sceneRevision else { return }
                     // SceneKit dispatches observations asynchronously. A queued
                     // event must not revive progress after Pause, Stop or Reset.
                     guard experimentalPhysics && !physicsPaused else { return }
                     originalOpticalSightlines = observations
+                },
+                onOriginalRocketAnchorSnapshots: { snapshots in
+                    guard eventRevision == sceneRevision,
+                          experimentalPhysics && !physicsPaused else { return }
+                    observedOriginalRocketAnchors = snapshots
                 }
             )
             .id(sceneRevision)
