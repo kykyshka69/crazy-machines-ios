@@ -1,6 +1,9 @@
 # Crazy Machines — original iOS port: working branch
 
 ## 🚩 START HERE — verified handoff (2026-11-23; stage 1 NOT FINISHED)
+**NEXT PHYSICAL ENGINE BARRIER — ORIGINAL DIRECTION SCALAR RECOVERED (source only):** In the exact owner Win32 EXE, rocket launch reads the literal original `Direction` frame at `0x44EE57`, accesses its `+0x30` vector, then multiplies the 3-component vector by native float **3.0** through helper `0x420CE0` at `0x44EEA1`, before activating `Engine` and its independent clock. The original decrypted `elements.fsc` for `tmo_heat_rocket_rocket` also contains `VELOCITY 4.0` and `VALF 0.125`. **These are distinct original facts, not evidence that the impulse scale equals either one.** Do not apply invented force; next task trace the target native physics call and bind actual Direction frame to rigid body, then live ignition/explosion and all real 102 levels. See `docs/windows-original-rocket-time.md`. Stage 1 still OPEN.
+
+
 **2026-11-23 ORIGINAL ROCKET FRAME ORIENTATION PRESERVED (focused Swift PASS; [skip ci]):** Real user-private UCM1 rocket `Engine` and `Direction` 4×4 matrices have opposing local orientation axes; XYZ-only SceneKit markers would lose real engine direction. Extended renderer's invisible, original-group-zero marker nodes to use ALL 16 matrix floats, converting original row-major basis/last-row translation into SIMD column vectors. Added synthetic nonidentity-basis regression and actual rocket Engine-vs-Direction native-matrix assertions; `swiftc` tests passed on owner-private original UCM. Actual Apple SDK compilation/physics remains UNVERIFIED for this newest code; no force/explosion/rocket GOAL invented. Stage 1 OPEN.
 
 

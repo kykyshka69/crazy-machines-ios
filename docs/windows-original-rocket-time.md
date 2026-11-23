@@ -126,3 +126,25 @@ UCM bounding spheres) from the owner-original scene data, transform
 them into the current SceneKit object reference frame, and observe
 the original effect child, Engine physical impulse and explosion.
 No original level success is claimed by this geometry correction.
+
+## Recovered original Direction vector operations at engine activation
+
+The owner SHA-256-matched `CrazyMachines.exe` at `0x44EE57`
+fetches the literal original `Direction` marker on the rocket child.
+At `0x44EE7E` the code accesses `Direction+0x30`,
+`0x44EE89` copies a three-component vector through `0x45A07B`,
+and `0x44EE8E` pushes exactly IEEE float `0x40400000`
+(**3.0**) before `0x44EEA1` calls `0x420CE0`.
+The independently disassembled helper at `0x420CE0–0x420D12`
+multiplies each of its three input vector components by that scalar,
+without clamping or normalization. The same original gameplay
+sequence activates the literal `Engine` child and establishes the
+independent Engine launch clock.
+
+The privately recovered decrypted original `elements.fsc` separately
+defines `tmo_heat_rocket_rocket` with `VELOCITY 4.0` and
+`VALF 0.125`. These are **not** interchangeable with the 3.0 vector
+scale. Their precise mapping to physical-body velocity/force,
+Direction anchor coordinate frame, and Engine effect still requires
+tracing the native call chain. Do NOT directly treat the 3.0 scalar
+as a SceneKit impulse or claim rocket flight from these constants.
