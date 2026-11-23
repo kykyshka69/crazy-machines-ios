@@ -76,4 +76,29 @@ public struct CMOriginalRocketTerminalGate {
         guard !childID.isEmpty, phase == .ended else { return false }
         return deliveredChildIDs.insert(childID).inserted
     }
+
+    /// The original Win32 branch 0x44F33C→0x44F354 dispatches channel-0
+    /// GOAL for the rocket parent ONLY after state 3 and Explode cleanup.
+    /// iOS heat geometry is currently a SceneKit projection, so this
+    /// yields an explicitly RECONSTRUCTED playable win, not proof that
+    /// the native selector/effect runtime has reached identical values.
+    public static func supportsReconstructedGoal(
+        originalParentType: String,
+        originalChildType: String,
+        originalParentGoal: String?,
+        phase: CMOriginalRocketStageMachine.Phase,
+        genuineOriginalExplodeTexture: Bool,
+        originalChildPhysicsRetired: Bool
+    ) -> Bool {
+        guard originalParentType == "tmo_heat_rocket",
+              originalChildType == "tmo_heat_rocket_rocket",
+              let originalParentGoal,
+              let goal = Int(originalParentGoal.trimmingCharacters(
+                in: .whitespacesAndNewlines)),
+              goal != 0,
+              phase == .ended,
+              genuineOriginalExplodeTexture,
+              originalChildPhysicsRetired else { return false }
+        return true
+    }
 }

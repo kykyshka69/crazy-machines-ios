@@ -645,6 +645,35 @@ struct CMOriginalQuickPlayView: View {
                     guard eventRevision == sceneRevision,
                           experimentalPhysics && !physicsPaused else { return }
                     observedCandleRocketHeatPairs = measured
+                },
+                onOriginalReconstructedRocketGoal: { parentID, childID in
+                    // Recreate the original 0x44F354 goal channel only after
+                    // the real rocket model finished its iOS heat/fuse/Engine
+                    // sequence, an original Explode TGA was present, and the
+                    // matching child rigid body was retired exactly once.
+                    // Heat-region/effect parity with PC remains unverified.
+                    guard eventRevision == sceneRevision,
+                          experimentalPhysics && !physicsPaused,
+                          let parent = originalSession.objects.first(where: {
+                              $0.id == parentID
+                          }),
+                          let child = originalSession.objects.first(where: {
+                              $0.id == childID
+                          }),
+                          child.parentID == parentID,
+                          CMOriginalRocketTerminalGate
+                            .supportsReconstructedGoal(
+                                originalParentType: parent.type,
+                                originalChildType: child.type,
+                                originalParentGoal: parent.goalAnnotation,
+                                phase: .ended,
+                                genuineOriginalExplodeTexture: true,
+                                originalChildPhysicsRetired: true)
+                    else { return }
+                    _ = windowsGoalCounter?.recordGoalEvent(
+                        objectID: parentID, simulationRunning: true)
+                    _ = objectiveLedger?.recordGoalStateChanged(
+                        parentID, isSimulationRunning: true)
                 }
             )
             .id(sceneRevision)

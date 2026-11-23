@@ -184,6 +184,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // NOT a native thermal region hit or ignition transition.
     var onOriginalCandleRocketHeatPairs:
         (([CMOriginalRocketCandleHeatPair.Observation]) -> Void)? = nil
+    // Win32 0x44F354 GOAL branch recreated in SceneKit after authentic
+    // UCM Explode texture and one-shot physical retirement. This is an
+    // explicitly reconstructed gameplay event, NOT native runtime proof.
+    var onOriginalReconstructedRocketGoal: ((String, String) -> Void)? = nil
 
     private var physicsAccessibilityStatus: String {
         let state = experimentalPhysics ? (physicsPaused ? "paused" : "running") : "off"
@@ -428,6 +432,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalRocketAnchorSnapshots = onOriginalRocketAnchorSnapshots
         context.coordinator.onOriginalCandleRocketHeatPairs =
             onOriginalCandleRocketHeatPairs
+        context.coordinator.onOriginalReconstructedRocketGoal =
+            onOriginalReconstructedRocketGoal
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
         context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
         context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal
@@ -534,6 +540,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalRocketAnchorSnapshots = onOriginalRocketAnchorSnapshots
         context.coordinator.onOriginalCandleRocketHeatPairs =
             onOriginalCandleRocketHeatPairs
+        context.coordinator.onOriginalReconstructedRocketGoal =
+            onOriginalReconstructedRocketGoal
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
         context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
         context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal
@@ -615,6 +623,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             [String: CMOriginalRocketStageMachine] = [:]
         private var rocketSceneTerminalGate =
             CMOriginalRocketTerminalGate()
+        var onOriginalReconstructedRocketGoal:
+            ((String, String) -> Void)?
         // Real imported rocket_effect.tga on the original UCM Explode
         // attachment. Visual only, never an invented explosion impulse/GOAL.
         private var rocketOriginalExplosionSpritesByChildID:
@@ -1901,6 +1911,30 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     // remains; no after-explosion ghost rigid body can
                     // trigger SceneKit contacts or fall through the level.
                     owner.physicsBody = nil
+                    // The user's original Professor 24 and 58 each
+                    // contain a GOAL-marked rocket parent. Original Win32
+                    // sends this channel-0 event AFTER Explode and disposal.
+                    // Use exact CML identity, original TGA and retired
+                    // SceneKit child as an iOS-reconstructed input. Never
+                    // award a GOAL just from elapsed time or proximity.
+                    let originalParentGoal = session?.objects.first(where: {
+                        $0.id == parentID
+                    })?.goalAnnotation
+                    if CMOriginalRocketTerminalGate.supportsReconstructedGoal(
+                        originalParentType: originalTypesByID[parentID] ?? "",
+                        originalChildType: originalTypesByID[childID] ?? "",
+                        originalParentGoal: originalParentGoal,
+                        phase: phase,
+                        genuineOriginalExplodeTexture:
+                            !(rocketOriginalExplosionSpritesByChildID[
+                                childID] ?? []).isEmpty,
+                        originalChildPhysicsRetired: owner.physicsBody == nil
+                    ) {
+                        DispatchQueue.main.async { [weak self] in
+                            self?.onOriginalReconstructedRocketGoal?(
+                                parentID, childID)
+                        }
+                    }
                 }
                 // Physically release the real original rocket child from
                 // its launch mount ONLY when heat/fuse and Engine force

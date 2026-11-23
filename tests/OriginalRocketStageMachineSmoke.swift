@@ -51,6 +51,29 @@ import Foundation
         precondition(!terminal.consume(childID: "rocket-1", phase: .ended))
         precondition(terminal.consume(childID: "rocket-2", phase: .ended))
         precondition(!terminal.consume(childID: "rocket-2", phase: .ended))
-        print("Real UCM rocket SceneKit stages and one-shot physics cleanup: PASS")
+        func goal(type: String = "tmo_heat_rocket",
+                  child: String = "tmo_heat_rocket_rocket",
+                  flag: String? = "1",
+                  phase: R.Phase = .ended,
+                  effect: Bool = true, retired: Bool = true) -> Bool {
+            CMOriginalRocketTerminalGate.supportsReconstructedGoal(
+                originalParentType: type,
+                originalChildType: child,
+                originalParentGoal: flag,
+                phase: phase,
+                genuineOriginalExplodeTexture: effect,
+                originalChildPhysicsRetired: retired)
+        }
+        precondition(goal())
+        precondition(goal(flag: " 1 "))
+        precondition(!goal(flag: "0"))
+        precondition(!goal(flag: nil))
+        precondition(!goal(flag: "GOAL"))
+        precondition(!goal(type: "tmo_crate"))
+        precondition(!goal(child: "tmo_heat_rocket_mount"))
+        precondition(!goal(phase: .flying))
+        precondition(!goal(effect: false))
+        precondition(!goal(retired: false))
+        print("Real UCM rocket terminal cleanup and reconstructed Win32 goal gate: PASS")
     }
 }
