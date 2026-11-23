@@ -1715,15 +1715,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     for source in sources {
                         let origin = source.columns.3
                         let axis = source.columns.1
-                        guard let cone = CMOriginalWindowsCandleHeatFactory
-                            .parameters(observedNativeAxis: .init(
-                                axis.x, axis.y, axis.z)),
-                              let fraction = CMOriginalWindowsWindRegion
-                                .measuredFraction(
-                                    nativeDisplacement: .init(
-                                        target.x - origin.x,
-                                        target.y - origin.y, 0),
-                                    region: cone)
+                        guard let fraction = CMOriginalWindowsRocketNativeHeat
+                            .projectedUCMHeatFraction(
+                                observedSourceWorldYAxis: .init(
+                                    axis.x, axis.y, axis.z),
+                                observedSourceToTargetWorldXY: .init(
+                                    target.x - origin.x,
+                                    target.y - origin.y, 0))
                         else { continue }
                         projectedFraction = max(
                             projectedFraction ?? fraction, fraction)
