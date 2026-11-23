@@ -409,6 +409,8 @@ struct CMOriginalQuickPlayView: View {
                 poweredMotorRotorDriveSignals: wiredMotorRotorDriveSignals,
                 originalLampVisualFactors: originalLampVisualFactors,
                 originalAmmeterPowerSignals: originalAmmeterPowerSignals,
+                experimentalOriginalRocketFlight: true,
+                initialOriginalRocketVelocities: initialOriginalRocketVelocities,
                 configuredPhysicsRoles: experimentalPhysicsRoles,
                 onOriginalZoneContact: { type in
                     guard eventRevision == sceneRevision else { return }
@@ -948,7 +950,7 @@ struct CMOriginalQuickPlayView: View {
                 originalSession.objects.contains(where: {
                     $0.type == "tmo_heat_rocket"
                 }) {
-                Text("Lit original candle-to-rocket Heat pairs: \(observedCandleRocketHeatPairs.count); no native ignition")
+                Text("Lit original candle-to-rocket Heat pairs: \(observedCandleRocketHeatPairs.count); experimental rocket flight enabled; native GOAL unverified")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("cm.original.rocket-heat-pairs")
