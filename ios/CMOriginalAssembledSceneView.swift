@@ -1203,6 +1203,20 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 guard let body = node.physicsBody,
                       let id = self.physicsObjectID(for: node) else { return }
                 self.physicsNodesByObjectID[id, default: []].append(node)
+                if self.experimentalOriginalRocketFlight,
+                   self.originalRocketChildIDs.contains(id),
+                   body.type == .dynamic {
+                    // The genuine PC rocket child starts attached to its
+                    // parent mount. Letting it fall with SceneKit gravity at
+                    // time zero detaches it before any heat is applied and
+                    // prevents ignition at the authored original location.
+                    // Keep its real UCM rigid body kinematic UNTIL the
+                    // two-stage rocket state machine actually launches it.
+                    body.clearAllForces()
+                    body.velocity = SCNVector3Zero
+                    body.angularVelocity = SCNVector4Zero
+                    body.type = .kinematic
+                }
                 if self.buoyantObjectIDs.contains(id) {
                     // The PC's balloons cannot share the standard
                     // downward-gravity behavior of crates and balls.
@@ -1742,9 +1756,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // The incorrect Y basis made planar thrust always zero.
                 let direction = exactOriginalAnchor("Direction", on: childID)?
                     .presentation.simdWorldTransform.columns.2
+                // The body is held kinematic on the original mount until
+                // Engine activation; do NOT require dynamic state merely
+                // to check launch eligibility. Parent ownership is already
+                // established by originalRocketParentByChildID.
                 let body = physicsNodesByObjectID[childID]?
-                    .first(where: { $0.physicsBody?.type == .dynamic })?
-                    .physicsBody
+                    .first(where: {
+                        $0.physicsBody?.type == .kinematic
+                            || $0.physicsBody?.type == .dynamic
+                    })?.physicsBody
                 let initialFC = rocketInitialFCByChildID[childID]
                 var projectedFraction: Float?
                 if let target {
@@ -1832,9 +1852,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 default: break
                 }
                 rocketSceneStages[childID] = state
-                // One actual continuous physical force per simulation tick:
-                // not a fabricated impulse and never an original Win32 GOAL.
+                // Physically release the real original rocket child from
+                // its launch mount ONLY when heat/fuse and Engine force
+                // have both been established. No pre-ignition free fall.
+                // This is a SceneKit playback approximation, not a native
+                // Win32 Engine effect or a level-completion signal.
                 if state.phase == 2, let body, let force {
+                    if body.type == .kinematic {
+                        body.velocity = SCNVector3Zero
+                        body.angularVelocity = SCNVector4Zero
+                        body.type = .dynamic
+                    }
+                    guard body.type == .dynamic else { continue }
                     body.applyForce(force, asImpulse: false)
                 }
             }
