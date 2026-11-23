@@ -1752,6 +1752,35 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // Its native Win32 path is different; cone projection here
             // remains explicitly experimental until selector-3 matching
             // and dynamical source-region transforms are recovered.
+            // The real Win32 tmo_candle_dyn update at 0x44DAA8 checks
+            // its normalized native heat direction Y < -0.8 and calls
+            // the same source toggle used for mouse interaction. Without
+            // this, an upside-down original moving candle would continue
+            // heating the rocket forever in SceneKit. The UCM Heat +Z
+            // forward vector is the ORIGINAL model's observed direction;
+            // native +0x30 region-space equivalence remains provisional.
+            let movingCandles = (session?.originalHeatSourceStates ?? [:])
+                .filter {
+                    $0.value && originalTypesByID[$0.key] == "tmo_candle_dyn"
+                }.map { $0.key }.sorted().prefix(64)
+            for candleID in movingCandles {
+                guard let basis = exactOriginalAnchor(
+                        "Heat", on: candleID)?
+                        .presentation.simdWorldTransform.columns.2,
+                      CMOriginalWindowsDynamicCandleTilt.shouldExtinguish(
+                        observedDirectionX: basis.x,
+                        observedDirectionY: basis.y,
+                        observedDirectionZ: basis.z) == true
+                else { continue }
+                // renderer(updateAtTime:) already owns sessionLock.
+                // Never lock recursively; the native auto-toggle is
+                // effective during the same simulated frame.
+                if session?.toggleOriginalHeatSource(candleID) == false {
+                    for glow in originalCandleGlowNodes[candleID] ?? [] {
+                        glow.opacity = 0
+                    }
+                }
+            }
             let litCandles = CMOriginalRocketSceneHeatSources.litCandleIDs(
                 sourceStates: session?.originalHeatSourceStates ?? [:],
                 originalTypesByID: originalTypesByID)

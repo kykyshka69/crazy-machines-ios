@@ -423,6 +423,8 @@ jobs:
           /tmp/cm-real-rocket-stage
           swiftc ios/CMOriginalRocketSceneHeatSources.swift tests/OriginalRocketSceneHeatSourcesSmoke.swift -o /tmp/cm-original-mobile-candle
           /tmp/cm-original-mobile-candle
+          swiftc ios/CMOriginalWindowsDynamicCandleTilt.swift tests/OriginalWindowsDynamicCandleTiltSmoke.swift -o /tmp/cm-native-moving-candle-tilt
+          /tmp/cm-native-moving-candle-tilt
           swiftc ios/CMOriginalRocketAnchorTelemetry.swift tests/OriginalRocketAnchorTelemetrySmoke.swift -o /tmp/cm-original-rocket-anchors
           /tmp/cm-original-rocket-anchors
           swiftc ios/CMOriginalWindowsNamedRegionRegistry.swift tests/OriginalWindowsNamedRegionRegistrySmoke.swift -o /tmp/cm-native-marker-registry

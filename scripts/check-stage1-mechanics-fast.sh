@@ -47,6 +47,8 @@ swiftc ios/CMOriginalRocketStageMachine.swift tests/OriginalRocketStageMachineSm
 # Separate from Win32 native dynamic-candle region/effect proofs.
 swiftc ios/CMOriginalRocketSceneHeatSources.swift tests/OriginalRocketSceneHeatSourcesSmoke.swift -o "$tmp/rocket-moving-candles"
 "$tmp/rocket-moving-candles"
+swiftc ios/CMOriginalWindowsDynamicCandleTilt.swift tests/OriginalWindowsDynamicCandleTiltSmoke.swift -o "$tmp/rocket-candle-tilt"
+"$tmp/rocket-candle-tilt"
 swiftc ios/CMOriginalRocketAnchorTelemetry.swift tests/OriginalRocketAnchorTelemetrySmoke.swift -o "$tmp/rocket-anchors"
 "$tmp/rocket-anchors"
 # Continuous original rocket force applied only to the exact native
