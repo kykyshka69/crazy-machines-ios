@@ -652,8 +652,14 @@ struct CMOriginalQuickPlayView: View {
                     // sequence, an original Explode TGA was present, and the
                     // matching child rigid body was retired exactly once.
                     // Heat-region/effect parity with PC remains unverified.
+                    // The terminal event was captured on an ALREADY
+                    // running renderer frame. A subsequent user Pause before
+                    // the main-queue delivery must not discard a valid
+                    // completed objective forever. Scene revision still
+                    // rejects stale level/reset events, while the original
+                    // physics terminal gate handles exactly-once delivery.
                     guard eventRevision == sceneRevision,
-                          experimentalPhysics && !physicsPaused,
+                          experimentalPhysics,
                           let parent = originalSession.objects.first(where: {
                               $0.id == parentID
                           }),

@@ -1745,9 +1745,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private func advanceExperimentalRocketFlight(at clock: Double) {
             guard experimentalOriginalRocketFlight, clock.isFinite,
                   clock >= 0 else { return }
-            let litCandles = (session?.originalHeatSourceStates ?? [:])
-                .filter { $0.value && originalTypesByID[$0.key] == "tmo_candle" }
-                .map { $0.key }.sorted().prefix(64)
+            // Genuine level 80 and 102 use moving tmo_candle_dyn.
+            // candle_dyn.ucm has one original Heat anchor with local
+            // +Z=(0,1,0). Sample its MOVING SceneKit presentation pose,
+            // not a fixed decorative glow or the owner's stale start pose.
+            // Its native Win32 path is different; cone projection here
+            // remains explicitly experimental until selector-3 matching
+            // and dynamical source-region transforms are recovered.
+            let litCandles = CMOriginalRocketSceneHeatSources.litCandleIDs(
+                sourceStates: session?.originalHeatSourceStates ?? [:],
+                originalTypesByID: originalTypesByID)
             let sources: [simd_float4x4] = litCandles.compactMap { candleID in
                 exactOriginalAnchor("Heat", on: candleID)?
                     .presentation.simdWorldTransform

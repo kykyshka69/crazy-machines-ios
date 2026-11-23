@@ -191,6 +191,10 @@ swiftc ios/CMOriginalWindowsBlowtorchHeat.swift tests/OriginalWindowsBlowtorchHe
 "$tmp/native-blowtorch"
 swiftc ios/CMOriginalRocketStageMachine.swift tests/OriginalRocketStageMachineSmoke.swift -o "$tmp/rocket-stage"
 "$tmp/rocket-stage"
+# Authentic mobile candle Heat UCM on moving original SceneKit bodies.
+# Separate from Win32 native dynamic-candle region/effect proofs.
+swiftc ios/CMOriginalRocketSceneHeatSources.swift tests/OriginalRocketSceneHeatSourcesSmoke.swift -o "$tmp/rocket-moving-candles"
+"$tmp/rocket-moving-candles"
 swiftc ios/CMOriginalRocketAnchorTelemetry.swift tests/OriginalRocketAnchorTelemetrySmoke.swift -o "$tmp/rocket-anchors"
 "$tmp/rocket-anchors"
 # Continuous original rocket force applied only to the exact native
