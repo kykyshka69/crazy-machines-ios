@@ -2,6 +2,9 @@
 
 ## 🚩 START HERE — verified handoff (2026-11-23; stage 1 NOT FINISHED)
 
+**LATEST CI ISSUE + VERIFIED PATCH REQUEST (2026-11-23):** Prior checkpoint `ad780d30` completed Source ✅, Portable ✅, iPhone ARM64 ✅, but Simulator ❌: compilation succeeded, its 12 UI tests had 2 skipped original-private tests and 2 failures in one synthetic 3D UI test (`CrazyMachinesLaunchUITests.swift:126,129`) where immediate accessibility snapshots did not reflect Pause→Resume→Pause. Examined the actual job 137737494788 and concrete XCTest log; patched the production SwiftUI Pause button to expose both the real `physicsPaused` accessibility label and state (`paused`/`running`), and strengthened XCTest to wait for BOTH transitions rather than a single potentially stale label read. This patch is pending its new CI run and MUST NOT be reported verified until it passes. No private original 102-level scenarios ran. Preserve stage 1 OPEN. [Failing run](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45187693022).
+
+
 **LATEST STAGE-1 SOURCE UPDATE (2026-11-23; intermediate [skip ci]):** Wired the native 0x409650 geometry evaluator into the actual Win32 candle→rocket ignition predicate, requiring selector-3 parameters, observed displacement, lit original candle, observed real effect and own parent clock. Added geometry-to-state positive/negative regressions and all focused/portable/Source-CI Swift compiler inputs. No separate full Xcode rebuild for this patch. Native SceneKit heat-region/effect producer and Engine thrust/explosion are **still missing**; 16 GOAL-marked rockets and all 102 genuine puzzle completions **not verified**. The prior four-way CI integration checkpoint is commit `ad780d30`; check final workflow status before claiming it fully green. Stage 1 remains OPEN.
 
 

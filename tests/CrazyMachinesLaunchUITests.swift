@@ -122,12 +122,29 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
                       "Pause must appear after enabling physics")
         guard pause.exists else { return }
         attachScreenshot(app, named: "05b-running-3D-SceneKit-fixture")
+        // SceneKit's asynchronous renderer can delay XCUI accessibility
+        // snapshots even after UIKit has delivered the tap. Verify the
+        // independently exposed actual pause state AND button label,
+        // waiting for SwiftUI's state update rather than reading one
+        // potentially stale snapshot immediately after the gesture.
+        func controlShows(_ title: String, state: String) -> Bool {
+            let expected = NSPredicate(
+                format: "label == %@ AND value == %@", title, state)
+            return XCTWaiter.wait(
+                for: [XCTNSPredicateExpectation(
+                    predicate: expected, object: pause)],
+                timeout: 12) == .completed
+        }
+        XCTAssertTrue(controlShows("Pause", state: "running"),
+                      "Initial simulation control must be running")
         pause.tap()
-        XCTAssertTrue(pause.label.contains("Resume"),
-                      "Pause must change to Resume")
+        XCTAssertTrue(controlShows("Resume", state: "paused"),
+                      "Pausing must publish paused state and Resume title; " +
+                      "actual label=\(pause.label), value=\(String(describing: pause.value))")
         pause.tap()
-        XCTAssertTrue(pause.label.contains("Pause"),
-                      "Resume must change back to Pause")
+        XCTAssertTrue(controlShows("Pause", state: "running"),
+                      "Resuming must publish running state and Pause title; " +
+                      "actual label=\(pause.label), value=\(String(describing: pause.value))")
         app.buttons["cm.original.quickplay-reset"].tap()
         XCTAssertTrue(pause.waitForExistence(timeout: 10),
                       "Restart must retain the running physics mode")

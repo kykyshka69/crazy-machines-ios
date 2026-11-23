@@ -867,6 +867,12 @@ struct CMOriginalQuickPlayView: View {
                         physicsPaused.toggle()
                         if !physicsPaused { creditExperimentalElectricGoals() }
                     }
+                    // Explicitly publish the changing control state to
+                    // XCUI/VoiceOver. SceneKit may render continuously, so
+                    // the accessibility snapshot must expose the live
+                    // SwiftUI state rather than rely on a stale button label.
+                    .accessibilityLabel(physicsPaused ? "Resume" : "Pause")
+                    .accessibilityValue(physicsPaused ? "paused" : "running")
                     .accessibilityIdentifier("cm.original.quickplay-pause")
                 }
                 Button("Restart") { restartCurrentPuzzle() }
