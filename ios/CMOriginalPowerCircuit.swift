@@ -357,6 +357,11 @@ public struct CMOriginalPowerCircuit {
         for wire in cables {
             guard let left = byPlugID[wire.firstPlugID],
                   let right = byPlugID[wire.secondPlugID],
+                  // Native traversal explicitly skips entering another battery.
+                  // Two independent 10.0 battery seeds do not energize the
+                  // cable between them merely because their values match.
+                  !(sourceDeviceIDs.contains(left.deviceID)
+                    && sourceDeviceIDs.contains(right.deviceID)),
                   let a = powerByDeviceID[left.deviceID],
                   let b = powerByDeviceID[right.deviceID],
                   a.isFinite, b.isFinite, a != 0, a == b else { continue }
