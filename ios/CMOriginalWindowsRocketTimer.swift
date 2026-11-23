@@ -10,6 +10,57 @@ import Foundation
 /// This does not create a fictional ignition or original rocket motion.
 public enum CMOriginalWindowsRocketTimer {
     public static let ignitedState: Float = 1
+    // Native x86 0x44E3C6..0x44E3D7 compares the physically measured
+    // 0x409650 heat-region fraction STRICTLY ABOVE 0x4EDDE8. 0.84
+    // exactly fails. This is not a generic visual/flame contact.
+    public static let candleIgnitionCutoff = Float(bitPattern: 0x3F570A3D)
+
+    /// One confirmed Win32 source branch: a LIT tmo_candle (0x44E112)
+    /// intersects the authentic rocket's selector-3 heat region.
+    /// 0x44E36C requires target +0xEC==0. 0x409650 reports actual
+    /// region overlap, not geometry proximity; 0x44E3D7 requires >0.84.
+    /// Other heat-emitter kinds/thermal propagation are not claimed.
+    public static func acceptsObservedCandleIgnition(
+        nativeRocketType: String,
+        nativeRocketState: Float,
+        nativeHeatSourceType: String,
+        originalCandleLit: Bool,
+        measuredNativeHeatFraction: Float
+    ) -> Bool {
+        nativeRocketType == "tmo_heat_rocket"
+            && nativeRocketState.isFinite && nativeRocketState == 0
+            && nativeHeatSourceType == "tmo_candle"
+            && originalCandleLit && measuredNativeHeatFraction.isFinite
+            && measuredNativeHeatFraction >= 0
+            && measuredNativeHeatFraction <= 1
+            && measuredNativeHeatFraction > candleIgnitionCutoff
+    }
+
+    /// Original helper 0x44CD30 writes target state 1 and captures the
+    /// true native clock in parent +0x130 only AFTER the physical
+    /// ignition/effect action. A region scalar alone is not an ignition.
+    public struct ObservedIgnition {
+        public let state: Float
+        public let ignitionTime: Double
+    }
+    public static func ignitionAfterObservedCandleEffect(
+        nativeRocketType: String, nativeRocketState: Float,
+        nativeHeatSourceType: String, originalCandleLit: Bool,
+        measuredNativeHeatFraction: Float,
+        originalIgnitionEffectObserved: Bool,
+        observedNativeClock: Double
+    ) -> ObservedIgnition? {
+        guard originalIgnitionEffectObserved, observedNativeClock.isFinite,
+              acceptsObservedCandleIgnition(
+                nativeRocketType: nativeRocketType,
+                nativeRocketState: nativeRocketState,
+                nativeHeatSourceType: nativeHeatSourceType,
+                originalCandleLit: originalCandleLit,
+                measuredNativeHeatFraction: measuredNativeHeatFraction)
+        else { return nil }
+        return ObservedIgnition(state: ignitedState,
+                                ignitionTime: observedNativeClock)
+    }
     public static let flyingState: Float = 2
     public static let explodedState: Float = 3
     public static let fuseSeconds: Double = 3
@@ -17,7 +68,8 @@ public enum CMOriginalWindowsRocketTimer {
     /// Win32 0x44EC48..0x44EC83: parent +0xEC==1 uses its OWN
     /// ignition timestamp +0x130. Only after STRICTLY >3.0 seconds
     /// (not at equality) does 0x44EE2B select the actual rocket kind.
-    /// The heat-collision/thermal rule that sets state 1 is NOT decoded.
+    /// Candle-to-rocket ignition >0.84 is decoded above; other native
+    /// heat producers and the SceneKit native-region sampler are not.
     public static func readyToLaunch(
         nativeRocketState: Float,
         nativeObjectType: String,

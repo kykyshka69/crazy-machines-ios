@@ -42,3 +42,41 @@ Thus the 16 genuine GOAL rockets (including 11 in original level 102)
 are NOT claimed completed. Combined source compilers and focused smoke
 tests have been updated; no full iOS rebuild requested for this
 intermediate commit.
+
+## Native physical ignition from a lit ORIGINAL candle — verified Win32 branch
+
+Additional original EXE x86 evidence from the exact SHA-256-matched PE32:
+
+- `0x44E112` explicitly dispatches source type **`tmo_candle`**.
+  `0x44E149–0x44E16E` requires that source's original +0xEC
+  emitted/active state.
+- `0x44E317–0x44E36C` includes original
+  `tmo_heat_rocket` (along with separately handled cannon,
+  dynamite and candle targets). The rocket's original +0xEC must be
+  precisely **0** before first ignition.
+- `0x44E39D–0x44E3C2` retrieves the receiver's authentic selector-3
+  heat region and runs the SAME original physical intersection engine
+  `0x409650` already recovered for wind coverage.
+- `0x44E3C6–0x44E3D7` compares the measured fraction to the original
+  float at `0x4EDDE8` — bits `0x3F570A3D`, or
+  **0.8399999737739563** — with strict **GREATER THAN**. Equality
+  does not ignite.
+- `0x44E3E6` calls original helper `0x44CD30`.
+  `0x44CD39–0x44CD4F` again verifies previous native +0xEC==0;
+  `0x44CD51–0x44CD75` actually activates the original effect child,
+  `0x44CD79` then writes state **1**, and
+  `0x44CD83–0x44CD91` records the TRUE original clock in parent
+  +0x130. This time starts the first separate >3-sec interval.
+
+The iOS source now models this **genuine candle/rocket type and
+physical-hit threshold**, not an assumed universal heat transfer.
+`acceptsObservedCandleIgnition` requires source actually lit and
+observed physical hit fraction; `ignitionAfterObservedCandleEffect`
+requires proof that the original child effect actually activated before
+it supplies state-1/time evidence.
+
+**Still missing:** translating the actual selector-3 original heat
+region, native source emissive state and effect-child activation to live
+SceneKit measurements. Ordinary UCM mesh collisions, a user click
+alone, and a guessed heat radius still must NOT ignite the rocket or
+fabricate the 16 authentic rocket GOAL events.

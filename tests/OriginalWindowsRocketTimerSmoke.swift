@@ -13,6 +13,48 @@ struct OriginalWindowsRocketTimerSmoke {
         precondition(R.ignitedState == 1 && R.flyingState == 2
                      && R.explodedState == 3)
         precondition(R.fuseSeconds == 3)
+        // Native lit candle->rocket is the physically measured region
+        // (0x409650) with STRICT >0.84, not arbitrary mesh contact.
+        let threshold = R.candleIgnitionCutoff
+        precondition(threshold.bitPattern == 0x3F570A3D)
+        func candle(_ fraction: Float, lit: Bool = true,
+                    rocketState: Float = 0,
+                    sourceType: String = "tmo_candle") -> Bool {
+            R.acceptsObservedCandleIgnition(
+                nativeRocketType: "tmo_heat_rocket",
+                nativeRocketState: rocketState,
+                nativeHeatSourceType: sourceType,
+                originalCandleLit: lit,
+                measuredNativeHeatFraction: fraction)
+        }
+        precondition(!candle(threshold))
+        precondition(candle(threshold.nextUp))
+        precondition(candle(1))
+        precondition(!candle(0.5))
+        precondition(!candle(0.9, lit: false))
+        precondition(!candle(0.9, rocketState: 1))
+        precondition(!candle(0.9, sourceType: "tmo_windmill"))
+        precondition(!candle(.nan))
+        precondition(!candle(1.5))
+        precondition(R.ignitionAfterObservedCandleEffect(
+            nativeRocketType: "tmo_heat_rocket", nativeRocketState: 0,
+            nativeHeatSourceType: "tmo_candle", originalCandleLit: true,
+            measuredNativeHeatFraction: 0.9,
+            originalIgnitionEffectObserved: false,
+            observedNativeClock: 4) == nil)
+        let lit = R.ignitionAfterObservedCandleEffect(
+            nativeRocketType: "tmo_heat_rocket", nativeRocketState: 0,
+            nativeHeatSourceType: "tmo_candle", originalCandleLit: true,
+            measuredNativeHeatFraction: 0.9,
+            originalIgnitionEffectObserved: true,
+            observedNativeClock: 4)
+        precondition(lit?.state == 1 && lit?.ignitionTime == 4)
+        precondition(R.ignitionAfterObservedCandleEffect(
+            nativeRocketType: "tmo_heat_rocket", nativeRocketState: 0,
+            nativeHeatSourceType: "tmo_candle", originalCandleLit: true,
+            measuredNativeHeatFraction: 0.9,
+            originalIgnitionEffectObserved: true,
+            observedNativeClock: .infinity) == nil)
         precondition(!fires(0, at: 10) && !fires(1, at: 10))
         precondition(!fires(3, at: 10))
         precondition(!fires(2, at: 3))
