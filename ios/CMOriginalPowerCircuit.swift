@@ -347,6 +347,24 @@ public struct CMOriginalPowerCircuit {
         return power
     }
 
+    /// Visually mark only exact user-paired original wires with a finite,
+    /// nonzero and IDENTICAL provisional signal at both CML device owners.
+    /// This never computes native current, polarity, resistance or GOAL.
+    public func experimentalCablePowerSignals(
+        powerByDeviceID: [String: Float]
+    ) -> [Cable: Float] {
+        var known: [Cable: Float] = [:]
+        for wire in cables {
+            guard let left = byPlugID[wire.firstPlugID],
+                  let right = byPlugID[wire.secondPlugID],
+                  let a = powerByDeviceID[left.deviceID],
+                  let b = powerByDeviceID[right.deviceID],
+                  a.isFinite, b.isFinite, a != 0, a == b else { continue }
+            known[wire] = a
+        }
+        return known
+    }
+
     /// Compatibility for purely battery-driven puzzles: a single source
     /// returns the recovered 10.0 Win32 scalar, not a made-up VALF voltage.
     public func experimentalBatterySignals(
