@@ -1697,6 +1697,19 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 exactOriginalAnchor("Heat", on: candleID)?
                     .presentation.simdWorldTransform
             }
+            // Exact original Win32 at 0x44E7E6 treats an active
+            // tmo_heat_blowtorch separately from a tmo_candle. Its rocket
+            // hit is a directional XY strip (0x44CC70), NOT the candle cone.
+            let litBlowtorches = (session?.originalHeatSourceStates ?? [:])
+                .filter {
+                    $0.value && originalTypesByID[$0.key] == "tmo_heat_blowtorch"
+                }
+                .map { $0.key }.sorted().prefix(64)
+            let blowtorchSources: [simd_float4x4] = litBlowtorches
+                .compactMap { sourceID in
+                    exactOriginalAnchor("Heat", on: sourceID)?
+                        .presentation.simdWorldTransform
+                }
             for childID in originalRocketChildIDs.sorted() {
                 guard let parentID = originalRocketParentByChildID[childID],
                       originalTypesByID[parentID] == "tmo_heat_rocket",
@@ -1736,6 +1749,31 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             projectedFraction ?? fraction, fraction)
                     }
                 }
+                // Win32 calls the blowtorch strip test only on real,
+                // active source/receiver selector-3 records. Here their
+                // exact user-UCM Heat world positions are the explicit
+                // SceneKit projection, and the authored X basis supplies
+                // an estimated horizontal direction sign (+0x30 is not
+                // yet directly observable from native Windows runtime).
+                var projectedBlowtorchHit = false
+                if let target {
+                    for torch in blowtorchSources {
+                        let origin = torch.columns.3
+                        let horizontal = torch.columns.0
+                        guard horizontal.x.isFinite,
+                              horizontal.y.isFinite,
+                              abs(horizontal.x) > 0.5,
+                              abs(horizontal.y) < 0.5
+                        else { continue }
+                        if CMOriginalWindowsBlowtorchHeat.hits(
+                            sourceX: origin.x, sourceY: origin.y,
+                            receiverX: target.x, receiverY: target.y,
+                            sourceHorizontalDirection: horizontal.x) == true {
+                            projectedBlowtorchHit = true
+                            break
+                        }
+                    }
+                }
                 let force: SCNVector3?
                 if let direction, let initialFC,
                    direction.x.isFinite, direction.y.isFinite,
@@ -1753,8 +1791,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 var state = rocketSceneStages[childID] ?? RocketSceneStage()
                 switch state.phase {
                 case 0:
-                    if let fraction = projectedFraction,
-                       fraction > CMOriginalWindowsRocketTimer.candleIgnitionCutoff {
+                    if projectedBlowtorchHit ||
+                       (projectedFraction.map {
+                           $0 > CMOriginalWindowsRocketTimer.candleIgnitionCutoff
+                       } ?? false) {
                         state.phase = 1
                         state.ignitionTime = clock
                     }
