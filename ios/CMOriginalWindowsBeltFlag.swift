@@ -1,36 +1,84 @@
 import Foundation
 
-/// Win32 0x44F9FB–0x44FAA1: belt-flag GOAL is a physical telescope
-/// state transition, NOT a goal merely because its separate wheel spins.
-/// Inputs must be observed original runtime scalars; SceneKit wheel speed
-/// or CML annotations alone cannot substitute for native +0x90/+0x284.
+/// Win32 0x44F7CF–0x44FAA1: the belt flag is acted on by original wind
+/// sources, not by stored wheel travel. [ebp-0x284] is an EBP-relative
+/// per-invocation local wind sum, initialized to zero at 0x44F813.
+/// It is NOT the object's +0x284 field or cumulative travel.
 public enum CMOriginalWindowsBeltFlag {
     public static let nativeTelescopeMarker = Float(bitPattern: 0x3EC28F5C)
-    public static let nativeTravelCutoff: Float = 2
+    public static let nativeWindCutoff: Float = 2
+    public static let nativeWindScale: Float = 0.5
 
-    public struct ObservedState {
-        public let telescopeIndicator: Float // second telescope native +0x90
-        public let flagState: Float          // flag element native +0xEC
-        public let accumulatedTravel: Float  // signed native local +0x284
+    public struct WindObservation {
+        public let originalSourceID: String
+        public let originalSourceType: String
+        /// Signed result of original 0x409650 source-to-flag intersection.
+        public let signedIntersection: Float
+        /// Observed native source +0x40, NOT guessed wheel angular velocity.
+        public let originalWindPower: Float
 
-        public init(telescopeIndicator: Float, flagState: Float,
-                    accumulatedTravel: Float) {
-            self.telescopeIndicator = telescopeIndicator
-            self.flagState = flagState
-            self.accumulatedTravel = accumulatedTravel
+        public init(originalSourceID: String, originalSourceType: String,
+                    signedIntersection: Float, originalWindPower: Float) {
+            self.originalSourceID = originalSourceID
+            self.originalSourceType = originalSourceType
+            self.signedIntersection = signedIntersection
+            self.originalWindPower = originalWindPower
         }
     }
 
+    /// Win32 0x44F858–0x44F932 enumerates tmo_windmill / tmo_wind_bellows
+    /// and sums each physically intersecting wind contribution times 0.5.
+    /// A complete observation with no sources is zero; an omitted or
+    /// partial physical observation is UNKNOWN and must not credit GOAL.
+    public static func nativeWindSum(
+        observations: [WindObservation],
+        allOriginalWindSourcesObserved: Bool
+    ) -> Float? {
+        guard allOriginalWindSourcesObserved,
+              observations.count <= 1024 else { return nil }
+        var sources = Set<String>()
+        var result = Double(0)
+        for observation in observations {
+            guard !observation.originalSourceID.isEmpty,
+                  sources.insert(observation.originalSourceID).inserted,
+                  observation.originalSourceType == "tmo_windmill"
+                    || observation.originalSourceType == "tmo_wind_bellows",
+                  observation.signedIntersection.isFinite,
+                  observation.originalWindPower.isFinite else { return nil }
+            result += Double(observation.signedIntersection)
+                * Double(observation.originalWindPower)
+                * Double(nativeWindScale)
+            guard result.isFinite,
+                  abs(result) <= Double(Float.greatestFiniteMagnitude)
+            else { return nil }
+        }
+        return Float(result)
+    }
+
+    public struct ObservedState {
+        public let telescopeIndicator: Float // native second telescope +0x90
+        public let flagState: Float           // native flag +0xEC
+        /// Original [ebp-0x284] instantaneous summed WIND, not travel.
+        public let observedNetWindForce: Float
+
+        public init(telescopeIndicator: Float, flagState: Float,
+                    observedNetWindForce: Float) {
+            self.telescopeIndicator = telescopeIndicator
+            self.flagState = flagState
+            self.observedNetWindForce = observedNetWindForce
+        }
+    }
+
+    /// Two native 0x44FA58/0x44FAA1 branches with opposite |wind| bounds.
+    /// Inputs require actual measured original wind and telescope state.
     public static func triggersGoal(_ state: ObservedState) -> Bool {
         guard state.telescopeIndicator.isFinite, state.flagState.isFinite,
-              state.accumulatedTravel.isFinite,
+              state.observedNetWindForce.isFinite,
               state.flagState == 0 else { return false }
-        let distance = abs(Double(state.accumulatedTravel))
+        let windMagnitude = abs(Double(state.observedNetWindForce))
         if state.telescopeIndicator == nativeTelescopeMarker {
-            // 0x44FA3D–0x44FA58: fcomp 2; GOAL iff abs(travel) >= 2.
-            return distance >= Double(nativeTravelCutoff)
+            return windMagnitude >= Double(nativeWindCutoff)
         }
-        // 0x44FA86–0x44FAA1: fcomp 2; GOAL iff abs(travel) < 2.
-        return distance < Double(nativeTravelCutoff)
+        return windMagnitude < Double(nativeWindCutoff)
     }
 }

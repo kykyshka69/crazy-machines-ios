@@ -93,13 +93,13 @@ struct OriginalWindowsElectricalGoalsSmoke {
             session: session, powerByDeviceID: [:],
             steamPressureByObjectID: [ids[10]: 2]).isEmpty)
         // A native level-34 GOAL requires real telescope state +0x90,
-        // source +0xEC, and the absolute accumulated travel +0x284.
+        // source +0xEC, and abs(per-call summed wind at [ebp-0x284]).
         // An electrically powered flag, generic wheel contact or
         // invented telemetry for a GOAL-free object never counts.
         typealias Flag = CMOriginalWindowsBeltFlag
         let qualified = Flag.ObservedState(
             telescopeIndicator: Flag.nativeTelescopeMarker,
-            flagState: 0, accumulatedTravel: 2)
+            flagState: 0, observedNetWindForce: 2)
         precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
             session: session, powerByDeviceID: [ids[11]: 10]).isEmpty)
         precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
@@ -110,7 +110,7 @@ struct OriginalWindowsElectricalGoalsSmoke {
             beltFlagRuntimeByObjectID: [ids[12]: qualified]).isEmpty)
         let tooShort = Flag.ObservedState(
             telescopeIndicator: Flag.nativeTelescopeMarker,
-            flagState: 0, accumulatedTravel: 1.99)
+            flagState: 0, observedNetWindForce: 1.99)
         precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
             session: session, powerByDeviceID: [:],
             beltFlagRuntimeByObjectID: [ids[11]: tooShort]).isEmpty)

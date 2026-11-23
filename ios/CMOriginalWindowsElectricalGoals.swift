@@ -20,7 +20,7 @@ public enum CMOriginalWindowsElectricalGoals {
         // Original whistle receives steam from a real physical pressure
         // component, NOT an electrical cable or ordinary collision.
         steamPressureByObjectID: [String: Float] = [:],
-        // Native belt-flag telescopic state and accumulated travel, never
+        // Native belt-flag telescope and measured instantaneous wind sum, never
         // inferred from a rotating UCM wheel or a GOAL annotation alone.
         beltFlagRuntimeByObjectID: [String: CMOriginalWindowsBeltFlag.ObservedState] = [:],
         // Original flower's *physical* growth-state scalar (+0x130),
@@ -46,7 +46,7 @@ public enum CMOriginalWindowsElectricalGoals {
             }
             // Original level 34 carries GOAL on tmo_belt_flag. Its
             // two x86 GOAL call sites at 0x44FA58/0x44FAA1 compare the
-            // actual telescope/flag/native travel state, not rotation.
+            // actual telescope/flag/native WIND state, not wheel rotation.
             // Missing runtime observations MUST NOT credit a puzzle.
             if object.type == "tmo_belt_flag" {
                 if let state = beltFlagRuntimeByObjectID[object.id],
