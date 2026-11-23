@@ -35,6 +35,9 @@ public enum CMOriginalRocketAnchorTelemetry {
     }
     public struct Complete: Equatable {
         public let rocketChildID: String
+        /// Live SceneKit dynamic rigid body's center in WORLD space.
+        /// Not an invented native Win32 COM or +0xFC engine signal.
+        public let worldDynamicBodyCenter: Vector3?
         public let heat: Frame
         public let engine: Frame
         public let explode: Frame
@@ -45,11 +48,12 @@ public enum CMOriginalRocketAnchorTelemetry {
     /// owner's original UCM; do NOT reject it using XY-only length.
     public static func complete(
         rocketChildID: String, originalParentType: String,
-        frames: [Frame]
+        frames: [Frame], observedDynamicBodyCenter: Vector3? = nil
     ) -> Complete? {
         guard !rocketChildID.isEmpty,
               originalParentType == "tmo_heat_rocket",
-              frames.count <= 64 else { return nil }
+              frames.count <= 64,
+              observedDynamicBodyCenter?.isFinite ?? true else { return nil }
         let required: Set<String> = ["Heat", "Engine", "Explode", "Direction"]
         var seen: [String: Frame] = [:]
         for frame in frames where required.contains(frame.name) {
@@ -63,7 +67,9 @@ public enum CMOriginalRocketAnchorTelemetry {
         guard let heat = seen["Heat"], let engine = seen["Engine"],
               let explode = seen["Explode"],
               let direction = seen["Direction"] else { return nil }
-        return Complete(rocketChildID: rocketChildID, heat: heat,
+        return Complete(rocketChildID: rocketChildID,
+                        worldDynamicBodyCenter: observedDynamicBodyCenter,
+                        heat: heat,
                         engine: engine, explode: explode,
                         direction: direction)
     }

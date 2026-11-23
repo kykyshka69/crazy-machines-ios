@@ -898,7 +898,7 @@ struct CMOriginalQuickPlayView: View {
             if experimentalPhysics && originalSession.objects.contains(where: {
                 $0.type == "tmo_heat_rocket_rocket"
             }) {
-                Text("Original rocket Heat/Engine/Explode/Direction frames observed: \\(observedOriginalRocketAnchors.count)")
+                Text("Original rocket frames: \(observedOriginalRocketAnchors.count); physical centers: \(observedOriginalRocketAnchors.filter { $0.worldDynamicBodyCenter != nil }.count)")
                     .font(.caption.weight(.medium))
                     .accessibilityIdentifier("cm.original.rocket-frames")
             }

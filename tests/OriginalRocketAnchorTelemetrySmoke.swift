@@ -21,6 +21,18 @@ struct OriginalRocketAnchorTelemetrySmoke {
                               originalParentType: "tmo_heat_rocket", frames: realBasis)
         precondition(good != nil && good?.direction.name == "Direction")
         precondition(good?.engine.worldYAxis == .init(0, 0, 1))
+        precondition(good?.worldDynamicBodyCenter == nil)
+        let center = T.Vector3(0.25, 0.5, 0)
+        let withCOM = T.complete(
+            rocketChildID: "original-rocket-child",
+            originalParentType: "tmo_heat_rocket",
+            frames: realBasis, observedDynamicBodyCenter: center)
+        precondition(withCOM?.worldDynamicBodyCenter == center)
+        precondition(T.complete(
+            rocketChildID: "original-rocket-child",
+            originalParentType: "tmo_heat_rocket",
+            frames: realBasis,
+            observedDynamicBodyCenter: .init(.infinity, 0, 0)) == nil)
         precondition(T.complete(rocketChildID: "original-rocket-child",
             originalParentType: "tmo_candle", frames: realBasis) == nil)
         precondition(T.complete(rocketChildID: "original-rocket-child",

@@ -54,3 +54,21 @@ view with strict scene-revision checks. This is live world-space
 model ownership and marker motion — no fabricated thermal region,
 Win32 `Direction +0x30` source, runtime `+0xFC`, physical impulse,
 explosion, or GOAL.
+
+## Actual SceneKit rocket physics body center is now observed
+
+Original Win32 `0x44F264` reads the physics body center before
+`0x44F27D` applies Engine force. On iOS the renderer now measures
+the genuine nested `tmo_heat_rocket_rocket` **dynamic** physics
+body center using its `SCNPhysicsBody.centerOfMassOffset` and
+current presentation-node transform. This does not assume model
+origin, bounding-box middle, or Engine/Heat markers are the COM.
+`CMOriginalRocketAnchorTelemetry.Complete` now carries an optional
+`worldDynamicBodyCenter`; malformed/nonfinite data are rejected.
+UI distinguishes full observed original marker sets from actual
+dynamic body centers. Also fixed its earlier literal escaped string
+so the counters actually interpolate instead of showing raw syntax.
+
+The real COM of SceneKit is measured; Win32 native `+0xFC`,
+`Direction+0x30` and Engine activation are still separate missing
+producers and puzzle GOAL is never inferred from this observation.

@@ -1301,10 +1301,23 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         worldYAxis: .init(y.x, y.y, y.z)
                     ))
                 }
+                // Measure the actual dynamic rocket child's SceneKit
+                // body COM rather than a model or Engine-marker pivot.
+                let measuredCenter: CMOriginalRocketAnchorTelemetry.Vector3?
+                if let rigidNode = physicsNodesByObjectID[childID]?
+                    .first(where: { $0.physicsBody?.type == .dynamic }),
+                   let dynamicBody = rigidNode.physicsBody {
+                    let center = rigidNode.presentation.convertPosition(
+                        dynamicBody.centerOfMassOffset, to: nil)
+                    measuredCenter = .init(center.x, center.y, center.z)
+                } else {
+                    measuredCenter = nil
+                }
                 if let record = CMOriginalRocketAnchorTelemetry.complete(
                     rocketChildID: childID,
                     originalParentType: "tmo_heat_rocket",
-                    frames: frames
+                    frames: frames,
+                    observedDynamicBodyCenter: measuredCenter
                 ) {
                     complete.append(record)
                 }

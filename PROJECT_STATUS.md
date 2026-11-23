@@ -1,6 +1,9 @@
 # Crazy Machines — original iOS port: working branch
 
 ## 🚩 START HERE — verified handoff (2026-11-23; stage 1 NOT FINISHED)
+**2026-11-23 REAL ROCKET PHYSICAL BODY CENTER OBSERVATION (gameplay batch; CI running):** Added the native-force target's SceneKit equivalent: true dynamic `tmo_heat_rocket_rocket` center of mass, derived from its actual `centerOfMassOffset` and moving presentation transform, **not** from any UCM marker pivot. Original frame telemetry now accepts an optional finite `worldDynamicBodyCenter` and explicitly tests absence/presence/malformed values. UI distinguishes genuine complete rocket marker frames from dynamic body centers and fixed the mistaken Swift literal `\\(` into real interpolation. The owner Win32 `0x44F264` native body-center semantics are our reference; this is still NOT original Engine state/+0xFC or source heat-region detection, so no genuine rocket launch, explosion or level win is claimed. Stage 1 OPEN.
+
+
 **2026-11-23 NONREPLAYING ROCKET FORCE SAFETY FIX (new source batch):** Native Engine force samples now require a strictly increasing `nativeSampleSequence` per physical rocket child. A repeated/stale SwiftUI snapshot cannot accelerate the rocket twice; the SceneKit coordinator persists the last physically applied source sequence and resets it only on scene registration. Changed body selection to the original child's actual DYNAMIC physics body (not an arbitrary static helper), refreshed samples during `updateUIView`, and avoided dropping the initial observation before scene registration. Added portable sequence 0/duplicate/out-of-order positive/negative tests. These are **real force-dispatch safeguards**; native +0xFC/Engine activation still lacks a genuine producer and no original level win is claimed. Stage 1 remains OPEN. Do not claim later CI results until observed.
 
 
