@@ -74,6 +74,27 @@ struct OriginalGeneratorCircuitSmoke {
         precondition(circuit.experimentalNetworkSignals(
             closedSwitchIDs: [sw],
             generatorRotorCommandsByDeviceID: [generator: 2])[motor] == nil)
+        // Native 0x44CC0F must NOT recurse from a spinning generator
+        // back into the battery whose original output stays exactly 10.
+        // This is a real cable via the original two-port switch, not a
+        // fake shared terminal number or type-based auto connection.
+        precondition(circuit.toggleCable(between: plug(1), and: plug(6)) == .disconnected)
+        precondition(circuit.toggleCable(between: plug(1), and: plug(4)) == .connected)
+        let joinedSources = circuit.experimentalNetworkSignals(
+            closedSwitchIDs: [sw],
+            generatorRotorCommandsByDeviceID: [generator: 2])
+        precondition(joinedSources[battery] == 10)
+        // A generator is itself ambiguous if it receives a second
+        // independent 10.0 battery while emitting its native 2.0.
+        precondition(joinedSources[generator] == nil)
+        precondition(joinedSources[sw] == nil)
+        precondition(circuit.toggleCable(between: plug(2), and: plug(3)) == .disconnected)
+        let standaloneBattery = circuit.experimentalNetworkSignals(
+            closedSwitchIDs: [sw],
+            generatorRotorCommandsByDeviceID: [generator: 2])
+        precondition(standaloneBattery[battery] == 10)
+        precondition(standaloneBattery[sw] == 10)
+        precondition(standaloneBattery[generator] == 2)
         // A second full 10.0 battery is NOT independent evidence that
         // paralleling the sources is safe. Numeric equality is insufficient:
         // the original game's multi-source electrical solver is not ported.

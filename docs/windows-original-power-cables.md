@@ -95,3 +95,28 @@ again when one source path is physically disconnected. The generator-circuit
 regression includes a genuine-format original-plug tree with two equal
 battery sources converging on a distributor and lamp. This is a fail-closed
 safety/correctness change, *not* the full Win32 electrical solver.
+
+## Native battery recursion boundary (2026-11-23; focused change)
+
+The owner's exact SHA-256-matched original executable was independently
+read at `0x44CBD6–0x44CC37`. At `0x44CC0F` the Win32 traversal passes
+the literal `tmo_power_battery` (VA `0x4EC648`) to the native
+element-type comparator; it descends via `0x44C8A0` at `0x44CC32`
+**only when the attached next device is not a battery**. This matches
+the engine's per-source initialization of a battery's own 10.0 signal.
+
+Previously iOS could recurse from a spinning generator into a connected
+battery and (incorrectly) discard that battery's independently known
+10.0 output as ambiguous. `CMOriginalPowerCircuit.devicesReachable`
+now refuses recursion into any battery neighbor, while still seeding
+each battery's own output from the recovered Win32 10.0 source. A
+generator→closed switch→battery regression verifies independent battery
+output, ambiguous shared switch, and proper return to isolated outputs
+when the generator cable is physically removed.
+
+**Scope:** this restores one exact original recursion boundary, **not**
+the unknown `+0x50` blocker semantics, voltage/current/return-path
+calculation, or full Win32 source coexistence. The original-private
+game assets remain outside the Git repository. This is a focused
+code/test patch made with `[skip ci]`; its new integration tests still
+need to run at the next requested single CI checkpoint.

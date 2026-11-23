@@ -256,6 +256,15 @@ public struct CMOriginalPowerCircuit {
                     } == true)
             guard transmits else { continue }
             for neighbor in edges[current] ?? [] {
+                // Win32 0x44CC0F–0x44CC37 explicitly compares the NEXT
+                // attached object type with "tmo_power_battery" and SKIPS
+                // its recursive power propagation. A battery's native
+                // +0x40 source must not be overwritten by an attached
+                // generator or a second battery: each battery is seeded
+                // independently at the start of this experiment.
+                // Previous code erroneously walked into another battery
+                // and could mark its known 10.0 output "ambiguous".
+                guard !sourceDeviceIDs.contains(neighbor) else { continue }
                 // Win32 0x44CA24 clears power on a switch whose contact
                 // +0xEC and +0xC8 mismatch at an exact ±1 position.
                 // Only independently observed contact pairs override the
