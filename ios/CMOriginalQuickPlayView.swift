@@ -620,9 +620,14 @@ struct CMOriginalQuickPlayView: View {
                     guard eventRevision == sceneRevision else { return }
                     // SceneKit dispatches observations asynchronously. A queued
                     // event must not revive progress after Pause, Stop or Reset.
-                    guard experimentalPhysics && !physicsPaused else { return }
-                    // A tap is not Win32 +0xEC/+0xC8 physics contact
-                    // evidence and cannot alone dispatch a switch GOAL.
+                    // The originating SceneKit switch was already changed
+                    // while the session was RUNNING. A subsequent Pause
+                    // before main-queue delivery must not silently discard
+                    // a physically triggered valid state transition.
+                    guard experimentalPhysics else { return }
+                    // Neither tap nor observed impact establishes the
+                    // unrecovered native +0xEC/+0xC8 contact scalar; do
+                    // not award original switch GOAL from either action.
                     if isOn {
                         flippedOriginalSwitchIDs.insert(switchID)
                     } else {
@@ -1030,7 +1035,7 @@ struct CMOriginalQuickPlayView: View {
                     Text("Observed switch lever/striker pairs: \(observedOriginalLeverStrikers.count)")
                         .font(.caption.weight(.medium))
                         .accessibilityIdentifier("cm.original.switch-physical-contacts")
-                    Text("Tap an original switch in the 3D scene to move its lever. The original wiring is still unknown, so this does not automatically power a motor.")
+                    Text("Tap an original switch or strike its genuine lever with a movable original object. The lever now toggles the opt-in connected electrical prototype. Native switch contact thresholds and original current remain unverified.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }

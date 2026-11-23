@@ -28,6 +28,21 @@ struct OriginalSwitchContactSmoke {
         precondition(first == .init(switchID: "switch-A", leverID: "lever-A",
                                     strikingObjectID: "ball", strikingObjectType: "tmo_ball_iron",
                                     impulse: 0.35))
+        precondition(first.map {
+            CMOriginalSwitchContactMapper.qualifiesForExperimentalImpact($0)
+        } == true)
+        // Zero impulse contacts remain useful diagnostic evidence, but
+        // must NOT activate the experimental switch.
+        precondition(CMOriginalSwitchContactMapper
+            .qualifiesForExperimentalImpact(.init(
+                switchID: "switch-A", leverID: "lever-A",
+                strikingObjectID: "ball", strikingObjectType: "tmo_ball_iron",
+                impulse: 0)) == false)
+        precondition(CMOriginalSwitchContactMapper
+            .qualifiesForExperimentalImpact(.init(
+                switchID: "switch-A", leverID: "lever-A",
+                strikingObjectID: "ball", strikingObjectType: "tmo_ball_iron",
+                impulse: -.infinity)) == false)
         precondition(mapper.beginContact("lever-A", "ball", impulse: 2,
                                          aIsMovable: false, bIsMovable: true) == nil)
         mapper.endContact("lever-A", "ball")
@@ -41,6 +56,9 @@ struct OriginalSwitchContactSmoke {
         let next = mapper.beginContact("lever-B", "ball", impulse: 0,
                                        aIsMovable: false, bIsMovable: true)
         precondition(next?.switchID == "switch-B")
+        precondition(next.map {
+            CMOriginalSwitchContactMapper.qualifiesForExperimentalImpact($0)
+        } == false)
         // Neither parent-less leaves nor a nearby switch base may act as lever.
         var noLever = CMOriginalSwitchContactMapper(objects: [
             .init(id: "switch", type: "tmo_power_switch", parentID: nil),

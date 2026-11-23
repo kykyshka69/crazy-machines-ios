@@ -2483,6 +2483,20 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 aIsMovable: session?.physicsRole(for: a) == .movable,
                 bIsMovable: session?.physicsRole(for: b) == .movable
             )
+            // This contact is the user's ACTUAL moving UCM object striking
+            // the genuine CML switch lever; it can now operate the iOS
+            // experimental mechanical switch and its already wired circuit.
+            // Original Win32 impulse threshold/contact fields are still
+            // unknown. Do not award GOAL merely from this impact.
+            var impactSwitchState: (id: String, on: Bool)?
+            if let hit = leverHit,
+               CMOriginalSwitchContactMapper
+                   .qualifiesForExperimentalImpact(hit),
+               switchLeverNodes[hit.switchID] != nil,
+               switchLeverRestAngles[hit.switchID] != nil,
+               let newState = session?.toggleOriginalSwitch(hit.switchID) {
+                impactSwitchState = (hit.switchID, newState)
+            }
             // CONNECTED_TO refers to another original level element, not
             // necessarily a tmo_zone. Report exact linked contact pairs:
             // 67 originals point to capture zones; the other 13 point to
@@ -2550,7 +2564,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             sessionLock.unlock()
             // Never mutate SwiftUI state from the SceneKit renderer thread.
             if contactType != nil || !newlyObservedConnections.isEmpty
-                || leverHit != nil {
+                || leverHit != nil || impactSwitchState != nil {
                 DispatchQueue.main.async { [weak self] in
                     if let contactType, let contactIDs {
                         self?.onOriginalZoneContact?(contactType)
@@ -2569,6 +2583,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                     if let leverHit {
                         self?.onOriginalSwitchContact?(leverHit)
+                    }
+                    if let event = impactSwitchState {
+                        self?.animateOriginalSwitchLever(
+                            event.id, isOn: event.on)
+                        self?.onOriginalSwitchToggle?(
+                            event.id, event.on)
                     }
                 }
             }
@@ -3146,9 +3166,33 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             manualHinges.append((joint: hinge, marker: marker))
         }
 
-        /// Flip the REAL imported PC tmo_power_switch_lever model on tap.
-        /// The switch's electrical consequences are intentionally NOT
-        /// inferred: original wire connections are not yet decoded.
+        /// Common real UCM lever presentation for both direct player taps
+        /// and physically observed impacts. Do not mutate the session here:
+        /// the source-of-truth switch state was already changed once.
+        private func animateOriginalSwitchLever(
+            _ switchID: String, isOn: Bool
+        ) {
+            guard let lever = switchLeverNodes[switchID],
+                  let original = switchLeverRestAngles[switchID]
+            else { return }
+            if isOn { flippedSwitchIDs.insert(switchID) }
+            else { flippedSwitchIDs.remove(switchID) }
+            // The imported lever has a genuine PC rest ROT x=1.
+            // The -0.6 alternate angle is a SceneKit approximation,
+            // not a claim of measured native +0xEC contact position.
+            lever.removeAction(forKey: "original-switch")
+            lever.runAction(
+                SCNAction.rotateTo(
+                    x: CGFloat(original.x + (isOn ? -0.6 : 0)),
+                    y: CGFloat(original.y), z: CGFloat(original.z),
+                    duration: 0.16, usesShortestUnitArc: true
+                ),
+                forKey: "original-switch"
+            )
+        }
+
+        /// A player tap and a collision share the same UCM lever output,
+        /// but only explicit original CML identities may operate it.
         private func flipOriginalPowerSwitch(_ hitNode: SCNNode?) -> Bool {
             guard let objectID = owningOriginalObjectID(for: hitNode) else {
                 return false
@@ -3165,8 +3209,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             } else {
                 return false
             }
-            guard let lever = switchLeverNodes[switchID],
-                  let original = switchLeverRestAngles[switchID] else { return false }
+            guard switchLeverNodes[switchID] != nil,
+                  switchLeverRestAngles[switchID] != nil else { return false }
             // The session is the source of truth for genuine switch
             // positions. Reject taps while paused, rather than visually
             // flipping a lever when the simulation cannot accept the input.
@@ -3174,24 +3218,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             let nextState = session?.toggleOriginalSwitch(switchID)
             sessionLock.unlock()
             guard let isOn = nextState else { return false }
-            if isOn {
-                flippedSwitchIDs.insert(switchID)
-            } else {
-                flippedSwitchIDs.remove(switchID)
-            }
-            // The recovered lever has a real PC ROT x=1. We preserve the
-            // original rest angle and provide only a modest prototype tilt
-            // for the alternate state, rather than invent an engine limit.
-            lever.removeAction(forKey: "original-switch")
-            let targetX = original.x + (isOn ? -0.6 : 0)
-            lever.runAction(
-                SCNAction.rotateTo(
-                    x: CGFloat(targetX), y: CGFloat(original.y),
-                    z: CGFloat(original.z), duration: 0.16,
-                    usesShortestUnitArc: true
-                ),
-                forKey: "original-switch"
-            )
+            animateOriginalSwitchLever(switchID, isOn: isOn)
             onOriginalSwitchToggle?(switchID, isOn)
             return true
         }

@@ -24,6 +24,17 @@ public struct CMOriginalSwitchContactMapper {
         public let impulse: Double
     }
 
+    /// Experimental SceneKit physical switch drive: a genuine moving
+    /// original striker must actually hit the mapped UCM LEVER with a
+    /// positive, finite collision impulse. The Win32 *threshold* and
+    /// per-contact +0xEC/+0xC8 electrical fields are not yet recovered,
+    /// so do not call this native switch activation evidence or GOAL.
+    /// beginContact() independently validates original CML ownership
+    /// and debounces each continuous pair until didEnd().
+    public static func qualifiesForExperimentalImpact(_ hit: Hit) -> Bool {
+        hit.impulse.isFinite && hit.impulse > 0
+    }
+
     private struct Pair: Hashable {
         let first: String
         let second: String
