@@ -83,6 +83,30 @@ struct OriginalSwitchContactSmoke {
                                          aIsMovable: false, bIsMovable: true) != nil)
         precondition(mapper.consumeImpact("lever-B", "ball", impulse: 0.3,
                                          aIsMovable: false, bIsMovable: true) != nil)
+        // SceneKit can deliver didUpdate before didBegin, or an invalid
+        // didBegin; a genuine later positive impact must still work once.
+        var updateFirst = CMOriginalSwitchContactMapper(objects: objects)
+        precondition(updateFirst.consumeImpact("ball", "lever-A", impulse: 0,
+            aIsMovable: true, bIsMovable: false) == nil)
+        precondition(updateFirst.consumeImpact("ball", "lever-A", impulse: .nan,
+            aIsMovable: true, bIsMovable: false) == nil)
+        precondition(updateFirst.consumeImpact("ball", "lever-A", impulse: 0.8,
+            aIsMovable: true, bIsMovable: false)?.switchID == "switch-A")
+        precondition(updateFirst.consumeImpact("lever-A", "ball", impulse: 1.1,
+            aIsMovable: false, bIsMovable: true) == nil)
+        precondition(updateFirst.beginContact("lever-A", "ball", impulse: 1.1,
+            aIsMovable: false, bIsMovable: true) == nil)
+        // The recovery path may not infer a switch from a housing hit,
+        // non-movable striker or a switch's own nested original parts.
+        precondition(updateFirst.consumeImpact("base-A", "ball", impulse: 1,
+            aIsMovable: false, bIsMovable: true) == nil)
+        precondition(updateFirst.consumeImpact("lever-B", "board", impulse: 1,
+            aIsMovable: false, bIsMovable: false) == nil)
+        precondition(updateFirst.consumeImpact("lever-A", "mount-A", impulse: 1,
+            aIsMovable: false, bIsMovable: true) == nil)
+        updateFirst.endContact("lever-A", "ball")
+        precondition(updateFirst.consumeImpact("ball", "lever-A", impulse: 0.5,
+            aIsMovable: true, bIsMovable: false) != nil)
         // Neither parent-less leaves nor a nearby switch base may act as lever.
         var noLever = CMOriginalSwitchContactMapper(objects: [
             .init(id: "switch", type: "tmo_power_switch", parentID: nil),

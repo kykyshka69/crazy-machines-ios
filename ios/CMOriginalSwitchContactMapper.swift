@@ -114,9 +114,10 @@ public struct CMOriginalSwitchContactMapper {
                    strikingObjectType: type, impulse: impulse)
     }
 
-    /// Called on BOTH didBegin and didUpdate. Only an already recognized
-    /// original CML lever / moving original striker pair can cause a
-    /// physical prototype toggle; a zero first impulse is not fatal.
+    /// Called on BOTH didBegin and didUpdate. A real positive didUpdate
+    /// can re-authenticate a contact whose didBegin was missing/invalid,
+    /// but only an original CML lever / moving striker pair can toggle.
+    /// A zero first impulse is not fatal.
     /// This accepts exactly ONE positive finite impulse during each
     /// sustained contact, preventing chattering and accidental double
     /// switch flips on the following SceneKit frames.
@@ -125,8 +126,20 @@ public struct CMOriginalSwitchContactMapper {
         aIsMovable: Bool, bIsMovable: Bool
     ) -> Hit? {
         let pair = Pair(a, b)
-        guard activePairs.contains(pair), impulse.isFinite, impulse > 0,
+        guard impulse.isFinite, impulse > 0,
               !impactedPairs.contains(pair) else { return nil }
+        if !activePairs.contains(pair) {
+            // A SceneKit didBegin can be missed during scene activation,
+            // or discarded because the first contact impulse was NaN.
+            // The later real didUpdate is still authoritative physical
+            // evidence: authenticate the exact original CML lever and
+            // moving striker with the SAME beginContact validation.
+            // Once registered, normal one-shot latching still applies.
+            guard beginContact(
+                a, b, impulse: impulse,
+                aIsMovable: aIsMovable, bIsMovable: bIsMovable
+            ) != nil else { return nil }
+        }
         let switchID: String
         let leverID: String
         let strikerID: String
