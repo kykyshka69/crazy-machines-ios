@@ -93,3 +93,36 @@ unlit candle and absent effect. Region test values are synthetic.
 **Still missing:** live original SceneKit selector-3 parameters, actual
 heat emitter/effect observations, flight thrust/explosion and successful
 runs across all 102 authentic scenes. These tests are not level wins.
+
+## Corrected shared Win32 heat/wind intersection plane and region selection (2026-11-23)
+
+Verified the **user-owned, exact SHA-256 matched** `CrazyMachines.exe` with
+`objdump` and eight newly pinned native instruction addresses
+(`tools/audit_windows_rocket_exe.py:REGION_SITES`):
+
+- `0x40966D`: `mov dword ptr [ebp-0x8], 0` after copying the
+  source displacement XYZ; native distance/angle code deliberately
+  ignores source Z.
+- `0x409688`: `mov dword ptr [ebp-0x2c], 0` after copying
+  the region axis; region-axis Z is likewise ignored.
+- `0x4096B9` and `0x4096C5`: displacement/vector length;
+  `0x409D00` computes squared distance of the projected vector.
+- `0x44E3A4` requests native region **type 3**, first match
+  (index zero); `0x4204A0` follows genuine per-object region
+  entries of stride `0x54`, requiring an associated pointer at
+  entry `+0x44` and matching selector byte at `+0x10`.
+  The selected entry's actual region fields begin at `+0x24`
+  (`0x44E3B3`). **Not** a generic mesh collider or distance radius.
+
+The earlier Swift `CMOriginalWindowsWindRegion.measuredFraction`
+incorrectly retained Z in its norm and angular calculation. It now
+projects into authentic XY **before** checking radius/angle for both
+heat and wind. Its portable regression includes depth-invariance and
+depth-only rejection; rocket ignition now inherits that corrected
+native geometry path.
+
+Remaining blocker: obtain these exact per-object region records (not
+UCM bounding spheres) from the owner-original scene data, transform
+them into the current SceneKit object reference frame, and observe
+the original effect child, Engine physical impulse and explosion.
+No original level success is claimed by this geometry correction.

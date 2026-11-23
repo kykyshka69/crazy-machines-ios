@@ -2,7 +2,7 @@ import unittest
 import sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
-from audit_windows_rocket_exe import verify, SITES
+from audit_windows_rocket_exe import verify, SITES, REGION_SITES
 
 class RocketAuditSmoke(unittest.TestCase):
     def test_wrong_exe_rejected(self):
@@ -27,6 +27,18 @@ class RocketAuditSmoke(unittest.TestCase):
         self.assertEqual(SITES[0x44EF6D], "dd 99 30 01 00 00")
         self.assertEqual(SITES[0x44F296], "dc a0 30 01 00 00")
         self.assertEqual(SITES[0x44F354], "e8 07 c1 ff ff")
+
+    def test_native_heat_region_plane_and_selector_are_pinned(self):
+        self.assertEqual(len(REGION_SITES), 8)
+        # Both vectors have Z forcibly overwritten with zero.
+        self.assertEqual(REGION_SITES[0x40966D],
+                         "c7 45 f8 00 00 00 00")
+        self.assertEqual(REGION_SITES[0x409688],
+                         "c7 45 d4 00 00 00 00")
+        # Heat receiver asks for FIRST selector-3 region (0x4204A0).
+        self.assertEqual(REGION_SITES[0x44E3A4], "6a 00 6a 03")
+        self.assertEqual(REGION_SITES[0x420522], "0f b6 48 10")
+        self.assertEqual(REGION_SITES[0x44E3B3], "83 c0 24")
 
     def test_empty_rejected(self):
         with self.assertRaisesRegex(ValueError, "SHA-256"):

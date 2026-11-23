@@ -150,6 +150,12 @@ struct OriginalWindowsRocketTimerSmoke {
         precondition(hit(.init(4, 0), state: 1) == nil)
         precondition(hit(.init(4, 0), source: "tmo_windmill") == nil)
         precondition(hit(.init(4, 0), clock: .nan) == nil)
+
+        // The native 0x409650 routine explicitly removes Z before
+        // computing overlap: heat ignition must depend on planar XY.
+        precondition(hit(.init(4, 0, 50_000))?.state == 1)
+        precondition(hit(.init(4, 0, .nan))?.state == 1)
+        precondition(hit(.init(0, 0, 4)) == nil)
         print("Native Win32 rocket: actual flying 2, live engine, time >3 sec, terminal state 3")
     }
 }

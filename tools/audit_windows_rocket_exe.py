@@ -40,6 +40,20 @@ SITES={
     0x44F33C:"c7 80 ec 00 00 00 00 00 40 40",
     0x44F354:"e8 07 c1 ff ff",
 }
+# Additional SHA-checked native region geometry and owner-selector facts:
+# 0x409650 deliberately projects both vectors into XY; 0x4204A0
+# selects the first (index 0) ORIGINAL region of selector type 3.
+# Keep these separate from the 29 historical rocket lifecycle sites.
+REGION_SITES={
+    0x40966D:"c7 45 f8 00 00 00 00", # source displacement Z = 0
+    0x409688:"c7 45 d4 00 00 00 00", # native region axis Z = 0
+    0x44E3A4:"6a 00 6a 03",          # region 3, first match
+    0x4204FC:"6b c0 54",             # region record stride
+    0x420508:"83 7c 02 44 00",      # require linked region pointer
+    0x420522:"0f b6 48 10",          # original selector byte
+    0x420526:"3b 4d 08",             # match requested selector
+    0x44E3B3:"83 c0 24",             # region fields at entry + 0x24
+}
 def verify(exe: bytes) -> dict:
     if hashlib.sha256(exe).hexdigest()!=SHA:
         raise ValueError("Original CrazyMachines.exe SHA-256 mismatch")
@@ -63,7 +77,7 @@ def verify(exe: bytes) -> dict:
                 pos=raw+va-start
                 if pos+n<=len(exe):return exe[pos:pos+n]
         raise ValueError("Native original rocket address not mapped")
-    for address,code in SITES.items():
+    for address,code in {**SITES,**REGION_SITES}.items():
         expected=bytes.fromhex(code)
         if read(address,len(expected))!=expected:
             raise ValueError("Native original rocket x86 mismatch at "+hex(address))
@@ -81,7 +95,9 @@ def verify(exe: bytes) -> dict:
         raise ValueError("Native rocket flying state mismatch")
     if struct.unpack("<d",read(0x4E9BC8,8))[0]!=3.0:
         raise ValueError("Native original rocket fuse mismatch")
-    return {"x86_sites":len(SITES), "ignited_state":1,
+    return {"x86_sites":len(SITES),
+            "native_region_geometry_sites":len(REGION_SITES),
+            "native_region_plane":"XY", "ignited_state":1,
             "native_candle_ignition_cutoff":
                 struct.unpack("<f",read(0x4EDDE8,4))[0],
             "prelaunch_strict_seconds":3, "flying_state":2,

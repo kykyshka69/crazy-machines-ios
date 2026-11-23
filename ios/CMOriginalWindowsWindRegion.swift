@@ -1,7 +1,9 @@
 import Foundation
 
-/// Native 0x409650–0x40985B: measured wind-region coverage using original
-/// region parameters, not UCM visual proximity or guessed rotor speed.
+/// Native 0x409650–0x40985B: measured wind AND heat region overlap using
+/// original parameters, not UCM visual proximity or guessed rotor speed.
+/// Original 0x40966D and 0x409688 ZERO BOTH Z components before the
+/// squared-distance and angle computation. All region hits are planar XY.
 /// All coordinates must be observed in one native region reference frame.
 public enum CMOriginalWindowsWindRegion {
     public struct Vector3 {
@@ -40,7 +42,10 @@ public enum CMOriginalWindowsWindRegion {
         nativeDisplacement: Vector3, region: Parameters
     ) -> Float? {
         let v = nativeDisplacement, a = region.nativeAxis
-        let fields = [v.x, v.y, v.z, a.x, a.y, a.z,
+        // Win32 copies the 3D vectors, then explicitly overwrites both
+        // Z components with zero before 0x408BE0 / 0x409D00. A Z-only
+        // separation must never generate a false heat/wind region hit.
+        let fields = [v.x, v.y, a.x, a.y,
                       region.minRadiusSquared, region.maxRadiusSquared,
                       region.radialFalloff, region.maximumAngle,
                       region.angularFalloff]
@@ -51,15 +56,15 @@ public enum CMOriginalWindowsWindRegion {
               region.maximumAngle <= .pi,
               region.radialFalloff >= 0, region.angularFalloff >= 0
         else { return nil }
-        let dx = Double(v.x), dy = Double(v.y), dz = Double(v.z)
-        let ax = Double(a.x), ay = Double(a.y), az = Double(a.z)
-        let distanceSq = dx * dx + dy * dy + dz * dz
-        let axisSq = ax * ax + ay * ay + az * az
+        let dx = Double(v.x), dy = Double(v.y)
+        let ax = Double(a.x), ay = Double(a.y)
+        let distanceSq = dx * dx + dy * dy
+        let axisSq = ax * ax + ay * ay
         guard distanceSq.isFinite, axisSq.isFinite,
               distanceSq > 0, axisSq > 0 else { return nil }
         if distanceSq < Double(region.minRadiusSquared)
             || distanceSq > Double(region.maxRadiusSquared) { return 0 }
-        let cosine = (dx * ax + dy * ay + dz * az)
+        let cosine = (dx * ax + dy * ay)
             / sqrt(distanceSq * axisSq)
         guard cosine.isFinite else { return nil }
         let angle = acos(min(1, max(-1, cosine)))
