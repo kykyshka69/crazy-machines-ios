@@ -85,6 +85,23 @@ import Foundation
             nativeOrigin: .init(10, 20),
             observedNativeAxis: .init(0, 1))!
         precondition(measure(realCandleShape, receiver(at: .init(10, 20.35))) != nil)
+        // Real SceneKit rocket gameplay uses moving original UCM Heat
+        // world positions, distinct from the actual native record hit.
+        // These values test the original 17-degree CONE shape only.
+        let projectedHit = H.projectedUCMHeatFraction(
+            observedSourceWorldYAxis: .init(0, 1, 0),
+            observedSourceToTargetWorldXY: .init(0, 0.35, 99))
+        precondition(projectedHit != nil &&
+            projectedHit! > CMOriginalWindowsRocketTimer.candleIgnitionCutoff)
+        precondition(H.projectedUCMHeatFraction(
+            observedSourceWorldYAxis: .init(0, -1, 0),
+            observedSourceToTargetWorldXY: .init(0, 0.35, 0)) == 0)
+        precondition(H.projectedUCMHeatFraction(
+            observedSourceWorldYAxis: .init(0, 1, 0),
+            observedSourceToTargetWorldXY: .init(0.35, 0, 0)) == 0)
+        precondition(H.projectedUCMHeatFraction(
+            observedSourceWorldYAxis: .init(.nan, 1, 0),
+            observedSourceToTargetWorldXY: .init(0, 0.35, 0)) == nil)
         precondition(ignition(realCandleShape, receiver(at: .init(10, 20.35)))?.state == 1)
         precondition(ignition(realCandleShape, receiver(at: .init(10, 20.6))) == nil)
         precondition(H.SourceCone.originalCandle(
