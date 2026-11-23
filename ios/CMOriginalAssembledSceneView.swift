@@ -611,12 +611,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var lastNativeRocketEngineSequenceByChildID:
             [String: UInt64] = [:]
         var experimentalOriginalRocketFlight = false
-        private struct RocketSceneStage {
-            var phase = 0 // 0=unlit, 1=fuse, 2=flying, 3=flight ended
-            var ignitionTime: Double?
-            var engineTime: Double?
-        }
-        private var rocketSceneStages: [String: RocketSceneStage] = [:]
+        private var rocketSceneStages:
+            [String: CMOriginalRocketStageMachine] = [:]
         private var rocketInitialFCByChildID: [String: Float] = [:]
         func setOriginalRocketInitialVelocities(_ values: [String: Float]) {
             sessionLock.lock()
@@ -1827,30 +1823,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         force = SCNVector3(Float(x), Float(y), 0)
                     } else { force = nil }
                 } else { force = nil }
-                var state = rocketSceneStages[childID] ?? RocketSceneStage()
-                switch state.phase {
-                case 0:
-                    if projectedBlowtorchHit ||
-                       (projectedFraction.map {
-                           $0 > CMOriginalWindowsRocketTimer.candleIgnitionCutoff
-                       } ?? false) {
-                        state.phase = 1
-                        state.ignitionTime = clock
-                    }
-                case 1:
-                    if let initial = state.ignitionTime,
-                       clock - initial > CMOriginalWindowsRocketTimer.fuseSeconds,
-                       body != nil, force != nil {
-                        state.phase = 2
-                        state.engineTime = clock
-                    }
-                case 2:
-                    if let initial = state.engineTime,
-                       clock - initial > CMOriginalWindowsRocketTimer.fuseSeconds {
-                        state.phase = 3
-                    }
-                default: break
-                }
+                var state = rocketSceneStages[childID]
+                    ?? CMOriginalRocketStageMachine()
+                let phase = state.advance(
+                    time: clock, projectedCandleHeat: projectedFraction,
+                    projectedBlowtorchHit: projectedBlowtorchHit,
+                    rocketBodyPresent: body != nil,
+                    directionAndInitialVelocityUsable: force != nil)
                 rocketSceneStages[childID] = state
                 // SceneKit gravity is -9.8 whereas the original authored
                 // initial rocket VELOCITY scalar can be only 4.0. Using
@@ -1861,7 +1840,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // Engine force is active, and restore it at flight end.
                 // This is an iOS solver approximation, NOT a recovered
                 // native Windows gravitational/Engine equation.
-                if state.phase == 3, let body,
+                if phase == .ended, let body,
                    body.type == .dynamic {
                     body.isAffectedByGravity = true
                 }
@@ -1870,7 +1849,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // have both been established. No pre-ignition free fall.
                 // This is a SceneKit playback approximation, not a native
                 // Win32 Engine effect or a level-completion signal.
-                if state.phase == 2, let body, let force {
+                if phase == .flying, let body, let force {
                     if body.type == .kinematic {
                         body.velocity = SCNVector3Zero
                         body.angularVelocity = SCNVector4(0, 0, 0, 0)

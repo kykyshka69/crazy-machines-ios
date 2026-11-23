@@ -41,6 +41,8 @@ swiftc ios/CMOriginalWindowsRocketForce.swift tests/OriginalWindowsRocketForceSm
 
 swiftc ios/CMOriginalWindowsBlowtorchHeat.swift tests/OriginalWindowsBlowtorchHeatSmoke.swift -o "$tmp/native-blowtorch"
 "$tmp/native-blowtorch"
+swiftc ios/CMOriginalRocketStageMachine.swift tests/OriginalRocketStageMachineSmoke.swift -o "$tmp/rocket-stage"
+"$tmp/rocket-stage"
 swiftc ios/CMOriginalRocketAnchorTelemetry.swift tests/OriginalRocketAnchorTelemetrySmoke.swift -o "$tmp/rocket-anchors"
 "$tmp/rocket-anchors"
 # Continuous original rocket force applied only to the exact native

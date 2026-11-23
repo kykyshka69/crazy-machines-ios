@@ -419,6 +419,8 @@ jobs:
         run: |
           swiftc ios/CMOriginalWindowsBlowtorchHeat.swift tests/OriginalWindowsBlowtorchHeatSmoke.swift -o /tmp/cm-native-blowtorch
           /tmp/cm-native-blowtorch
+          swiftc ios/CMOriginalRocketStageMachine.swift tests/OriginalRocketStageMachineSmoke.swift -o /tmp/cm-real-rocket-stage
+          /tmp/cm-real-rocket-stage
           swiftc ios/CMOriginalRocketAnchorTelemetry.swift tests/OriginalRocketAnchorTelemetrySmoke.swift -o /tmp/cm-original-rocket-anchors
           /tmp/cm-original-rocket-anchors
           swiftc ios/CMOriginalWindowsNamedRegionRegistry.swift tests/OriginalWindowsNamedRegionRegistrySmoke.swift -o /tmp/cm-native-marker-registry
