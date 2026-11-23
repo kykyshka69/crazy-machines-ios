@@ -22,14 +22,16 @@ struct OriginalWindowsElectricalGoalsSmoke {
                     object("tmo_power_generator"),
                     object("tmo_power_generator", goal: false),
                     object("tmo_pipe_whistle"),
-                    object("tmo_pipe_whistle", goal: false)
+                    object("tmo_pipe_whistle", goal: false),
+                    object("tmo_belt_flag"),
+                    object("tmo_belt_flag", goal: false)
                 ]]
             ]]
         ]
         let document = try CMOriginalSceneDocument.read(
             JSONSerialization.data(withJSONObject: root))
         let session = CMOriginalGameplaySession(document: document)
-        precondition(session.objects.count == 11)
+        precondition(session.objects.count == 13)
         let ids = session.objects.map(\.id)
         let powered = [ids[0]: Float(10), ids[1]: Float(3),
                        ids[2]: Float(1.5), ids[3]: Float(10),
@@ -88,6 +90,28 @@ struct OriginalWindowsElectricalGoalsSmoke {
         precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
             session: session, powerByDeviceID: [:],
             steamPressureByObjectID: [ids[10]: 2]).isEmpty)
-        print("Recovered Win32 GOAL: lamp, lightning, bell, motor abs(-power)>0.5 and generator abs(rotor)>1; no switch tap")
+        // A native level-34 GOAL requires real telescope state +0x90,
+        // source +0xEC, and the absolute accumulated travel +0x284.
+        // An electrically powered flag, generic wheel contact or
+        // invented telemetry for a GOAL-free object never counts.
+        typealias Flag = CMOriginalWindowsBeltFlag
+        let qualified = Flag.ObservedState(
+            telescopeIndicator: Flag.nativeTelescopeMarker,
+            flagState: 0, accumulatedTravel: 2)
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [ids[11]: 10]).isEmpty)
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            beltFlagRuntimeByObjectID: [ids[11]: qualified]) == [ids[11]])
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            beltFlagRuntimeByObjectID: [ids[12]: qualified]).isEmpty)
+        let tooShort = Flag.ObservedState(
+            telescopeIndicator: Flag.nativeTelescopeMarker,
+            flagState: 0, accumulatedTravel: 1.99)
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            beltFlagRuntimeByObjectID: [ids[11]: tooShort]).isEmpty)
+        print("Recovered Win32 GOAL: electrical sources, steam and native belt-flag telescope state; no metadata-only win")
     }
 }

@@ -19,13 +19,27 @@ public enum CMOriginalWindowsElectricalGoals {
         generatorRotorCommandsByDeviceID: [String: Float] = [:],
         // Original whistle receives steam from a real physical pressure
         // component, NOT an electrical cable or ordinary collision.
-        steamPressureByObjectID: [String: Float] = [:]
+        steamPressureByObjectID: [String: Float] = [:],
+        // Native belt-flag telescopic state and accumulated travel, never
+        // inferred from a rotating UCM wheel or a GOAL annotation alone.
+        beltFlagRuntimeByObjectID: [String: CMOriginalWindowsBeltFlag.ObservedState] = [:]
     ) -> Set<String> {
         var active = Set<String>()
         for object in session.objects {
             guard object.goalAnnotation == "1"
                     || object.fields["GOAL"]?.contains("1") == true
             else { continue }
+            // Original level 34 carries GOAL on tmo_belt_flag. Its
+            // two x86 GOAL call sites at 0x44FA58/0x44FAA1 compare the
+            // actual telescope/flag/native travel state, not rotation.
+            // Missing runtime observations MUST NOT credit a puzzle.
+            if object.type == "tmo_belt_flag" {
+                if let state = beltFlagRuntimeByObjectID[object.id],
+                   CMOriginalWindowsBeltFlag.triggersGoal(state) {
+                    active.insert(object.id)
+                }
+                continue
+            }
             // Native x87 0x44C7DF tests only the C0 less-than flag,
             // so the original steam-whistle GOAL includes pressure = 1.
             // This channel is entirely separate from electrical voltage.

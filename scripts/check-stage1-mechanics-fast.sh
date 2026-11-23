@@ -13,3 +13,7 @@ swiftc ios/CMOriginalWindowsMechanicalTransfer.swift     ios/CMOriginalGearConta
 swiftc ios/CMOriginalWindowsMechanicalTransfer.swift     tests/OriginalWindowsMechanicalTransferSmoke.swift -o "$tmp/native-motion"
 "$tmp/native-motion"
 printf '%s\n' "Stage-1 focused native-mechanics checks passed; iOS app NOT built."
+
+# Native Win32 belt-flag GOAL gate from actual level-34 telescope states.
+swiftc ios/CMOriginalWindowsBeltFlag.swift tests/OriginalWindowsBeltFlagSmoke.swift -o "$tmp/original-flag"
+"$tmp/original-flag"
