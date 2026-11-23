@@ -2,7 +2,7 @@ import unittest
 import sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
-from audit_windows_rocket_exe import verify, SITES, REGION_SITES, FORCE_SITES
+from audit_windows_rocket_exe import verify, SITES, REGION_SITES, FORCE_SITES, VELOCITY_SITES
 
 class RocketAuditSmoke(unittest.TestCase):
     def test_wrong_exe_rejected(self):
@@ -48,6 +48,12 @@ class RocketAuditSmoke(unittest.TestCase):
         self.assertEqual(FORCE_SITES[0x44F27D], "e8 ee 71 fd ff")
         self.assertEqual(FORCE_SITES[0x486408], "d8 80 08 01 00 00")
         self.assertEqual(FORCE_SITES[0x486418], "d8 80 0c 01 00 00")
+
+    def test_original_rocket_velocity_loader(self):
+        self.assertEqual(len(VELOCITY_SITES), 3)
+        self.assertEqual(VELOCITY_SITES[0x422D35], "68 30 94 4e 00")
+        self.assertEqual(VELOCITY_SITES[0x422D81], "d9 9a fc 00 00 00")
+        self.assertEqual(VELOCITY_SITES[0x44F219], "8b 91 fc 00 00 00")
 
     def test_empty_rejected(self):
         with self.assertRaisesRegex(ValueError, "SHA-256"):

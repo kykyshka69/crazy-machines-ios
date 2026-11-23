@@ -193,6 +193,8 @@ swiftc ios/CMOriginalRocketAnchorTelemetry.swift tests/OriginalRocketAnchorTelem
 # rocket child on measured flying/Engine/+0xFC evidence.
 swiftc ios/CMOriginalWindowsRocketForce.swift ios/CMOriginalRocketForceDelivery.swift tests/OriginalRocketForceDeliverySmoke.swift -o "$tmp/rocket-delivery"
 "$tmp/rocket-delivery"
+swiftc ios/CMOriginalWindowsRocketVelocity.swift tests/OriginalWindowsRocketVelocitySmoke.swift -o "$tmp/original-rocket-velocity"
+"$tmp/original-rocket-velocity"
 # Original rocket state 2 + real engine countdown >3 seconds => state 3,
 # never invent an ignition, physics explosion, or puzzle GOAL.
 swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsRegionSelector.swift ios/CMOriginalWindowsRocketTimer.swift tests/OriginalWindowsRocketTimerSmoke.swift \

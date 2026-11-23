@@ -419,6 +419,8 @@ jobs:
         run: |
           swiftc ios/CMOriginalRocketAnchorTelemetry.swift tests/OriginalRocketAnchorTelemetrySmoke.swift -o /tmp/cm-original-rocket-anchors
           /tmp/cm-original-rocket-anchors
+          swiftc ios/CMOriginalWindowsRocketVelocity.swift tests/OriginalWindowsRocketVelocitySmoke.swift -o /tmp/cm-native-rocket-velocity
+          /tmp/cm-native-rocket-velocity
           swiftc ios/CMOriginalWindowsRocketForce.swift tests/OriginalWindowsRocketForceSmoke.swift -o /tmp/cm-original-rocket-force
           swiftc ios/CMOriginalWindowsRocketForce.swift ios/CMOriginalRocketForceDelivery.swift tests/OriginalRocketForceDeliverySmoke.swift -o /tmp/cm-original-rocket-delivery
           /tmp/cm-original-rocket-delivery

@@ -70,6 +70,12 @@ FORCE_SITES = {
     0x486460:"d8 80 18 01 00 00", # physics torque accumulator
     0x486492:"d8 80 20 01 00 00", # last torque component
 }
+# Original Win32 VELOCITY field is stored into child +0xFC at load time.
+VELOCITY_SITES = {
+    0x422D35:"68 30 94 4e 00",     # native literal VELOCITY
+    0x422D81:"d9 9a fc 00 00 00", # parsed Float32 -> +0xFC
+    0x44F219:"8b 91 fc 00 00 00", # rocket Engine reads +0xFC
+}
 def verify(exe: bytes) -> dict:
     if hashlib.sha256(exe).hexdigest()!=SHA:
         raise ValueError("Original CrazyMachines.exe SHA-256 mismatch")
@@ -93,10 +99,12 @@ def verify(exe: bytes) -> dict:
                 pos=raw+va-start
                 if pos+n<=len(exe):return exe[pos:pos+n]
         raise ValueError("Native original rocket address not mapped")
-    for address,code in {**SITES,**REGION_SITES,**FORCE_SITES}.items():
+    for address,code in {**SITES,**REGION_SITES,**FORCE_SITES,**VELOCITY_SITES}.items():
         expected=bytes.fromhex(code)
         if read(address,len(expected))!=expected:
             raise ValueError("Native original rocket x86 mismatch at "+hex(address))
+    if read(0x4E9430,9)!=b"VELOCITY\0":
+        raise ValueError("Original native VELOCITY script keyword mismatch")
     if read(0x4EC8A0,11)!=b"tmo_candle\0":
         raise ValueError("Original candle heat source selector mismatch")
     if read(0x4ECA2C,16)!=b"tmo_heat_rocket\0":
@@ -114,6 +122,7 @@ def verify(exe: bytes) -> dict:
     return {"x86_sites":len(SITES),
             "native_region_geometry_sites":len(REGION_SITES),
             "native_force_sites":len(FORCE_SITES),
+            "native_velocity_sites":len(VELOCITY_SITES),
             "native_region_plane":"XY", "ignited_state":1,
             "native_candle_ignition_cutoff":
                 struct.unpack("<f",read(0x4EDDE8,4))[0],

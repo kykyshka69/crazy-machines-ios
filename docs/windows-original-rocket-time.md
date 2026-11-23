@@ -197,3 +197,24 @@ observe +0xFC or an activated Engine child, so its new input is empty
 by default. This patch establishes the real physical force delivery
 path, not an authentic successfully flying rocket. Owner-real runtime
 telemetry + genuine source heat regions remain necessary.
+
+## Verified initial native +0xFC comes from VELOCITY (2026-11-23)
+
+Real SHA-256-matched owner Win32 EXE at `0x422D35` reads the
+literal `VELOCITY` property (ASCII `0x4E9430`) and at `0x422D81`
+writes its parsed Float32 to the native child's `+0xFC`.
+Rocket Engine at `0x44F219` reads the SAME `+0xFC` offset before
+multiplying the `Direction+0x30` vector into planar force.
+
+The authentic decrypted `elements.fsc` for
+`tmo_heat_rocket_rocket` has `VELOCITY 4.0`, separately
+`VALF 0.125`. Thus **original INITIAL +0xFC is 4.0** unless an
+original per-level VELOCITY field overrides it. The iOS source now
+recovers this initializer from actual original CML and decrypted FSC,
+never hardcoding 4.0 into a physics frame. Tests reject malformed
+and conflicting overrides and wrong object types. The native EXE
+byte sites and actual VELOCITY literal are SHA-pinned.
+
+It remains necessary to verify how/if runtime +0xFC changes before
+or during Engine flight. This initial scalar does NOT itself prove
+native parent state2, Engine activation, ignition or a puzzle GOAL.

@@ -61,6 +61,27 @@ struct CMOriginalQuickPlayView: View {
     @State private var experimentalMagnetism = false
     @State private var experimentalWiredPower = false
     @State private var powerCircuit: CMOriginalPowerCircuit?
+    /// Genuine original script `VELOCITY` initializes rocket child
+    /// +0xFC. This is not per-frame evidence of Engine activation.
+    private var initialOriginalRocketVelocities: [String: Float] {
+        var values: [String: Float] = [:]
+        for child in originalSession.objects
+            where child.type == "tmo_heat_rocket_rocket" {
+            guard let parentID = child.parentID,
+                  originalSession.objects.contains(where: {
+                    $0.id == parentID && $0.type == "tmo_heat_rocket"
+                  }),
+                  let evidence = CMOriginalWindowsRocketVelocity.initialChildFC(
+                    originalChildType: child.type,
+                    sceneFields: child.fields,
+                    originalTemplateFields:
+                        originalWindowsTemplates?[child.type]?.originalProperties
+                  ) else { continue }
+            values[child.id] = evidence.initialChildFC
+        }
+        return values
+    }
+
     // Original generator owner ID → observed signed rotor speed.
     @State private var generatorRotorSpeedsByDeviceID: [String: Float] = [:]
     // Measured angle of the authentic disrupter wheel (+0xD0 on Windows).
@@ -901,6 +922,16 @@ struct CMOriginalQuickPlayView: View {
                 Text("Original rocket frames: \(observedOriginalRocketAnchors.count); physical centers: \(observedOriginalRocketAnchors.filter { $0.worldDynamicBodyCenter != nil }.count)")
                     .font(.caption.weight(.medium))
                     .accessibilityIdentifier("cm.original.rocket-frames")
+            }
+
+            if experimentalPhysics &&
+                originalSession.objects.contains(where: {
+                    $0.type == "tmo_heat_rocket_rocket"
+                }) {
+                Text("Original rocket VELOCITY source records: \\(initialOriginalRocketVelocities.count)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("cm.original.rocket-initial-velocity")
             }
 
             if experimentalPhysics && hasOriginalSolarCell {

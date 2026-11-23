@@ -45,6 +45,8 @@ swiftc ios/CMOriginalRocketAnchorTelemetry.swift tests/OriginalRocketAnchorTelem
 # rocket child on measured flying/Engine/+0xFC evidence.
 swiftc ios/CMOriginalWindowsRocketForce.swift ios/CMOriginalRocketForceDelivery.swift tests/OriginalRocketForceDeliverySmoke.swift -o "$tmp/rocket-delivery"
 "$tmp/rocket-delivery"
+swiftc ios/CMOriginalWindowsRocketVelocity.swift tests/OriginalWindowsRocketVelocitySmoke.swift -o "$tmp/original-rocket-velocity"
+"$tmp/original-rocket-velocity"
 # Both ORIGINAL rocket phases 1→2 and 2→3 use separate engine
 # clocks and strict >3 seconds. No fabricated heat ignition or GOAL.
 swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsRegionSelector.swift ios/CMOriginalWindowsRocketTimer.swift tests/OriginalWindowsRocketTimerSmoke.swift -o "$tmp/original-rocket"
