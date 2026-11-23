@@ -53,6 +53,13 @@ public enum CMOriginalGearContactTransfer {
         // when BOTH original coefficients exist. Keep contact-point radii
         // to turn bounded corrective slip into physical SceneKit torque.
         // Without original coefficients, fall back to no-slip geometry.
+        // In the 102 owner-verified scenes both gear-contact components
+        // carry original VALF. If a damaged/new import has only ONE,
+        // do not silently replace the known native ratio with a guessed
+        // radius-based connection. Preserve legacy all-nil diagnostic
+        // fixtures but reject mixed real/unknown evidence.
+        guard (nativeFirstVALF == nil) == (nativeSecondVALF == nil)
+        else { return nil }
         let slip: Float
         if let firstVALF = nativeFirstVALF,
            let secondVALF = nativeSecondVALF {

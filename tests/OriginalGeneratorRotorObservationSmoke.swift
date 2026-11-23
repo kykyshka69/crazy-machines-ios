@@ -12,7 +12,13 @@ struct OriginalGeneratorRotorObservationSmoke {
         precondition(P.report(previous: 0.03, measured: 0) == 0)
         precondition(P.report(previous: 0.03, measured: 0.009) == 0)
         precondition(P.report(previous: 0, measured: 0) == nil)
-        precondition(P.report(previous: 0, measured: 0.02) == nil)
+        // Very slow but real rotor movement must START electrical output.
+        // Numeric poll debounce cannot silently switch off a generator.
+        precondition(P.report(previous: 0, measured: 0.02) == 0.02)
+        precondition(P.report(previous: 0, measured: -0.02) == -0.02)
+        // Signed rotor reversal changes the downstream motor command.
+        precondition(P.report(previous: 0.03, measured: -0.02) == -0.02)
+        precondition(P.report(previous: -0.03, measured: 0.02) == 0.02)
         precondition(P.report(previous: 0, measured: 0.1) == 0.1)
         precondition(P.report(previous: .nan, measured: 0.1) == nil)
         precondition(P.report(previous: nil, measured: .infinity) == nil)

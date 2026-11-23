@@ -16,6 +16,12 @@ public enum CMOriginalGeneratorRotorObservation {
         if let previous {
             if speed == 0 && previous != 0 { return 0 }
             if speed == 0 && previous == 0 { return nil }
+            // Native power is abs(rotor +0xE8), not a binary
+            // 0.05-threshold switch. The ordinary display debounce must
+            // never suppress a first nonzero observed rotor movement or
+            // a real reversal of direction at low speed.
+            if previous == 0 && speed != 0 { return speed }
+            if previous.sign != speed.sign { return speed }
             if abs(previous - speed) < prototypePollDelta { return nil }
         } else if speed == 0 {
             // No source exists yet: avoid inventing a start event at zero.

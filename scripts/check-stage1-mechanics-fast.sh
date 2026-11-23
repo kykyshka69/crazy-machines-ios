@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Fast Stage-1 native-mechanics regression: NO Xcode, app bundle or simulator.
+# Use between batches of changes. Run full CI once when a related feature
+# group is ready, not on every small implementation commit.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+swiftc ios/CMOriginalGeneratorRotorObservation.swift     tests/OriginalGeneratorRotorObservationSmoke.swift -o "$tmp/generator"
+"$tmp/generator"
+swiftc ios/CMOriginalWindowsMechanicalTransfer.swift     ios/CMOriginalGearContactTransfer.swift     tests/OriginalGearContactTransferSmoke.swift -o "$tmp/gears"
+"$tmp/gears"
+swiftc ios/CMOriginalWindowsMechanicalTransfer.swift     tests/OriginalWindowsMechanicalTransferSmoke.swift -o "$tmp/native-motion"
+"$tmp/native-motion"
+printf '%s\n' "Stage-1 focused native-mechanics checks passed; iOS app NOT built."

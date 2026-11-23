@@ -114,3 +114,23 @@ ratio instead of relying only on the imported mesh radius guess.
 The native `+0x84` angular speed/torque mapping remains unknown:
 SceneKit friction and force gain are still **experimental**, and this
 change does not manufacture a selector-5 link or a GOAL event.
+
+### Focused Stage-1 mechanics checkpoint (2026-11-23)
+
+Native `tmo_power_generator_rotor` electricity must not wait for a
+SceneKit UI polling threshold: a newly measured nonzero rotor command, or a
+reversal of its sign, now propagates immediately even below the renderer's
+0.05 ordinary update debounce. The existing 0.01 rest tolerance remains
+an explicitly experimental numerical threshold, not a recovered Windows
+current/torque constant.
+
+The original per-gear/conveyor UCM `VALF` values were present in all
+220 relevant authentic mechanism instances previously audited. When a
+partially damaged scene provides just one of the two native coefficients,
+a real mechanical contact will now refuse the guessed geometry fallback,
+rather than pretending the native gear ratio is known.
+
+For local validation between edits, run
+`bash scripts/check-stage1-mechanics-fast.sh`. No full iOS build is
+triggered by that script; batch source edits and run Xcode/CI only once
+at a later integration checkpoint.

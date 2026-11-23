@@ -77,6 +77,18 @@ struct OriginalGearContactTransferSmoke {
         precondition(native(3, -5)!.second > 0)
         precondition(native(3, -3) != nil)
         precondition(native(3, -3.75, 0.125, 0) == nil)
+        precondition(G.correction(firstKind: "tmo_belt_gear",
+            secondKind: "tmo_belt_conveyer_wheel",
+            firstRadius: 0.12, secondRadius: 0.09,
+            firstAngularSpeed: 3, secondAngularSpeed: 0,
+            firstMass: 1, secondMass: 1,
+            nativeFirstVALF: 0.125, nativeSecondVALF: nil) == nil)
+        precondition(G.correction(firstKind: "tmo_belt_gear",
+            secondKind: "tmo_belt_conveyer_wheel",
+            firstRadius: 0.12, secondRadius: 0.09,
+            firstAngularSpeed: 3, secondAngularSpeed: 0,
+            firstMass: 1, secondMass: 1,
+            nativeFirstVALF: nil, nativeSecondVALF: 0.1) == nil)
         precondition(native(0, 0) == nil)
         // Symmetric under SceneKit's arbitrary contact A/B ordering.
         let ab = native(3, 0)!
