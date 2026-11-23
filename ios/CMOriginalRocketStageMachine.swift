@@ -82,12 +82,14 @@ public struct CMOriginalRocketTerminalGate {
     /// iOS heat geometry is currently a SceneKit projection, so this
     /// yields an explicitly RECONSTRUCTED playable win, not proof that
     /// the native selector/effect runtime has reached identical values.
+    /// Authentic UCM marker evidence is mandatory; a visual TGA file is
+    /// optional and must never decide whether gameplay completes.
     public static func supportsReconstructedGoal(
         originalParentType: String,
         originalChildType: String,
         originalParentGoal: String?,
         phase: CMOriginalRocketStageMachine.Phase,
-        genuineOriginalExplodeTexture: Bool,
+        genuineOriginalExplodeMarker: Bool,
         originalChildPhysicsRetired: Bool
     ) -> Bool {
         guard originalParentType == "tmo_heat_rocket",
@@ -97,7 +99,7 @@ public struct CMOriginalRocketTerminalGate {
                 in: .whitespacesAndNewlines)),
               goal != 0,
               phase == .ended,
-              genuineOriginalExplodeTexture,
+              genuineOriginalExplodeMarker,
               originalChildPhysicsRetired else { return false }
         return true
     }

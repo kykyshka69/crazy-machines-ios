@@ -649,8 +649,10 @@ struct CMOriginalQuickPlayView: View {
                 onOriginalReconstructedRocketGoal: { parentID, childID in
                     // Recreate the original 0x44F354 goal channel only after
                     // the real rocket model finished its iOS heat/fuse/Engine
-                    // sequence, an original Explode TGA was present, and the
-                    // matching child rigid body was retired exactly once.
+                    // sequence, original Explode UCM marker was present,
+                    // and the child rigid body was retired exactly once.
+                    // The graphical TGA is optional: missing visual assets
+                    // cannot block the physical puzzle's objective.
                     // Heat-region/effect parity with PC remains unverified.
                     // The terminal event was captured on an ALREADY
                     // running renderer frame. A subsequent user Pause before
@@ -673,7 +675,7 @@ struct CMOriginalQuickPlayView: View {
                                 originalChildType: child.type,
                                 originalParentGoal: parent.goalAnnotation,
                                 phase: .ended,
-                                genuineOriginalExplodeTexture: true,
+                                genuineOriginalExplodeMarker: true,
                                 originalChildPhysicsRetired: true)
                     else { return }
                     _ = windowsGoalCounter?.recordGoalEvent(

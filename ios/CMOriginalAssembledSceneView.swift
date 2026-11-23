@@ -185,7 +185,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalCandleRocketHeatPairs:
         (([CMOriginalRocketCandleHeatPair.Observation]) -> Void)? = nil
     // Win32 0x44F354 GOAL branch recreated in SceneKit after authentic
-    // UCM Explode texture and one-shot physical retirement. This is an
+    // UCM Explode marker and one-shot physical retirement. This is an
     // explicitly reconstructed gameplay event, NOT native runtime proof.
     var onOriginalReconstructedRocketGoal: ((String, String) -> Void)? = nil
 
@@ -1950,9 +1950,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     // The user's original Professor 24 and 58 each
                     // contain a GOAL-marked rocket parent. Original Win32
                     // sends this channel-0 event AFTER Explode and disposal.
-                    // Use exact CML identity, original TGA and retired
-                    // SceneKit child as an iOS-reconstructed input. Never
-                    // award a GOAL just from elapsed time or proximity.
+                    // Use exact CML identity, original UCM Explode anchor
+                    // and retired SceneKit child as the gameplay evidence.
+                    // An optional TGA texture load never controls win state.
+                    // Never credit GOAL from elapsed time or proximity.
                     let originalParentGoal = session?.objects.first(where: {
                         $0.id == parentID
                     })?.goalAnnotation
@@ -1961,9 +1962,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         originalChildType: originalTypesByID[childID] ?? "",
                         originalParentGoal: originalParentGoal,
                         phase: phase,
-                        genuineOriginalExplodeTexture:
-                            !(rocketOriginalExplosionSpritesByChildID[
-                                childID] ?? []).isEmpty,
+                        genuineOriginalExplodeMarker:
+                            exactOriginalAnchor("Explode", on: childID) != nil,
                         originalChildPhysicsRetired: owner.physicsBody == nil
                     ) {
                         DispatchQueue.main.async { [weak self] in

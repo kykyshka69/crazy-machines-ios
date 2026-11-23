@@ -55,13 +55,13 @@ import Foundation
                   child: String = "tmo_heat_rocket_rocket",
                   flag: String? = "1",
                   phase: R.Phase = .ended,
-                  effect: Bool = true, retired: Bool = true) -> Bool {
+                  marker: Bool = true, retired: Bool = true) -> Bool {
             CMOriginalRocketTerminalGate.supportsReconstructedGoal(
                 originalParentType: type,
                 originalChildType: child,
                 originalParentGoal: flag,
                 phase: phase,
-                genuineOriginalExplodeTexture: effect,
+                genuineOriginalExplodeMarker: marker,
                 originalChildPhysicsRetired: retired)
         }
         precondition(goal())
@@ -72,7 +72,10 @@ import Foundation
         precondition(!goal(type: "tmo_crate"))
         precondition(!goal(child: "tmo_heat_rocket_mount"))
         precondition(!goal(phase: .flying))
-        precondition(!goal(effect: false))
+        // An original UCM Explode anchor, NOT a successfully loaded
+        // optional rocket_effect.tga sprite, is the gameplay requirement.
+        precondition(goal(marker: true))
+        precondition(!goal(marker: false))
         precondition(!goal(retired: false))
         print("Real UCM rocket terminal cleanup and reconstructed Win32 goal gate: PASS")
     }
