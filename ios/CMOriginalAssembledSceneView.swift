@@ -1366,15 +1366,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 .map { $0.key }.sorted().prefix(64)
             var heatPairs: [CMOriginalRocketCandleHeatPair.Observation] = []
             for candleID in litCandleIDs {
-                let sourceNodes = (originalNamedAnchorNodesByObjectID[
-                    candleID
-                ] ?? []).filter {
-                    guard let fullName = $0.name else { return false }
-                    return CMOriginalRocketAnchorTelemetry
-                        .originalName(inSceneNodeName: fullName) == "Heat"
-                }
-                guard sourceNodes.count == 1,
-                      let sourceNode = sourceNodes.first,
+                // The original level-58 candle contains BOTH
+                // candle_body.ucm and candle.ucm. Both expose the SAME
+                // real Heat attachment at (0, 0.2147, 0) with the
+                // identical +Z forward basis. Accept coincident real
+                // attachments but never invent an arbitrary winner
+                // when their physical frames differ.
+                guard let sourceNode = exactOriginalAnchor(
+                        "Heat", on: candleID),
                       let fullSourceName = sourceNode.name,
                       let originalSourceName = CMOriginalRocketAnchorTelemetry
                         .originalName(inSceneNodeName: fullSourceName),
@@ -1678,7 +1677,27 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     return CMOriginalRocketAnchorTelemetry.originalName(
                         inSceneNodeName: full) == name
                 }
-            return nodes.count == 1 ? nodes[0] : nil
+            guard let first = nodes.first else { return nil }
+            let a = first.presentation.simdWorldTransform
+            let ap = a.columns.3, az = a.columns.2
+            let fields = [ap.x, ap.y, ap.z, az.x, az.y, az.z]
+            guard fields.allSatisfy(\.isFinite) else { return nil }
+            // Genuine candle_body.ucm and candle.ucm duplicate the exact
+            // Heat attachment. They represent ONE physical emitter.
+            // Duplicates are safe only when origin and oriented +Z
+            // agree in world space. Otherwise reject ambiguous records.
+            for node in nodes.dropFirst() {
+                let b = node.presentation.simdWorldTransform
+                let p = b.columns.3, z = b.columns.2
+                let differences = [
+                    p.x - ap.x, p.y - ap.y, p.z - ap.z,
+                    z.x - az.x, z.y - az.y, z.z - az.z
+                ]
+                guard differences.allSatisfy({
+                    $0.isFinite && abs($0) <= Float(0.0001)
+                }) else { return nil }
+            }
+            return first
         }
 
         /// A playable original-geometry reconstruction: live lit-candle
