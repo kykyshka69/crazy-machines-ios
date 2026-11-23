@@ -43,6 +43,10 @@ swiftc ios/CMOriginalWindowsBlowtorchHeat.swift tests/OriginalWindowsBlowtorchHe
 "$tmp/native-blowtorch"
 swiftc ios/CMOriginalRocketStageMachine.swift tests/OriginalRocketStageMachineSmoke.swift -o "$tmp/rocket-stage"
 "$tmp/rocket-stage"
+# Power cables attach to the literal original UCM Wire marker,
+# never the center or the mating Plug marker.
+swiftc ios/CMOriginalPowerCableAnchor.swift tests/OriginalPowerCableAnchorSmoke.swift -o "$tmp/original-power-wire"
+"$tmp/original-power-wire"
 # Authentic mobile candle Heat UCM on moving original SceneKit bodies.
 # Separate from Win32 native dynamic-candle region/effect proofs.
 swiftc ios/CMOriginalRocketSceneHeatSources.swift tests/OriginalRocketSceneHeatSourcesSmoke.swift -o "$tmp/rocket-moving-candles"

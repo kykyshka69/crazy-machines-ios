@@ -421,6 +421,8 @@ jobs:
           /tmp/cm-native-blowtorch
           swiftc ios/CMOriginalRocketStageMachine.swift tests/OriginalRocketStageMachineSmoke.swift -o /tmp/cm-real-rocket-stage
           /tmp/cm-real-rocket-stage
+          swiftc ios/CMOriginalPowerCableAnchor.swift tests/OriginalPowerCableAnchorSmoke.swift -o /tmp/cm-original-power-wire
+          /tmp/cm-original-power-wire
           swiftc ios/CMOriginalRocketSceneHeatSources.swift tests/OriginalRocketSceneHeatSourcesSmoke.swift -o /tmp/cm-original-mobile-candle
           /tmp/cm-original-mobile-candle
           swiftc ios/CMOriginalWindowsDynamicCandleTilt.swift tests/OriginalWindowsDynamicCandleTiltSmoke.swift -o /tmp/cm-native-moving-candle-tilt

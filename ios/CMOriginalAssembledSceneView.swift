@@ -748,6 +748,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // the original 8px power_cable.tga; native tube tessellation is
         // not independently known. The user's exact CML plug IDs govern.
         private var originalCablePlugOwners: [String: SCNNode] = [:]
+        // Actual power_plug.ucm "Wire" attachment is at local
+        // (0, 0, -0.0836), DIFFERENT from the "Plug" socket and its
+        // owner pivot. Retain genuine moving SCNNode marker references.
+        private var originalCableWireMarkers: [String: SCNNode] = [:]
         private var originalCableNodes:
             [CMOriginalPowerCircuit.Cable: SCNNode] = [:]
         private weak var originalCableSceneRoot: SCNNode?
@@ -996,6 +1000,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
                 originalCableNodes.removeAll()
                 originalCablePlugOwners.removeAll()
+                originalCableWireMarkers.removeAll()
                 originalCableMaterial = nil
                 originalCableSceneRoot = scene.rootNode
                 let known = Set((session?.objects ?? [])
@@ -1014,11 +1019,35 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 for duplicate in duplicates {
                     originalCablePlugOwners.removeValue(forKey: duplicate)
                 }
+                // Every original power_plug.ucm has distinct named
+                // attachment frames "Plug" (socket) and "Wire" (wire exit).
+                // A cable must be anchored at the *Wire* frame, not at
+                // the owner center where the previous tube originated.
+                for (id, owner) in originalCablePlugOwners {
+                    var candidates: [SCNNode] = []
+                    owner.enumerateChildNodes { node, _ in
+                        guard let mesh = node.parent
+                            as? CMOriginalObjectMeshNode,
+                            mesh.originalObjectID == id
+                        else { return }
+                        candidates.append(node)
+                    }
+                    let names = candidates.map { marker in
+                        CMOriginalRocketAnchorTelemetry.originalName(
+                            inSceneNodeName: marker.name ?? "") ?? ""
+                    }
+                    guard let index = CMOriginalPowerCableAnchor
+                        .uniqueWireMarkerIndex(
+                            originalOwnerType: "tmo_power_plug",
+                            originalUCMNames: names)
+                    else { continue }
+                    originalCableWireMarkers[id] = candidates[index]
+                }
             }
             let desired = Set(requested.filter {
                 $0.firstPlugID != $0.secondPlugID &&
-                originalCablePlugOwners[$0.firstPlugID] != nil &&
-                originalCablePlugOwners[$0.secondPlugID] != nil
+                originalCableWireMarkers[$0.firstPlugID] != nil &&
+                originalCableWireMarkers[$0.secondPlugID] != nil
             })
             for (pair, cable) in originalCableNodes
                 where !desired.contains(pair) {
@@ -1051,13 +1080,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             refreshOriginalCableGeometryLocked()
         }
 
-        /// SceneKit cylinders are oriented from real moving plug-owner
-        /// centers every frame. Exact original source/receiver CML IDs
-        /// are preserved. This is presentation only, never power physics.
+        /// SceneKit cylinders follow exact moving `Wire` UCM anchors at
+        /// the ORIGINAL plug's cable exit, not model pivots or guessed
+        /// geometric centers. CML cable IDs remain authoritative, and
+        /// the visual is never an electrical/physics simulation itself.
         private func refreshOriginalCableGeometryLocked() {
             for (pair, visual) in originalCableNodes {
-                guard let left = originalCablePlugOwners[pair.firstPlugID],
-                      let right = originalCablePlugOwners[pair.secondPlugID]
+                guard let left = originalCableWireMarkers[pair.firstPlugID],
+                      let right = originalCableWireMarkers[pair.secondPlugID]
                 else { visual.isHidden = true; continue }
                 let a = left.presentation.simdWorldPosition
                 let b = right.presentation.simdWorldPosition
