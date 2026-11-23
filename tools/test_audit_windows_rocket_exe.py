@@ -14,6 +14,20 @@ class RocketAuditSmoke(unittest.TestCase):
         self.assertIn(0x44CD79, SITES)  # write state 1
         self.assertIn(0x44EF6D, SITES)  # separate Engine clock
         self.assertIn(0x44F354, SITES)  # original GOAL 0
+    def test_native_ignition_and_two_independent_rocket_timers(self):
+        # Physical heat region produces a genuine threshold sample;
+        # a literal candle tap or the GOAL metadata cannot bypass it.
+        self.assertEqual(SITES[0x44E112], "68 a0 c8 4e 00")
+        self.assertEqual(SITES[0x44E3BD], "e8 8e b2 fb ff")
+        self.assertEqual(SITES[0x44E3D7], "75 64")
+        # Exactly one original 0->1 timestamp, then Engine child clock.
+        self.assertEqual(SITES[0x44CD79],
+                         "c7 81 ec 00 00 00 00 00 80 3f")
+        self.assertEqual(SITES[0x44EC72], "dc a1 30 01 00 00")
+        self.assertEqual(SITES[0x44EF6D], "dd 99 30 01 00 00")
+        self.assertEqual(SITES[0x44F296], "dc a0 30 01 00 00")
+        self.assertEqual(SITES[0x44F354], "e8 07 c1 ff ff")
+
     def test_empty_rejected(self):
         with self.assertRaisesRegex(ValueError, "SHA-256"):
             verify(b"")
