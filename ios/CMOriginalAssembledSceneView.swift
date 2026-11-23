@@ -954,6 +954,22 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             return nil
         }
 
+        /// Visible cables cannot steal taps from the genuine original
+        /// CML plug UCM mesh beneath them. Keep the fast normal hit path.
+        private func originalObjectHit(
+            in view: SCNView, at point: CGPoint
+        ) -> SCNHitTestResult? {
+            let nearest = view.hitTest(
+                point, options: [.firstFoundOnly: true]).first
+            guard nearest?.node.name == "original-player-power-cable"
+            else { return nearest }
+            return view.hitTest(
+                point, options: [.firstFoundOnly: false])
+                .first(where: {
+                    $0.node.name != "original-player-power-cable"
+                })
+        }
+
         private func physicalNode(for node: SCNNode?) -> SCNNode? {
             var current = node
             while let candidate = current {
@@ -2625,8 +2641,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             guard gesture.state == .began,
                   let view = gesture.view as? SCNView else { return }
             if physicsEnabled {
-                guard let node = view.hitTest(gesture.location(in: view),
-                                              options: [.firstFoundOnly: true]).first?.node,
+                guard let node = originalObjectHit(
+                       in: view, at: gesture.location(in: view))?.node,
                       let physical = physicalNode(for: node),
                       let body = physical.physicsBody else { return }
                 // A pending hinge selection must not survive a body-type
@@ -2656,7 +2672,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
             guard
                   let selected = highlighted,
-                  view.hitTest(gesture.location(in: view), options: [.firstFoundOnly: true]).first?.node === selected,
+                  originalObjectHit(
+                       in: view, at: gesture.location(in: view))?.node === selected,
                   let owner = originalOwner(for: selected),
                   owner.isUnlockedInOriginalLevel,
                   let identifier = owner.name,
@@ -2694,10 +2711,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             guard gestureRecognizer is UIPanGestureRecognizer else { return true }
             guard !physicsEnabled,
                   let view = gestureRecognizer.view as? SCNView,
-                  let hit = view.hitTest(
-                    gestureRecognizer.location(in: view),
-                    options: [.firstFoundOnly: true]
-                  ).first,
+                  let hit = originalObjectHit(
+                     in: view, at: gestureRecognizer.location(in: view)
+                   ),
                   originalOwner(for: hit.node)?.isUnlockedInOriginalLevel == true
             else { return false }
             return true
@@ -2833,7 +2849,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             switch gesture.state {
             case .began:
                 guard !physicsEnabled,
-                      let hit = view.hitTest(point, options: [.firstFoundOnly: true]).first,
+                      let hit = originalObjectHit(in: view, at: point),
                       let owner = originalOwner(for: hit.node),
                       owner.isUnlockedInOriginalLevel else { return }
                 // Select the dragged original UCM for consistent tint and
@@ -2916,8 +2932,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             guard physicsEnabled, gesture.state == .ended,
                   let view = gesture.view as? SCNView,
                   let scene = view.scene,
-                  let node = view.hitTest(gesture.location(in: view),
-                                          options: [.firstFoundOnly: true]).first?.node,
+                  let node = originalObjectHit(
+                       in: view, at: gesture.location(in: view))?.node,
                   // The temporary support floor and hinge markers are not
                   // original parts. Never let them become hinge endpoints.
                   node is CMOriginalObjectMeshNode,
@@ -2965,9 +2981,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             let b = node.presentation.convertPosition(SCNVector3Zero, to: nil)
             // Use the actual visible surface hit on the second part as
             // the attachment location, rather than a midpoint of pivots.
-            let hits = view.hitTest(gesture.location(in: view),
-                                    options: [.firstFoundOnly: true])
-            let anchor = hits.first?.worldCoordinates ?? SCNVector3(
+            let anchor = originalObjectHit(
+                in: view, at: gesture.location(in: view))?.worldCoordinates ?? SCNVector3(
                 (a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2)
             // Reject hinges based on the nearest visible surfaces, not the
             // distance between model pivots. Original UCM pivots can be far
@@ -3194,7 +3209,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             guard let view = gesture.view as? SCNView,
                   gesture.state == .ended, !dragWasActive else { return }
             let point = gesture.location(in: view)
-            let hit = view.hitTest(point, options: [.firstFoundOnly: true]).first
+            let hit = originalObjectHit(in: view, at: point)
             let node = hit?.node
             if physicsEnabled {
                 // Explicitly configured prototype mechanisms can be started
