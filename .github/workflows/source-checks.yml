@@ -431,7 +431,9 @@ jobs:
           /tmp/cm-native-regions
           swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsRegionSelector.swift ios/CMOriginalWindowsRocketTimer.swift tests/OriginalWindowsRocketTimerSmoke.swift -o /tmp/cm-rocket-fuse
           /tmp/cm-rocket-fuse
-          swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsRegionSelector.swift ios/CMOriginalWindowsRocketTimer.swift ios/CMOriginalWindowsRocketNativeHeat.swift tests/OriginalWindowsRocketNativeHeatSmoke.swift -o /tmp/cm-native-rocket-heat
+          swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsCandleHeatFactory.swift tests/OriginalWindowsCandleHeatFactorySmoke.swift -o /tmp/cm-native-candle-cone
+          /tmp/cm-native-candle-cone
+          swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsRegionSelector.swift ios/CMOriginalWindowsRocketTimer.swift ios/CMOriginalWindowsCandleHeatFactory.swift ios/CMOriginalWindowsRocketNativeHeat.swift tests/OriginalWindowsRocketNativeHeatSmoke.swift -o /tmp/cm-native-rocket-heat
           /tmp/cm-native-rocket-heat
           python3 -m unittest discover -s tools -p 'test_audit_windows_rocket_exe.py'
 

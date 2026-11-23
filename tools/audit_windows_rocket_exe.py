@@ -89,6 +89,20 @@ CANDLE_HEAT_PATH_SITES = {
     0x44E3B7:"8b 8d 38 ff ff ff",    # ECX = source heat cone, NOT rocket cone
     0x44E3BD:"e8 8e b2 fb ff",      # native source cone hit tester 0x409650
 }
+# Exact SHA-matched native tmo_candle cone factory, not invented iOS heat.
+# First selector-3 record -> constructor 0x431E80 sets cone parameters.
+CANDLE_HEAT_FACTORY_SITES = {
+    0x4545C0:"68 a8 d2 4e 00",
+    0x4545D8:"6a 00 6a 03",
+    0x4545FE:"e8 7d d8 fd ff",
+    0x432046:"68 00 00 80 3f",
+    0x432053:"68 00 00 88 41",
+    0x432060:"68 cd cc 4c 3e",
+    0x43206D:"68 cd cc 4c 3f",
+    0x43207A:"6a 00 68 00 00 80 3f 6a 00",
+    0x432094:"8b 45 08 83 c0 24",
+    0x4320A9:"89 51 20",
+}
 def verify(exe: bytes) -> dict:
     if hashlib.sha256(exe).hexdigest()!=SHA:
         raise ValueError("Original CrazyMachines.exe SHA-256 mismatch")
@@ -112,12 +126,14 @@ def verify(exe: bytes) -> dict:
                 pos=raw+va-start
                 if pos+n<=len(exe):return exe[pos:pos+n]
         raise ValueError("Native original rocket address not mapped")
-    for address,code in {**SITES,**REGION_SITES,**FORCE_SITES,**VELOCITY_SITES,**CANDLE_HEAT_PATH_SITES}.items():
+    for address,code in {**SITES,**REGION_SITES,**FORCE_SITES,**VELOCITY_SITES,**CANDLE_HEAT_PATH_SITES,**CANDLE_HEAT_FACTORY_SITES}.items():
         expected=bytes.fromhex(code)
         if read(address,len(expected))!=expected:
             raise ValueError("Native original rocket x86 mismatch at "+hex(address))
     if read(0x4E9430,9)!=b"VELOCITY\0":
         raise ValueError("Original native VELOCITY script keyword mismatch")
+    if read(0x4ED2A8,11)!=b"tmo_candle\0":
+        raise ValueError("Original candle cone constructor type mismatch")
     if read(0x4EC8A0,11)!=b"tmo_candle\0":
         raise ValueError("Original candle heat source selector mismatch")
     if read(0x4ECA2C,16)!=b"tmo_heat_rocket\0":
@@ -137,6 +153,7 @@ def verify(exe: bytes) -> dict:
             "native_force_sites":len(FORCE_SITES),
             "native_velocity_sites":len(VELOCITY_SITES),
             "native_candle_heat_path_sites":len(CANDLE_HEAT_PATH_SITES),
+            "native_candle_heat_factory_sites":len(CANDLE_HEAT_FACTORY_SITES),
             "native_region_plane":"XY", "ignited_state":1,
             "native_candle_ignition_cutoff":
                 struct.unpack("<f",read(0x4EDDE8,4))[0],

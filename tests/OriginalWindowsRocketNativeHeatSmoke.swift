@@ -78,6 +78,19 @@ import Foundation
         precondition(ignition(source(2)) == nil)
         precondition(ignition(source(), receiver(at: .init(15, 20))) == nil)
         precondition(ignition(source(), receiver(at: .init(6, 20))) == nil)
+        // Actual 17-degree candle cone passes through the SAME native
+        // source +0x20 / receiver +0x24, selector and effect gate.
+        let realCandleShape = H.SourceCone.originalCandle(
+            selectedRecordIndex: 1, coordinateFrameID: "native-A",
+            nativeOrigin: .init(10, 20),
+            observedNativeAxis: .init(0, 1))!
+        precondition(measure(realCandleShape, receiver(at: .init(10, 20.35))) != nil)
+        precondition(ignition(realCandleShape, receiver(at: .init(10, 20.35)))?.state == 1)
+        precondition(ignition(realCandleShape, receiver(at: .init(10, 20.6))) == nil)
+        precondition(H.SourceCone.originalCandle(
+            selectedRecordIndex: 1, coordinateFrameID: "native-A",
+            nativeOrigin: .init(10, 20),
+            observedNativeAxis: .init(0, 0)) == nil)
         print("Win32 native source cone +0x20 / rocket receiver +0x24 chain: PASS")
     }
 }

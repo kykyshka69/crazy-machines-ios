@@ -268,3 +268,33 @@ real rocket timer. No original native region records or effect events
 have been observed on an iPhone, so this path is **not wired to launch
 the rocket automatically**. SceneKit UCM Heat-marker proximity remains
 diagnostic evidence only, never a native selector-3 hit or a GOAL.
+
+## Original candle's actual source cone parameters recovered (2026-11-23)
+
+**New genuine original executable finding:** `0x4545C0` compares the
+literal original `tmo_candle`, requests its FIRST native selector-3
+region at `0x4545D8` and calls the source cone constructor `0x431E80`
+at `0x4545FE` (when no cone is yet attached). This constructor sets:
+- **source intensity 1.0** at `0x432046` to native +0x48,
+- **half angle 17 degrees** at `0x432053`, native `0x448820` writes
+  +0x40 radians and +0x44 reciprocal,
+- **near scale 0.2** at `0x432060` using `0x4486B0→0x409860`,
+- **far extension +0.8** at `0x43206D` using `0x409D70`,
+- local direction `(0,1,0)` at `0x43207A` through `0x448720`,
+- original region +0x24 anchoring at `0x432094` and constructed cone
+  pointer stored into its +0x20 at `0x4320A9`.
+
+All **10** assembly byte sites, the type string, and the original EXE
+SHA-256 were checked directly against the user's actual recovered PE32.
+`CMOriginalWindowsCandleHeatFactory` now rebuilds original angular,
+inner/outer squared radius and attenuation from these constants
+without a guessed iOS radius. A separate source+receiver native bridge
+can use `SourceCone.originalCandle(...observedNativeAxis:)` once its
+actual runtime native origin/frame/axis are available. Local Swift
+regressions passed both the shape and full selector+ignition chain.
+
+**Unfinished:** the region's live native source position and **rotated**
+axis (the original local `0,1,0` is not automatically the world vector),
+the receiver's native region position, actual thermal ignition effect
+and the two real rocket clocks. Do not award a GOAL based on UCM
+marker distance or these constants alone.

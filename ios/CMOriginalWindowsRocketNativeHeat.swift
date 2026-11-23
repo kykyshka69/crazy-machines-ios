@@ -20,6 +20,21 @@ public enum CMOriginalWindowsRocketNativeHeat {
         public let coordinateFrameID: String
         public let nativeOrigin: Point // native source cone +0x00
         public let parameters: CMOriginalWindowsWindRegion.Parameters
+        /// Source cone shape reconstructed from original candle constants.
+        /// Actual native region origin and rotated axis still must be read
+        /// from original runtime, never inferred from UCM proximity.
+        public static func originalCandle(
+            selectedRecordIndex: Int, coordinateFrameID: String,
+            nativeOrigin: Point,
+            observedNativeAxis: CMOriginalWindowsWindRegion.Vector3
+        ) -> SourceCone? {
+            guard let shape = CMOriginalWindowsCandleHeatFactory.parameters(
+                observedNativeAxis: observedNativeAxis) else { return nil }
+            return SourceCone(selectedRecordIndex: selectedRecordIndex,
+                              coordinateFrameID: coordinateFrameID,
+                              nativeOrigin: nativeOrigin, parameters: shape)
+        }
+
         public init(selectedRecordIndex: Int, coordinateFrameID: String,
                     nativeOrigin: Point,
                     parameters: CMOriginalWindowsWindRegion.Parameters) {
