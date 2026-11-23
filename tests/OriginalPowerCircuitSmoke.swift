@@ -176,6 +176,27 @@ struct OriginalPowerCircuitSmoke {
             powerByDeviceID: closedSignal).isEmpty)
         precondition(net.unwiredTerminalCount == 8)
         precondition(net.reachableDevices() == [sourceID])
+        // Independent battery seeds are not evidence of current in the
+        // direct cable: Win32 skips recursion into a second battery.
+        var dualRaw = raw
+        dualRaw["root"] = ["name": "level", "fields": [], "children": [
+            ["name": "level_elements", "fields": [], "children": [
+                device("tmo_power_battery", [11]),
+                device("tmo_power_battery", [12])
+            ]]
+        ]]
+        let dualDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: dualRaw))
+        var dual = CMOriginalPowerCircuit(session:
+            CMOriginalGameplaySession(document: dualDoc))!
+        precondition(dual.terminals.count == 2)
+        precondition(dual.toggleCable(between: dual.terminals[0].plugID,
+                                      and: dual.terminals[1].plugID) == .connected)
+        let independent = dual.experimentalBatterySignals()
+        precondition(independent.count == 2)
+        precondition(independent.values.allSatisfy { $0 == 10 })
+        precondition(dual.experimentalCablePowerSignals(
+            powerByDeviceID: independent).isEmpty)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
