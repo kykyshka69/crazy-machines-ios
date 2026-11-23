@@ -1704,8 +1704,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 else { continue }
                 let target = exactOriginalAnchor("Heat", on: childID)?
                     .presentation.simdWorldTransform.columns.3
+                // Genuine heat_rocket_rocket.ucm Direction marker has
+                // local Y=(0,0,-1) and Z=(0,1,0); its plane-forward
+                // vector is local +Z, NOT the out-of-plane Y axis.
+                // The incorrect Y basis made planar thrust always zero.
                 let direction = exactOriginalAnchor("Direction", on: childID)?
-                    .presentation.simdWorldTransform.columns.1
+                    .presentation.simdWorldTransform.columns.2
                 let body = physicsNodesByObjectID[childID]?
                     .first(where: { $0.physicsBody?.type == .dynamic })?
                     .physicsBody
@@ -1714,7 +1718,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 if let target {
                     for source in sources {
                         let origin = source.columns.3
-                        let axis = source.columns.1
+                        // The ACTUAL candle.ucm Heat attachment has
+                        // local Y=(0,0,-1) and Z=(0,1,0). Its local +Z
+                        // is the flame's forward XY direction. Using
+                        // marker +Y fed a zero XY axis into 0x409650,
+                        // so a candle could NEVER heat any receiver.
+                        let axis = source.columns.2
                         guard let fraction = CMOriginalWindowsRocketNativeHeat
                             .projectedUCMHeatFraction(
                                 observedSourceWorldYAxis: .init(
