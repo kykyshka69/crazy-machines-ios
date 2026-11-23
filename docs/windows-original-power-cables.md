@@ -34,3 +34,32 @@ The iOS player can select two imported original `tmo_power_plug` meshes before s
 - VSC binary script execution and all per-mechanism callbacks. Original VSC files have not been decoded into source by the FSC key; the fact that Windows itself can execute them is not evidence that the iOS implementation can.
 
 This prevents false claims of faithfully running electrical puzzles or all 102 levels. It replaces phantom connections with a conservative native event/topology foundation for continuing recovery.
+## Recovered native connector walk: multiport transmission (2026-11-23)
+
+New direct disassembly of the user's hash-verified original executable (same
+SHA-256 as above) clarifies the native `0x44C8A0` traversal:
+
+- `0x44C8BE–0x44C8D5` checks and writes traversal guard byte `+0x178`
+  (visited state 2) on the current attached native component.
+- `0x44C8DD–0x44C8F8` zeroes source electrical scalar `+0x40` if the
+  source's still-unidentified `+0x50` pointer is present, then copies this
+  scalar to the receiving endpoint. The meaning of the `+0x50` field is
+  not yet recovered; do not manufacture its state from CML `VALF`.
+- `0x44C911–0x44C982` enumerates the physical connector slots tagged
+  `0xFE` and identifies the incoming one; the loop excludes the incoming
+  slot when a different output slot exists, then copies the scalar to
+  the next output's `+0x40`.
+- `0x44C98B–0x44CAC8` applies the already verified switch contact and
+  disrupter wheel gates. `0x44CBD6–0x44CC37` recursively traverses
+  another physical connection **except when its connected native object
+  is `tmo_power_battery`** (exact type string at `0x4EC648`).
+
+The 102 original CML scene exports contain genuine power motors and lamps
+with more than one `tmo_power_plug` (including motor instances with 2–3
+plugs). Previously the iOS experimental graph always stopped at a motor
+or lamp even when two different physical ends were actually cabled.
+`CMOriginalPowerCircuit` now supports that *explicit multiport* route,
+without pairing by proximity or using original terminal numbers as voltages.
+Switch/disrupter/conditional source behavior retains stricter independent
+restrictions. This is an evidence-based topology improvement, **not yet
+voltage/current, load drop, source-mixing or Win32 full circuit parity**.

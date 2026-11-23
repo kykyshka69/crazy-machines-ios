@@ -1,18 +1,26 @@
-# Crazy Machines — iOS research
+# Crazy Machines — original PC game to iOS
 
-Private reverse-engineering workspace for investigating the original Crazy Machines game's proprietary UCM model format and preparing a future iOS implementation.
+**Active working branch:** [`work/original-3d-scene-batch`](https://github.com/kykyshka69/crazy-machines-ios/tree/work/original-3d-scene-batch).
 
-## Verified status
-- The original Windows game and extracted resources are available **outside this repository**.
-- UCM model files use a `UCM1` signature; the complete multi-section geometry, UV and materials layout is **not yet decoded**.
-- A reference to `FAKT3D_GFX_MODEL` was traced in the Windows executable. The related function at `0x4756F0` is a **candidate** model handler, not a confirmed UCM decoder.
-- There is **no playable iOS port** at this time.
+**READ THIS FIRST BEFORE EDITING ANYTHING:** [`PROJECT_STATUS.md`](PROJECT_STATUS.md), especially the **START HERE** section. It records verified commits and GitHub Actions outcomes, exact unfinished Stage 1 mechanics, and the next coding task. The `main` branch is divergent and must not be used for a duplicate port.
 
-## Next engineering work
-1. Disassemble the candidate model-handler function and establish its callers and callees.
-2. Verify a concrete code path that reads UCM bytes.
-3. Build reproducible tests using local game assets; do not commit copyrighted game files.
-4. Decode the full model layout and validate against original assets before attempting gameplay reconstruction.
+## What already exists
 
-## Legal and data hygiene
-Do not commit original game binaries, models, textures, audio, level data or game installer. Research scripts and independently authored notes only.
+This is an actual SwiftUI/SceneKit iOS application project with original CML scene decoding, original UCM 3D mesh and TGA texture loading, 102 privately imported Professor scenes, user placement controls, a Windows GOAL/CONNECTED_TO counter and evidence-limited experimental mechanics. **It builds and its public iOS Simulator UI tests run.** Public CI uses copyright-free synthetic scene fixtures and intentionally skips private original-level tests. This does **NOT** mean all 102 original puzzles are playable with faithful Windows physics or have been completed.
+
+## Current work
+
+**Stage 1 remains OPEN.** Finish original electrical power routing and blocking, physical transmission between motors/gears/belts and other mechanisms, event dispatch, and original start/run/stop/victory behavior. Run authentic owner-only original levels in an actual iOS Simulator and verify all 102 end-to-end before marking Stage 1 complete. Do not announce percentages or replace the PC game with a synthetic imitation.
+
+## Code and test entrypoints
+
+- `PROJECT_STATUS.md` — canonical continuation and evidence log.
+- `ios/CMOriginalQuickPlayView.swift` — original level player and event coordination.
+- `ios/CMOriginalAssembledSceneView.swift` — original UCM SceneKit assembly and physics.
+- `ios/CMOriginalPowerCircuit.swift` — experimental explicit plug topology.
+- `ios/CMOriginalWindowsGoalCounter.swift` — recovered dual-channel Win32 completion gate.
+- `scripts/run-local-checks.sh` — portable tests; `.github/workflows/` — iOS Simulator, iPhone ARM64 and source checks.
+
+## Copyright and resource safety
+
+Keep the user's proprietary PC installer, executable, `.cmassets` pack, CML, UCM, TGA, scripts and original level contents **out of public Git commits and public CI**. Synthetic fixture art is test-only and cannot be presented as a screenshot from a genuine PC level.

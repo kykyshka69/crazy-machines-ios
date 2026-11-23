@@ -52,6 +52,7 @@ public struct CMOriginalPowerCircuit {
     private let solarDeviceIDs: Set<String>
     private let conditionalSourceDeviceIDs: Set<String>
     private let passthroughDeviceIDs: Set<String>
+    private let multiTerminalLoadDeviceIDs: Set<String>
     private let switchDeviceIDs: Set<String>
     private let disrupterDeviceIDs: Set<String>
 
@@ -89,6 +90,25 @@ public struct CMOriginalPowerCircuit {
         passthroughDeviceIDs = Set(all.filter {
             $0.deviceType == "tmo_power_distributor"
         }.map(\.deviceID))
+        // The original Win32 0x44C950–0x44CC37 forwards a physically
+        // connected signal through remaining connector slots (+0xFE),
+        // excluding its incoming slot; it stops before recursively entering
+        // an original tmo_power_battery. A load with two or more genuine
+        // tmo_power_plug children can therefore be an explicit wired path.
+        // Keep unobserved generator/solar back-feed and actual switch or
+        // disrupter physics behind their separate conservative gates.
+        let byDevice = Dictionary(grouping: all, by: \.deviceID)
+        multiTerminalLoadDeviceIDs = Set(byDevice.compactMap { entry in
+            guard entry.value.count >= 2,
+                  let kind = entry.value.first?.deviceType,
+                  kind != "tmo_power_battery",
+                  kind != "tmo_power_generator",
+                  kind != "tmo_power_solarcell",
+                  kind != "tmo_power_switch",
+                  kind != "tmo_power_disrupter"
+            else { return nil }
+            return entry.key
+        })
         switchDeviceIDs = Set(all.filter {
             $0.deviceType == "tmo_power_switch"
         }.map(\.deviceID))
@@ -125,7 +145,9 @@ public struct CMOriginalPowerCircuit {
     /// only established local source *category*. Moving generators and solar
     /// panels require separate, real mechanical/light observations before
     /// adding them as sources. Closed switches pass through; open ones stop.
-    /// Non-conducting loads are endpoints, never accidental bridges.
+    /// A single-terminal load is an endpoint. Multi-terminal loads only
+    /// forward through actual paired cables, consistent with the original
+    /// Win32 per-connector recursion; this remains a scalar prototype.
     public func reachableDevices(
         closedSwitchIDs: Set<String> = [],
         externallyActiveSourceIDs: Set<String> = [],
@@ -142,7 +164,8 @@ public struct CMOriginalPowerCircuit {
 
     /// Strict reachability through explicitly authored cable pairs, using
     /// the authentic original plug owner IDs. Loads do not transmit, and
-    /// open original switches cut off downstream devices.
+    /// open original switches cut off downstream devices; batteries never
+    /// become unintended reverse feed-through nodes.
     private func devicesReachable(
         from sources: Set<String>, closedSwitchIDs: Set<String>,
         disrupterRotorAnglesByDeviceID: [String: Float],
@@ -163,6 +186,7 @@ public struct CMOriginalPowerCircuit {
             head += 1
             let transmits = sources.contains(current)
                 || passthroughDeviceIDs.contains(current)
+                || multiTerminalLoadDeviceIDs.contains(current)
                 || (switchDeviceIDs.contains(current)
                     && (switchContactsByDeviceID[current].map {
                         CMOriginalWindowsSwitchContactGate.preservesPower($0) == true
