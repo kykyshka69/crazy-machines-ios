@@ -156,6 +156,38 @@ struct OriginalWindowsRocketTimerSmoke {
         precondition(hit(.init(4, 0, 50_000))?.state == 1)
         precondition(hit(.init(4, 0, .nan))?.state == 1)
         precondition(hit(.init(0, 0, 4)) == nil)
+
+        // Original candle and rocket each select their own native
+        // selector-3 FIRST record, not an arbitrary nearby 3D region.
+        typealias N = CMOriginalWindowsRegionSelector
+        let candleRecords: [N.Entry] = [
+            .init(linkedNativeSelector: nil),
+            .init(linkedNativeSelector: 3),
+            .init(linkedNativeSelector: 3)]
+        let rocketRecords: [N.Entry] = [
+            .init(linkedNativeSelector: 2),
+            .init(linkedNativeSelector: 3)]
+        func selected(_ candleIndex: Int = 1, _ rocketIndex: Int = 1,
+                      source: [N.Entry]? = nil,
+                      target: [N.Entry]? = nil) -> R.ObservedIgnition? {
+            R.ignitionAfterObservedSelectedCandleRegions(
+                nativeRocketState: 0, nativeHeatSourceType: "tmo_candle",
+                originalCandleLit: true,
+                sourceNativeRegionRecords: source ?? candleRecords,
+                rocketNativeRegionRecords: target ?? rocketRecords,
+                observedSourceRegionRecordIndex: candleIndex,
+                observedRocketRegionRecordIndex: rocketIndex,
+                observedNativeHeatRegion: nativeRegion,
+                observedNativeDisplacement: .init(4, 0),
+                originalIgnitionEffectObserved: true,
+                observedNativeClock: 4)
+        }
+        precondition(selected()?.state == 1 && selected()?.ignitionTime == 4)
+        precondition(selected(0, 1) == nil)
+        precondition(selected(2, 1) == nil)
+        precondition(selected(1, 0) == nil)
+        precondition(selected(1, 1, source: []) == nil)
+        precondition(selected(1, 1, target: [.init(linkedNativeSelector: nil)]) == nil)
         print("Native Win32 rocket: actual flying 2, live engine, time >3 sec, terminal state 3")
     }
 }

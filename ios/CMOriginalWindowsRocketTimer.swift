@@ -87,6 +87,40 @@ public enum CMOriginalWindowsRocketTimer {
             observedNativeClock: observedNativeClock)
     }
 
+
+    /// Both original objects must use their OWN first linked selector-3
+    /// native region (0x44E12E and 0x44E3A4, via 0x420360).
+    /// Recorded physical geometry may not be borrowed from any adjacent
+    /// or unmatched native region; missing records fail closed.
+    public static func ignitionAfterObservedSelectedCandleRegions(
+        nativeRocketState: Float,
+        nativeHeatSourceType: String,
+        originalCandleLit: Bool,
+        sourceNativeRegionRecords: [CMOriginalWindowsRegionSelector.Entry],
+        rocketNativeRegionRecords: [CMOriginalWindowsRegionSelector.Entry],
+        observedSourceRegionRecordIndex: Int,
+        observedRocketRegionRecordIndex: Int,
+        observedNativeHeatRegion: CMOriginalWindowsWindRegion.Parameters,
+        observedNativeDisplacement: CMOriginalWindowsWindRegion.Vector3,
+        originalIgnitionEffectObserved: Bool,
+        observedNativeClock: Double
+    ) -> ObservedIgnition? {
+        guard let source = CMOriginalWindowsRegionSelector
+                    .matchingEntryIndex(in: sourceNativeRegionRecords),
+              let target = CMOriginalWindowsRegionSelector
+                    .matchingEntryIndex(in: rocketNativeRegionRecords),
+              source == observedSourceRegionRecordIndex,
+              target == observedRocketRegionRecordIndex else { return nil }
+        return ignitionAfterObservedNativeCandleRegion(
+            nativeRocketState: nativeRocketState,
+            nativeHeatSourceType: nativeHeatSourceType,
+            originalCandleLit: originalCandleLit,
+            observedNativeHeatRegion: observedNativeHeatRegion,
+            observedNativeDisplacement: observedNativeDisplacement,
+            originalIgnitionEffectObserved: originalIgnitionEffectObserved,
+            observedNativeClock: observedNativeClock)
+    }
+
     public static let flyingState: Float = 2
     public static let explodedState: Float = 3
     public static let fuseSeconds: Double = 3

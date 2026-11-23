@@ -29,7 +29,7 @@ class RocketAuditSmoke(unittest.TestCase):
         self.assertEqual(SITES[0x44F354], "e8 07 c1 ff ff")
 
     def test_native_heat_region_plane_and_selector_are_pinned(self):
-        self.assertEqual(len(REGION_SITES), 8)
+        self.assertEqual(len(REGION_SITES), 12)
         # Both vectors have Z forcibly overwritten with zero.
         self.assertEqual(REGION_SITES[0x40966D],
                          "c7 45 f8 00 00 00 00")
@@ -39,6 +39,8 @@ class RocketAuditSmoke(unittest.TestCase):
         self.assertEqual(REGION_SITES[0x44E3A4], "6a 00 6a 03")
         self.assertEqual(REGION_SITES[0x420522], "0f b6 48 10")
         self.assertEqual(REGION_SITES[0x44E3B3], "83 c0 24")
+        self.assertEqual(REGION_SITES[0x420530], "3b 45 0c")
+        self.assertEqual(REGION_SITES[0x42054B], "83 c0 01")
 
     def test_empty_rejected(self):
         with self.assertRaisesRegex(ValueError, "SHA-256"):

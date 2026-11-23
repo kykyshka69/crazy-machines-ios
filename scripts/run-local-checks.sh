@@ -120,7 +120,7 @@ swiftc ios/CMOriginalWindowsPowerScalar.swift tests/OriginalWindowsPowerScalarSm
   -o "$tmp/original-win32-power-scalar"
 "$tmp/original-win32-power-scalar"
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
-  ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsSteamWhistle.swift ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsBeltFlag.swift ios/CMOriginalWindowsFlower.swift ios/CMOriginalWindowsRocketTimer.swift ios/CMOriginalWindowsElectricalGoals.swift \
+  ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsSteamWhistle.swift ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsBeltFlag.swift ios/CMOriginalWindowsFlower.swift ios/CMOriginalWindowsRegionSelector.swift ios/CMOriginalWindowsRocketTimer.swift ios/CMOriginalWindowsElectricalGoals.swift \
   tests/OriginalWindowsElectricalGoalsSmoke.swift -o "$tmp/original-electrical-goals"
 "$tmp/original-electrical-goals"
 # Genuine generator is a mechanism-driven source, not an always-on battery.
@@ -162,7 +162,7 @@ swiftc ios/CMOriginalWindowsSolarSignal.swift tests/OriginalWindowsSolarSignalSm
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsSwitchContactGate.swift \
   ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalWindowsPowerScalar.swift \
-  ios/CMOriginalWindowsSteamWhistle.swift ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsBeltFlag.swift ios/CMOriginalWindowsFlower.swift ios/CMOriginalWindowsRocketTimer.swift ios/CMOriginalWindowsElectricalGoals.swift \
+  ios/CMOriginalWindowsSteamWhistle.swift ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsBeltFlag.swift ios/CMOriginalWindowsFlower.swift ios/CMOriginalWindowsRegionSelector.swift ios/CMOriginalWindowsRocketTimer.swift ios/CMOriginalWindowsElectricalGoals.swift \
   tests/OriginalWindowsSolarCircuitSmoke.swift -o "$tmp/original-solar-circuit"
 "$tmp/original-solar-circuit"
 # Authentic pocketlamp angular cone / native near and far beam constants.
@@ -171,9 +171,13 @@ swiftc ios/CMOriginalWindowsBeamRegion.swift ios/CMOriginalWindowsBeamFactory.sw
 "$tmp/original-pocketlamp"
 # Original Windows GOAL dispatcher SHA gate; no private EXE in public CI.
 python3 -m unittest discover -s tools -p 'test_audit_windows_goal_calls.py'
+# Verify the actual original region record identity before heat ignition.
+swiftc ios/CMOriginalWindowsRegionSelector.swift tests/OriginalWindowsRegionSelectorSmoke.swift -o "$tmp/native-regions"
+"$tmp/native-regions"
+
 # Original rocket state 2 + real engine countdown >3 seconds => state 3,
 # never invent an ignition, physics explosion, or puzzle GOAL.
-swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsRocketTimer.swift tests/OriginalWindowsRocketTimerSmoke.swift \
+swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsRegionSelector.swift ios/CMOriginalWindowsRocketTimer.swift tests/OriginalWindowsRocketTimerSmoke.swift \
   -o "$tmp/original-rocket-fuse"
 "$tmp/original-rocket-fuse"
 python3 -m unittest discover -s tools -p 'test_audit_windows_rocket_exe.py'
