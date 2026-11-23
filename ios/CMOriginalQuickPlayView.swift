@@ -116,6 +116,8 @@ struct CMOriginalQuickPlayView: View {
     // neither establish original Engine thrust nor dispatch a GOAL.
     @State private var observedOriginalRocketAnchors:
         [CMOriginalRocketAnchorTelemetry.Complete] = []
+    @State private var observedCandleRocketHeatPairs:
+        [CMOriginalRocketCandleHeatPair.Observation] = []
     @State private var firstLevelRun: CMOriginalFirstLevelRun?
     @State private var secondLevelRun: CMOriginalSecondLevelRun?
     @State private var thirdLevelRun: CMOriginalThirdLevelRun?
@@ -307,6 +309,7 @@ struct CMOriginalQuickPlayView: View {
         observedOriginalLeverStrikers.removeAll()
         originalOpticalSightlines.removeAll()
         observedOriginalRocketAnchors.removeAll()
+        observedCandleRocketHeatPairs.removeAll()
         generatorRotorSpeedsByDeviceID.removeAll()
         disrupterAnglesByDeviceID.removeAll()
         firstLevelRun?.reset()
@@ -334,6 +337,7 @@ struct CMOriginalQuickPlayView: View {
         observedOriginalLeverStrikers.removeAll()
         originalOpticalSightlines.removeAll()
         observedOriginalRocketAnchors.removeAll()
+        observedCandleRocketHeatPairs.removeAll()
         generatorRotorSpeedsByDeviceID.removeAll()
         disrupterAnglesByDeviceID.removeAll()
         firstLevelRun?.reset()
@@ -634,6 +638,11 @@ struct CMOriginalQuickPlayView: View {
                     guard eventRevision == sceneRevision,
                           experimentalPhysics && !physicsPaused else { return }
                     observedOriginalRocketAnchors = snapshots
+                },
+                onOriginalCandleRocketHeatPairs: { measured in
+                    guard eventRevision == sceneRevision,
+                          experimentalPhysics && !physicsPaused else { return }
+                    observedCandleRocketHeatPairs = measured
                 }
             )
             .id(sceneRevision)
@@ -882,6 +891,7 @@ struct CMOriginalQuickPlayView: View {
                         observedOriginalLeverStrikers.removeAll()
                         originalOpticalSightlines.removeAll()
         observedOriginalRocketAnchors.removeAll()
+        observedCandleRocketHeatPairs.removeAll()
                         generatorRotorSpeedsByDeviceID.removeAll()
         disrupterAnglesByDeviceID.removeAll()
                         firstLevelRun?.reset()
@@ -932,6 +942,16 @@ struct CMOriginalQuickPlayView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("cm.original.rocket-initial-velocity")
+            }
+
+            if experimentalPhysics &&
+                originalSession.objects.contains(where: {
+                    $0.type == "tmo_heat_rocket"
+                }) {
+                Text("Lit original candle-to-rocket Heat pairs: \\(observedCandleRocketHeatPairs.count); no native ignition")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("cm.original.rocket-heat-pairs")
             }
 
             if experimentalPhysics && hasOriginalSolarCell {
@@ -1094,6 +1114,7 @@ struct CMOriginalQuickPlayView: View {
                     observedOriginalLeverStrikers.removeAll()
                     originalOpticalSightlines.removeAll()
         observedOriginalRocketAnchors.removeAll()
+        observedCandleRocketHeatPairs.removeAll()
                     firstLevelRun?.reset()
         secondLevelRun?.reset()
                         thirdLevelRun?.reset()

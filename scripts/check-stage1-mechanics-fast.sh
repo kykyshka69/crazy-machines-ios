@@ -47,6 +47,10 @@ swiftc ios/CMOriginalWindowsRocketForce.swift ios/CMOriginalRocketForceDelivery.
 "$tmp/rocket-delivery"
 swiftc ios/CMOriginalWindowsRocketVelocity.swift tests/OriginalWindowsRocketVelocitySmoke.swift -o "$tmp/original-rocket-velocity"
 "$tmp/original-rocket-velocity"
+# Genuine lit original candle -> real UCM rocket Heat marker XY.
+# This cannot trigger Win32 native selector-3 ignition by itself.
+swiftc ios/CMOriginalRocketCandleHeatPair.swift tests/OriginalRocketCandleHeatPairSmoke.swift -o "$tmp/candle-rocket-heat"
+"$tmp/candle-rocket-heat"
 # Both ORIGINAL rocket phases 1→2 and 2→3 use separate engine
 # clocks and strict >3 seconds. No fabricated heat ignition or GOAL.
 swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsRegionSelector.swift ios/CMOriginalWindowsRocketTimer.swift tests/OriginalWindowsRocketTimerSmoke.swift -o "$tmp/original-rocket"

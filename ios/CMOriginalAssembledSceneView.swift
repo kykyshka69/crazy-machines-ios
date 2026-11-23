@@ -177,6 +177,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // Real moving original rocket child UCM marker poses, NOT rocket GOAL.
     var onOriginalRocketAnchorSnapshots:
         (([CMOriginalRocketAnchorTelemetry.Complete]) -> Void)? = nil
+    // Actual lit native candle +0xEC and imported UCM Heat geometry.
+    // NOT a native thermal region hit or ignition transition.
+    var onOriginalCandleRocketHeatPairs:
+        (([CMOriginalRocketCandleHeatPair.Observation]) -> Void)? = nil
 
     private var physicsAccessibilityStatus: String {
         let state = experimentalPhysics ? (physicsPaused ? "paused" : "running") : "off"
@@ -417,6 +421,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
         context.coordinator.onOriginalOpticalSightlines = onOriginalOpticalSightlines
         context.coordinator.onOriginalRocketAnchorSnapshots = onOriginalRocketAnchorSnapshots
+        context.coordinator.onOriginalCandleRocketHeatPairs =
+            onOriginalCandleRocketHeatPairs
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
         context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
         context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal
@@ -521,6 +527,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
         context.coordinator.onOriginalOpticalSightlines = onOriginalOpticalSightlines
         context.coordinator.onOriginalRocketAnchorSnapshots = onOriginalRocketAnchorSnapshots
+        context.coordinator.onOriginalCandleRocketHeatPairs =
+            onOriginalCandleRocketHeatPairs
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
         context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
         context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal
@@ -666,6 +674,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalOpticalSightlines: (([CMOriginalOpticalSightline]) -> Void)?
         var onOriginalRocketAnchorSnapshots:
             (([CMOriginalRocketAnchorTelemetry.Complete]) -> Void)?
+        var onOriginalCandleRocketHeatPairs:
+            (([CMOriginalRocketCandleHeatPair.Observation]) -> Void)?
+        private var previousCandleRocketHeatPairs:
+            [CMOriginalRocketCandleHeatPair.Observation] = []
         private var originalRocketChildIDs = Set<String>()
         private var originalRocketParentByChildID: [String: String] = [:]
         private var lastOriginalRocketAnchorPollTime: TimeInterval = -1
@@ -918,6 +930,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             pendingNativeRocketEngineObservations.removeAll()
             lastNativeRocketEngineSequenceByChildID.removeAll()
             previousOriginalRocketAnchorSnapshots.removeAll()
+            previousCandleRocketHeatPairs.removeAll()
             lastOriginalRocketAnchorPollTime = -1
             originalLampBulbMaterials.removeAll()
             originalLampGlowNodes.removeAll()
@@ -1320,6 +1333,52 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     observedDynamicBodyCenter: measuredCenter
                 ) {
                     complete.append(record)
+                }
+            }
+            // Native Win32 source +0xEC comes from the actual gameplay
+            // session. The following links WORLD UCM Heat markers only:
+            // no selector-3 region bounds, therefore never ignite.
+            let litCandleIDs = (session?.originalHeatSourceStates ?? [:])
+                .filter { $0.value && originalTypesByID[$0.key] == "tmo_candle" }
+                .map { $0.key }.sorted().prefix(64)
+            var heatPairs: [CMOriginalRocketCandleHeatPair.Observation] = []
+            for candleID in litCandleIDs {
+                let sourceNodes = (originalNamedAnchorNodesByObjectID[
+                    candleID
+                ] ?? []).filter {
+                    $0.name?.hasPrefix("original-ucm-anchor-heat-") == true
+                }
+                guard sourceNodes.count == 1,
+                      let sourceNode = sourceNodes.first else { continue }
+                let s = sourceNode.presentation.simdWorldTransform.columns.3
+                for rocket in complete {
+                    guard heatPairs.count < 512,
+                          let parentID = originalRocketParentByChildID[
+                            rocket.rocketChildID
+                          ],
+                          let measured = CMOriginalRocketCandleHeatPair.measure(
+                            candleID: candleID,
+                            sourceType: originalTypesByID[candleID] ?? "",
+                            sourceLit: true,
+                            sourceHeatWorld: .init(s.x, s.y, s.z),
+                            rocketParentID: parentID,
+                            rocketChildID: rocket.rocketChildID,
+                            parentType: originalTypesByID[parentID] ?? "",
+                            childType: originalTypesByID[
+                                rocket.rocketChildID
+                            ] ?? "",
+                            targetHeatWorld: .init(
+                                rocket.heat.worldOrigin.x,
+                                rocket.heat.worldOrigin.y,
+                                rocket.heat.worldOrigin.z)
+                          ) else { continue }
+                    heatPairs.append(measured)
+                }
+            }
+            if heatPairs != previousCandleRocketHeatPairs {
+                previousCandleRocketHeatPairs = heatPairs
+                DispatchQueue.main.async { [weak self] in
+                    self?.onOriginalCandleRocketHeatPairs?(heatPairs)
                 }
             }
             guard complete != previousOriginalRocketAnchorSnapshots else { return }

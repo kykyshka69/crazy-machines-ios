@@ -72,3 +72,18 @@ so the counters actually interpolate instead of showing raw syntax.
 The real COM of SceneKit is measured; Win32 native `+0xFC`,
 `Direction+0x30` and Engine activation are still separate missing
 producers and puzzle GOAL is never inferred from this observation.
+
+## Real lit candle source → rocket Heat geometry bridge (2026-11-23)
+
+Added `CMOriginalRocketCandleHeatPair`: strict, fail-closed pairing
+of the original active `tmo_candle +0xEC` from the player session,
+exactly one source UCM `Heat` anchor and actual nested
+`tmo_heat_rocket_rocket` UCM `Heat` anchor. The SceneKit renderer
+samples moving world coordinates, reports true world XY displacements,
+and sends bounded, revision-protected observations to the original
+level player UI. Tests cover unlit sources, invalid types/owners,
+nonfinite and missing frames, and XY-plane-only displacement.
+
+These world-space UCM points do NOT reconstruct the Win32 selector-3
+region +0x24 geometry or its local reference frame and must NEVER
+trigger `CMOriginalWindowsRocketTimer` ignition or GOAL alone.
