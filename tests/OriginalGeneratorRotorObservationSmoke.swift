@@ -27,6 +27,15 @@ struct OriginalGeneratorRotorObservationSmoke {
         precondition(P.sourceUnavailable(previous: 0.02) == 0)
         precondition(P.sourceUnavailable(previous: -2) == 0)
         precondition(P.sourceUnavailable(previous: .nan) == 0)
+        // All recovered strict electrical goal thresholds must survive
+        // the SceneKit reporting debounce, in both directions and signs.
+        for cutoff: Float in [0.5, 1, 3] {
+            let above = cutoff.nextUp
+            precondition(P.report(previous: cutoff, measured: above) == above)
+            precondition(P.report(previous: above, measured: cutoff) == cutoff)
+            precondition(P.report(previous: -cutoff, measured: -above) == -above)
+            precondition(P.report(previous: -above, measured: -cutoff) == -cutoff)
+        }
         var previous: Float? = nil
         for measured: Float in [2, 1, 0.5, 0.1, 0.04, 0.02, 0.007, 0] {
             if let result = P.report(previous: previous, measured: measured) {
