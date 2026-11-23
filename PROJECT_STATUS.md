@@ -1,6 +1,9 @@
 # Crazy Machines — original iOS port: working branch
 
 ## 🚩 START HERE — verified handoff (2026-11-23; stage 1 NOT FINISHED)
+**2026-11-23 ORIGINAL ROCKET FRAME ORIENTATION PRESERVED (focused Swift PASS; [skip ci]):** Real user-private UCM1 rocket `Engine` and `Direction` 4×4 matrices have opposing local orientation axes; XYZ-only SceneKit markers would lose real engine direction. Extended renderer's invisible, original-group-zero marker nodes to use ALL 16 matrix floats, converting original row-major basis/last-row translation into SIMD column vectors. Added synthetic nonidentity-basis regression and actual rocket Engine-vs-Direction native-matrix assertions; `swiftc` tests passed on owner-private original UCM. Actual Apple SDK compilation/physics remains UNVERIFIED for this newest code; no force/explosion/rocket GOAL invented. Stage 1 OPEN.
+
+
 **NEW ORIGINAL UCM1 MARKER PRODUCER (2026-11-23; intermediate [skip ci]):** Recovered actual owner-original model named frames from original UCM1 format, including the candle's `Heat` and rocket's seven slots `Rope`, `Engine`, `Explode`, `Direction`, `Cut`, `Heat`, `Mechanic01`. Decoder `CMOriginalUCMNamedAnchors` reads genuine 16-byte name records and Float32 4×4 matrix for each group+slot, bounds-checks and rejects invalid floats. **Local Swift compilation/test PASSED on synthetic malformed cases AND real owner-private candle and rocket UCM binaries.** In the actual iOS SceneKit scene builder, added invisible/non-colliding group-zero attachment frames at the authored local translation candidates, and tracked their ownership. The recovered anchor is not the native region radius, rocket impulse or physical explosion; full SceneKit integration not verified until a later CI run. **No authentic 102-level playthrough or rocket GOAL has been verified. Stage 1 remains OPEN.**
 
 

@@ -1,5 +1,6 @@
 import SwiftUI
 import SceneKit
+import simd
 
 /// Contact groups for 2.5D physics assembled from original PC objects.
 /// These are SceneKit simulation-layer choices, not Windows collision flags.
@@ -2774,8 +2775,19 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                 frame.name = "original-ucm-anchor-" +
                                     attachment.name.lowercased() +
                                     "-\(attachment.slot)"
-                                let local = attachment.localTranslationCandidate
-                                frame.position = SCNVector3(local[0], local[1], local[2])
+                                // Preserve original full basis AND position.
+                                // UCM stores row-major vectors with translation
+                                // in its final row; SIMD uses column vectors,
+                                // so original rows become SIMD columns.
+                                // Engine, Direction and Explode are differently
+                                // oriented in the authentic rocket UCM.
+                                let a = attachment.matrixRowMajor
+                                frame.simdTransform = simd_float4x4(columns: (
+                                    SIMD4<Float>(a[0], a[1], a[2], a[3]),
+                                    SIMD4<Float>(a[4], a[5], a[6], a[7]),
+                                    SIMD4<Float>(a[8], a[9], a[10], a[11]),
+                                    SIMD4<Float>(a[12], a[13], a[14], a[15])
+                                ))
                                 mesh.addChildNode(frame)
                             }
                             // Collision bodies are attached to the owning tmo_

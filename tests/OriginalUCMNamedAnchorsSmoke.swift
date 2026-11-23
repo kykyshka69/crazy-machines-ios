@@ -23,12 +23,22 @@ struct OriginalUCMNamedAnchorsSmoke {
         }
         put32(&data, matrixOffset+12*4, Float(0.2).bitPattern)
         put32(&data, matrixOffset+64+13*4, Float(0.35).bitPattern)
+        // The authentic rocket includes oriented frames, not merely
+        // translations. Preserve a nonidentity basis in the decoder.
+        put32(&data, matrixOffset+64+5*4, Float(0).bitPattern)
+        put32(&data, matrixOffset+64+6*4, Float(1).bitPattern)
+        put32(&data, matrixOffset+64+9*4, Float(-1).bitPattern)
+        put32(&data, matrixOffset+64+10*4, Float(0).bitPattern)
         let anchors = try CMOriginalUCMNamedAnchors.decode(data)
         precondition(anchors.count == 2)
         precondition(anchors[0].name == "Heat" && anchors[0].slot == 0)
         precondition(anchors[1].name == "Engine" && anchors[1].slot == 1)
         precondition(abs(anchors[0].localTranslationCandidate[0]-0.2)<0.00001)
         precondition(abs(anchors[1].localTranslationCandidate[1]-0.35)<0.00001)
+        precondition(anchors[1].matrixRowMajor[6] == 1)
+        precondition(anchors[1].matrixRowMajor[9] == -1)
+        precondition(anchors[1].matrixRowMajor[5] == 0)
+        precondition(anchors[1].matrixRowMajor[10] == 0)
         var corrupt = data; put32(&corrupt, matrixOffset+12*4, 0x7fc00000)
         do { _ = try CMOriginalUCMNamedAnchors.decode(corrupt); fatalError("accepted NaN") }
         catch CMOriginalUCMNamedAnchors.Error.invalidMatrix { }
@@ -48,6 +58,11 @@ struct OriginalUCMNamedAnchorsSmoke {
             let explode = rocket.first { $0.name == "Explode" }!
             precondition(abs(engine.localTranslationCandidate[1] - 0.05635856) < 0.00001)
             precondition(abs(explode.localTranslationCandidate[1] - 0.36828864) < 0.00001)
+            let direction = rocket.first { $0.name == "Direction" }!
+            precondition(engine.matrixRowMajor[6] > 0.99)
+            precondition(direction.matrixRowMajor[6] < -0.99)
+            precondition(engine.matrixRowMajor[9] < -0.99)
+            precondition(direction.matrixRowMajor[9] > 0.99)
             print("Owner-original Candle and Rocket UCM1 markers verified")
         }
     }
