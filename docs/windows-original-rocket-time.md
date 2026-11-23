@@ -244,3 +244,27 @@ or prove its radius/angle. This precise distinction is required
 before any native thermal coverage can be calculated or rocket GOAL
 credited. Verified against SHA-256
 `51f9beecd9842c67834da9c4fc73be7a1452c9e8149d059729b130a2b9d601e6`.
+
+## Native candle source +0x20 thermal cone to rocket receiver +0x24 (2026-11-23)
+
+Added `CMOriginalWindowsRocketNativeHeat`, a single verified-source
+path through `0x44E12E→0x44E17A→0x44E3A4→0x44E3BD`. It demands:
+- **distinct** first attached selector-3 source and target region records
+  (`0x420360`), rejecting unlinked and neighbouring entries;
+- a source region's actual `+0x20` cone, including native origin, axis,
+  radii, attenuation and angular fields consumed by `0x409650`;
+- a receiver region's separate actual `+0x24` native coordinate in the
+  *same explicitly declared native reference frame*;
+- lit original `tmo_candle`, parent `tmo_heat_rocket` in original
+  state 0, measured heat fraction strictly above the original cutoff
+  `0x3F570A3D`, and independently observed ignition effect+clock.
+
+A new portable source-to-receiver regression exercises source record
+misbinding, bad receiver record, different frame IDs, Z-only changes,
+out-of-cone and below-threshold values, missing effect, wrong parent
+state, and invalid clock. It passed local Swift compilation against
+the existing geometry/selector contracts; Source CI runs it with the
+real rocket timer. No original native region records or effect events
+have been observed on an iPhone, so this path is **not wired to launch
+the rocket automatically**. SceneKit UCM Heat-marker proximity remains
+diagnostic evidence only, never a native selector-3 hit or a GOAL.

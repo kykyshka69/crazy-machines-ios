@@ -199,6 +199,10 @@ swiftc ios/CMOriginalWindowsRocketVelocity.swift tests/OriginalWindowsRocketVelo
 # This cannot trigger Win32 native selector-3 ignition by itself.
 swiftc ios/CMOriginalRocketCandleHeatPair.swift tests/OriginalRocketCandleHeatPairSmoke.swift -o "$tmp/candle-rocket-heat"
 "$tmp/candle-rocket-heat"
+# Win32 source candle's +0x20 cone must be kept distinct from the
+# rocket receiver record +0x24; neither is a UCM Heat proximity check.
+swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsRegionSelector.swift ios/CMOriginalWindowsRocketTimer.swift ios/CMOriginalWindowsRocketNativeHeat.swift tests/OriginalWindowsRocketNativeHeatSmoke.swift -o "$tmp/native-rocket-heat"
+"$tmp/native-rocket-heat"
 # Original rocket state 2 + real engine countdown >3 seconds => state 3,
 # never invent an ignition, physics explosion, or puzzle GOAL.
 swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsRegionSelector.swift ios/CMOriginalWindowsRocketTimer.swift tests/OriginalWindowsRocketTimerSmoke.swift \
