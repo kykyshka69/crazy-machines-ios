@@ -152,6 +152,9 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
 swiftc ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalMotorActuator.swift \
   tests/OriginalMotorActuatorSmoke.swift -o "$tmp/original-motor-drive"
 "$tmp/original-motor-drive"
+# SceneKit generator motor-to-electric stop transition must not keep stale power.
+swiftc ios/CMOriginalGeneratorRotorObservation.swift tests/OriginalGeneratorRotorObservationSmoke.swift -o "$tmp/original-generator-rest"
+"$tmp/original-generator-rest"
 # Exact Win32 solar-ray attenuation, 10x conversion, and solar-only GOAL.
 swiftc ios/CMOriginalWindowsSolarSignal.swift tests/OriginalWindowsSolarSignalSmoke.swift \
   -o "$tmp/original-solar-scalar"

@@ -1305,12 +1305,17 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     else { continue }
                     let rotation = body.angularVelocity
                     let speed = rotation.z < 0 ? -rotation.w : rotation.w
-                    guard speed.isFinite else { continue }
-                    if let old = lastGeneratorScalars[generatorID],
-                       abs(old - speed) < 0.05 { continue }
-                    lastGeneratorScalars[generatorID] = speed
+                    // Do not keep an outdated nonzero generator signal
+                    // just because the new speed is within the polling
+                    // threshold. A rotor entering numerical rest must emit
+                    // a single real ZERO and remove its electrical source.
+                    guard let reported =
+                        CMOriginalGeneratorRotorObservation.report(
+                            previous: lastGeneratorScalars[generatorID],
+                            measured: speed) else { continue }
+                    lastGeneratorScalars[generatorID] = reported
                     DispatchQueue.main.async { [weak self] in
-                        self?.onOriginalGeneratorSignal?(generatorID, speed)
+                        self?.onOriginalGeneratorSignal?(generatorID, reported)
                     }
                 }
             }

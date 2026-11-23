@@ -1,0 +1,28 @@
+import Foundation
+
+@main
+struct OriginalGeneratorRotorObservationSmoke {
+    static func main() {
+        typealias P = CMOriginalGeneratorRotorObservation
+        precondition(P.report(previous: nil, measured: 0) == nil)
+        precondition(P.report(previous: nil, measured: 0.009) == nil)
+        precondition(P.report(previous: nil, measured: -2) == -2)
+        precondition(P.report(previous: -2, measured: -2.01) == nil)
+        precondition(P.report(previous: -2, measured: 0) == 0)
+        precondition(P.report(previous: 0.03, measured: 0) == 0)
+        precondition(P.report(previous: 0.03, measured: 0.009) == 0)
+        precondition(P.report(previous: 0, measured: 0) == nil)
+        precondition(P.report(previous: 0, measured: 0.02) == nil)
+        precondition(P.report(previous: 0, measured: 0.1) == 0.1)
+        precondition(P.report(previous: .nan, measured: 0.1) == nil)
+        precondition(P.report(previous: nil, measured: .infinity) == nil)
+        var previous: Float? = nil
+        for measured: Float in [2, 1, 0.5, 0.1, 0.04, 0.02, 0.007, 0] {
+            if let result = P.report(previous: previous, measured: measured) {
+                previous = result
+            }
+        }
+        precondition(previous == 0)
+        print("Original generator rotor source stop: stale low nonzero power cleared")
+    }
+}

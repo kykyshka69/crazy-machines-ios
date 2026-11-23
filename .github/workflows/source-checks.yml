@@ -364,6 +364,15 @@ jobs:
           swiftc ios/CMOriginalWindowsMechanicalTransfer.swift ios/CMOriginalGearContactTransfer.swift tests/OriginalGearContactTransferSmoke.swift -o /tmp/cm-original-gears
           /tmp/cm-original-gears
 
+  original-generator-rest-observation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check real generator rotor stop clears stale electrical source
+        run: |
+          swiftc ios/CMOriginalGeneratorRotorObservation.swift tests/OriginalGeneratorRotorObservationSmoke.swift -o /tmp/cm-generator-rest
+          /tmp/cm-generator-rest
+
   original-motor-rotor-drive:
     runs-on: ubuntu-latest
     steps:
