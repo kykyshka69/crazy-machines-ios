@@ -57,3 +57,20 @@ objdump -d -Mintel --start-address=0x458e20 --stop-address=0x458e39 /private/pat
 
 See also `docs/windows-original-motor-state.md` and
 `docs/windows-original-power-propagation.md`.
+
+## Implemented SceneKit UCM gear-contact correction (2026-11-23)
+
+The iOS *experimental* engine now observes actual SCNPhysicsContact between
+original UCM rotating bodies, never inferred nearby or metadata links.
+The contact point and imported physics owners yield the physical lever arms.
+A bounded force correction opposes surface slip, so actual teeth contact
+between `tmo_belt_gear` and a real motor rotor, another gear, a conveyor
+wheel, or a generator rotor can transfer rotation with the opposite sign.
+Two idle axles never self-start. It is also called on the first contact,
+not only on long-standing contacts. Existing original conveyor UCM traction
+then moves touching crates when its own wheel actually rotates.
+
+This **is a physics integration, not a reconstruction of original Win32
+selector-5 links or exact torque/radius scaling**. The damping gain/caps
+remain labeled SceneKit-only prototypes; they must be calibrated against
+the user's actual PC simulation. No GOAL or CONNECTED_TO event is fabricated.

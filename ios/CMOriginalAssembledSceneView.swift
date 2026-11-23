@@ -1559,12 +1559,54 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
 
+        /// Real SceneKit collision between actual original axle UCM bodies.
+        /// Motors already get electrical rotor motion in updateAtTime; gears
+        /// and conveyor rollers receive *physical* contact correction here.
+        /// Do not infer gearbox links from CML proximity or GOAL metadata.
+        private func transferGearContact(_ contact: SCNPhysicsContact) {
+            guard let a = physicalNode(for: contact.nodeA),
+                  let b = physicalNode(for: contact.nodeB),
+                  a !== b,
+                  let aID = owningOriginalObjectID(for: a),
+                  let bID = owningOriginalObjectID(for: b),
+                  let kindA = originalTypesByID[aID],
+                  let kindB = originalTypesByID[bID],
+                  CMOriginalGearContactTransfer.accepts(kindA, kindB),
+                  let aBody = a.physicsBody, aBody.type == .dynamic,
+                  let bBody = b.physicsBody, bBody.type == .dynamic
+            else { return }
+            let p = contact.contactPoint
+            let posA = a.presentation.worldPosition
+            let posB = b.presentation.worldPosition
+            let radiusA = hypot(p.x - posA.x, p.y - posA.y)
+            let radiusB = hypot(p.x - posB.x, p.y - posB.y)
+            let av = aBody.angularVelocity, bv = bBody.angularVelocity
+            let speedA = av.z < 0 ? -av.w : av.w
+            let speedB = bv.z < 0 ? -bv.w : bv.w
+            guard let pair = CMOriginalGearContactTransfer.correction(
+                firstKind: kindA, secondKind: kindB,
+                firstRadius: radiusA, secondRadius: radiusB,
+                firstAngularSpeed: speedA, secondAngularSpeed: speedB,
+                firstMass: Float(aBody.mass), secondMass: Float(bBody.mass)
+            ) else { return }
+            // Apply equal/opposing LINEAR contact forces as signed axle
+            // torques; the native +0x84-to-angular-speed mapping is unknown.
+            func torque(_ value: Float) -> SCNVector4 {
+                SCNVector4(0, 0, value < 0 ? -1 : 1, abs(value))
+            }
+            aBody.applyTorque(torque(pair.first), asImpulse: false)
+            bBody.applyTorque(torque(pair.second), asImpulse: false)
+        }
+
         func physicsWorld(_ world: SCNPhysicsWorld, didUpdate contact: SCNPhysicsContact) {
             guard physicsEnabled else { return }
             sessionLock.lock()
             let running = session?.phase == .running
             sessionLock.unlock()
-            if running { transferConveyorMotion(contact) }
+            if running {
+                transferConveyorMotion(contact)
+                transferGearContact(contact)
+            }
         }
 
         func physicsWorld(_ world: SCNPhysicsWorld, didBegin contact: SCNPhysicsContact) {
@@ -1578,6 +1620,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // First contact often lasts just one physics frame. Apply the
             // same authentic wheel-driven surface transfer immediately.
             transferConveyorMotion(contact)
+            transferGearContact(contact)
             guard let physicalA = physicalNode(for: contact.nodeA),
                   let physicalB = physicalNode(for: contact.nodeB),
                   physicalA !== physicalB,

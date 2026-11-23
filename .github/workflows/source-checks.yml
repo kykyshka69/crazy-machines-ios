@@ -353,6 +353,15 @@ jobs:
           swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift ios/CMOriginalWindowsWindmill.swift tests/OriginalWindmillIdentitySmoke.swift -o /tmp/cm-windmill-identity
           /tmp/cm-windmill-identity
 
+  original-authentic-gear-contact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test real-UCM gear contact torque correction and conveyor coupling
+        run: |
+          swiftc ios/CMOriginalGearContactTransfer.swift tests/OriginalGearContactTransferSmoke.swift -o /tmp/cm-original-gears
+          /tmp/cm-original-gears
+
   original-motor-rotor-drive:
     runs-on: ubuntu-latest
     steps:
