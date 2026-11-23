@@ -181,6 +181,16 @@ struct CMOriginalQuickPlayView: View {
             disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
     }
 
+    // Only already wired, original CML terminal pairs which have matched
+    // finite nonzero experimental voltage at BOTH device ends render
+    // bright. This is a UI trace, NOT a native Win32 current estimate.
+    private var experimentalCablePowerSignals:
+        [CMOriginalPowerCircuit.Cable: Float] {
+        guard let network = powerCircuit else { return [:] }
+        return network.experimentalCablePowerSignals(
+            powerByDeviceID: experimentalPowerSignals)
+    }
+
     // Three authentic original PC ammeters are present on levels 40,
     // 54 and 94. Native +0xFE instrument input is not decoded yet.
     // In the opt-in wiring prototype only actual main electrical
@@ -414,6 +424,7 @@ struct CMOriginalQuickPlayView: View {
                 originalPlayerPowerCables: powerCircuit.map {
                     Array($0.cables)
                 } ?? [],
+                originalPlayerCablePowerSignals: experimentalCablePowerSignals,
                 configuredPhysicsRoles: experimentalPhysicsRoles,
                 onOriginalZoneContact: { type in
                     guard eventRevision == sceneRevision else { return }
@@ -1068,7 +1079,7 @@ struct CMOriginalQuickPlayView: View {
                         Text(message).font(.caption2)
                             .accessibilityIdentifier("cm.original.power-cable-message")
                     }
-                    Text("Win32 battery 10.0 and measured generator rotation feed the experimental cable graph. Disrupters use their actual wheel phase. Each imported lamp bulb uses the recovered power/10 visual factor when opt-in wiring is enabled. Full Win32 current, return paths and lamp rendering parity are not proven.")
+                    Text("Connected original power_cable.tga wires dim when one end has no known matching signal; both ends at the same finite powered value render bright. Battery 10.0 and physically observed generator drive the experimental circuit. Native current, resistance, return paths and polarity remain unverified.")
                         .accessibilityIdentifier("cm.original.generator-power-rules")
                         .font(.caption2).foregroundStyle(.secondary)
                 }
