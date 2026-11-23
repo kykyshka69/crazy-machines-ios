@@ -20,15 +20,20 @@ public enum CMOriginalRocketAnchorTelemetry {
     public struct Frame: Equatable {
         public let rocketChildID: String
         public let name: String
+        /// Literal original UCM attachment name, not the lowercase
+        /// SceneKit node name used to locate the anchor.
+        public let originalUCMMarkerName: String
         public let worldOrigin: Vector3
         /// The original marker's world-space local-Y basis, including
         /// its UCM rotation and imported scene transforms. The native
         /// runtime Direction +0x30 vector remains a separate input.
         public let worldYAxis: Vector3
         public init(rocketChildID: String, name: String,
+                    originalUCMMarkerName: String,
                     worldOrigin: Vector3, worldYAxis: Vector3) {
             self.rocketChildID = rocketChildID
             self.name = name
+            self.originalUCMMarkerName = originalUCMMarkerName
             self.worldOrigin = worldOrigin
             self.worldYAxis = worldYAxis
         }
@@ -58,6 +63,9 @@ public enum CMOriginalRocketAnchorTelemetry {
         var seen: [String: Frame] = [:]
         for frame in frames where required.contains(frame.name) {
             guard frame.rocketChildID == rocketChildID,
+                  // A synthesized SceneKit name cannot authenticate
+                  // a native UCM attachment's original spelling.
+                  frame.originalUCMMarkerName == frame.name,
                   frame.worldOrigin.isFinite,
                   frame.worldYAxis.isFinite,
                   frame.worldYAxis.lengthSquared3D > 0,

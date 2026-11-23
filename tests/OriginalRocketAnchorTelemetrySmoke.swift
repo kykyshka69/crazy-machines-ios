@@ -6,8 +6,10 @@ struct OriginalRocketAnchorTelemetrySmoke {
         typealias T = CMOriginalRocketAnchorTelemetry
         func frame(_ name: String, _ id: String = "original-rocket-child",
                    _ position: T.Vector3 = .init(0, 0, 0),
-                   _ axis: T.Vector3 = .init(0, 1, 0)) -> T.Frame {
+                   _ axis: T.Vector3 = .init(0, 1, 0),
+                   originalName: String? = nil) -> T.Frame {
             .init(rocketChildID: id, name: name,
+                  originalUCMMarkerName: originalName ?? name,
                   worldOrigin: position, worldYAxis: axis)
         }
         // Actual owner UCM rocket Engine and Direction markers point
@@ -20,6 +22,18 @@ struct OriginalRocketAnchorTelemetrySmoke {
         let good = T.complete(rocketChildID: "original-rocket-child",
                               originalParentType: "tmo_heat_rocket", frames: realBasis)
         precondition(good != nil && good?.direction.name == "Direction")
+        precondition(good?.heat.originalUCMMarkerName == "Heat")
+        for mismatchedName in ["Light", "Wind", "heat", "", "Heat01"] {
+            let spoofed = [frame("Heat", originalName: mismatchedName)]
+                + Array(realBasis.dropFirst())
+            precondition(T.complete(rocketChildID: "original-rocket-child",
+                originalParentType: "tmo_heat_rocket", frames: spoofed) == nil)
+        }
+        let fakeEngine = [frame("Heat"),
+            frame("Engine", originalName: "Light")]
+            + Array(realBasis.dropFirst(2))
+        precondition(T.complete(rocketChildID: "original-rocket-child",
+            originalParentType: "tmo_heat_rocket", frames: fakeEngine) == nil)
         precondition(good?.engine.worldYAxis == .init(0, 0, 1))
         precondition(good?.worldDynamicBodyCenter == nil)
         let center = T.Vector3(0.25, 0.5, 0)

@@ -1304,12 +1304,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                           fullName.hasPrefix(prefix) else { continue }
                     guard let name = required.first(where: {
                         fullName.hasPrefix(prefix + $0.lowercased() + "-")
-                    }) else { continue }
+                    }), let originalName = node.userData?[
+                        "originalUCMMarkerName"
+                    ] as? String else { continue }
                     let matrix = node.presentation.simdWorldTransform
                     let p = matrix.columns.3
                     let y = matrix.columns.1
                     frames.append(.init(
                         rocketChildID: childID, name: name,
+                        originalUCMMarkerName: originalName,
                         worldOrigin: .init(p.x, p.y, p.z),
                         worldYAxis: .init(y.x, y.y, y.z)
                     ))
@@ -1374,7 +1377,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             childType: originalTypesByID[
                                 rocket.rocketChildID
                             ] ?? "",
-                            rocketOriginalUCMMarkerName: rocket.heat.name,
+                            rocketOriginalUCMMarkerName:
+                                rocket.heat.originalUCMMarkerName,
                             targetHeatWorld: .init(
                                 rocket.heat.worldOrigin.x,
                                 rocket.heat.worldOrigin.y,
