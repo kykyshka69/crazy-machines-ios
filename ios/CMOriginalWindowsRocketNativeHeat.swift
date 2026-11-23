@@ -65,6 +65,21 @@ public enum CMOriginalWindowsRocketNativeHeat {
         }
     }
 
+    /// Apply the ORIGINAL candle thermal cone SHAPE to genuinely moving
+    /// imported SceneKit UCM source/receiver coordinates. Unlike `measure`,
+    /// this is only a WORLD-space projection: the native Win32 +0x20/+0x24
+    /// region reference frame and original effect state remain unobserved.
+    /// Never use this candidate alone as native ignition or GOAL.
+    public static func projectedUCMHeatFraction(
+        observedSourceWorldYAxis: CMOriginalWindowsWindRegion.Vector3,
+        observedSourceToTargetWorldXY: CMOriginalWindowsWindRegion.Vector3
+    ) -> Float? {
+        guard let cone = CMOriginalWindowsCandleHeatFactory.parameters(
+            observedNativeAxis: observedSourceWorldYAxis) else { return nil }
+        return CMOriginalWindowsWindRegion.measuredFraction(
+            nativeDisplacement: observedSourceToTargetWorldXY, region: cone)
+    }
+
     public struct Measurement {
         public let sourceRecordIndex: Int
         public let receiverRecordIndex: Int
