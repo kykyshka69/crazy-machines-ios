@@ -74,3 +74,15 @@ This **is a physics integration, not a reconstruction of original Win32
 selector-5 links or exact torque/radius scaling**. The damping gain/caps
 remain labeled SceneKit-only prototypes; they must be calibrated against
 the user's actual PC simulation. No GOAL or CONNECTED_TO event is fabricated.
+
+## Authenticated 102-scene impact inventory (private archive, 2026-11-23)
+
+The privately owned 445-entry CMASSET1 archive was read locally and all
+445 SHA-256 resource payload checks succeeded. Counts in authentic 102
+scene JSON trees: 29 levels with `tmo_belt_gear`, 38 with
+`tmo_power_motor`, 34 with `tmo_belt_conveyer`, 21 with both gear and
+motor, 23 with gear and conveyor and **17 with all three**:
+41, 51, 54, 64, 66, 69, 70, 72, 77, 78, 80, 85, 92, 93, 94, 95, 99.
+The 17 are **priority private integrated gameplay verification targets**
+for the new contact bridge, but this metadata analysis does not prove
+physical gear engagement or solve any of the puzzles on iOS.
