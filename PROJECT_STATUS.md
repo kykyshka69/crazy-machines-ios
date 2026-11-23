@@ -1,5 +1,34 @@
 # Crazy Machines — original iOS port: working branch
 
+## 🚩 START HERE — verified handoff (2026-11-23; stage 1 NOT FINISHED)
+
+**Canonical continuation location:** this `PROJECT_STATUS.md` on GitHub branch `work/original-3d-scene-batch` (PR [#2](https://github.com/kykyshka69/crazy-machines-ios/pull/2)). **Do not restart on `main`**, copy a second CML decoder, create replacement synthetic levels, or re-open completed research without a specific regression. Old dated sections below are historical, not the current status. The user explicitly wants verified fixes and a persistent handoff after each work session; no completion percentages or synthetic mockups presented as authentic.
+
+**Last fully verified GAMEPLAY code commit:** [`c736c054`](https://github.com/kykyshka69/crazy-machines-ios/commit/c736c054a049dd42b57553cd04226d1a4f752bd5). All four workflows for that same SHA concluded **success**:
+- [Source checks #45084786166](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45084786166)
+- [Portable checks #45084786127](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45084786127)
+- [Unsigned iPhone arm64 compilation #45084786132](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45084786132)
+- [iOS Simulator build and UI tests #45084786147](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45084786147), native `** TEST SUCCEEDED **`, **12 test cases, 2 skipped, 0 failures**. The **two skips** are `testPrivateAll102OriginalLevelsWhenOptedIn` and `testPrivateOriginalLevelOneWhenOptedIn`; public CI deliberately lacks the user's private original game assets. Passing tests do **not** establish authentic 102-level gameplay or original Windows physics parity.
+
+**New verified fixes since the previous top-of-file stage-1 write-up:**
+- [`9ef54308`](https://github.com/kykyshka69/crazy-machines-ios/commit/9ef54308fa093e81aed371550b25c1a6020e232a) bounds the experimental SceneKit motor integrator command; [`d79a03f9`](https://github.com/kykyshka69/crazy-machines-ios/commit/d79a03f973039f07037068982ba3b9bfaf936879) adds max-speed, reversal and deceleration tests.
+- [`6f724f0e`](https://github.com/kykyshka69/crazy-machines-ios/commit/6f724f0eb05d9c421f06be0f7c649567dd37512a) repairs the **copyright-free level-two CI fixture**: the receiving crate is anchored so ball/crate do not free-fall together. The real SceneKit ball→crate `CONNECTED_TO` UI test previously failed in [run 45081602255](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45081602255); it passed on [run 45083716271](https://github.com/kykyshka69/crazy-machines-ios/actions/runs/45083716271). This changes only the synthetic **test** arrangement, **not** original level-two object properties.
+- [`c736c054`](https://github.com/kykyshka69/crazy-machines-ios/commit/c736c054a049dd42b57553cd04226d1a4f752bd5) honors the **Win32 interaction bit 0x10** on explicitly VALB-annotated original pocketlamps; a disabled source cannot be toggled by type alone. Regression passes in the latest Source checks.
+
+**User-owned original 102-scene data — inspected privately, NOT in Git:** prior owner-only pack `CrazyMachines_Original_102Levels.cmassets` contains **445 verified entries** (160 original UCM, 181 original TGA, 102 scene JSON, 2 CML), all resource SHA-256 checks pass. The 102 scene JSON hashes were compared offline with the corresponding decrypted original Professor CML records and **all matched**. Across these genuine levels: **86 GOAL** markers, **80 CONNECTED_TO** records; electrical plugs and original object graph exist. This **proves original data integrity/metadata**, not that iOS can run or solve those levels. Private original resources are available only in the user's own files/Library and must NEVER be committed to the public repo or uploaded to public CI.
+
+**Completion gate for STAGE 1 — keep OPEN until actually demonstrated:**
+1. [ ] Recover & implement original electrical cable persistence, `0x44C8A0` propagation, `+0x50` blockers, sources/loads, voltage/current/return paths, switch +0xEC/+0xC8 mechanics, disrupter and real generator/solar inputs. Current `CMOriginalPowerCircuit` is opt-in experimental reachability/signal prototype.
+2. [ ] Recover authentic motor/generator start-stop, inertia/torque and actual transmission of force/energy through gears, belts, springs, ropes, steam, light and other mechanisms. Current SceneKit approximations are NOT physical parity.
+3. [ ] Route **verified original mechanism-specific** callbacks to both Win32 GOAL and CONNECTED_TO channels; never credit arbitrary contacts, proximity or just GOAL metadata. Keep once-only `CMOriginalWindowsGoalCounter` accurate.
+4. [ ] Match original start → run → events → stop/reset → win/continue sequencing, including source baselines, proper user interactions and all original level completion controls.
+5. [ ] Run private authentic imported assets in an actual Xcode iPhone Simulator (and device where feasible); inspect genuine level screenshots. **Do not substitute the public synthetic UI fixtures**.
+6. [ ] Exercise and document real gameplay/end-state checks across **all 102 authentic PC levels**, not merely JSON parsing/asset integrity, synthetic smoke tests or skipped private CI.
+
+**Precise next engineering action:** stay on `work/original-3d-scene-batch`; inspect `ios/CMOriginalPowerCircuit.swift`, `ios/CMOriginalAssembledSceneView.swift`, `ios/CMOriginalQuickPlayView.swift` and the verified Win32 auditors in `tools/` before modifying the physics; prioritize evidence-driven improvements to actual electrical/physical event integration. Validate each fix with existing portable/Source/ARM64/Simulator workflows. After every verified change, **update this START HERE section with latest gameplay commit, exact CI run outcomes, and next blocker**. A journal-only commit may trigger separate CI for the doc SHA; distinguish it from last fully tested gameplay SHA. Stage 2 must not start until the above gates are met.
+
+---
+
 ## Stage 1 — original Win32 engine mechanics (2026-11-22)
 
 **Status: IN PROGRESS, not completed.** All engine findings below are derived from the user's privately owned real `CrazyMachines.exe`, original FSC/VSC, and 102 PC scene exports. The original binary/assets are not committed. An iPhone Simulator CI success proves build/UI behavior, **not** that original gameplay physics or 102 puzzle solutions are faithful.
