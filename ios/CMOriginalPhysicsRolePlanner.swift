@@ -23,6 +23,17 @@ public enum CMOriginalPhysicsRolePlanner {
                 // Preserve hinged and axle-driven components even when
                 // original metadata does not include a VALB moving flag.
                 role = .movable
+            } else if object.type == "tmo_heat_rocket_rocket",
+                      let parentID = object.parentID,
+                      session.objects.contains(where: {
+                          $0.id == parentID && $0.type == "tmo_heat_rocket"
+                      }) {
+                // Native Win32 0x44F1DD..0x44F27D continuously applies
+                // Direction * live +0xFC force to THIS rocket child's
+                // physics body. It must be dynamically simulated even
+                // when its CML omits VALB and a template is unavailable.
+                // Keep the parent rocket mount fixed independently.
+                role = .movable
             } else {
                 // Original level-specific VALB overrides take precedence
                 // over templates recovered from the genuine elements.fsc.
