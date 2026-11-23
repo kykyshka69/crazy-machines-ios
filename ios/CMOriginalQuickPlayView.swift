@@ -928,7 +928,7 @@ struct CMOriginalQuickPlayView: View {
                 originalSession.objects.contains(where: {
                     $0.type == "tmo_heat_rocket_rocket"
                 }) {
-                Text("Original rocket VELOCITY source records: \\(initialOriginalRocketVelocities.count)")
+                Text("Original rocket VELOCITY source records: \(initialOriginalRocketVelocities.count)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("cm.original.rocket-initial-velocity")
