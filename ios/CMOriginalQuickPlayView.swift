@@ -357,10 +357,16 @@ struct CMOriginalQuickPlayView: View {
                 originalAmmeterPowerSignals: originalAmmeterPowerSignals,
                 configuredPhysicsRoles: experimentalPhysicsRoles,
                 onOriginalZoneContact: { type in
+                    // SceneKit dispatches observations asynchronously. A queued
+                    // event must not revive progress after Pause, Stop or Reset.
+                    guard experimentalPhysics && !physicsPaused else { return }
                     // Callback is posted to the main thread by SceneKit bridge.
                     zoneContacts[type, default: 0] += 1
                 },
                 onLinkedZoneContact: { sourceID, zoneID in
+                    // SceneKit dispatches observations asynchronously. A queued
+                    // event must not revive progress after Pause, Stop or Reset.
+                    guard experimentalPhysics && !physicsPaused else { return }
                     // Only a contact with the source object's OWN original
                     // CONNECTED_TO zone counts as a recovered objective.
                     let isOriginalTarget = originalZoneConnections.contains {
@@ -388,6 +394,9 @@ struct CMOriginalQuickPlayView: View {
                     }
                 },
                 onOriginalConnectionContact: { sourceID, targetID in
+                    // SceneKit dispatches observations asynchronously. A queued
+                    // event must not revive progress after Pause, Stop or Reset.
+                    guard experimentalPhysics && !physicsPaused else { return }
                     _ = windowsGoalCounter?.recordConnectedToEvent(
                         sourceID: sourceID, targetID: targetID,
                         simulationRunning: experimentalPhysics && !physicsPaused
@@ -413,6 +422,9 @@ struct CMOriginalQuickPlayView: View {
                     }
                 },
                 onOriginalBucketCapture: { ballID, bucketID in
+                    // SceneKit dispatches observations asynchronously. A queued
+                    // event must not revive progress after Pause, Stop or Reset.
+                    guard experimentalPhysics && !physicsPaused else { return }
                     // Real original tmo_ball_* approaches the authored
                     // Test/Catch marker within native Win32 radius 0.1.
                     _ = windowsGoalCounter?.recordGoalEvent(
@@ -430,6 +442,9 @@ struct CMOriginalQuickPlayView: View {
                     }
                 },
                 onOriginalCageCapture: { ballID, cageID in
+                    // SceneKit dispatches observations asynchronously. A queued
+                    // event must not revive progress after Pause, Stop or Reset.
+                    guard experimentalPhysics && !physicsPaused else { return }
                     // Native Win32 Catch/Test path 0x44D874...0x44D9A2
                     // also accepts GOAL-marked tmo_rope_cage containers.
                     // A ball within the original 0.1 spatial target radius
@@ -444,6 +459,9 @@ struct CMOriginalQuickPlayView: View {
                     )
                 },
                 onOriginalPlayerSourceGoal: { originalID in
+                    // SceneKit dispatches observations asynchronously. A queued
+                    // event must not revive progress after Pause, Stop or Reset.
+                    guard experimentalPhysics && !physicsPaused else { return }
                     // Real x86 0x455241 captures the initial source state
                     // in +0xF0. Native 0x434A76/0x434B12 emits channel-0
                     // only AFTER user click changes +0xEC against +0xF0.
@@ -514,6 +532,9 @@ struct CMOriginalQuickPlayView: View {
                     }
                 },
                 onOriginalSwitchToggle: { switchID, isOn in
+                    // SceneKit dispatches observations asynchronously. A queued
+                    // event must not revive progress after Pause, Stop or Reset.
+                    guard experimentalPhysics && !physicsPaused else { return }
                     // A tap is not Win32 +0xEC/+0xC8 physics contact
                     // evidence and cannot alone dispatch a switch GOAL.
                     if isOn {
@@ -526,6 +547,9 @@ struct CMOriginalQuickPlayView: View {
                     creditExperimentalElectricGoals()
                 },
                 onOriginalSwitchContact: { hit in
+                    // SceneKit dispatches observations asynchronously. A queued
+                    // event must not revive progress after Pause, Stop or Reset.
+                    guard experimentalPhysics && !physicsPaused else { return }
                     // Collision evidence is not Win32 +0xEC/+0xC8 closure:
                     // only expose verified original object identities.
                     observedOriginalLeverStrikers.insert(
@@ -533,6 +557,9 @@ struct CMOriginalQuickPlayView: View {
                     )
                 },
                 onOriginalOpticalSightlines: { observations in
+                    // SceneKit dispatches observations asynchronously. A queued
+                    // event must not revive progress after Pause, Stop or Reset.
+                    guard experimentalPhysics && !physicsPaused else { return }
                     originalOpticalSightlines = observations
                 }
             )
