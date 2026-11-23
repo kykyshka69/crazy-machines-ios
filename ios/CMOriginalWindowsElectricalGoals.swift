@@ -25,7 +25,10 @@ public enum CMOriginalWindowsElectricalGoals {
         beltFlagPhysicalInputsByObjectID: [String: CMOriginalWindowsBeltFlag.PhysicalObservation] = [:],
         // Original flower's *physical* growth-state scalar (+0x130),
         // supplied only by a recovered native light/clock path.
-        flowerNativeProgressByObjectID: [String: Float] = [:]
+        flowerNativeProgressByObjectID: [String: Float] = [:],
+        // Rocket channel-0 GOAL is native explosion AFTER actual Engine
+        // effect; no generic collision, GOAL annotation or 3-second timer.
+        rocketExplosionByObjectID: [String: CMOriginalWindowsRocketTimer.ObservedExplosion] = [:]
     ) -> Set<String> {
         var active = Set<String>()
         // Level's actual native wind source IDs are authoritative.
@@ -72,6 +75,16 @@ public enum CMOriginalWindowsElectricalGoals {
                        telescopeIndicator: input.telescopeIndicator,
                        flagState: input.flagState,
                        observedNetWindForce: wind)) {
+                    active.insert(object.id)
+                }
+                continue
+            }
+            // Native 0x44F33C/0x44F354: an ORIGINAL rocket in flight
+            // must truly perform its explosion before GOAL 0 is credited.
+            // This observation currently has NO fabricated SceneKit sender.
+            if object.type == "tmo_heat_rocket" {
+                if let observed = rocketExplosionByObjectID[object.id],
+                   CMOriginalWindowsRocketTimer.triggersGoal(observed) {
                     active.insert(object.id)
                 }
                 continue

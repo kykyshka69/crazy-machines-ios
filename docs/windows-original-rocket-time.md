@@ -7,3 +7,38 @@ At 0x44F03B–0x44F04E the original Windows engine requires rocket element physi
 CMOriginalWindowsRocketTimer implements these recovered type-specific transition conditions and rejects missing original flying/engine input, backwards time and nonfinite data. All 16 GOAL-marked rockets in the user's 102 scenes (11 in level 102) need real ignition, engine physics, force, and post-explosion state transitions to be wired before they can count as solved; this helper alone does NOT trigger them. Real Windows optical/thermal flame collisions and the complete 102-level wins are still unfinished.
 
 Reproduce with python3 tools/audit_windows_rocket_exe.py /private/CrazyMachines.exe. It verifies 13 x86 instruction sites, original selector and native state/timer constants; no proprietary bytes are committed.
+
+## Recovered PRE-LAUNCH native phase omitted in the earlier iOS helper (2026-11-23)
+
+Re-disassembled the **exact owner-owned** PE32 with verified SHA-256
+`51f9beecd9842c67834da9c4fc73be7a1452c9e8149d059729b130a2b9d601e6`.
+
+Two distinct timed stages are confirmed, each strictly **GREATER** than
+3 seconds, not one 3-second countdown:
+1. `0x44EC48–0x44EC83`: original PARENT `+0xEC == 1`, check
+   `engineClock - parentOriginalIgnitionTime(+0x130) > 3`.
+   `0x44EE2B` selects `tmo_heat_rocket`. If launch actions really
+   succeed, the original `Engine` child is activated; `0x44EF59–0x44EF73`
+   records the **new** Engine child launch timestamp, and only then
+   `0x44F029` writes parent state **2** (flying).
+2. `0x44F03B–0x44F04E`: PARENT `+0xEC == 2`, then
+   `0x44F1BE–0x44F2A7` checks the live original Engine child clock
+   against the separate Engine launch timestamp `+0x130` strictly
+   **> 3 seconds**. Actual Engine/Explode effects precede writing parent
+   **3** at `0x44F33C` and dispatching GOAL 0 at `0x44F354`.
+
+The first state **1** must itself arise from actual original thermal
+ignition (still not recovered). `CMOriginalWindowsRocketTimer` now
+evaluates both stage boundaries and requires proof of real Engine
+activation for state 1→2 and proof of actual Engine/Explode effect for
+state 2→3. The level's GOAL resolver now accepts a native physical
+explosion observation under the authentic rocket object ID and NEVER
+credits a rocket from a clock, proximity, heat-source tap or GOAL
+annotation alone.
+
+**Known missing in SceneKit:** rocket thermal-hit producer, native state
+1 establishment, original Engine/Explode force and moving meshes.
+Thus the 16 genuine GOAL rockets (including 11 in original level 102)
+are NOT claimed completed. Combined source compilers and focused smoke
+tests have been updated; no full iOS rebuild requested for this
+intermediate commit.

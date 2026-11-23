@@ -27,14 +27,16 @@ struct OriginalWindowsElectricalGoalsSmoke {
                     object("tmo_belt_flag", goal: false),
                     object("tmo_light_flower"),
                     object("tmo_light_flower", goal: false),
-                    object("tmo_windmill", goal: false)
+                    object("tmo_windmill", goal: false),
+                    object("tmo_heat_rocket"),
+                    object("tmo_heat_rocket", goal: false)
                 ]]
             ]]
         ]
         let document = try CMOriginalSceneDocument.read(
             JSONSerialization.data(withJSONObject: root))
         let session = CMOriginalGameplaySession(document: document)
-        precondition(session.objects.count == 16)
+        precondition(session.objects.count == 18)
         let ids = session.objects.map(\.id)
         let powered = [ids[0]: Float(10), ids[1]: Float(3),
                        ids[2]: Float(1.5), ids[3]: Float(10),
@@ -159,6 +161,35 @@ struct OriginalWindowsElectricalGoalsSmoke {
         precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
             session: session, powerByDeviceID: [:],
             flowerNativeProgressByObjectID: [ids[14]: 0.2]).isEmpty)
-        print("Recovered Win32 GOAL: electrical, steam, flower growth and native belt-flag state; no metadata-only win")
+        // Rocket requires a real Engine child and an actual observed
+        // explosion effect, after its SECOND >3s native clock.
+        typealias Rocket = CMOriginalWindowsRocketTimer
+        let tooEarlyRocket = Rocket.ObservedExplosion(
+            nativeRocketState: 2, nativeEnginePresent: true,
+            engineTime: 7, originalLaunchTime: 4,
+            actualExplosionEffectObserved: true)
+        let explodedRocket = Rocket.ObservedExplosion(
+            nativeRocketState: 2, nativeEnginePresent: true,
+            engineTime: 7.01, originalLaunchTime: 4,
+            actualExplosionEffectObserved: true)
+        let unconfirmedRocket = Rocket.ObservedExplosion(
+            nativeRocketState: 2, nativeEnginePresent: true,
+            engineTime: 7.01, originalLaunchTime: 4,
+            actualExplosionEffectObserved: false)
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [ids[16]: 10]).isEmpty)
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            rocketExplosionByObjectID: [ids[16]: tooEarlyRocket]).isEmpty)
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            rocketExplosionByObjectID: [ids[16]: unconfirmedRocket]).isEmpty)
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            rocketExplosionByObjectID: [ids[16]: explodedRocket]) == [ids[16]])
+        precondition(CMOriginalWindowsElectricalGoals.activeGoalIDs(
+            session: session, powerByDeviceID: [:],
+            rocketExplosionByObjectID: [ids[17]: explodedRocket]).isEmpty)
+        print("Recovered Win32 GOAL: original electric, steam, flower, wind and rocket explosion gates")
     }
 }

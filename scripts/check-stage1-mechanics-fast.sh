@@ -23,12 +23,17 @@ swiftc ios/CMOriginalWindowsWindRegion.swift tests/OriginalWindowsWindRegionSmok
 swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsBeltFlag.swift tests/OriginalWindowsBeltFlagSmoke.swift -o "$tmp/original-flag"
 "$tmp/original-flag"
 
+# Both ORIGINAL rocket phases 1→2 and 2→3 use separate engine
+# clocks and strict >3 seconds. No fabricated heat ignition or GOAL.
+swiftc ios/CMOriginalWindowsRocketTimer.swift tests/OriginalWindowsRocketTimerSmoke.swift -o "$tmp/original-rocket"
+"$tmp/original-rocket"
+
 # Actual original object GOAL resolver: run BOTH mechanical native predicates
 # alongside original electrical and steam GOAL without building the iOS app.
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsSolarSignal.swift \
   ios/CMOriginalWindowsSteamWhistle.swift ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsBeltFlag.swift \
-  ios/CMOriginalWindowsFlower.swift ios/CMOriginalWindowsElectricalGoals.swift \
+  ios/CMOriginalWindowsFlower.swift ios/CMOriginalWindowsRocketTimer.swift ios/CMOriginalWindowsElectricalGoals.swift \
   tests/OriginalWindowsElectricalGoalsSmoke.swift -o "$tmp/original-goal-dispatch"
 "$tmp/original-goal-dispatch"
 printf '%s\n' "All focused Stage-1 native-mechanics and goal-dispatch checks passed; iOS app NOT built."
