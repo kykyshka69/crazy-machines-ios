@@ -25,7 +25,7 @@ swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsBeltFlag.swift
 
 # Both ORIGINAL rocket phases 1→2 and 2→3 use separate engine
 # clocks and strict >3 seconds. No fabricated heat ignition or GOAL.
-swiftc ios/CMOriginalWindowsRocketTimer.swift tests/OriginalWindowsRocketTimerSmoke.swift -o "$tmp/original-rocket"
+swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsRocketTimer.swift tests/OriginalWindowsRocketTimerSmoke.swift -o "$tmp/original-rocket"
 "$tmp/original-rocket"
 
 # Actual original object GOAL resolver: run BOTH mechanical native predicates

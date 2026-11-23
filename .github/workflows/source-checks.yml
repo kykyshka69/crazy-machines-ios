@@ -408,7 +408,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Recover real original rocket flying state, strict fuse and explosion GOAL
         run: |
-          swiftc ios/CMOriginalWindowsRocketTimer.swift tests/OriginalWindowsRocketTimerSmoke.swift -o /tmp/cm-rocket-fuse
+          swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsRocketTimer.swift tests/OriginalWindowsRocketTimerSmoke.swift -o /tmp/cm-rocket-fuse
           /tmp/cm-rocket-fuse
           python3 -m unittest discover -s tools -p 'test_audit_windows_rocket_exe.py'
 

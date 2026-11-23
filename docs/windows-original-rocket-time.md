@@ -80,3 +80,16 @@ region, native source emissive state and effect-child activation to live
 SceneKit measurements. Ordinary UCM mesh collisions, a user click
 alone, and a guessed heat radius still must NOT ignite the rocket or
 fabricate the 16 authentic rocket GOAL events.
+
+## Native region-to-rocket ignition integration (2026-11-23)
+
+Original candle x86 0x44E39D–0x44E3C2 retrieves selector-3 heat-region
+geometry and calls the same original 0x409650 region-overlap function as
+wind. The iOS rocket now composes the recovered region calculation with
+the exact strict >0.84 ignition gate, lit source and observed original
+effect/clock. Tests reject out-of-cone, missing/invalid, wrong source,
+unlit candle and absent effect. Region test values are synthetic.
+
+**Still missing:** live original SceneKit selector-3 parameters, actual
+heat emitter/effect observations, flight thrust/explosion and successful
+runs across all 102 authentic scenes. These tests are not level wins.

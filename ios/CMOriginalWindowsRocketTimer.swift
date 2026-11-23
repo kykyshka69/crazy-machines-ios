@@ -61,6 +61,32 @@ public enum CMOriginalWindowsRocketTimer {
         return ObservedIgnition(state: ignitedState,
                                 ignitionTime: observedNativeClock)
     }
+
+    /// Original Win32 0x44E39D: selector-3 native heat-region intersection
+    /// uses the same 0x409650 evaluator as wind. Never infer thermal
+    /// ignition from UCM mesh proximity or an unmeasured source.
+    public static func ignitionAfterObservedNativeCandleRegion(
+        nativeRocketState: Float,
+        nativeHeatSourceType: String,
+        originalCandleLit: Bool,
+        observedNativeHeatRegion: CMOriginalWindowsWindRegion.Parameters,
+        observedNativeDisplacement: CMOriginalWindowsWindRegion.Vector3,
+        originalIgnitionEffectObserved: Bool,
+        observedNativeClock: Double
+    ) -> ObservedIgnition? {
+        guard let fraction = CMOriginalWindowsWindRegion.measuredFraction(
+            nativeDisplacement: observedNativeDisplacement,
+            region: observedNativeHeatRegion) else { return nil }
+        return ignitionAfterObservedCandleEffect(
+            nativeRocketType: "tmo_heat_rocket",
+            nativeRocketState: nativeRocketState,
+            nativeHeatSourceType: nativeHeatSourceType,
+            originalCandleLit: originalCandleLit,
+            measuredNativeHeatFraction: fraction,
+            originalIgnitionEffectObserved: originalIgnitionEffectObserved,
+            observedNativeClock: observedNativeClock)
+    }
+
     public static let flyingState: Float = 2
     public static let explodedState: Float = 3
     public static let fuseSeconds: Double = 3

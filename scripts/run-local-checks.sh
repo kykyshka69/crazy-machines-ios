@@ -173,7 +173,7 @@ swiftc ios/CMOriginalWindowsBeamRegion.swift ios/CMOriginalWindowsBeamFactory.sw
 python3 -m unittest discover -s tools -p 'test_audit_windows_goal_calls.py'
 # Original rocket state 2 + real engine countdown >3 seconds => state 3,
 # never invent an ignition, physics explosion, or puzzle GOAL.
-swiftc ios/CMOriginalWindowsRocketTimer.swift tests/OriginalWindowsRocketTimerSmoke.swift \
+swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsRocketTimer.swift tests/OriginalWindowsRocketTimerSmoke.swift \
   -o "$tmp/original-rocket-fuse"
 "$tmp/original-rocket-fuse"
 python3 -m unittest discover -s tools -p 'test_audit_windows_rocket_exe.py'

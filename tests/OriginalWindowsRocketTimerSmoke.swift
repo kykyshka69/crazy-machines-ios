@@ -117,6 +117,39 @@ struct OriginalWindowsRocketTimerSmoke {
         precondition(!R.triggersGoal(observed(8, effect: false)))
         precondition(!R.triggersGoal(observed(8, effect: true, state: 1)))
         precondition(R.triggersGoal(observed(8, effect: true)))
+
+        // Native region geometry -> strict >0.84 ignition -> observed
+        // effect and own parent clock, never arbitrary SceneKit contacts.
+        let nativeRegion = CMOriginalWindowsWindRegion.Parameters(
+            nativeAxis: .init(1, 0),
+            minRadiusSquared: 1, maxRadiusSquared: 100,
+            radialFalloff: 0.01, maximumAngle: .pi / 2,
+            angularFalloff: 2 / .pi)
+        func hit(_ displacement: CMOriginalWindowsWindRegion.Vector3,
+                 source: String = "tmo_candle",
+                 lit: Bool = true, effect: Bool = true,
+                 state: Float = 0, clock: Double = 4)
+            -> R.ObservedIgnition? {
+            R.ignitionAfterObservedNativeCandleRegion(
+                nativeRocketState: state,
+                nativeHeatSourceType: source,
+                originalCandleLit: lit,
+                observedNativeHeatRegion: nativeRegion,
+                observedNativeDisplacement: displacement,
+                originalIgnitionEffectObserved: effect,
+                observedNativeClock: clock)
+        }
+        precondition(hit(.init(4, 0))?.state == 1)
+        precondition(hit(.init(4, 0))?.ignitionTime == 4)
+        precondition(hit(.init(5, 0)) == nil)
+        precondition(hit(.init(-4, 0)) == nil)
+        precondition(hit(.init(0, 0)) == nil)
+        precondition(hit(.init(.nan, 0)) == nil)
+        precondition(hit(.init(4, 0), lit: false) == nil)
+        precondition(hit(.init(4, 0), effect: false) == nil)
+        precondition(hit(.init(4, 0), state: 1) == nil)
+        precondition(hit(.init(4, 0), source: "tmo_windmill") == nil)
+        precondition(hit(.init(4, 0), clock: .nan) == nil)
         print("Native Win32 rocket: actual flying 2, live engine, time >3 sec, terminal state 3")
     }
 }
