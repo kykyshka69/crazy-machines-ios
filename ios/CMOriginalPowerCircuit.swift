@@ -143,7 +143,11 @@ public struct CMOriginalPowerCircuit {
                 : $0.firstPlugID < $1.firstPlugID
         }.map { SavedCable(firstPlugID: $0.firstPlugID,
                            secondPlugID: $0.secondPlugID) }
-        return try JSONEncoder().encode(Snapshot(
+        let encoder = JSONEncoder()
+        // Canonical bytes make a repeated save idempotent and independently
+        // verifiable even when Swift's dictionary key ordering changes.
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(Snapshot(
             version: 1, levelIndex: levelIndex,
             sceneSHA256: sceneSHA256, cables: pairs))
     }
