@@ -12,7 +12,7 @@ swiftc ios/CMOriginalWindowsMechanicalTransfer.swift     ios/CMOriginalGearConta
 "$tmp/gears"
 swiftc ios/CMOriginalWindowsMechanicalTransfer.swift     tests/OriginalWindowsMechanicalTransferSmoke.swift -o "$tmp/native-motion"
 "$tmp/native-motion"
-printf '%s\n' "Stage-1 focused native-mechanics checks passed; iOS app NOT built."
+# Native GOAL checks must complete before reporting this batch successful.
 
 # Native flower GOAL and illumination-dependent +0x130 progress for five real originals.
 swiftc ios/CMOriginalWindowsFlower.swift tests/OriginalWindowsFlowerSmoke.swift -o "$tmp/original-flower"
@@ -20,3 +20,13 @@ swiftc ios/CMOriginalWindowsFlower.swift tests/OriginalWindowsFlowerSmoke.swift 
 # Native Win32 belt-flag GOAL gate from actual level-34 telescope states.
 swiftc ios/CMOriginalWindowsBeltFlag.swift tests/OriginalWindowsBeltFlagSmoke.swift -o "$tmp/original-flag"
 "$tmp/original-flag"
+
+# Actual original object GOAL resolver: run BOTH mechanical native predicates
+# alongside original electrical and steam GOAL without building the iOS app.
+swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
+  ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalWindowsSolarSignal.swift \
+  ios/CMOriginalWindowsSteamWhistle.swift ios/CMOriginalWindowsBeltFlag.swift \
+  ios/CMOriginalWindowsFlower.swift ios/CMOriginalWindowsElectricalGoals.swift \
+  tests/OriginalWindowsElectricalGoalsSmoke.swift -o "$tmp/original-goal-dispatch"
+"$tmp/original-goal-dispatch"
+printf '%s\n' "All focused Stage-1 native-mechanics and goal-dispatch checks passed; iOS app NOT built."
