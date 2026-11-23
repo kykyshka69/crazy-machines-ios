@@ -63,3 +63,22 @@ without pairing by proximity or using original terminal numbers as voltages.
 Switch/disrupter/conditional source behavior retains stricter independent
 restrictions. This is an evidence-based topology improvement, **not yet
 voltage/current, load drop, source-mixing or Win32 full circuit parity**.
+
+## Player cable layout survives re-entry; invalid data fails closed (2026-11-23)
+
+The iOS experiment can now persist **only player-explicit** power plug pairs
+in app-local UserDefaults under the SHA-256 of an authentic imported scene.
+The persisted versioned JSON includes its level number and original scene
+hash, and on restoration every cable is replayed through the established
+same-device, occupied-terminal, unknown-plug and cable-count guards.
+Invalid or cross-level snapshots never partially connect any devices.
+One unfinished first-click selection is discarded on Pause/Restart/level
+change; actual paired cables remain until the user explicitly clears them
+or presses Original layout. This is **user-created iOS wiring**, not a claim
+that native Windows `power_cable` save records have been decoded.
+
+The level's SceneKit callback closures also check their originating scene
+revision before delivering GOAL/CONNECTED_TO/motor/switch events. An old
+renderer cannot credit the new puzzle just because its physics toggle is
+running. Unit tests cover snapshot round-trip and malformed/foreign/duplicate
+cable rejection; iPhone CI is required for SwiftUI integration verification.

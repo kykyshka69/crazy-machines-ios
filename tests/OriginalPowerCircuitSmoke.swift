@@ -75,6 +75,46 @@ struct OriginalPowerCircuitSmoke {
         precondition(openSignal[lampID] == nil)
         precondition(CMOriginalWindowsPowerScalar.motorRotorCommand(
             from: openSignal[sourceID]!) == -10)
+        // A cable arrangement survives app/level re-entry only for this
+        // exact imported original scene, and is revalidated on restoration.
+        let snapshot = try net.snapshotData()
+        precondition(net.snapshotStorageKey.contains(session.sceneSHA256))
+        var loaded = CMOriginalPowerCircuit(session: session)!
+        precondition(loaded.cableCount == 0)
+        precondition(loaded.restoreSnapshot(snapshot))
+        precondition(loaded.cables == net.cables)
+        precondition(loaded.snapshotData() == snapshot)
+        // Bad data, unknown versions, cross-level files, duplicate wires,
+        // wrong source IDs and occupied plugs all fail atomically.
+        let originalCables = loaded.cables
+        precondition(!loaded.restoreSnapshot(Data(snapshot.dropLast())))
+        precondition(loaded.cables == originalCables)
+        func tampered(_ alter: (inout [String: Any]) -> Void) throws -> Data {
+            var object = try JSONSerialization.jsonObject(
+                with: snapshot) as! [String: Any]
+            alter(&object)
+            return try JSONSerialization.data(withJSONObject: object)
+        }
+        let wrongVersion = try tampered { $0["version"] = 99 }
+        let wrongScene = try tampered { $0["sceneSHA256"] = String(repeating: "b", count: 64) }
+        let wrongLevel = try tampered { $0["levelIndex"] = 13 }
+        let repeated = try tampered { $0["cables"] =
+            ($0["cables"] as! [[String: Any]]) +
+            [($0["cables"] as! [[String: Any]])[0]] }
+        let alien = try tampered { object in
+            var wires = object["cables"] as! [[String: Any]]
+            wires[0]["firstPlugID"] = "not-an-original-object"
+            object["cables"] = wires
+        }
+        for invalid in [wrongVersion, wrongScene, wrongLevel, repeated, alien] {
+            precondition(!loaded.restoreSnapshot(invalid))
+            precondition(loaded.cables == originalCables)
+        }
+        loaded.reset()
+        precondition(loaded.cableCount == 0)
+        precondition(loaded.restoreSnapshot(snapshot))
+        precondition(loaded.cables == originalCables)
+
         let closedSignal = net.experimentalBatterySignals(
             closedSwitchIDs: [switchID])
         precondition(closedSignal[motorID] == 10)

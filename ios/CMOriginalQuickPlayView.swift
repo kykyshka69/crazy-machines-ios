@@ -21,8 +21,8 @@ struct CMOriginalQuickPlayView: View {
         self.assetDirectory = assetDirectory
         _document = State(initialValue: document)
         _originalSession = State(initialValue: CMOriginalGameplaySession(document: document))
-        _powerCircuit = State(initialValue: CMOriginalPowerCircuit(
-            session: CMOriginalGameplaySession(document: document)))
+        _powerCircuit = State(initialValue: Self.restoredCircuit(
+            for: CMOriginalGameplaySession(document: document)))
         let support = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let directory = support.appendingPathComponent(
@@ -39,6 +39,19 @@ struct CMOriginalQuickPlayView: View {
             CMOriginalWindowsGoalCounter(
                 session: CMOriginalGameplaySession(document: document)))
         _fourthLevelRun = State(initialValue: CMOriginalFourthLevelRun(document: document))
+    }
+
+    /// The player's selected cable pairs are stored separately from the
+    /// user-owned PC scene. Do not confuse these with decoded Windows wires.
+    private static func restoredCircuit(
+        for session: CMOriginalGameplaySession
+    ) -> CMOriginalPowerCircuit? {
+        guard var circuit = CMOriginalPowerCircuit(session: session) else { return nil }
+        if let data = UserDefaults.standard.data(forKey: circuit.snapshotStorageKey),
+           !circuit.restoreSnapshot(data) {
+            UserDefaults.standard.removeObject(forKey: circuit.snapshotStorageKey)
+        }
+        return circuit
     }
 
     // Open an authentic scene at rest; users arrange original parts before
@@ -246,7 +259,7 @@ struct CMOriginalQuickPlayView: View {
         document = next
         originalSession = CMOriginalGameplaySession(document: next)
         objectiveLedger = CMOriginalObjectiveEvidenceLedger(session: originalSession)
-        powerCircuit = CMOriginalPowerCircuit(session: originalSession)
+        powerCircuit = Self.restoredCircuit(for: originalSession)
         generatorRotorSpeedsByDeviceID.removeAll()
         disrupterAnglesByDeviceID.removeAll()
         pendingPowerPlugID = nil
@@ -283,6 +296,10 @@ struct CMOriginalQuickPlayView: View {
     /// Same restart action for the normal iPhone control and the genuine
     /// Windows VSC Replay button. No game assets or game-state shortcuts.
     private func restartCurrentPuzzle() {
+        // Keep deliberate paired wires but discard an unfinished first click.
+        // A stale selection must not connect to a future scene or replay.
+        pendingPowerPlugID = nil
+        powerConnectionMessage = nil
         physicsPaused = false
         zoneContacts.removeAll()
         matchedZoneLinks.removeAll()
@@ -303,6 +320,9 @@ struct CMOriginalQuickPlayView: View {
     }
 
     var body: some View {
+        // Old SceneKit renderer callbacks can arrive after a level change or
+        // Replay. Match their source scene lifetime, not just the Run toggle.
+        let eventRevision = sceneRevision
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Button {
@@ -347,7 +367,10 @@ struct CMOriginalQuickPlayView: View {
                 physicsPaused: physicsPaused,
                 cameraResetRevision: cameraResetRevision,
                 undoPlacementRevision: undoPlacementRevision,
-                onCanUndoPlacementChange: { canUndoPlacement = $0 },
+                onCanUndoPlacementChange: { value in
+                    guard eventRevision == sceneRevision else { return }
+                    canUndoPlacement = value
+                },
                 allowObjectPlacement: true,
                 experimentalMotorDrive: experimentalMotorDrive,
                 experimentalMagnetism: experimentalMagnetism,
@@ -357,6 +380,7 @@ struct CMOriginalQuickPlayView: View {
                 originalAmmeterPowerSignals: originalAmmeterPowerSignals,
                 configuredPhysicsRoles: experimentalPhysicsRoles,
                 onOriginalZoneContact: { type in
+                    guard eventRevision == sceneRevision else { return }
                     // SceneKit dispatches observations asynchronously. A queued
                     // event must not revive progress after Pause, Stop or Reset.
                     guard experimentalPhysics && !physicsPaused else { return }
@@ -364,6 +388,7 @@ struct CMOriginalQuickPlayView: View {
                     zoneContacts[type, default: 0] += 1
                 },
                 onLinkedZoneContact: { sourceID, zoneID in
+                    guard eventRevision == sceneRevision else { return }
                     // SceneKit dispatches observations asynchronously. A queued
                     // event must not revive progress after Pause, Stop or Reset.
                     guard experimentalPhysics && !physicsPaused else { return }
@@ -394,6 +419,7 @@ struct CMOriginalQuickPlayView: View {
                     }
                 },
                 onOriginalConnectionContact: { sourceID, targetID in
+                    guard eventRevision == sceneRevision else { return }
                     // SceneKit dispatches observations asynchronously. A queued
                     // event must not revive progress after Pause, Stop or Reset.
                     guard experimentalPhysics && !physicsPaused else { return }
@@ -422,6 +448,7 @@ struct CMOriginalQuickPlayView: View {
                     }
                 },
                 onOriginalBucketCapture: { ballID, bucketID in
+                    guard eventRevision == sceneRevision else { return }
                     // SceneKit dispatches observations asynchronously. A queued
                     // event must not revive progress after Pause, Stop or Reset.
                     guard experimentalPhysics && !physicsPaused else { return }
@@ -442,6 +469,7 @@ struct CMOriginalQuickPlayView: View {
                     }
                 },
                 onOriginalCageCapture: { ballID, cageID in
+                    guard eventRevision == sceneRevision else { return }
                     // SceneKit dispatches observations asynchronously. A queued
                     // event must not revive progress after Pause, Stop or Reset.
                     guard experimentalPhysics && !physicsPaused else { return }
@@ -459,6 +487,7 @@ struct CMOriginalQuickPlayView: View {
                     )
                 },
                 onOriginalPlayerSourceGoal: { originalID in
+                    guard eventRevision == sceneRevision else { return }
                     // SceneKit dispatches observations asynchronously. A queued
                     // event must not revive progress after Pause, Stop or Reset.
                     guard experimentalPhysics && !physicsPaused else { return }
@@ -477,6 +506,7 @@ struct CMOriginalQuickPlayView: View {
                     )
                 },
                 onOriginalDisrupterAngle: { disrupterID, wheelAngle in
+                    guard eventRevision == sceneRevision else { return }
                     guard experimentalPhysics && !physicsPaused else { return }
                     guard originalSession.objects.contains(where: {
                         $0.id == disrupterID
@@ -488,6 +518,7 @@ struct CMOriginalQuickPlayView: View {
                     creditExperimentalElectricGoals()
                 },
                 onOriginalGeneratorSignal: { generatorID, rotorSpeed in
+                    guard eventRevision == sceneRevision else { return }
                     guard experimentalPhysics && !physicsPaused else { return }
                     generatorRotorSpeedsByDeviceID[generatorID] = rotorSpeed
                     if CMOriginalWindowsPowerScalar.generatorTriggersGoal(
@@ -498,6 +529,7 @@ struct CMOriginalQuickPlayView: View {
                     creditExperimentalElectricGoals()
                 },
                 onOriginalWindmillSignal: { windmillID, measuredRotorSpeed in
+                    guard eventRevision == sceneRevision else { return }
                     guard experimentalPhysics && !physicsPaused else { return }
                     // The native GOAL predicate is exact; mapping SceneKit
                     // angular velocity to Win32 +0xE0 remains provisional.
@@ -508,6 +540,7 @@ struct CMOriginalQuickPlayView: View {
                     }
                 },
                 onOriginalPowerPlugTap: { plugID in
+                    guard eventRevision == sceneRevision else { return }
                     guard !experimentalPhysics else { return }
                     if let first = pendingPowerPlugID {
                         pendingPowerPlugID = nil
@@ -517,6 +550,11 @@ struct CMOriginalQuickPlayView: View {
                             let outcome = circuit.toggleCable(
                                 between: first, and: plugID)
                             powerCircuit = circuit
+                            if outcome != .rejected,
+                               let snapshot = try? circuit.snapshotData() {
+                                UserDefaults.standard.set(
+                                    snapshot, forKey: circuit.snapshotStorageKey)
+                            }
                             switch outcome {
                             case .connected:
                                 powerConnectionMessage = "Original plug cable connected"
@@ -532,6 +570,7 @@ struct CMOriginalQuickPlayView: View {
                     }
                 },
                 onOriginalSwitchToggle: { switchID, isOn in
+                    guard eventRevision == sceneRevision else { return }
                     // SceneKit dispatches observations asynchronously. A queued
                     // event must not revive progress after Pause, Stop or Reset.
                     guard experimentalPhysics && !physicsPaused else { return }
@@ -547,6 +586,7 @@ struct CMOriginalQuickPlayView: View {
                     creditExperimentalElectricGoals()
                 },
                 onOriginalSwitchContact: { hit in
+                    guard eventRevision == sceneRevision else { return }
                     // SceneKit dispatches observations asynchronously. A queued
                     // event must not revive progress after Pause, Stop or Reset.
                     guard experimentalPhysics && !physicsPaused else { return }
@@ -557,6 +597,7 @@ struct CMOriginalQuickPlayView: View {
                     )
                 },
                 onOriginalOpticalSightlines: { observations in
+                    guard eventRevision == sceneRevision else { return }
                     // SceneKit dispatches observations asynchronously. A queued
                     // event must not revive progress after Pause, Stop or Reset.
                     guard experimentalPhysics && !physicsPaused else { return }
@@ -794,6 +835,8 @@ struct CMOriginalQuickPlayView: View {
                 Toggle("Run experimental physics", isOn: $experimentalPhysics)
                     .font(.caption)
                     .onChange(of: experimentalPhysics) { _, newValue in
+                        pendingPowerPlugID = nil
+                        powerConnectionMessage = nil
                         if !newValue {
                             experimentalMotorDrive = false
                             experimentalMagnetism = false
@@ -879,6 +922,8 @@ struct CMOriginalQuickPlayView: View {
                                 var next = circuit
                                 next.reset()
                                 powerCircuit = next
+                                UserDefaults.standard.removeObject(
+                                    forKey: next.snapshotStorageKey)
                                 pendingPowerPlugID = nil
                                 powerConnectionMessage = nil
                             }.font(.caption)
@@ -971,6 +1016,17 @@ struct CMOriginalQuickPlayView: View {
                     experimentalPhysics = false
                     experimentalMotorDrive = false
                     experimentalMagnetism = false
+                    experimentalWiredPower = false
+                    if var circuit = powerCircuit {
+                        circuit.reset()
+                        UserDefaults.standard.removeObject(
+                            forKey: circuit.snapshotStorageKey)
+                        powerCircuit = circuit
+                    }
+                    pendingPowerPlugID = nil
+                    powerConnectionMessage = nil
+                    generatorRotorSpeedsByDeviceID.removeAll()
+                    disrupterAnglesByDeviceID.removeAll()
                     physicsPaused = false
                     zoneContacts.removeAll()
                     matchedZoneLinks.removeAll()

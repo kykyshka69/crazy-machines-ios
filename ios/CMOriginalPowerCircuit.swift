@@ -117,6 +117,61 @@ public struct CMOriginalPowerCircuit {
         }.map(\.deviceID))
     }
 
+    /// The iPhone user's *explicitly paired* wires, not original Windows
+    /// cables inferred from terminal numbers. Scope storage to the exact
+    /// imported PC scene hash, never merely to its display-level number.
+    public var snapshotStorageKey: String {
+        "cm.original.power-cables.\(sceneSHA256)"
+    }
+
+    private struct SavedCable: Codable {
+        let firstPlugID: String
+        let secondPlugID: String
+    }
+
+    private struct Snapshot: Codable {
+        let version: Int
+        let levelIndex: Int
+        let sceneSHA256: String
+        let cables: [SavedCable]
+    }
+
+    public func snapshotData() throws -> Data {
+        let pairs = cables.sorted {
+            $0.firstPlugID == $1.firstPlugID
+                ? $0.secondPlugID < $1.secondPlugID
+                : $0.firstPlugID < $1.firstPlugID
+        }.map { SavedCable(firstPlugID: $0.firstPlugID,
+                           secondPlugID: $0.secondPlugID) }
+        return try JSONEncoder().encode(Snapshot(
+            version: 1, levelIndex: levelIndex,
+            sceneSHA256: sceneSHA256, cables: pairs))
+    }
+
+    /// Restore only authentic known plug identities and valid disjoint pairs.
+    /// A malformed, cross-level or incompatible snapshot cannot partially
+    /// replace the currently selected cables or fabricate a power source.
+    @discardableResult
+    public mutating func restoreSnapshot(_ data: Data) -> Bool {
+        guard data.count <= 128 * 1024,
+              let saved = try? JSONDecoder().decode(Snapshot.self, from: data),
+              saved.version == 1,
+              saved.levelIndex == levelIndex,
+              saved.sceneSHA256 == sceneSHA256,
+              saved.cables.count <= min(512, terminals.count / 2) else {
+            return false
+        }
+        var candidate = self
+        candidate.cables.removeAll(keepingCapacity: true)
+        for cable in saved.cables {
+            guard candidate.toggleCable(
+                between: cable.firstPlugID, and: cable.secondPlugID
+            ) == .connected else { return false }
+        }
+        cables = candidate.cables
+        return true
+    }
+
     public var cableCount: Int { cables.count }
     public var unwiredTerminalCount: Int {
         let used = Set(cables.flatMap { [$0.firstPlugID, $0.secondPlugID] })
