@@ -79,6 +79,38 @@ struct OriginalElementsPortableSmoke {
         precondition(ledger.allMarkersObserved)
         ledger.reset()
         precondition(!ledger.allMarkersObserved)
+        // The original EXE applies physical force to the nested rocket
+        // CHILD (0x44F1DD..0x44F27D), not its fixed mount. Without a
+        // template, CML usually omits the child VALB; generic role
+        // fallback incorrectly froze every authentic rocket.
+        let rocketJSON: [String: Any] = [
+            "schema": "crazy-machines-original-scene-v1",
+            "index": 58, "title": "Original rocket role invariant",
+            "scene_sha256": String(repeating: "b", count: 64),
+            "root": ["name": "level", "fields": [], "children": [
+                ["name": "level_elements", "fields": [], "children": [
+                    ["name": "tmo_heat_rocket", "fields": ["VALB 64"],
+                     "children": [
+                        ["name": "tmo_heat_rocket_rocket",
+                         "fields": ["VALF 0.125"], "children": []]
+                     ]],
+                    // An unrelated orphan must never inherit the
+                    // active rocket child role by matching type alone.
+                    ["name": "tmo_heat_rocket_rocket", "fields": [],
+                     "children": []]
+                ]]
+            ]]
+        ]
+        let rocketDocument = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: rocketJSON))
+        let rocketSession = CMOriginalGameplaySession(document: rocketDocument)
+        let rocketRoles = CMOriginalPhysicsRolePlanner.roles(
+            for: rocketSession)
+        precondition(rocketSession.objects.count == 3)
+        precondition(rocketRoles[rocketSession.objects[0].id] == .fixed)
+        precondition(rocketRoles[rocketSession.objects[1].id] == .movable)
+        precondition(rocketRoles[rocketSession.objects[2].id] == .fixed)
+
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent(
             "cm-script-absent-\(UUID().uuidString)")
         precondition(CMOriginalWindowsScriptLibrary.load(directory: temp) == nil)
