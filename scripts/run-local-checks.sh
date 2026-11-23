@@ -43,7 +43,9 @@ swiftc ios/CMOriginalCollisionProxy.swift tests/OriginalCollisionProxySmoke.swif
 swiftc ios/CMOriginalConveyorContact.swift tests/OriginalConveyorContactSmoke.swift -o "$tmp/original-conveyor"
 "$tmp/original-conveyor"
 # Verify gear-to-gear and motor/gear/conveyor traction only at actual UCM contact.
-swiftc ios/CMOriginalGearContactTransfer.swift tests/OriginalGearContactTransferSmoke.swift -o "$tmp/original-gears"
+swiftc ios/CMOriginalWindowsMechanicalTransfer.swift tests/OriginalWindowsMechanicalTransferSmoke.swift -o "$tmp/original-native-motion"
+"$tmp/original-native-motion"
+swiftc ios/CMOriginalWindowsMechanicalTransfer.swift ios/CMOriginalGearContactTransfer.swift tests/OriginalGearContactTransferSmoke.swift -o "$tmp/original-gears"
 "$tmp/original-gears"
 # Five PC glow references use authentic TGA images instead of UCM geometry.
 swiftc ios/CMOriginalEffectBillboard.swift tests/OriginalEffectBillboardSmoke.swift -o "$tmp/original-glow"

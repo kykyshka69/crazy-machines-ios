@@ -32,7 +32,9 @@ public enum CMOriginalGearContactTransfer {
         firstKind: String, secondKind: String,
         firstRadius: Float, secondRadius: Float,
         firstAngularSpeed: Float, secondAngularSpeed: Float,
-        firstMass: Float, secondMass: Float
+        firstMass: Float, secondMass: Float,
+        nativeFirstVALF: Float? = nil,
+        nativeSecondVALF: Float? = nil
     ) -> TorquePair? {
         guard accepts(firstKind, secondKind) else { return nil }
         let values = [firstRadius, secondRadius, firstAngularSpeed,
@@ -45,10 +47,28 @@ public enum CMOriginalGearContactTransfer {
               abs(firstAngularSpeed) <= 80,
               abs(secondAngularSpeed) <= 80 else { return nil }
 
-        // A REAL physics contact exists when called from SceneKit.
-        // Surface velocities at the external tangency must cancel.
-        let slip = firstAngularSpeed * firstRadius
-            + secondAngularSpeed * secondRadius
+        // The actual Win32 VALF/+0xEC transmission ratio is recovered,
+        // but mapping native +0xE8 to SCN angular speed is NOT. Use native
+        // per-object VALF as the experimental speed-ratio constraint only
+        // when BOTH original coefficients exist. Keep contact-point radii
+        // to turn bounded corrective slip into physical SceneKit torque.
+        // Without original coefficients, fall back to no-slip geometry.
+        let slip: Float
+        if let firstVALF = nativeFirstVALF,
+           let secondVALF = nativeSecondVALF {
+            guard let nativeRatio =
+                CMOriginalWindowsMechanicalTransfer.transmittedSignal(
+                    sourceSignal: 1, sourceVALF: firstVALF,
+                    targetVALF: secondVALF),
+                  nativeRatio > 0, nativeRatio <= 100 else { return nil }
+            let equivalentRadius = (firstRadius / nativeRatio
+                                    + secondRadius) * 0.5
+            slip = (firstAngularSpeed * nativeRatio
+                    + secondAngularSpeed) * equivalentRadius
+        } else {
+            slip = firstAngularSpeed * firstRadius
+                + secondAngularSpeed * secondRadius
+        }
         guard slip.isFinite, abs(slip) > 0.005 else { return nil }
 
         // Damped opposing contact forces act with opposite linear sign,

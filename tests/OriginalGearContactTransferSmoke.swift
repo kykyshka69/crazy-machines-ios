@@ -59,6 +59,35 @@ struct OriginalGearContactTransferSmoke {
                 precondition((torque.first > 0) == (torque.second > 0))
             }
         }
-        print("Original UCM gear contact: counterrotation, motor/gear/conveyor and 1000 bounded cases OK")
+        // Native VALF comes from the original CML parser into Win32 +0xEC.
+        // A gear(.125) driving a conveyor wheel(.100) settles at a
+        // 1.25x reversed scalar, NOT the old guessed UCM radius ratio.
+        func native(_ wA: Float, _ wB: Float,
+                    _ scaleA: Float = 0.125,
+                    _ scaleB: Float = 0.1) -> G.TorquePair? {
+            G.correction(firstKind: "tmo_belt_gear",
+                secondKind: "tmo_belt_conveyer_wheel",
+                firstRadius: 0.12, secondRadius: 0.09,
+                firstAngularSpeed: wA, secondAngularSpeed: wB,
+                firstMass: 1, secondMass: 1,
+                nativeFirstVALF: scaleA, nativeSecondVALF: scaleB)
+        }
+        precondition(native(3, -3.75) == nil)
+        precondition(native(3, 0)!.second < 0)
+        precondition(native(3, -5)!.second > 0)
+        precondition(native(3, -3) != nil)
+        precondition(native(3, -3.75, 0.125, 0) == nil)
+        precondition(native(0, 0) == nil)
+        // Symmetric under SceneKit's arbitrary contact A/B ordering.
+        let ab = native(3, 0)!
+        let ba = G.correction(firstKind: "tmo_belt_conveyer_wheel",
+            secondKind: "tmo_belt_gear",
+            firstRadius: 0.09, secondRadius: 0.12,
+            firstAngularSpeed: 0, secondAngularSpeed: 3,
+            firstMass: 1, secondMass: 1,
+            nativeFirstVALF: 0.1, nativeSecondVALF: 0.125)!
+        precondition(abs(ab.first - ba.second) < 0.00001)
+        precondition(abs(ab.second - ba.first) < 0.00001)
+        print("Original UCM gear contact, native VALF-scaled counterrotation and 1000 bounded cases OK")
     }
 }

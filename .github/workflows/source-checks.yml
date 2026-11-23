@@ -359,7 +359,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Test real-UCM gear contact torque correction and conveyor coupling
         run: |
-          swiftc ios/CMOriginalGearContactTransfer.swift tests/OriginalGearContactTransferSmoke.swift -o /tmp/cm-original-gears
+          swiftc ios/CMOriginalWindowsMechanicalTransfer.swift tests/OriginalWindowsMechanicalTransferSmoke.swift -o /tmp/cm-original-native-motion
+          /tmp/cm-original-native-motion
+          swiftc ios/CMOriginalWindowsMechanicalTransfer.swift ios/CMOriginalGearContactTransfer.swift tests/OriginalGearContactTransferSmoke.swift -o /tmp/cm-original-gears
           /tmp/cm-original-gears
 
   original-motor-rotor-drive:

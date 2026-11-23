@@ -86,3 +86,31 @@ motor, 23 with gear and conveyor and **17 with all three**:
 The 17 are **priority private integrated gameplay verification targets**
 for the new contact bridge, but this metadata analysis does not prove
 physical gear engagement or solve any of the puzzles on iOS.
+
+## Original VALF transfer ratio integrated into contacted gears (2026-11-23)
+
+**Original executable SHA-256 validated** as
+`51f9beecd9842c67834da9c4fc73be7a1452c9e8149d059729b130a2b9d601e6`.
+
+Further genuine Win32 x86 recovery:
+- At `0x4226DE..0x422730` the original CML `VALF` decoder
+  actually parses the Float and stores it into object `+0xEC`.
+- At `0x44BAB2..0x44BAD0` an attached mechanical receiver gets
+  `receiver.+0xE8 = source.+0xE8 * source.+0xEC / receiver.+0xEC`.
+- At `0x44BAD8..0x44BB0B`, when runtime attachment flag `+0x50`
+  is nonzero, the receiver instead evolves toward zero as
+  `receiver.+0xE8 += (-receiver.+0xE8) * *(receiver.+0x128)`.
+  These runtime flags/steps are NOT present in CML and are not invented.
+
+Authentic original gear and motor rotors have `VALF 0.125000`;
+original conveyor wheels have `VALF 0.100000`. The pure portable
+`CMOriginalWindowsMechanicalTransfer` exactly computes the scalar
+ratio and guarded decay. `CMOriginalAssembledSceneView` now reads
+**actual per-object CML VALF** and supplies the native ratio to the
+bounded SceneKit contact correction for physically touching original
+UCM gear teeth, motor rotors and conveyor wheels. A gear (.125) to
+conveyor wheel (.100) therefore uses 1.25x opposing *target-signal*
+ratio instead of relying only on the imported mesh radius guess.
+The native `+0x84` angular speed/torque mapping remains unknown:
+SceneKit friction and force gain are still **experimental**, and this
+change does not manufacture a selector-5 link or a GOAL event.

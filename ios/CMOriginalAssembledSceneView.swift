@@ -620,6 +620,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // Authentic PC conveyor children are linked through their scene-graph
         // parentID, not through a guessed nearest wheel or motor.
         private var originalTypesByID: [String: String] = [:]
+        // Original Win32 0x42272A loads CML VALF into native +0xEC.
+        // Only real authored per-object values may calibrate gear transfer.
+        private var originalMechanicalVALFByID: [String: Float] = [:]
         private var conveyorWheelNodes: [String: SCNNode] = [:]
         // The exact original UCM belt surface is offset from its housing.
         private var conveyorBeltNodes: [String: SCNNode] = [:]
@@ -908,6 +911,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             })
             originalTypesByID = Dictionary(
                 uniqueKeysWithValues: originalObjects.map { ($0.id, $0.type) }
+            )
+            originalMechanicalVALFByID = Dictionary(
+                uniqueKeysWithValues: originalObjects.compactMap { object
+                    -> (String, Float)? in
+                    guard let raw = object.fields["VALF"]?.first,
+                          let original = Float(
+                            raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+                          original.isFinite, original > 0 else { return nil }
+                    return (object.id, original)
+                }
             )
             buoyantObjectIDs = Set(
                 (session?.objects ?? [])
@@ -1587,7 +1600,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 firstKind: kindA, secondKind: kindB,
                 firstRadius: radiusA, secondRadius: radiusB,
                 firstAngularSpeed: speedA, secondAngularSpeed: speedB,
-                firstMass: Float(aBody.mass), secondMass: Float(bBody.mass)
+                firstMass: Float(aBody.mass), secondMass: Float(bBody.mass),
+                nativeFirstVALF: originalMechanicalVALFByID[aID],
+                nativeSecondVALF: originalMechanicalVALFByID[bID]
             ) else { return }
             // Apply equal/opposing LINEAR contact forces as signed axle
             // torques; the native +0x84-to-angular-speed mapping is unknown.
