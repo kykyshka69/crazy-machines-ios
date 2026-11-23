@@ -73,6 +73,17 @@ struct OriginalPowerCircuitSmoke {
         precondition(openSignal[sourceID] == 10)
         precondition(openSignal[motorID] == nil)
         precondition(openSignal[lampID] == nil)
+        let firstOnly = net.experimentalCablePowerSignals(
+            powerByDeviceID: openSignal)
+        precondition(firstOnly == [
+            .init(battery.plugID, terminal(1)): 10
+        ])
+        precondition(net.experimentalCablePowerSignals(
+            powerByDeviceID: [sourceID: 10, switchID: -10]).isEmpty)
+        precondition(net.experimentalCablePowerSignals(
+            powerByDeviceID: [sourceID: .nan, switchID: 10]).isEmpty)
+        precondition(net.experimentalCablePowerSignals(
+            powerByDeviceID: [sourceID: 0, switchID: 0]).isEmpty)
         precondition(CMOriginalWindowsPowerScalar.motorRotorCommand(
             from: openSignal[sourceID]!) == -10)
         // A cable arrangement survives app/level re-entry only for this
@@ -120,6 +131,10 @@ struct OriginalPowerCircuitSmoke {
             closedSwitchIDs: [switchID])
         precondition(closedSignal[motorID] == 10)
         precondition(closedSignal[lampID] == 10)
+        let allWires = net.experimentalCablePowerSignals(
+            powerByDeviceID: closedSignal)
+        precondition(allWires.count == 4)
+        precondition(allWires.values.allSatisfy { $0 == 10 })
         precondition(CMOriginalWindowsPowerScalar.motorTriggersGoal(
             power: closedSignal[motorID]!))
         let withSwitch = net.reachableDevices(closedSwitchIDs: [switchID])
@@ -147,6 +162,9 @@ struct OriginalPowerCircuitSmoke {
             closedSwitchIDs: [switchID])[lampID] == nil)
         precondition(net.experimentalBatterySignals(
             closedSwitchIDs: [switchID])[motorID] == nil)
+        precondition(net.experimentalCablePowerSignals(
+            powerByDeviceID: net.experimentalBatterySignals(
+                closedSwitchIDs: [switchID])).count == 2)
         net.reset()
         precondition(net.unwiredTerminalCount == 8)
         precondition(net.reachableDevices() == [sourceID])
