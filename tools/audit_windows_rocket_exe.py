@@ -54,6 +54,22 @@ REGION_SITES={
     0x420526:"3b 4d 08",             # match requested selector
     0x44E3B3:"83 c0 24",             # region fields at entry + 0x24
 }
+# Owner-original Win32 rocket force-at-center path. Keep distinct
+# from candle ignition/flight state-machine instruction locations.
+FORCE_SITES = {
+    0x44F1DD:"68 a8 ca 4e 00",      # original literal Direction
+    0x44F1F6:"83 c0 30",            # runtime Direction vector at +0x30
+    0x44F219:"8b 91 fc 00 00 00",  # engine child runtime force scalar
+    0x44F22D:"e8 2e 52 fb ff",     # native vector times runtime scalar
+    0x40446D:"d8 48 08",           # vector component x87 multiply
+    0x44F264:"e8 57 6f fd ff",     # body center world-space read
+    0x44F27D:"e8 ee 71 fd ff",     # force at center via 0x426470
+    0x426502:"e8 f9 fe 05 00",     # 0x426470 calls physics 0x486400
+    0x486408:"d8 80 08 01 00 00", # physics force X accumulation
+    0x486418:"d8 80 0c 01 00 00", # physics force Y accumulation
+    0x486460:"d8 80 18 01 00 00", # physics torque accumulator
+    0x486492:"d8 80 20 01 00 00", # last torque component
+}
 def verify(exe: bytes) -> dict:
     if hashlib.sha256(exe).hexdigest()!=SHA:
         raise ValueError("Original CrazyMachines.exe SHA-256 mismatch")
@@ -77,7 +93,7 @@ def verify(exe: bytes) -> dict:
                 pos=raw+va-start
                 if pos+n<=len(exe):return exe[pos:pos+n]
         raise ValueError("Native original rocket address not mapped")
-    for address,code in {**SITES,**REGION_SITES}.items():
+    for address,code in {**SITES,**REGION_SITES,**FORCE_SITES}.items():
         expected=bytes.fromhex(code)
         if read(address,len(expected))!=expected:
             raise ValueError("Native original rocket x86 mismatch at "+hex(address))
@@ -97,6 +113,7 @@ def verify(exe: bytes) -> dict:
         raise ValueError("Native original rocket fuse mismatch")
     return {"x86_sites":len(SITES),
             "native_region_geometry_sites":len(REGION_SITES),
+            "native_force_sites":len(FORCE_SITES),
             "native_region_plane":"XY", "ignited_state":1,
             "native_candle_ignition_cutoff":
                 struct.unpack("<f",read(0x4EDDE8,4))[0],

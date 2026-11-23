@@ -148,3 +148,27 @@ scale. Their precise mapping to physical-body velocity/force,
 Direction anchor coordinate frame, and Engine effect still requires
 tracing the native call chain. Do NOT directly treat the 3.0 scalar
 as a SceneKit impulse or claim rocket flight from these constants.
+
+## Original rocket's actual physics-body force application (2026-11-23)
+
+Independently decoded and SHA-pinned **12 additional machine-code sites**
+from the exact owner-original EXE (SHA-256 `51f9bee...d601e6`):
+- `0x44F1DD..0x44F1F6`: obtains the runtime `Direction` marker
+  vector at `+0x30`, not necessarily the raw UCM local-axis vector.
+- `0x44F219`: reads the flying rocket child object's LIVE `+0xFC`
+  scalar. This value cannot be substituted with template `VALF 0.125`
+  or `VELOCITY 4.0` without additional source verification.
+- `0x44F22D`: native `0x404460` multiplies the vector components by
+  that measured scalar; no invented normalization or force constant.
+- `0x44F264`: native `0x4261C0` reads the actual physics body center.
+  `0x44F27D`: `0x426470` calls native physics `0x486400` to
+  accumulate a force at that point. The bridge copies native X and Y
+  and sends Z=0; `0x486400` accumulates actual force and torque.
+
+Added `CMOriginalWindowsRocketForce.observedThrust` with a portable,
+positive/negative state-based regression requiring original flying state
+2, activated Engine child, observed runtime scalar and real Direction
+vector AND body center. It returns a planar force-at-body-center
+command, NOT a level GOAL or time-triggered fake rocket impulse.
+SceneKit's live native +0xFC producer and physical force dispatcher are
+still unimplemented. They must be connected before flight is real.

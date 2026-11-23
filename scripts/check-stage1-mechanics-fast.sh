@@ -31,6 +31,11 @@ swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsBeltFlag.swift
 swiftc ios/CMOriginalWindowsRegionSelector.swift tests/OriginalWindowsRegionSelectorSmoke.swift -o "$tmp/native-regions"
 "$tmp/native-regions"
 
+# Original x86 0x44F1DD..0x486400 physics force at body COM:
+# exact live +0xFC scalar and native Direction, NOT invented power.
+swiftc ios/CMOriginalWindowsRocketForce.swift tests/OriginalWindowsRocketForceSmoke.swift -o "$tmp/original-rocket-force"
+"$tmp/original-rocket-force"
+
 # Both ORIGINAL rocket phases 1→2 and 2→3 use separate engine
 # clocks and strict >3 seconds. No fabricated heat ignition or GOAL.
 swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsRegionSelector.swift ios/CMOriginalWindowsRocketTimer.swift tests/OriginalWindowsRocketTimerSmoke.swift -o "$tmp/original-rocket"

@@ -179,6 +179,11 @@ swiftc ios/CMOriginalWindowsRegionSelector.swift tests/OriginalWindowsRegionSele
 swiftc ios/CMOriginalUCMNamedAnchors.swift tests/OriginalUCMNamedAnchorsSmoke.swift -o "$tmp/ucm-anchors"
 "$tmp/ucm-anchors"
 
+# Original x86 0x44F1DD..0x486400 physics force at body COM:
+# exact live +0xFC scalar and native Direction, NOT invented power.
+swiftc ios/CMOriginalWindowsRocketForce.swift tests/OriginalWindowsRocketForceSmoke.swift -o "$tmp/original-rocket-force"
+"$tmp/original-rocket-force"
+
 # Original rocket state 2 + real engine countdown >3 seconds => state 3,
 # never invent an ignition, physics explosion, or puzzle GOAL.
 swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsRegionSelector.swift ios/CMOriginalWindowsRocketTimer.swift tests/OriginalWindowsRocketTimerSmoke.swift \
