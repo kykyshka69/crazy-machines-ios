@@ -17,6 +17,10 @@ swiftc ios/CMOriginalWindowsMechanicalTransfer.swift     tests/OriginalWindowsMe
 # Native flower GOAL and illumination-dependent +0x130 progress for five real originals.
 swiftc ios/CMOriginalWindowsFlower.swift tests/OriginalWindowsFlowerSmoke.swift -o "$tmp/original-flower"
 "$tmp/original-flower"
+# Preserve original named Heat/Engine/Explode/Direction UCM frames.
+swiftc ios/CMOriginalUCMNamedAnchors.swift tests/OriginalUCMNamedAnchorsSmoke.swift -o "$tmp/ucm-anchors"
+"$tmp/ucm-anchors"
+
 # Native Win32 belt-flag GOAL gate from actual level-34 telescope states.
 swiftc ios/CMOriginalWindowsWindRegion.swift tests/OriginalWindowsWindRegionSmoke.swift -o "$tmp/original-wind-region"
 "$tmp/original-wind-region"

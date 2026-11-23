@@ -175,6 +175,10 @@ python3 -m unittest discover -s tools -p 'test_audit_windows_goal_calls.py'
 swiftc ios/CMOriginalWindowsRegionSelector.swift tests/OriginalWindowsRegionSelectorSmoke.swift -o "$tmp/native-regions"
 "$tmp/native-regions"
 
+# Original UCM1 named attachment matrices, malformed-input safe.
+swiftc ios/CMOriginalUCMNamedAnchors.swift tests/OriginalUCMNamedAnchorsSmoke.swift -o "$tmp/ucm-anchors"
+"$tmp/ucm-anchors"
+
 # Original rocket state 2 + real engine countdown >3 seconds => state 3,
 # never invent an ignition, physics explosion, or puzzle GOAL.
 swiftc ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsRegionSelector.swift ios/CMOriginalWindowsRocketTimer.swift tests/OriginalWindowsRocketTimerSmoke.swift \

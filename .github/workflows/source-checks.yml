@@ -93,6 +93,15 @@ jobs:
           swiftc ios/CMTGATexture.swift tests/TGAThousandSmoke.swift -o /tmp/cm-tga-thousand
           /tmp/cm-tga-thousand
 
+  original-ucm-named-anchors:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify UCM1 named attachment markers and matrices
+        run: |
+          swiftc ios/CMOriginalUCMNamedAnchors.swift tests/OriginalUCMNamedAnchorsSmoke.swift -o /tmp/cm-ucm-anchors
+          /tmp/cm-ucm-anchors
+
   ucm-negative-runtime:
     runs-on: ubuntu-latest
     steps:

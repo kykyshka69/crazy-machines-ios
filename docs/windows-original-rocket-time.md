@@ -126,23 +126,3 @@ UCM bounding spheres) from the owner-original scene data, transform
 them into the current SceneKit object reference frame, and observe
 the original effect child, Engine physical impulse and explosion.
 No original level success is claimed by this geometry correction.
-
-## First native selector-3 region identity for candle and rocket (2026-11-23)
-
-Disassembled the user's verified original CrazyMachines.exe:
-- `0x44E12E` candle and `0x44E3A4` receiver both call `0x420360`
-  with **selector 3, occurrence 0**. They select separate object regions.
-- `0x4204FC` advances native `0x54`-byte region records.
-  `0x420508` rejects records with a null linked-object pointer
-  at `+0x44`, `0x420522` reads the linked object's `+0x10`
-  selector, and `0x420530/0x42054B` compare/increment the ordinal
-  **only for matching** selector records.
-- New `CMOriginalWindowsRegionSelector.matchingEntryIndex` reproduces
-  that lookup for observed original region metadata. Rocket ignition
-  now has a high-level path requiring source AND target selector-3
-  first-record indices to match actual measured original geometry.
-  Failed/mismatched/unlinked records cannot ignite via this path.
-
-No real SceneKit region records or actual original effect/engine
-observations are synthesized here. The producer and actual 102-level
-gameplay verification remain unfinished.

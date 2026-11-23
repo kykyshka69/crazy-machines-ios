@@ -646,6 +646,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // Imported original light_glow.tga candle sprites, per actual
         // tmo_candle/tmo_candle_dyn owner (never shared across instances).
         private var originalCandleGlowNodes: [String: [SCNNode]] = [:]
+        // Per-object genuine source UCM attachment frames. No invented
+        // native region size, thrust impulse or completion events.
+        private var originalNamedAnchorNodesByObjectID: [String: [SCNNode]] = [:]
         // Each lightbulb has its own copied original UCM materials. Never
         // change the shared cross-level geometry cache or another lamp.
         private var originalLampBulbMaterials: [String: [SCNMaterial]] = [:]
@@ -873,6 +876,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             originalAmmeterRestAngles.removeAll()
             originalPocketLampGlowNodes.removeAll()
             originalCandleGlowNodes.removeAll()
+            originalNamedAnchorNodesByObjectID.removeAll()
             originalLampBulbMaterials.removeAll()
             originalLampGlowNodes.removeAll()
             originalLampDiffuseIntensity.removeAll()
@@ -1004,6 +1008,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
             )
             scene.rootNode.enumerateChildNodes { node, _ in
+                if node.name?.hasPrefix("original-ucm-anchor-") == true,
+                   let owner = self.owningOriginalObjectID(for: node) {
+                    self.originalNamedAnchorNodesByObjectID[owner, default: []]
+                        .append(node)
+                }
                 if node.name == "original-effect-glow-to_candle_glow",
                    let heatID = self.owningOriginalObjectID(for: node),
                    ["tmo_candle", "tmo_candle_dyn"].contains(
@@ -2557,6 +2566,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var resolvedModels: [String: URL] = [:]
         var missingModels = Set<String>()
         var meshCache: [String: SCNGeometry] = [:]
+        // Authored UCM1 attachment tables are parsed once per resolved file;
+        // no synthetic heat radius, engine force or GOAL is assigned.
+        var namedAnchorCache: [URL: [CMOriginalUCMNamedAnchors.Anchor]] = [:]
         // Avoid reparsing a corrupt UCM every time it is referenced.
         var invalidMeshes = Set<URL>()
         // Physics trials must always begin at the authentic imported positions,
@@ -2741,6 +2753,31 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             // synthetic GOAL colors. GOAL is preserved in the
                             // level inspector, not encoded as invented materials.
                             transform.addChildNode(mesh)
+                            // Restore genuine original UCM attachment
+                            // positions as invisible, non-colliding child
+                            // frames. Only group 0 is attached here:
+                            // other group transforms need separate mapping.
+                            let anchors: [CMOriginalUCMNamedAnchors.Anchor]
+                            if let cached = namedAnchorCache[url] {
+                                anchors = cached
+                            } else {
+                                let parsed = (try? Data(
+                                    contentsOf: url, options: [.mappedIfSafe]
+                                )).flatMap {
+                                    try? CMOriginalUCMNamedAnchors.decode($0)
+                                } ?? []
+                                namedAnchorCache[url] = parsed
+                                anchors = parsed
+                            }
+                            for attachment in anchors where attachment.group == 0 {
+                                let frame = SCNNode()
+                                frame.name = "original-ucm-anchor-" +
+                                    attachment.name.lowercased() +
+                                    "-\(attachment.slot)"
+                                let local = attachment.localTranslationCandidate
+                                frame.position = SCNVector3(local[0], local[1], local[2])
+                                mesh.addChildNode(frame)
+                            }
                             // Collision bodies are attached to the owning tmo_
                             // transform below, including single-mesh objects.
                             // Keeping them off mesh children prevents a detached

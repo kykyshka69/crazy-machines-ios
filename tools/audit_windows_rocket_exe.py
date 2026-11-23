@@ -53,10 +53,6 @@ REGION_SITES={
     0x420522:"0f b6 48 10",          # original selector byte
     0x420526:"3b 4d 08",             # match requested selector
     0x44E3B3:"83 c0 24",             # region fields at entry + 0x24
-    0x42052B:"8b 55 10",             # native matching-record ordinal
-    0x420530:"3b 45 0c",             # check ordinal == requested index
-    0x420546:"8b 55 10",             # increment after selector match
-    0x42054B:"83 c0 01",             # only matched selector counts
 }
 def verify(exe: bytes) -> dict:
     if hashlib.sha256(exe).hexdigest()!=SHA:
