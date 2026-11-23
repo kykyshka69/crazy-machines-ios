@@ -76,6 +76,19 @@ VELOCITY_SITES = {
     0x422D81:"d9 9a fc 00 00 00", # parsed Float32 -> +0xFC
     0x44F219:"8b 91 fc 00 00 00", # rocket Engine reads +0xFC
 }
+# Source and receiver use DIFFERENT native selector-3 data.
+# Verified against original owner EXE SHA-256 before pinning.
+CANDLE_HEAT_PATH_SITES = {
+    0x44E12E:"6a 00 6a 03",          # source candle first selector-3 record
+    0x44E146:"8b 42 18",             # source record +0x18 -> native owner
+    0x44E149:"8b 88 00 01 00 00",   # owner +0x100 -> runtime element
+    0x44E14F:"d9 81 ec 00 00 00",   # source native on/off state +0xEC
+    0x44E17A:"8b 42 20",             # source record +0x20 -> emitter cone
+    0x44E3A4:"6a 00 6a 03",          # target rocket first selector-3 record
+    0x44E3B3:"83 c0 24",             # target record +0x24 -> target position
+    0x44E3B7:"8b 8d 38 ff ff ff",    # ECX = source heat cone, NOT rocket cone
+    0x44E3BD:"e8 8e b2 fb ff",      # native source cone hit tester 0x409650
+}
 def verify(exe: bytes) -> dict:
     if hashlib.sha256(exe).hexdigest()!=SHA:
         raise ValueError("Original CrazyMachines.exe SHA-256 mismatch")
@@ -99,7 +112,7 @@ def verify(exe: bytes) -> dict:
                 pos=raw+va-start
                 if pos+n<=len(exe):return exe[pos:pos+n]
         raise ValueError("Native original rocket address not mapped")
-    for address,code in {**SITES,**REGION_SITES,**FORCE_SITES,**VELOCITY_SITES}.items():
+    for address,code in {**SITES,**REGION_SITES,**FORCE_SITES,**VELOCITY_SITES,**CANDLE_HEAT_PATH_SITES}.items():
         expected=bytes.fromhex(code)
         if read(address,len(expected))!=expected:
             raise ValueError("Native original rocket x86 mismatch at "+hex(address))
@@ -123,6 +136,7 @@ def verify(exe: bytes) -> dict:
             "native_region_geometry_sites":len(REGION_SITES),
             "native_force_sites":len(FORCE_SITES),
             "native_velocity_sites":len(VELOCITY_SITES),
+            "native_candle_heat_path_sites":len(CANDLE_HEAT_PATH_SITES),
             "native_region_plane":"XY", "ignited_state":1,
             "native_candle_ignition_cutoff":
                 struct.unpack("<f",read(0x4EDDE8,4))[0],

@@ -218,3 +218,29 @@ byte sites and actual VELOCITY literal are SHA-pinned.
 It remains necessary to verify how/if runtime +0xFC changes before
 or during Engine flight. This initial scalar does NOT itself prove
 native parent state2, Engine activation, ignition or a puzzle GOAL.
+
+## Disassembled source emitter versus receiver native region linkage
+
+The authentic exact-SHA owner Windows EXE now proves the complete
+**direction of the thermal call chain** (9 additional pinned sites):
+
+1. `0x44E12E` on actual `tmo_candle` finds its own selector-3
+   source record. Its `+0x18` object pointer leads through owner
+   `+0x100` to the real source `+0xEC` on/off float
+   (`0x44E146–0x44E14F`).
+2. `0x44E17A` reads **source record +0x20** into the variable
+   later used as the heat-emitter cone pointer (`[ebp-0xc8]`).
+3. `0x44E3A4` selects the rocket's **separate** first selector-3
+   record and `0x44E3B3` supplies **receiver +0x24 position**.
+4. `0x44E3B7` sets ECX to the prior **source emitter cone**;
+   `0x44E3BD` invokes actual `0x409650` with the receiver's
+   position. The original threshold, effects and parent clock are
+   checked separately.
+
+The newly implemented genuine candle-to-rocket `Heat` UCM XY
+candidate observer supplies source/receiver anchor world positions
+but **does not substitute** for the native emitter cone `+0x20`
+or prove its radius/angle. This precise distinction is required
+before any native thermal coverage can be calculated or rocket GOAL
+credited. Verified against SHA-256
+`51f9beecd9842c67834da9c4fc73be7a1452c9e8149d059729b130a2b9d601e6`.

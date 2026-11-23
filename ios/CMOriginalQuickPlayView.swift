@@ -948,7 +948,7 @@ struct CMOriginalQuickPlayView: View {
                 originalSession.objects.contains(where: {
                     $0.type == "tmo_heat_rocket"
                 }) {
-                Text("Lit original candle-to-rocket Heat pairs: \\(observedCandleRocketHeatPairs.count); no native ignition")
+                Text("Lit original candle-to-rocket Heat pairs: \(observedCandleRocketHeatPairs.count); no native ignition")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("cm.original.rocket-heat-pairs")

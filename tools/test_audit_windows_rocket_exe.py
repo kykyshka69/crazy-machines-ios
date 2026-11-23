@@ -2,7 +2,7 @@ import unittest
 import sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
-from audit_windows_rocket_exe import verify, SITES, REGION_SITES, FORCE_SITES, VELOCITY_SITES
+from audit_windows_rocket_exe import verify, SITES, REGION_SITES, FORCE_SITES, VELOCITY_SITES, CANDLE_HEAT_PATH_SITES
 
 class RocketAuditSmoke(unittest.TestCase):
     def test_wrong_exe_rejected(self):
@@ -54,6 +54,15 @@ class RocketAuditSmoke(unittest.TestCase):
         self.assertEqual(VELOCITY_SITES[0x422D35], "68 30 94 4e 00")
         self.assertEqual(VELOCITY_SITES[0x422D81], "d9 9a fc 00 00 00")
         self.assertEqual(VELOCITY_SITES[0x44F219], "8b 91 fc 00 00 00")
+
+    def test_source_candle_cone_is_not_rocket_receiver_region(self):
+        self.assertEqual(len(CANDLE_HEAT_PATH_SITES), 9)
+        self.assertEqual(CANDLE_HEAT_PATH_SITES[0x44E146], "8b 42 18")
+        self.assertEqual(CANDLE_HEAT_PATH_SITES[0x44E14F], "d9 81 ec 00 00 00")
+        self.assertEqual(CANDLE_HEAT_PATH_SITES[0x44E17A], "8b 42 20")
+        self.assertEqual(CANDLE_HEAT_PATH_SITES[0x44E3B3], "83 c0 24")
+        self.assertEqual(CANDLE_HEAT_PATH_SITES[0x44E3B7], "8b 8d 38 ff ff ff")
+        self.assertEqual(CANDLE_HEAT_PATH_SITES[0x44E3BD], "e8 8e b2 fb ff")
 
     def test_empty_rejected(self):
         with self.assertRaisesRegex(ValueError, "SHA-256"):
