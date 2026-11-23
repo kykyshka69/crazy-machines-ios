@@ -1,4 +1,6 @@
 # Crazy Machines — iOS research
+
+> **Актуальна розробка станом на 23.11.2026:** `main` — застаріла гілка щодо повноцінного перенесення гри. **Продовжувати тільки** в [`work/original-3d-scene-batch`](https://github.com/kykyshka69/crazy-machines-ios/tree/work/original-3d-scene-batch). **Канонічний журнал:** [`PROJECT_STATUS.md` робочої гілки](https://github.com/kykyshka69/crazy-machines-ios/blob/work/original-3d-scene-batch/PROJECT_STATUS.md). Не повторювати роботу з CML, UCM, SceneKit та механіки на `main`; усі старі звіти нижче історичні.
 Ми переносимо оригінальну Crazy Machines з Windows на iOS.
 
 Головний репозиторій:

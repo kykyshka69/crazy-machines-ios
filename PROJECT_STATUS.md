@@ -1,5 +1,7 @@
 # Crazy Machines — iOS Port: verified project status
 
+> **Актуальна розробка станом на 23.11.2026:** `main` — застаріла гілка щодо повноцінного перенесення гри. **Продовжувати тільки** в [`work/original-3d-scene-batch`](https://github.com/kykyshka69/crazy-machines-ios/tree/work/original-3d-scene-batch). **Канонічний журнал:** [`PROJECT_STATUS.md` робочої гілки](https://github.com/kykyshka69/crazy-machines-ios/blob/work/original-3d-scene-batch/PROJECT_STATUS.md). Не повторювати роботу з CML, UCM, SceneKit та механіки на `main`; усі старі звіти нижче історичні.
+
 Last evidence review: 2026-11-22 (GitHub main; native CML decoder code and local Foundation tests reviewed).
 Primary goal: load and play the **original PC Crazy Machines puzzles on iPhone**. This is not yet a playable port.
 
