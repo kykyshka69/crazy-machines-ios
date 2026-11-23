@@ -22,6 +22,18 @@ public enum CMOriginalGeneratorRotorObservation {
             // a real reversal of direction at low speed.
             if previous == 0 && speed != 0 { return speed }
             if previous.sign != speed.sign { return speed }
+            // The native generator feeds abs(rotor) into electrical +0x40.
+            // Never debounce across a recovered motor (0.5), generator /
+            // bell / lightning (1), or lamp (3) GOAL threshold. Otherwise
+            // a stable speed just above a boundary may never reach the
+            // connected mechanism or the original goal dispatcher.
+            let oldMagnitude = abs(previous)
+            let newMagnitude = abs(speed)
+            for cutoff: Float in [0.5, 1, 3] {
+                if (oldMagnitude > cutoff) != (newMagnitude > cutoff) {
+                    return speed
+                }
+            }
             if abs(previous - speed) < prototypePollDelta { return nil }
         } else if speed == 0 {
             // No source exists yet: avoid inventing a start event at zero.
