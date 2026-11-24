@@ -765,3 +765,33 @@ public struct CMOriginalCrossbowRelease {
         return velocity
     }
 }
+
+
+/// Virtual balloon heat-sample geometry. Native balloon callbacks use a
+/// depth-direction shape query (0x402410 -> 0x46A640). The SceneKit
+/// projection uses original UCM Heat frames as the provisional origin.
+public enum CMOriginalBalloonHeatSample {
+    public static func candle(origin: SIMD3<Float>, axis: SIMD3<Float>) -> SIMD3<Float>? {
+        projected(origin: origin, axis: axis, distance: 0.15)
+    }
+
+    public static func torch(origin: SIMD3<Float>, axis: SIMD3<Float>) -> SIMD3<Float>? {
+        projected(origin: origin, axis: SIMD3<Float>(axis.x, 0, 0), distance: 0.3)
+    }
+
+    public static func focus(position: SIMD3<Float>, light: Float) -> SIMD3<Float>? {
+        guard light.isFinite, light >= 0.5, light <= 1,
+              [position.x, position.y, position.z].allSatisfy(\.isFinite) else { return nil }
+        return position
+    }
+
+    private static func projected(origin: SIMD3<Float>, axis: SIMD3<Float>,
+                                  distance: Float) -> SIMD3<Float>? {
+        guard [origin.x, origin.y, origin.z, axis.x, axis.y, axis.z]
+            .allSatisfy(\.isFinite) else { return nil }
+        let length = hypot(axis.x, axis.y)
+        guard length.isFinite, length > 0.0001 else { return nil }
+        let p = origin + SIMD3<Float>(axis.x / length, axis.y / length, 0) * distance
+        return [p.x, p.y, p.z].allSatisfy(\.isFinite) ? p : nil
+    }
+}
