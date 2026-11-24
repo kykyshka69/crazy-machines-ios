@@ -442,14 +442,23 @@ public struct CMOriginalPowerCircuit {
     public struct NativePortState {
         public var signals: [String: Float]
         public var visitedOwners: Set<String>
+        public fileprivate(set) var consumerReads: [String: NativeConsumerRead] = [:]
         public init(signals: [String: Float] = [:], visitedOwners: Set<String> = []) {
             self.signals = signals
             self.visitedOwners = visitedOwners
         }
     }
 
+    /// Observed values at the actual consumer update, not end-of-frame values.
+    /// Missing slot state remains unknown; an unwritten slot is not assumed zero.
+    public struct NativeConsumerRead: Equatable {
+        public let first: Float?
+        public let second: Float?
+    }
+
     public enum NativePortEvent {
         case resetVisited
+        case sampleConsumer(ownerID: String)
         case source(plugID: String, value: Float)
         case cutTransfer(Cable)
     }
@@ -471,6 +480,7 @@ public struct CMOriginalPowerCircuit {
               previous.visitedOwners.allSatisfy({ groups[$0] != nil })
         else { return nil }
         var state = previous
+        state.consumerReads.removeAll(keepingCapacity: true)
         var peers: [String: String] = [:]
         for cable in cables {
             peers[cable.firstPlugID] = cable.secondPlugID
@@ -511,6 +521,11 @@ public struct CMOriginalPowerCircuit {
             switch event {
             case .resetVisited:
                 state.visitedOwners.removeAll(keepingCapacity: true)
+            case .sampleConsumer(let ownerID):
+                guard let slots = groups[ownerID], let first = slots.first else { return nil }
+                state.consumerReads[ownerID] = NativeConsumerRead(
+                    first: state.signals[first.plugID],
+                    second: slots.dropFirst().first.flatMap { state.signals[$0.plugID] })
             case .source(let plugID, let value):
                 guard let port = byPlugID[plugID], value.isFinite, value >= 0,
                       sourceDeviceIDs.contains(port.deviceID)
@@ -535,6 +550,66 @@ public struct CMOriginalPowerCircuit {
             }
         }
         return state
+    }
+
+    /// Native electrical phase order, from 0x44D64E, 0x44D832 and
+    /// 0x45043B. The caller must supply the observed runtime owner order;
+    /// CML hierarchy or lexical ID sorting is not proven equivalent.
+    /// Generator propagation can occur inside mechanical callbacks, so the
+    /// caller supplies their observed events at the corresponding owner.
+    public func nativeElectricalUpdate(
+        previous: NativePortState,
+        ownerOrder: [String],
+        solarRayContributionsByDeviceID: [String: [Float]],
+        generatorEventsBeforeOpticalOwner: [String: [NativePortEvent]] = [:],
+        generatorEventsAfterElectricalOwner: [String: [NativePortEvent]] = [:],
+        conductingByDeviceID: [String: Bool]
+    ) -> NativePortState? {
+        let groups = Dictionary(grouping: terminals, by: \.deviceID)
+        let known = Set(groups.keys)
+        guard ownerOrder.count == known.count, Set(ownerOrder) == known,
+              Set(generatorEventsBeforeOpticalOwner.keys).isSubset(of: known),
+              Set(generatorEventsAfterElectricalOwner.keys).isSubset(of: known),
+              Set(solarRayContributionsByDeviceID.keys).isSubset(of: solarDeviceIDs)
+        else { return nil }
+        func validGenerator(_ event: NativePortEvent) -> Bool {
+            guard case .source(let id, let value) = event,
+                  let terminal = byPlugID[id], generatorDeviceIDs.contains(terminal.deviceID),
+                  value.isFinite, value >= 0 else { return false }
+            return true
+        }
+        var events: [NativePortEvent] = [.resetVisited]
+        for id in ownerOrder {
+            let before = generatorEventsBeforeOpticalOwner[id] ?? []
+            guard before.allSatisfy(validGenerator) else { return nil }
+            events.append(contentsOf: before)
+            guard let first = groups[id]?.first else { return nil }
+            // Lamp GOAL/light read precedes the battery/consumer pass.
+            if first.deviceType == "tmo_power_lamp" {
+                events.append(.sampleConsumer(ownerID: id))
+            } else if solarDeviceIDs.contains(id) {
+                // Explicit empty rays mean a measured dark panel, not a missing sample.
+                guard let rays = solarRayContributionsByDeviceID[id],
+                      let value = CMOriginalWindowsSolarSignal.collectedPower(
+                        rayContributions: rays) else { return nil }
+                events.append(.source(plugID: first.plugID, value: value))
+            }
+        }
+        for id in ownerOrder {
+            guard let first = groups[id]?.first else { return nil }
+            if sourceDeviceIDs.contains(id) {
+                events.append(.source(plugID: first.plugID,
+                                      value: CMOriginalWindowsPowerScalar.batterySource))
+            } else if ["tmo_power_motor", "tmo_power_bell", "tmo_power_lightning",
+                       "tmo_power_amperemeter"].contains(first.deviceType) {
+                events.append(.sampleConsumer(ownerID: id))
+            }
+            let after = generatorEventsAfterElectricalOwner[id] ?? []
+            guard after.allSatisfy(validGenerator) else { return nil }
+            events.append(contentsOf: after)
+        }
+        return nativePortPass(previous: previous, events: events,
+                              conductingByDeviceID: conductingByDeviceID)
     }
 
     /// Compatibility for purely battery-driven puzzles: a single source
