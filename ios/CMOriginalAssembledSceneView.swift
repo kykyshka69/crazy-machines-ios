@@ -1086,6 +1086,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // All 46 original balloon objects are identified by their PC tmo_
         // type. Only the 45 with VALB's movable bit will actually float;
         // the fixed balloon is kept static by configuredPhysicsRoles.
+        private var springObjectIDs = Set<String>()
+        private var springContactGate = CMOriginalSpringContact.Gate()
+        private var springIncomingVelocities: [String: SIMD3<Float>] = [:]
         private var buoyantObjectIDs = Set<String>()
         private var pendingBalloonPops = Set<String>()
         private var poppedBalloonIDs = Set<String>()
@@ -2670,6 +2673,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     return (object.id, original)
                 }
             )
+            springObjectIDs = Set(originalObjects.filter { $0.type == "tmo_spring" }.map(\.id))
+            springContactGate = CMOriginalSpringContact.Gate()
+            springIncomingVelocities.removeAll()
             pendingBalloonPops.removeAll()
             poppedBalloonIDs.removeAll()
             buoyantObjectIDs = Set(
@@ -3387,6 +3393,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 return
             }
             defer { lastRendererTime = time }
+            // updateAtTime precedes SceneKit's physics step. Preserve the
+            // approach velocity before the contact solver changes it.
+            if !springObjectIDs.isEmpty {
+                springIncomingVelocities.removeAll(keepingCapacity: true)
+                for (id,nodes) in physicsNodesByObjectID {
+                    guard let body = nodes.first?.physicsBody, body.type == .dynamic else { continue }
+                    let v = body.velocity
+                    springIncomingVelocities[id] = SIMD3<Float>(v.x,v.y,v.z)
+                }
+            }
             guard let previous = lastRendererTime else { return }
             let delta = time - previous
             guard delta.isFinite, delta > 0, delta <= 0.25 else { return }
@@ -3614,6 +3630,26 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // 0x451734 then calls 0x458360, emits owner GOAL and removes
         // the balloon body. SceneKit contact position is a provisional
         // mapping of the native contact coordinates.
+        private func observeOriginalSpringContact(spring: String, striker: String,
+                                                   point: SCNVector3) {
+            guard springObjectIDs.contains(spring),
+                  let springBody = physicsNodesByObjectID[spring]?.first?.physicsBody,
+                  springBody.type == .static,
+                  let body = physicsNodesByObjectID[striker]?.first?.physicsBody,
+                  body.type == .dynamic,
+                  let incoming = springIncomingVelocities[striker],
+                  let marker = exactOriginalAnchor("Spring", on: spring) else { return }
+            let frame = marker.presentation.simdWorldTransform
+            let z = frame.columns.2
+            let v = body.velocity
+            guard let next = CMOriginalSpringContact.rebound(
+                incoming: incoming, current: .init(v.x,v.y,v.z),
+                axis: .init(z.x,z.y,z.z), contact: .init(point.x,point.y,point.z),
+                marker: marker.presentation.simdWorldPosition),
+                springContactGate.accept(.init(spring: spring, striker: striker)) else { return }
+            body.velocity = SCNVector3(next.x,next.y,next.z)
+        }
+
         private func observeOriginalBalloonContact(balloon: String, sharp: String,
                                                     point: SCNVector3) {
             guard buoyantObjectIDs.contains(balloon),
@@ -4424,6 +4460,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             sessionLock.lock()
             guard session?.phase == .running else { sessionLock.unlock(); return }
             session?.recordContact(a, b, impulse: Double(contact.collisionImpulse))
+            observeOriginalSpringContact(spring: a, striker: b, point: contact.contactPoint)
+            observeOriginalSpringContact(spring: b, striker: a, point: contact.contactPoint)
             observeOriginalBalloonContact(balloon: a, sharp: b, point: contact.contactPoint)
             observeOriginalBalloonContact(balloon: b, sharp: a, point: contact.contactPoint)
             observeOriginalCatapultContact(owner: a, striker: b, point: contact.contactPoint)
@@ -4559,6 +4597,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       for: physicalNode(for: contact.nodeB)) else { return }
             sessionLock.lock()
             switchContacts?.endContact(a, b)
+            springContactGate.end(.init(spring: a, striker: b))
+            springContactGate.end(.init(spring: b, striker: a))
             sessionLock.unlock()
         }
 
