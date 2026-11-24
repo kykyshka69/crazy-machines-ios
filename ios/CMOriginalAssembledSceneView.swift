@@ -4507,6 +4507,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // for ongoing contacts, not just didBegin.
                 observeOriginalCatapultContact(owner: a, striker: b, point: contact.contactPoint)
                 observeOriginalCatapultContact(owner: b, striker: a, point: contact.contactPoint)
+                // A glancing initial contact may later press the original
+                // bellows lever with the qualifying normal. Its native
+                // ready/exhausting/spent state rejects repeated firing.
+                strikeOriginalBellows(leverID: a, otherID: b, normalY: contact.contactNormal.y, point: contact.contactPoint)
+                strikeOriginalBellows(leverID: b, otherID: a, normalY: contact.contactNormal.y, point: contact.contactPoint)
                 let actualImpact = switchContacts?.consumeImpact(
                     a, b, impulse: Double(contact.collisionImpulse),
                     aIsMovable: session?.physicsRole(for: a) == .movable,
