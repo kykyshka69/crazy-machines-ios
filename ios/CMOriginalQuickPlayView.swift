@@ -406,6 +406,13 @@ struct CMOriginalQuickPlayView: View {
     /// Same restart action for the normal iPhone control and the genuine
     /// Windows VSC Replay button. No game assets or game-state shortcuts.
     private func restartCurrentPuzzle() {
+        // Replay is a normal puzzle run, not a continuation of diagnostic
+        // overrides. Restore authored mechanisms while preserving placement.
+        experimentalMotorDrive = false
+        experimentalMagnetism = experimentalPhysics && hasOriginalMagneticTargets
+        experimentalWiredPower = experimentalPhysics && powerCircuit != nil
+        ropeEditing = false
+        beltEditing = false
         pendingBeltWheel = nil
         beltMessage = nil
         cutOriginalRopes.removeAll()
