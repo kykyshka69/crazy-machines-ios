@@ -461,6 +461,9 @@ public struct CMOriginalGameplaySession {
     /// from the actual Win32 loader/save pair. Nil means incomplete or
     /// unsupported hierarchy; never manufacture a runtime order.
     public let recoveredNativeElectricalSlotOrder: [String: [String]]?
+    /// Relative ordering of existing plug records; gaps may hide native slots.
+    /// Not sufficient to identify a consumer's first physical slot.
+    public let recoveredNativeElectricalRelativeSlotOrder: [String: [String]]?
     public let recoveredNativeElectricalOwnerOrder: [String]?
     private let validObjectIDs: Set<String>
     public private(set) var phase: Phase = .ready
@@ -597,7 +600,8 @@ public struct CMOriginalGameplaySession {
         // the entire level_elements +0xFE traversal. Save does the inverse
         // at 0x44A067..0x44A0D4. It is NOT a cable pair identifier.
         // Keep legacy public terminal numbers intact; recover order only
-        // from a complete dense sequence with top-level device ownership.
+        // from a unique sequence with top-level device ownership. Only
+        // a dense sequence is eligible for absolute slot/owner recovery.
         var indexed: [(ordinal: Int, owner: String, plug: String)] = []
         let rootOwners = Set(elementObjectIDs.values)
         var validOrder = !originalPowerTerminals.isEmpty
@@ -612,14 +616,14 @@ public struct CMOriginalGameplaySession {
             else if fields.count == 1, let parsed = Double(fields[0].trimmingCharacters(in: .whitespacesAndNewlines)) {
                 value = parsed
             } else { validOrder = false; break }
-            guard value.isFinite, value >= 0, value < Double(originalPowerTerminals.count),
+            guard value.isFinite, value >= 0, value <= 100_000,
                   value.rounded(.towardZero) == value else { validOrder = false; break }
             indexed.append((Int(value), owner, terminal.plugObjectID))
         }
         indexed.sort { $0.ordinal < $1.ordinal }
         var slotOrder: [String: [String]] = [:]
         var ownerOrder: [String] = []
-        if validOrder && indexed.map(\.ordinal) == Array(0..<originalPowerTerminals.count) {
+        if validOrder && Set(indexed.map(\.ordinal)).count == originalPowerTerminals.count {
             for slot in indexed {
                 if ownerOrder.last != slot.owner {
                     // A top-level owner's native recursive slots form a
@@ -633,8 +637,10 @@ public struct CMOriginalGameplaySession {
                 .filter { slotOrder[$0] != nil }
             if ownerOrder != authoredOwners { validOrder = false }
         } else { validOrder = false }
-        recoveredNativeElectricalSlotOrder = validOrder ? slotOrder : nil
-        recoveredNativeElectricalOwnerOrder = validOrder ? ownerOrder : nil
+        recoveredNativeElectricalRelativeSlotOrder = validOrder ? slotOrder : nil
+        let denseOrder = validOrder && indexed.map(\.ordinal) == Array(0..<originalPowerTerminals.count)
+        recoveredNativeElectricalSlotOrder = denseOrder ? slotOrder : nil
+        recoveredNativeElectricalOwnerOrder = denseOrder ? ownerOrder : nil
         // The authentic CML source scalar is active even before Run.
         // Delaying initialization until start() incorrectly hides
         // initially lit candles and the level-92 pocketlamp in the editor.
