@@ -96,6 +96,36 @@ public enum CMOriginalUCMNamedAnchors {
 /// Native 0x46AAE0 uses 16-byte sphere and 60-byte oriented-box records.
 /// No collision geometry is manufactured for absent or empty tables.
 public enum CMOriginalUCMCollisionVolumes {
+    /// Limit the first native-shape integration to verified gameplay models.
+    /// Containers and weights have a separate selection/bounds helper 3DO;
+    /// it is not part of the solid collision assembly.
+    public static func usesAuthoredVolumes(kind: String) -> Bool {
+        kind.hasPrefix("tmo_ball_") || [
+            "tmo_zone", "tmo_crate", "tmo_balloon", "tmo_domino",
+            "tmo_weight", "tmo_nail", "tmo_board", "tmo_trunk",
+            "tmo_h_iron", "tmo_bucket", "tmo_rope_cage",
+            "tmo_magnetic_permanent", "tmo_spring", "tmo_rope_seesaw_lever",
+            "tmo_belt_gear", "tmo_rope_hook", "tmo_pipe", "tmo_pipe_corner",
+            "tmo_pipe_distributor", "tmo_pipe_ventil", "tmo_pipe_ventil_lever",
+            "tmo_pipe_whistle", "tmo_pipe_whistle_lever",
+            "tmo_power_battery", "tmo_power_distributor", "tmo_power_motor",
+            "tmo_power_generator", "tmo_power_switch", "tmo_power_switch_lever",
+            "tmo_power_solarcell", "tmo_power_lightning", "tmo_power_disrupter",
+            "tmo_power_disrupter_wheel", "tmo_windmill_base", "tmo_windmill_wheel",
+            "tmo_windmill_wings", "tmo_steam_body", "tmo_steam_wheel",
+            "tmo_steam_pleul", "tmo_steam_piston", "tmo_hammer", "tmo_hammer_hammer",
+            "tmo_hammer_nail", "tmo_hammer_wheel", "tmo_catapult", "tmo_catapult_sling",
+            "tmo_rope_crossbow", "tmo_rope_crossbow_arrow", "tmo_rope_crossbow_lever",
+            "tmo_rope_scissors_1", "tmo_rope_scissors_2"
+        ].contains(kind)
+    }
+
+    public static func isBoundsHelper(kind: String, model: String) -> Bool {
+        ["tmo_bucket", "tmo_rope_cage", "tmo_weight", "tmo_nail",
+         "tmo_rope_scissors_1"].contains(kind)
+            && model.lowercased() == "to_dummy_bounding"
+    }
+
     public struct Sphere {
         public let center: [Float]
         public let radius: Float
