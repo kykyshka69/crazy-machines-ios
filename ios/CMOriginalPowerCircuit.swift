@@ -80,6 +80,15 @@ public struct CMOriginalPowerCircuit {
     public let recoveredNativeSlotOrder: [String: [String]]?
     public let recoveredNativeRelativeSlotOrder: [String: [String]]?
     public let recoveredNativeOwnerOrder: [String]?
+    public let recoveredNativePhysicalSlots: [String: [String?]]?
+    private let verifiedPhysicalOwnerOrder: [String]?
+
+    private var orderedRuntimeSlots: [String: [String]]? {
+        recoveredNativePhysicalSlots != nil ? recoveredNativeRelativeSlotOrder : recoveredNativeSlotOrder
+    }
+    private var orderedRuntimeOwners: [String]? {
+        verifiedPhysicalOwnerOrder ?? recoveredNativeOwnerOrder
+    }
     private let sourceDeviceIDs: Set<String>
     private let generatorDeviceIDs: Set<String>
     private let solarDeviceIDs: Set<String>
@@ -109,6 +118,11 @@ public struct CMOriginalPowerCircuit {
         recoveredNativeSlotOrder = session.recoveredNativeElectricalSlotOrder
         recoveredNativeRelativeSlotOrder = session.recoveredNativeElectricalRelativeSlotOrder
         recoveredNativeOwnerOrder = session.recoveredNativeElectricalOwnerOrder
+        recoveredNativePhysicalSlots = session.recoveredNativePhysicalElectricalSlots
+        let visibleOwners = Set(all.map(\.deviceID))
+        verifiedPhysicalOwnerOrder = session.recoveredNativePhysicalElectricalSlots.map { _ in
+            session.objects.map(\.id).filter { visibleOwners.contains($0) }
+        }
         byPlugID = Dictionary(uniqueKeysWithValues: all.map { ($0.plugID, $0) })
         sourceDeviceIDs = Set(all.filter {
             $0.deviceType == "tmo_power_battery"
@@ -478,7 +492,7 @@ public struct CMOriginalPowerCircuit {
         observedOrder: [String: [String]]?
     ) -> [String: [Terminal]]? {
         let grouped = Dictionary(grouping: terminals, by: \.deviceID)
-        guard let observedOrder = observedOrder ?? recoveredNativeSlotOrder else { return grouped }
+        guard let observedOrder = observedOrder ?? orderedRuntimeSlots else { return grouped }
         guard Set(observedOrder.keys) == Set(grouped.keys) else { return nil }
         var result: [String: [Terminal]] = [:]
         for (owner, slots) in grouped {
@@ -506,6 +520,7 @@ public struct CMOriginalPowerCircuit {
               previous.signals.allSatisfy({ byPlugID[$0.key] != nil && $0.value.isFinite }),
               previous.visitedOwners.allSatisfy({ groups[$0] != nil })
         else { return nil }
+        let usePhysicalSlots = observedSlotOrder == nil || observedSlotOrder == orderedRuntimeSlots
         var state = previous
         state.consumerReads.removeAll(keepingCapacity: true)
         state.sourceReads.removeAll(keepingCapacity: true)
@@ -528,7 +543,8 @@ public struct CMOriginalPowerCircuit {
                 || disrupterDeviceIDs.contains(incoming.deviceID)
             for port in slots {
                 // A single-slot device does process its incoming slot.
-                if slots.count > 1 && port.plugID == target { continue }
+                let count = usePhysicalSlots ? (recoveredNativePhysicalSlots?[incoming.deviceID]?.count ?? slots.count) : slots.count
+                if count > 1 && port.plugID == target { continue }
                 let output: Float
                 if gated {
                     guard let conducting = conductingByDeviceID[incoming.deviceID] else { return false }
@@ -551,9 +567,17 @@ public struct CMOriginalPowerCircuit {
                 state.visitedOwners.removeAll(keepingCapacity: true)
             case .sampleConsumer(let ownerID):
                 guard let slots = groups[ownerID], let first = slots.first else { return nil }
-                state.consumerReads[ownerID] = NativeConsumerRead(
-                    first: state.signals[first.plugID],
-                    second: slots.dropFirst().first.flatMap { state.signals[$0.plugID] })
+                if usePhysicalSlots, let physical = recoveredNativePhysicalSlots?[ownerID] {
+                    func read(_ index: Int) -> Float? {
+                        guard physical.indices.contains(index), let plug = physical[index] else { return nil }
+                        return state.signals[plug]
+                    }
+                    state.consumerReads[ownerID] = NativeConsumerRead(first: read(0), second: read(1))
+                } else {
+                    state.consumerReads[ownerID] = NativeConsumerRead(
+                        first: state.signals[first.plugID],
+                        second: slots.dropFirst().first.flatMap { state.signals[$0.plugID] })
+                }
             case .source(let plugID, let value):
                 guard let port = byPlugID[plugID], value.isFinite, value >= 0,
                       sourceDeviceIDs.contains(port.deviceID)
@@ -657,11 +681,11 @@ public struct CMOriginalPowerCircuit {
     /// sampled from the running scene. Generator callbacks require a
     /// separate mechanical schedule and are not covered by this adapter.
     public var supportsOrderedElectricalFrames: Bool {
-        recoveredNativeOwnerOrder != nil && recoveredNativeSlotOrder != nil
+        orderedRuntimeOwners != nil && orderedRuntimeSlots != nil
             && !sourceDeviceIDs.union(solarDeviceIDs).isEmpty
             && generatorDeviceIDs.isEmpty
             && sourceDeviceIDs.union(solarDeviceIDs).allSatisfy {
-                recoveredNativeSlotOrder?[$0]?.count == 1
+                orderedRuntimeSlots?[$0]?.count == 1
             }
     }
 
@@ -684,8 +708,8 @@ public struct CMOriginalPowerCircuit {
         disrupterRotorAnglesByDeviceID: [String: Float] = [:]
     ) -> BatteryFrame? {
         guard supportsOrderedElectricalFrames,
-              let ownerOrder = recoveredNativeOwnerOrder,
-              let slotOrder = recoveredNativeSlotOrder else { return nil }
+              let ownerOrder = orderedRuntimeOwners,
+              let slotOrder = orderedRuntimeSlots else { return nil }
         var gates = Dictionary(uniqueKeysWithValues:
             switchDeviceIDs.map { ($0, closedSwitchIDs.contains($0)) })
         for id in disrupterDeviceIDs {
@@ -724,7 +748,7 @@ public struct CMOriginalPowerCircuit {
                                           disrupterRotorAnglesByDeviceID: [String: Float] = [:]) -> NetworkObservation {
         let state = frame.state
         var devices: [String: Float] = [:]
-        for (id, slots) in recoveredNativeSlotOrder ?? [:] {
+        for (id, slots) in orderedRuntimeSlots ?? [:] {
             guard let first = slots.first, let port = byPlugID[first] else { continue }
             let value: Float?
             if let read = state.consumerReads[id] {
@@ -1030,6 +1054,8 @@ public struct CMOriginalPowerCircuit {
         recoveredNativeSlotOrder = circuit.recoveredNativeSlotOrder?.filter { owners.contains($0.key) }
         recoveredNativeRelativeSlotOrder = circuit.recoveredNativeRelativeSlotOrder?.filter { owners.contains($0.key) }
         recoveredNativeOwnerOrder = circuit.recoveredNativeOwnerOrder?.filter { owners.contains($0) }
+        recoveredNativePhysicalSlots = circuit.recoveredNativePhysicalSlots?.filter { owners.contains($0.key) }
+        verifiedPhysicalOwnerOrder = circuit.verifiedPhysicalOwnerOrder?.filter { owners.contains($0) }
         byPlugID = Dictionary(uniqueKeysWithValues: localTerminals.map { ($0.plugID, $0) })
         cables = wires
         sourceDeviceIDs = circuit.sourceDeviceIDs.intersection(owners)
