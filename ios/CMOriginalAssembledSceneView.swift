@@ -181,6 +181,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalWindmillSignal: ((String, Float) -> Void)? = nil
     var onOriginalPowerPlugTap: ((String) -> Void)? = nil
     var onOriginalRopeTap: ((CMOriginalRope.Endpoint) -> Void)? = nil
+    var onOriginalRopeCut: ((CMOriginalRope.Pair) -> Void)? = nil
     var onOriginalCableCut: ((CMOriginalPowerCircuit.Cable) -> Void)? = nil
     var onOriginalSwitchToggle: ((String, Bool) -> Void)? = nil
     // Contact pairs from the actual imported PC switch lever and striker.
@@ -448,6 +449,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             onOriginalReconstructedRocketGoal
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
         context.coordinator.onOriginalRopeTap = onOriginalRopeTap
+        context.coordinator.onOriginalRopeCut = onOriginalRopeCut
         context.coordinator.originalRopeEditing = originalRopeEditing
         context.coordinator.onOriginalCableCut = onOriginalCableCut
         context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
@@ -564,6 +566,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             onOriginalReconstructedRocketGoal
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
         context.coordinator.onOriginalRopeTap = onOriginalRopeTap
+        context.coordinator.onOriginalRopeCut = onOriginalRopeCut
         context.coordinator.originalRopeEditing = originalRopeEditing
         context.coordinator.onOriginalCableCut = onOriginalCableCut
         context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
@@ -677,6 +680,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
         var onOriginalPowerPlugTap: ((String) -> Void)?
         var onOriginalRopeTap: ((CMOriginalRope.Endpoint) -> Void)?
+        var onOriginalRopeCut: ((CMOriginalRope.Pair) -> Void)?
+        // Renderer-local cut latch prevents a queued UI update recreating a severed rope.
+        private var severedRopes = Set<CMOriginalRope.Pair>()
         var originalRopeEditing = false
         private let ropeLock = NSLock()
         private weak var ropeSceneRoot: SCNNode?
@@ -1186,6 +1192,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 firedScissorsIDs.insert(owner)
                 let a = start.presentation.simdWorldPosition
                 let b = end.presentation.simdWorldPosition
+                cutOriginalRopes(bladeStart: a, bladeEnd: b)
                 originalCableVisualLock.lock()
                 // Texture/visual availability must not determine electrical cuts.
                 let hits = originalPhysicalCablePairs.filter { pair in
@@ -1208,6 +1215,30 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
 
+        // Native scissors samples rope and power cable in separate calls.
+        // Stop rope forces immediately on the renderer thread, before UI delivery.
+        private func cutOriginalRopes(bladeStart: SIMD3<Float>, bladeEnd: SIMD3<Float>) {
+            ropeLock.lock()
+            let hits = ropeVisuals.keys.filter { pair in
+                guard !severedRopes.contains(pair),
+                      let first = ropeMarkers[pair.first], let second = ropeMarkers[pair.second]
+                else { return false }
+                return CMOriginalRope.intersectsScissors(
+                    ropeStart: first.presentation.simdWorldPosition,
+                    ropeEnd: second.presentation.simdWorldPosition,
+                    bladeStart: bladeStart, bladeEnd: bladeEnd)
+            }
+            for pair in hits {
+                severedRopes.insert(pair)
+                ropeVisuals.removeValue(forKey: pair)?.removeFromParentNode()
+                ropeLengths.removeValue(forKey: pair)
+            }
+            ropeLock.unlock()
+            for pair in hits {
+                DispatchQueue.main.async { [weak self] in self?.onOriginalRopeCut?(pair) }
+            }
+        }
+
         // Cache only unambiguous original rope markers, including in the
         // arrangement scene (which has no physics registration pass).
         func syncOriginalRopes(_ pairs: Set<CMOriginalRope.Pair>, in scene: SCNScene) {
@@ -1216,6 +1247,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             if ropeSceneRoot !== scene.rootNode {
                 ropeVisuals.values.forEach { $0.removeFromParentNode() }
                 ropeVisuals.removeAll(); ropeLengths.removeAll(); ropeMarkers.removeAll()
+                severedRopes.removeAll()
                 ropeSceneRoot = scene.rootNode
                 let types = Dictionary(uniqueKeysWithValues: (session?.objects ?? []).map { ($0.id, $0.type) })
                 var duplicates = Set<CMOriginalRope.Endpoint>()
@@ -1233,7 +1265,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 ropeVisuals.removeValue(forKey: pair)?.removeFromParentNode()
                 ropeLengths.removeValue(forKey: pair)
             }
-            for pair in pairs where ropeVisuals[pair] == nil {
+            for pair in pairs where ropeVisuals[pair] == nil && !severedRopes.contains(pair) {
                 guard let a = ropeMarkers[pair.first], let b = ropeMarkers[pair.second] else { continue }
                 let length = simd_distance(a.simdWorldPosition, b.simdWorldPosition)
                 guard length.isFinite, length >= 0.01, length <= 30 else { continue }
@@ -1908,7 +1940,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             guard let previous = lastRendererTime else { return }
             let delta = time - previous
             guard delta.isFinite, delta > 0, delta <= 0.25 else { return }
-            refreshOriginalRopes(applyTension: true)
             // Original Win32: abs(generator rotor +0xE8) → power at +0x40.
             // Observe real 3D rotor angular velocity; no idle generator
             // becomes a fictional constant electrical source.
@@ -1917,6 +1948,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // solar cells without original ray emission/hit validation.
             sampleOriginalOpticalSightlines(renderer: renderer, at: time)
             sampleOriginalScissorsCuts()
+            refreshOriginalRopes(applyTension: true)
             sampleOriginalRocketAnchorFrames(at: time)
             if time - lastGeneratorPollTime >= 0.16 {
                 lastGeneratorPollTime = time
