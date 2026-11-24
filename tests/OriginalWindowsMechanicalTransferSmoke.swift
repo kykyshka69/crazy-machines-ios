@@ -235,6 +235,30 @@ struct OriginalWindowsMechanicalTransferSmoke {
                 observedNativeStep: 0.25)!
             precondition(abs(old) <= abs(input) + 0.00001)
         }
+        let savedTypes = ["hook":"tmo_rope_hook", "balloon":"tmo_balloon",
+            "lever":"tmo_rope_seesaw_lever", "wheel1":"tmo_belt_gear", "wheel2":"tmo_hammer_wheel"]
+        let savedRope = CMOriginalRope.Pair(.init(objectID:"hook",marker:"Rope"),
+            .init(objectID:"balloon",marker:"Rope"))!
+        let conflictingRope = CMOriginalRope.Pair(.init(objectID:"lever",marker:"Rope01"),
+            .init(objectID:"balloon",marker:"Rope"))!
+        let savedBelt = CMOriginalDriveBelt.Pair("wheel1","wheel2")!
+        let hash = String(repeating:"a",count:64)
+        let snapshot = try! CMOriginalMechanicalSnapshot.encode(
+            .init(ropes:[savedRope],belts:[savedBelt]),sceneSHA256:hash)
+        let restored = CMOriginalMechanicalSnapshot.decode(snapshot,sceneSHA256:hash,
+            objectTypes:savedTypes)!
+        precondition(restored.ropes == [savedRope] && restored.belts == [savedBelt])
+        let conflict = try! CMOriginalMechanicalSnapshot.encode(
+            .init(ropes:[savedRope,conflictingRope],belts:[savedBelt]),sceneSHA256:hash)
+        precondition(CMOriginalMechanicalSnapshot.decode(conflict,sceneSHA256:hash,objectTypes:savedTypes) == nil)
+        precondition(CMOriginalMechanicalSnapshot.decode(snapshot,sceneSHA256:"other",objectTypes:savedTypes) == nil)
+        precondition(CMOriginalMechanicalSnapshot.decode(snapshot,sceneSHA256:hash,objectTypes:[:]) == nil)
+        precondition(CMOriginalMechanicalSnapshot.decode(Data(repeating:0,count:64001),sceneSHA256:hash,objectTypes:savedTypes) == nil)
+        precondition(CMOriginalMechanicalSnapshot.decode(Data("{}".utf8),sceneSHA256:hash,objectTypes:savedTypes) == nil)
+        var payload = try! JSONSerialization.jsonObject(with:snapshot) as! [String:Any]
+        payload["version"] = 2
+        let badVersion = try! JSONSerialization.data(withJSONObject:payload)
+        precondition(CMOriginalMechanicalSnapshot.decode(badVersion,sceneSHA256:hash,objectTypes:savedTypes) == nil)
         print("Native mechanical VALF ratios, linked sign, observed stop decay: 1000 cases passed")
     }
 }
