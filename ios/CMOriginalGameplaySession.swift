@@ -674,3 +674,32 @@ enum CMOriginalAxleParts {
         "tmo_heat_grill_wheel"
     ]
 }
+
+
+/// Native contact gates in 0x444045..0x4441A7 (Pike) and
+/// 0x445110..0x4451C1 (Cut). Exact strict radii; the renderer
+/// supplies the actual contact and authenticated UCM marker position.
+public enum CMOriginalBalloonPuncture {
+    public struct Rule {
+        public let marker: String
+        public let radius: Float
+    }
+
+    public static func rule(for type: String) -> Rule? {
+        if type.hasSuffix("_nail") {
+            return Rule(marker: "Pike", radius: type == "tmo_hammer_nail" ? 0.14 : 0.05)
+        }
+        if type == "tmo_rope_crossbow_arrow" {
+            return Rule(marker: "Cut", radius: 0.09)
+        }
+        return nil
+    }
+
+    public static func hits(point: SIMD3<Float>, marker: SIMD3<Float>, radius: Float) -> Bool {
+        guard radius.isFinite, radius > 0,
+              [point.x, point.y, point.z, marker.x, marker.y, marker.z].allSatisfy(\.isFinite)
+        else { return false }
+        let d = point - marker
+        return d.x*d.x + d.y*d.y + d.z*d.z < radius*radius
+    }
+}
