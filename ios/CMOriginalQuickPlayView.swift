@@ -122,6 +122,7 @@ struct CMOriginalQuickPlayView: View {
     @State private var observedOriginalLeverStrikers = Set<String>()
     // Actual measured UCM mesh sightlines; not yet Win32 light rays.
     @State private var originalOpticalSightlines: [CMOriginalOpticalSightline] = []
+    @State private var originalSolarRays: [String: [Float]] = [:]
     // Live actual SceneKit original rocket UCM frames. These measurements
     // neither establish original Engine thrust nor dispatch a GOAL.
     @State private var observedOriginalRocketAnchors:
@@ -180,14 +181,31 @@ struct CMOriginalQuickPlayView: View {
     /// Authored original plug-to-plug pairs plus Win32's actual battery
     /// source value (10.0). This graph remains an OPT-IN topology prototype:
     /// voltage loss and the original electrical solver are not recovered.
+    // Evaluate lamp emission from independent wired sources only for now.
+    // Solar-powered lamps would require a native coupled optical/electrical
+    // solver; a feedback loop must not manufacture its own source energy.
+    private var independentOpticalLampPower: [String: Float] {
+        guard experimentalPhysics && experimentalWiredPower,
+              let network = powerCircuit else { return [:] }
+        let signals = network.experimentalNetworkSignals(
+            closedSwitchIDs: flippedOriginalSwitchIDs,
+            generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID,
+            disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
+        return Dictionary(uniqueKeysWithValues: originalSession.objects.compactMap { object -> (String, Float)? in
+            guard object.type == "tmo_power_lamp", let power = signals[object.id] else { return nil }
+            return (object.id, power)
+        })
+    }
+
     private var experimentalPowerSignals: [String: Float] {
         guard experimentalPhysics && experimentalWiredPower,
               let network = powerCircuit else { return [:] }
-        // Actual Win32 battery scalar 10.0 + measured generator speed,
-        // transmitted through EXPLICIT pairs of original PC power plugs.
+        // Actual Win32 battery, generator and reconstructed optical signals,
+        // transmitted through explicit pairs of original PC power plugs.
         return network.experimentalNetworkSignals(
             closedSwitchIDs: flippedOriginalSwitchIDs,
             generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID,
+            solarRayContributionsByDeviceID: originalSolarRays,
             disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
     }
 
@@ -262,6 +280,7 @@ struct CMOriginalQuickPlayView: View {
         let eligible = CMOriginalWindowsElectricalGoals.activeGoalIDs(
             session: originalSession,
             powerByDeviceID: experimentalPowerSignals,
+            solarRayContributionsByDeviceID: originalSolarRays,
             generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID
         )
         for id in eligible {
@@ -338,6 +357,7 @@ struct CMOriginalQuickPlayView: View {
         flippedOriginalSwitchIDs.removeAll()
         observedOriginalLeverStrikers.removeAll()
         originalOpticalSightlines.removeAll()
+        originalSolarRays.removeAll()
         observedOriginalRocketAnchors.removeAll()
         observedCandleRocketHeatPairs.removeAll()
         generatorRotorSpeedsByDeviceID.removeAll()
@@ -372,6 +392,7 @@ struct CMOriginalQuickPlayView: View {
         flippedOriginalSwitchIDs.removeAll()
         observedOriginalLeverStrikers.removeAll()
         originalOpticalSightlines.removeAll()
+        originalSolarRays.removeAll()
         observedOriginalRocketAnchors.removeAll()
         observedCandleRocketHeatPairs.removeAll()
         generatorRotorSpeedsByDeviceID.removeAll()
@@ -453,6 +474,7 @@ struct CMOriginalQuickPlayView: View {
                 originalPlayerRopes: originalRopes.subtracting(cutOriginalRopes),
                 originalRopeEditing: ropeEditing,
                 originalPlayerBelts: originalBelts,
+                originalOpticalLampPower: independentOpticalLampPower,
                 originalBeltEditing: beltEditing,
                 originalPlayerCablePowerSignals: experimentalCablePowerSignals,
                 configuredPhysicsRoles: experimentalPhysicsRoles,
@@ -614,6 +636,21 @@ struct CMOriginalQuickPlayView: View {
                           }) else { return }
                     // The original thermal predicate uses both accumulated
                     // heat and sausage shade, not rotation alone.
+                    _ = windowsGoalCounter?.recordGoalEvent(
+                        objectID: ownerID, simulationRunning: true)
+                    _ = objectiveLedger?.recordGoalStateChanged(
+                        ownerID, isSimulationRunning: true)
+                },
+                onOriginalSolarRays: { rays in
+                    guard eventRevision == sceneRevision, experimentalPhysics else { return }
+                    originalSolarRays = rays
+                    creditExperimentalElectricGoals(capturedWhileRunning: true)
+                },
+                onOriginalFlowerGoal: { ownerID in
+                    guard eventRevision == sceneRevision, experimentalPhysics,
+                          originalSession.objects.contains(where: {
+                              $0.id == ownerID && $0.type == "tmo_light_flower"
+                          }) else { return }
                     _ = windowsGoalCounter?.recordGoalEvent(
                         objectID: ownerID, simulationRunning: true)
                     _ = objectiveLedger?.recordGoalStateChanged(
@@ -1358,6 +1395,7 @@ struct CMOriginalQuickPlayView: View {
                     flippedOriginalSwitchIDs.removeAll()
                     observedOriginalLeverStrikers.removeAll()
                     originalOpticalSightlines.removeAll()
+                    originalSolarRays.removeAll()
         observedOriginalRocketAnchors.removeAll()
         observedCandleRocketHeatPairs.removeAll()
                     firstLevelRun?.reset()
