@@ -318,6 +318,42 @@ struct OriginalWindowsMechanicalTransferSmoke {
         precondition(CMOriginalDriveBelt.planarAngularSpeed(axis:.zero,magnitude:0) == 0)
         precondition(CMOriginalDriveBelt.planarAngularSpeed(axis:.init(1,0,0),magnitude:2) == 0)
         precondition(CMOriginalDriveBelt.planarAngularSpeed(axis:.init(0,0,1),magnitude:.infinity) == nil)
+        // Original spring adapter: incoming motion and authentic marker
+        // frame, no generic launch from a contact with the mounting base.
+        for degree in 0..<360 {
+            let angle = Float(degree) * .pi/180
+            let axis = SIMD3<Float>(cos(angle),sin(angle),0)
+            let tangent = SIMD3<Float>(-axis.y,axis.x,0)
+            for speed: Float in [0.1,0.5,1,2,4,5,10,20] {
+                let incoming = -axis*speed+tangent*0.5
+                let current = tangent*0.25
+                let result = CMOriginalSpringContact.rebound(incoming:incoming,
+                    current:current,axis:axis*2,contact:axis*0.1,marker:.zero)!
+                precondition(abs(result.x*axis.x+result.y*axis.y-min(8,1.6*speed))<0.00001)
+                precondition(abs(result.x*tangent.x+result.y*tangent.y-0.25)<0.00001)
+                precondition(result.z == 0)
+                precondition(CMOriginalSpringContact.rebound(incoming:incoming,
+                    current:current,axis:axis,contact:-axis*0.1,marker:.zero)==nil)
+                precondition(CMOriginalSpringContact.rebound(incoming:axis*speed,
+                    current:current,axis:axis,contact:axis*0.1,marker:.zero)==nil)
+            }
+        }
+        var springGate = CMOriginalSpringContact.Gate()
+        let springA = CMOriginalSpringContact.Pair(spring:"spring",striker:"crate-a")
+        let springB = CMOriginalSpringContact.Pair(spring:"spring",striker:"crate-b")
+        precondition(springGate.accept(springA))
+        precondition(!springGate.accept(springA))
+        precondition(springGate.accept(springB))
+        springGate.end(springA)
+        precondition(springGate.accept(springA))
+        precondition(!springGate.accept(springB))
+        precondition(!springGate.accept(.init(spring:"spring",striker:"spring")))
+        precondition(CMOriginalSpringContact.rebound(incoming:.init(0,-1,0),
+            current:.init(0,2,0),axis:.init(0,1,0),contact:.zero,marker:.zero)==nil)
+        precondition(CMOriginalSpringContact.rebound(incoming:.init(0,-1,0),
+            current:.zero,axis:.zero,contact:.zero,marker:.zero)==nil)
+        precondition(CMOriginalSpringContact.rebound(incoming:.init(.nan,-1,0),
+            current:.zero,axis:.init(0,1,0),contact:.zero,marker:.zero)==nil)
         print("Native mechanical VALF ratios, linked sign, observed stop decay: 1000 cases passed")
     }
 }
