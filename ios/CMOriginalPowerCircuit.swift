@@ -77,6 +77,8 @@ public struct CMOriginalPowerCircuit {
     }
 
     private let byPlugID: [String: Terminal]
+    public let recoveredNativeSlotOrder: [String: [String]]?
+    public let recoveredNativeOwnerOrder: [String]?
     private let sourceDeviceIDs: Set<String>
     private let generatorDeviceIDs: Set<String>
     private let solarDeviceIDs: Set<String>
@@ -103,6 +105,8 @@ public struct CMOriginalPowerCircuit {
         levelIndex = session.levelIndex
         sceneSHA256 = session.sceneSHA256
         terminals = all
+        recoveredNativeSlotOrder = session.recoveredNativeElectricalSlotOrder
+        recoveredNativeOwnerOrder = session.recoveredNativeElectricalOwnerOrder
         byPlugID = Dictionary(uniqueKeysWithValues: all.map { ($0.plugID, $0) })
         sourceDeviceIDs = Set(all.filter {
             $0.deviceType == "tmo_power_battery"
@@ -472,7 +476,7 @@ public struct CMOriginalPowerCircuit {
         observedOrder: [String: [String]]?
     ) -> [String: [Terminal]]? {
         let grouped = Dictionary(grouping: terminals, by: \.deviceID)
-        guard let observedOrder else { return grouped }
+        guard let observedOrder = observedOrder ?? recoveredNativeSlotOrder else { return grouped }
         guard Set(observedOrder.keys) == Set(grouped.keys) else { return nil }
         var result: [String: [Terminal]] = [:]
         for (owner, slots) in grouped {
@@ -801,7 +805,20 @@ public struct CMOriginalPowerCircuit {
                 values[id] = value
             }
         }
-        guard let sourceOrders = permutations(sources.sorted()) else { return nil }
+        let sourceOrders: [[String]]
+        if let nativeOwners = recoveredNativeOwnerOrder, generatorDeviceIDs.isEmpty {
+            // The native optical pass precedes the battery pass. Within
+            // each, the recovered level_elements owner order is retained.
+            // Still a settled approximation: mechanical resets and
+            // interleaved consumer reads require the full frame scheduler.
+            let optical = nativeOwners.filter { solarDeviceIDs.contains($0) }
+            let batteries = nativeOwners.filter { sourceDeviceIDs.contains($0) }
+            guard Set(optical + batteries) == sources else { return nil }
+            sourceOrders = [optical + batteries]
+        } else {
+            guard let candidates = permutations(sources.sorted()) else { return nil }
+            sourceOrders = candidates
+        }
         var orders: [[String: [String]]] = [[:]]
         let connected = Set(activeCables.flatMap { [$0.firstPlugID, $0.secondPlugID] })
         for owner in groups.keys.sorted() {
@@ -811,13 +828,19 @@ public struct CMOriginalPowerCircuit {
             // below require agreement across all slots, not a guessed first.
             let linked = ids.filter { connected.contains($0) }
             let unlinked = ids.filter { !connected.contains($0) }
-            guard let variants = permutations(linked),
-                  orders.count <= limit / sourceOrders.count / variants.count else { return nil }
+            let variants: [[String]]
+            if let known = recoveredNativeSlotOrder?[owner] {
+                variants = [known.filter { connected.contains($0) }]
+            } else {
+                guard let candidates = permutations(linked) else { return nil }
+                variants = candidates
+            }
+            guard orders.count <= limit / sourceOrders.count / variants.count else { return nil }
             var next: [[String: [String]]] = []
             for order in orders {
                 for variant in variants {
                     var candidate = order
-                    candidate[owner] = variant + unlinked
+                    candidate[owner] = recoveredNativeSlotOrder?[owner] ?? (variant + unlinked)
                     next.append(candidate)
                 }
             }
@@ -847,10 +870,21 @@ public struct CMOriginalPowerCircuit {
                     conductingByDeviceID: gates, observedSlotOrder: order) else { return nil }
                 var devices: [String: Float] = [:]
                 for (id, slots) in groups {
-                    guard gates[id] != false, let first = slots.first,
-                          let value = state.signals[first.plugID], value > 0,
-                          slots.allSatisfy({ state.signals[$0.plugID] == value }) else { continue }
-                    devices[id] = value
+                    guard gates[id] != false else { continue }
+                    if let known = recoveredNativeSlotOrder?[id], let first = known.first {
+                        guard let value = state.signals[first] else { continue }
+                        // Ammeter observes the greater of two slots.
+                        if slots.first?.deviceType == "tmo_power_amperemeter",
+                           known.count > 1, let second = state.signals[known[1]] {
+                            let reading = max(value, second)
+                            if reading > 0 { devices[id] = reading }
+                        } else if value > 0 { devices[id] = value }
+                    } else {
+                        guard let first = slots.first, let value = state.signals[first.plugID],
+                              value > 0, slots.allSatisfy({ state.signals[$0.plugID] == value })
+                        else { continue }
+                        devices[id] = value
+                    }
                 }
                 var wires: [Cable: Float] = [:]
                 for cable in active.cables {
@@ -881,6 +915,8 @@ public struct CMOriginalPowerCircuit {
         sceneSHA256 = circuit.sceneSHA256
         let localTerminals = circuit.terminals.filter { owners.contains($0.deviceID) }
         terminals = localTerminals
+        recoveredNativeSlotOrder = circuit.recoveredNativeSlotOrder?.filter { owners.contains($0.key) }
+        recoveredNativeOwnerOrder = circuit.recoveredNativeOwnerOrder?.filter { owners.contains($0) }
         byPlugID = Dictionary(uniqueKeysWithValues: localTerminals.map { ($0.plugID, $0) })
         cables = wires
         sourceDeviceIDs = circuit.sourceDeviceIDs.intersection(owners)
