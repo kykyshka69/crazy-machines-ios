@@ -135,6 +135,20 @@ struct OriginalWindowsHeatSourceSwitchSmoke {
             precondition(crossbow.release(angle: sign * 0.5, mirrored: mirrored, direction: direction) == nil)
         }
         precondition(!CMOriginalCrossbowRelease.leverReady(angle: .nan, mirrored: false))
+        typealias HeatSample = CMOriginalBalloonHeatSample
+        let origin = SIMD3<Float>(1, 2, 3)
+        precondition(HeatSample.candle(origin: origin, axis: .init(0, 2, 0)) == origin + .init(0, 0.15, 0))
+        precondition(HeatSample.candle(origin: origin, axis: .init(0, -2, 0)) == origin + .init(0, -0.15, 0))
+        precondition(HeatSample.torch(origin: origin, axis: .init(2, 0, 0)) == origin + .init(0.3, 0, 0))
+        precondition(HeatSample.torch(origin: origin, axis: .init(-2, 0, 0)) == origin + .init(-0.3, 0, 0))
+        precondition(HeatSample.candle(origin: origin, axis: .init(0, 0, 1)) == nil)
+        precondition(HeatSample.torch(origin: origin, axis: .init(0, 1, 0)) == nil)
+        precondition(HeatSample.candle(origin: .init(.nan, 0, 0), axis: .init(0, 1, 0)) == nil)
+        precondition(HeatSample.focus(position: origin, light: Float(0.5).nextDown) == nil)
+        precondition(HeatSample.focus(position: origin, light: 0.5) == origin)
+        precondition(HeatSample.focus(position: origin, light: 1) == origin)
+        precondition(HeatSample.focus(position: origin, light: 1.01) == nil)
+        precondition(HeatSample.focus(position: origin, light: .nan) == nil)
         print("Original candle, dynamic candle and blowtorch click states +0xEC and VALF initial/reset: OK")
     }
 }
