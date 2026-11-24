@@ -66,6 +66,28 @@ struct OriginalWindowsSwitchCircuitSmoke {
         precondition(circuit.experimentalNetworkSignals(
             closedSwitchIDs: [sw],
             switchContactsByDeviceID: [sw: unknown])[lamp] == nil)
+        typealias Gate = CMOriginalWindowsSwitchContactGate
+        precondition(Gate.settledNativeContact(matingContact: -1, motion: -10) == -1)
+        precondition(Gate.settledNativeContact(matingContact: Float(-1).nextDown, motion: -10) == -1)
+        precondition(Gate.settledNativeContact(matingContact: Float(-1).nextUp, motion: -10) == nil)
+        precondition(Gate.settledNativeContact(matingContact: -1, motion: 0) == nil)
+        precondition(Gate.settledNativeContact(matingContact: .nan, motion: -10) == nil)
+        // An in-flight lever must not power a motor simply because a tap
+        // occurred. Exercise both directions and wrapped presentation angles.
+        let rest: Float = 1
+        precondition(!Gate.sceneContactClosed(authoredOpenAngle: rest, observedAngle: rest))
+        precondition(!Gate.sceneContactClosed(authoredOpenAngle: rest, observedAngle: 0.7))
+        precondition(Gate.sceneContactClosed(authoredOpenAngle: rest, observedAngle: 0.4))
+        precondition(!Gate.sceneContactClosed(authoredOpenAngle: rest, observedAngle: 0.42))
+        precondition(Gate.sceneContactClosed(authoredOpenAngle: rest, observedAngle: 0.4 + 2 * .pi))
+        precondition(!Gate.sceneContactClosed(authoredOpenAngle: rest, observedAngle: .nan))
+        for i in 0...120 {
+            let angle = rest + Gate.sceneClosedOffset * Float(i) / 120
+            let closed = Gate.sceneContactClosed(authoredOpenAngle: rest, observedAngle: angle)
+            let signals = circuit.experimentalNetworkSignals(closedSwitchIDs: closed ? [sw] : [])
+            precondition((signals[lamp] == 10) == closed)
+            if i < 117 { precondition(!closed) }
+        }
         print("Original Win32 ±1 switch contact state overrides prototype toggle and blocks ghost voltage")
     }
 }
