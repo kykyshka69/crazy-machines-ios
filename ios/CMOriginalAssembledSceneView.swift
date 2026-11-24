@@ -4219,11 +4219,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // Engine activation; do NOT require dynamic state merely
                 // to check launch eligibility. Parent ownership is already
                 // established by originalRocketParentByChildID.
-                let body = physicsNodesByObjectID[childID]?
+                let rocketOwner = physicsNodesByObjectID[childID]?
                     .first(where: {
                         $0.physicsBody?.type == .kinematic
                             || $0.physicsBody?.type == .dynamic
-                    })?.physicsBody
+                    })
+                let body = rocketOwner?.physicsBody
                 let initialFC = rocketInitialFCByChildID[childID]
                 var projectedFraction: Float?
                 if let target {
@@ -4393,7 +4394,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                     guard body.type == .dynamic else { continue }
                     body.isAffectedByGravity = false
-                    let scale = (owner as? CMOriginalPhysicsOwnerNode)?.originalMassProperties != nil
+                    let scale = (rocketOwner as? CMOriginalPhysicsOwnerNode)?.originalMassProperties != nil
                         ? Float(body.mass) : 1
                     body.applyForce(SCNVector3(force.x*scale,force.y*scale,force.z*scale), asImpulse: false)
                 }
