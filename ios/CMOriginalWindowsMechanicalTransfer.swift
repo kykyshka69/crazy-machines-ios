@@ -101,6 +101,47 @@ public enum CMOriginalRope {
         return min(25, (distance - restLength) * 35)
     }
 
+    /// Unilateral, velocity-level rope constraint for the SceneKit adapter.
+    /// The Windows flexible-rope solver is not reproduced here. Unlike the
+    /// previous fixed spring force, this uses both bodies' actual effective
+    /// inverse masses, including rotation at their attachment points.
+    public static func constraintImpulse(
+        distance: Double, restLength: Double, separationRate: Double,
+        inverseEffectiveMass: Double, delta: Double
+    ) -> Double? {
+        guard distance.isFinite, (0.002...60).contains(distance),
+              restLength.isFinite, (0.01...30).contains(restLength),
+              separationRate.isFinite, inverseEffectiveMass.isFinite,
+              inverseEffectiveMass > 0, delta.isFinite,
+              delta > 0, delta <= 0.25 else { return nil }
+        let excess = distance - restLength
+        // Permit slack to close without pulling. Correct an existing
+        // stretch over several steps, limiting correction velocity.
+        let allowedRate = excess <= 0
+            ? -excess / delta
+            : -min(2, 0.2 * excess / delta)
+        let correction = max(0, separationRate - allowedRate)
+        let impulse = correction / inverseEffectiveMass
+        return impulse.isFinite && impulse <= Double(Float.greatestFiniteMagnitude)
+            ? impulse : nil
+    }
+
+    /// Translational motion is constrained to XY. A hinge may rotate but
+    /// cannot translate; its pivot inertia is supplied by the caller.
+    public static func endpointInverseMass(
+        directionXYLengthSquared: Double, leverCrossDirection: Double,
+        inverseMass: Double, inverseInertia: Double
+    ) -> Double? {
+        guard directionXYLengthSquared.isFinite,
+              (0...1.000001).contains(directionXYLengthSquared),
+              leverCrossDirection.isFinite, inverseMass.isFinite,
+              inverseMass >= 0, inverseInertia.isFinite,
+              inverseInertia >= 0 else { return nil }
+        let value = directionXYLengthSquared * inverseMass
+            + leverCrossDirection * leverCrossDirection * inverseInertia
+        return value.isFinite ? value : nil
+    }
+
     // Win32 rope/fuze-independent cut path 0x456FB0–0x4571D9.
     // 0x457042: rope samples every 0.05; 0x4571BB: blade samples
     // every 0.01; 0x4570F5: strict distance < 0.05. The actual game
