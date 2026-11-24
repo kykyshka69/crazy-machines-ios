@@ -919,7 +919,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var releasedCrossbowArrowIDs = Set<String>()
         private var qualifiedWindmillGoalIDs = Set<String>()
         private var disrupterIDByWheelID: [String: String] = [:]
-        private var lastDisrupterConduction: [String: Bool] = [:]
+        private var lastDisrupterConduction: [String: CMOriginalWindowsPowerDisrupter.Observation] = [:]
         private var lastGeneratorScalars: [String: Float] = [:]
         private var lastGeneratorPollTime: TimeInterval = 0
         var onOriginalDisrupterAngle: ((String, Float) -> Void)?
@@ -3518,32 +3518,25 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             advanceOriginalFlags(delta: delta)
             advanceOriginalFlasks(delta: delta, root: renderer.scene?.rootNode)
             sampleOriginalRocketAnchorFrames(at: time)
+            // The original disrupter gates power on each electrical walk.
+            // Sample once per physics frame, not on the slow generator UI
+            // poll: a short conducting pulse must not be skipped solely by
+            // the 0.16-second reporting interval.
+            for (wheelID, disrupterID) in disrupterIDByWheelID {
+                // Euler-Z remains the provisional SceneKit adapter.
+                let angle = physicsNodesByObjectID[wheelID]?.first?
+                    .presentation.eulerAngles.z ?? .nan
+                let observation = CMOriginalWindowsPowerDisrupter.observation(
+                    rotorAngle: angle)
+                guard lastDisrupterConduction[disrupterID] != observation
+                else { continue }
+                lastDisrupterConduction[disrupterID] = observation
+                DispatchQueue.main.async { [weak self] in
+                    self?.onOriginalDisrupterAngle?(disrupterID, angle)
+                }
+            }
             if time - lastGeneratorPollTime >= 0.16 {
                 lastGeneratorPollTime = time
-                // Win32 0x44CA59..0x44CAC8: the wheel angle modulo Pi is
-                // a power gate. Observe original imported 3D wheel rotation.
-                // This SceneKit Euler-Z mapping to Win32's +0xD0 scalar
-                // is approximate and is not a recovered torque constant.
-                for (wheelID, disrupterID) in disrupterIDByWheelID {
-                    // A lost original wheel must clear its last conducting
-                    // phase, not leave the connected motor/lamp energized.
-                    // NaN is an unavailable observation; the native gate
-                    // rejects it and the existing change latch sends it once.
-                    let angle: Float
-                    if let wheel = physicsNodesByObjectID[wheelID]?.first {
-                        angle = wheel.presentation.eulerAngles.z
-                    } else {
-                        angle = .nan
-                    }
-                    let conducting = CMOriginalWindowsPowerDisrupter.conducts(
-                        rotorAngle: angle)
-                    guard lastDisrupterConduction[disrupterID] != conducting
-                    else { continue }
-                    lastDisrupterConduction[disrupterID] = conducting
-                    DispatchQueue.main.async { [weak self] in
-                        self?.onOriginalDisrupterAngle?(disrupterID, angle)
-                    }
-                }
                 for (wingsID, windmillID) in windmillIDByWingsID {
                     // A native windmill GOAL is a once-only transition;
                     // never make SwiftUI redraw repeatedly on every rotor
