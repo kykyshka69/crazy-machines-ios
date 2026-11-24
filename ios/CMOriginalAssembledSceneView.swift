@@ -220,7 +220,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // UCM Explode marker and one-shot physical retirement. This is an
     // explicitly reconstructed gameplay event, NOT native runtime proof.
     var onOriginalReconstructedRocketGoal: ((String, String) -> Void)? = nil
-    var onOriginalElectricalFrame: ((Set<CMOriginalDriveBelt.Pair>) -> Void)? = nil
+    var onOriginalElectricalFrame: ((Set<CMOriginalDriveBelt.Pair>, [String: String]) -> Void)? = nil
 
     private var physicsAccessibilityStatus: String {
         let state = experimentalPhysics ? (physicsPaused ? "paused" : "running") : "off"
@@ -842,6 +842,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var boilerHeatSignals: [String: Float] = [:]
         private var steamOutgoingSignals: [Int: Float] = [:]
         private var steamReceiverOwners: [String: String] = [:]
+        private var activeSteamDriverBoilers: [String: String] = [:]
         private var steamWheelByBody: [String: SCNNode] = [:]
         private var steamValveLevers: [String: (owner: SCNNode, lever: SCNNode)] = [:]
         private struct SteamPistonDrive {
@@ -928,7 +929,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var lastGeneratorPollTime: TimeInterval = 0
         var onOriginalDisrupterAngle: ((String, Float) -> Void)?
         var onOriginalGeneratorSignal: ((String, Float) -> Void)?
-        var onOriginalElectricalFrame: ((Set<CMOriginalDriveBelt.Pair>) -> Void)?
+        var onOriginalElectricalFrame: ((Set<CMOriginalDriveBelt.Pair>, [String: String]) -> Void)?
         var onOriginalWindmillSignal: ((String, Float) -> Void)?
         private var axleObjectIDs = Set<String>()
         // Authentic PC conveyor children are linked through their scene-graph
@@ -1964,6 +1965,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             boilerHeatSignals.removeAll()
             steamOutgoingSignals.removeAll()
             steamReceiverOwners.removeAll()
+            activeSteamDriverBoilers.removeAll()
             steamWheelByBody.removeAll()
             steamValveLevers.removeAll()
             steamPistonDrives.removeAll()
@@ -2287,6 +2289,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
 
         private func advanceOriginalSteamNetwork(delta: Double) {
+            activeSteamDriverBoilers.removeAll(keepingCapacity: true)
             guard !boilerHeatSignals.isEmpty else { return }
             let lit = CMOriginalRocketSceneHeatSources.litCandleIDs(
                 sourceStates: session?.originalHeatSourceStates ?? [:],
@@ -2343,6 +2346,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 boilerSignals: output, previous: steamOutgoingSignals, delta: delta,
                 openValveIDs: openValveIDs)
             steamOutgoingSignals = state.outgoing
+            for (receiver, boiler) in state.receiverBoilers {
+                guard let owner = steamReceiverOwners[receiver],
+                      steamWheelByBody[receiver]?.physicsBody?.type == .dynamic else { continue }
+                activeSteamDriverBoilers[owner] = boiler
+            }
             for (id, signal) in state.receiverSignals where originalTypesByID[id] == "tmo_pipe_whistle" {
                 if CMOriginalWindowsSteamWhistle.triggersGoal(steamPower: signal),
                    reportedSteamGoals.insert(id).inserted {
@@ -3566,7 +3574,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 beltLock.lock()
                 let drives = activeElectricalDriveBelts
                 beltLock.unlock()
-                DispatchQueue.main.async { frame(drives) }
+                let boilers = activeSteamDriverBoilers
+                DispatchQueue.main.async { frame(drives, boilers) }
             }
             // Render-timestep-aware buoyancy for authentic tmo_balloon
             // parts: the original puzzles treat them as rising objects,
