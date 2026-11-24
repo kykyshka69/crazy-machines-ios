@@ -210,6 +210,68 @@ public enum CMOriginalDriveBelt {
         }
     }
 
+    /// Contact evidence persists until SceneKit reports separation, not
+    /// just until the next renderer tick. No contact is inferred from proximity.
+    public struct GearContacts {
+        public struct Observation {
+            public let pair: Pair
+            public let firstRadius: Float
+            public let secondRadius: Float
+            public let firstVALF: Float?
+            public let secondVALF: Float?
+            public var hasNativeRatio: Bool { firstVALF != nil && secondVALF != nil }
+        }
+        private var active: [Pair: Observation] = [:]
+        public init() {}
+
+        @discardableResult
+        public mutating func observe(_ a: String, _ b: String,
+                                    radiusA: Float, radiusB: Float,
+                                    valfA: Float?, valfB: Float?) -> Bool {
+            guard let pair = Pair(a,b) else { return false }
+            guard radiusA.isFinite, radiusB.isFinite,
+                  (0.008...3).contains(radiusA), (0.008...3).contains(radiusB),
+                  (valfA == nil) == (valfB == nil) else {
+                active.removeValue(forKey: pair)
+                return false
+            }
+            if let a = valfA, let b = valfB {
+                guard let ratio = CMOriginalWindowsMechanicalTransfer.transmittedSignal(
+                    sourceSignal: 1, sourceVALF: a, targetVALF: b),
+                      ratio > 0, ratio <= 100,
+                      1/ratio <= 100 else {
+                    active.removeValue(forKey: pair)
+                    return false
+                }
+            }
+            let forward = pair.first == a
+            active[pair] = Observation(pair: pair,
+                firstRadius: forward ? radiusA : radiusB,
+                secondRadius: forward ? radiusB : radiusA,
+                firstVALF: forward ? valfA : valfB,
+                secondVALF: forward ? valfB : valfA)
+            return true
+        }
+
+        public mutating func end(_ a: String, _ b: String) {
+            if let pair = Pair(a,b) { active.removeValue(forKey: pair) }
+        }
+
+        public mutating func reset() { active.removeAll() }
+
+        public var observations: [Observation] {
+            active.values.sorted {
+                $0.pair.first == $1.pair.first
+                    ? $0.pair.second < $1.pair.second
+                    : $0.pair.first < $1.pair.first
+            }
+        }
+
+        public var nativePairs: Set<Pair> {
+            Set(active.values.filter(\.hasNativeRatio).map(\.pair))
+        }
+    }
+
     /// Resolve a generator's mechanical source through an observed wheel
     /// network. Only intermediate gears are transparent. Components with
     /// cycles, competing drives, unsupported receivers or multiple
