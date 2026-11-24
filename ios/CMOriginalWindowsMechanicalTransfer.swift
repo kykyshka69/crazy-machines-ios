@@ -73,7 +73,7 @@ public enum CMOriginalRope {
     /// Names verified in the authentic rope UCMs; case-sensitive.
     public static func accepts(type: String, marker: String) -> Bool {
         switch type {
-        case "tmo_rope_hook", "tmo_rope_cage", "tmo_rope_crossbow_lever":
+        case "tmo_rope_hook", "tmo_rope_cage", "tmo_rope_crossbow_lever", "tmo_pipe_ventil_lever":
             return marker == "Rope"
         case "tmo_rope_scissors_1", "tmo_rope_scissors_2":
             return marker == "Rope01"
