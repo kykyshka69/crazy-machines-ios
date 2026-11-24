@@ -753,6 +753,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var beltWheels: [String: (marker: SCNNode, coefficient: Float, axisColumn: Int)] = [:]
         private var beltSpans: [CMOriginalDriveBelt.Pair: [SCNNode]] = [:]
         private var activeElectricalDriveBelts = Set<CMOriginalDriveBelt.Pair>()
+        // Observed during SceneKit contact callbacks, consumed once per frame.
+        private let gearDriveLock = NSLock()
+        private var observedElectricalGearContacts = Set<CMOriginalDriveBelt.Pair>()
         var onOriginalRopeCut: ((CMOriginalRope.Pair) -> Void)?
         // Renderer-local cut latch prevents a queued UI update recreating a severed rope.
         private var severedRopes = Set<CMOriginalRope.Pair>()
@@ -2632,6 +2635,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
 
         func registerPhysicsNodes(in scene: SCNScene, originalDirectory: URL) {
+            gearDriveLock.lock()
+            observedElectricalGearContacts.removeAll()
+            gearDriveLock.unlock()
             effectVoices.values.flatMap { $0 }.forEach { $0.stop() }
             effectVoices.removeAll()
             unavailableEffects.removeAll()
@@ -3572,10 +3578,29 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
             if let frame = onOriginalElectricalFrame {
                 beltLock.lock()
-                let drives = activeElectricalDriveBelts
+                let belts = activeElectricalDriveBelts
                 beltLock.unlock()
+                gearDriveLock.lock()
+                let contacts = observedElectricalGearContacts
+                observedElectricalGearContacts.removeAll(keepingCapacity: true)
+                gearDriveLock.unlock()
+                // A belt and meshing gear on the same pair give opposing
+                // rotation constraints. Reject their affected components.
+                let conflicting = belts.intersection(contacts)
+                var drives = belts.union(contacts)
+                var rejected = Set(conflicting.flatMap { [$0.first, $0.second] })
+                var expanded = true
+                while expanded {
+                    expanded = false
+                    for link in drives where rejected.contains(link.first) || rejected.contains(link.second) {
+                        if rejected.insert(link.first).inserted { expanded = true }
+                        if rejected.insert(link.second).inserted { expanded = true }
+                    }
+                }
+                drives = drives.filter { !rejected.contains($0.first) && !rejected.contains($0.second) }
                 let boilers = activeSteamDriverBoilers
-                DispatchQueue.main.async { frame(drives, boilers) }
+                let observedDrives = drives
+                DispatchQueue.main.async { frame(observedDrives, boilers) }
             }
             // Render-timestep-aware buoyancy for authentic tmo_balloon
             // parts: the original puzzles treat them as rising objects,
@@ -4464,8 +4489,24 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             let posB = b.presentation.worldPosition
             let radiusA = hypot(p.x - posA.x, p.y - posA.y)
             let radiusB = hypot(p.x - posB.x, p.y - posB.y)
-            guard let speedA = planarSpeed(aBody), let speedB = planarSpeed(bBody),
-                  let pair = CMOriginalGearContactTransfer.correction(
+            guard let speedA = planarSpeed(aBody), let speedB = planarSpeed(bBody) else { return }
+            // Record validated contact even when slip is zero. A meshed
+            // wheel need not require correction torque every physics frame.
+            if let first = originalMechanicalVALFByID[aID],
+               let second = originalMechanicalVALFByID[bID],
+               let ratio = CMOriginalWindowsMechanicalTransfer.transmittedSignal(
+                    sourceSignal: 1, sourceVALF: first, targetVALF: second),
+               ratio > 0, ratio <= 100,
+               (0.008...3).contains(radiusA), (0.008...3).contains(radiusB),
+               abs(speedA) <= 80, abs(speedB) <= 80,
+               aBody.mass > 0, aBody.mass <= 1000,
+               bBody.mass > 0, bBody.mass <= 1000,
+               let edge = CMOriginalDriveBelt.Pair(aID, bID) {
+                gearDriveLock.lock()
+                observedElectricalGearContacts.insert(edge)
+                gearDriveLock.unlock()
+            }
+            guard let pair = CMOriginalGearContactTransfer.correction(
                 firstKind: kindA, secondKind: kindB,
                 firstRadius: radiusA, secondRadius: radiusB,
                 firstAngularSpeed: speedA, secondAngularSpeed: speedB,
@@ -4706,6 +4747,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                   let b = owningOriginalObjectID(
                       for: physicalNode(for: contact.nodeB)) else { return }
             sessionLock.lock()
+            if let edge = CMOriginalDriveBelt.Pair(a, b) {
+                gearDriveLock.lock()
+                observedElectricalGearContacts.remove(edge)
+                gearDriveLock.unlock()
+            }
             switchContacts?.endContact(a, b)
             collisionSoundGate.end(a, b)
             springContactGate.end(.init(spring: a, striker: b))
