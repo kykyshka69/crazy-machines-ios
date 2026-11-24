@@ -229,9 +229,9 @@ struct CMOriginalQuickPlayView: View {
         })
     }
 
-    // Use the restored per-plug walker for source-disjoint acyclic networks.
-    // Interacting sources/cycles retain the conservative path until native
-    // scheduling and component ordering are confirmed.
+    // Use the restored per-plug walker for source-disjoint networks,
+    // including fully conducting loops. Interacting sources and ambiguous
+    // blocked loops retain the conservative path until native order is known.
     private var liveElectricalObservation: CMOriginalPowerCircuit.NetworkObservation? {
         guard experimentalPhysics && experimentalWiredPower,
               let network = powerCircuit else { return nil }
