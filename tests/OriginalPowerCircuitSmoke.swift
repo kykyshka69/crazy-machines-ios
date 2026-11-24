@@ -283,6 +283,44 @@ struct OriginalPowerCircuitSmoke {
         precondition(blocked.deviceSignals[blockedID] == nil)
         precondition(blocked.cableSignals[left] == 10)
         precondition(blocked.cableSignals[middle] == nil)
+        // Ordered native reference: first arrival owns this pass,
+        // but resetting visit marks alone does not erase stored signals.
+        typealias Event = CMOriginalPowerCircuit.NativePortEvent
+        let lSource = Event.source(plugID: splitPlug(21), value: 10)
+        let rSource = Event.source(plugID: splitPlug(26), value: 3)
+        let gates = Dictionary(uniqueKeysWithValues: switchIDs.map { ($0, true) })
+        let first = split.nativePortPass(events: [lSource, rSource],
+                                         conductingByDeviceID: gates)!
+        precondition(first.signals[splitPlug(24)] == 10)
+        precondition(first.signals[splitPlug(26)] == 3)
+        let reverse = split.nativePortPass(events: [rSource, lSource],
+                                           conductingByDeviceID: gates)!
+        precondition(reverse.signals[splitPlug(23)] == 3)
+        let resetOnly = split.nativePortPass(previous: first, events: [.resetVisited],
+                                             conductingByDeviceID: gates)!
+        precondition(resetOnly.signals == first.signals)
+        precondition(resetOnly.visitedOwners.isEmpty)
+        let stopped = split.nativePortPass(previous: first, events: [.resetVisited,
+            .source(plugID: splitPlug(21), value: 0)], conductingByDeviceID: gates)!
+        precondition(stopped.signals[splitPlug(22)] == 0)
+        precondition(stopped.signals[splitPlug(24)] == 0)
+        precondition(stopped.signals[splitPlug(26)] == 3)
+        var openGates = gates
+        openGates[blockedID] = false
+        let opened = split.nativePortPass(previous: first, events: [.resetVisited, lSource],
+                                          conductingByDeviceID: openGates)!
+        precondition(opened.signals[splitPlug(22)] == 10)
+        precondition(opened.signals[splitPlug(23)] == 0)
+        precondition(opened.signals[splitPlug(24)] == 0)
+        precondition(split.nativePortPass(events: [lSource], conductingByDeviceID: [:]) == nil)
+        precondition(split.applyObservedCableCut(middle))
+        let severed = split.nativePortPass(previous: first, events: [.cutTransfer(middle)],
+                                           conductingByDeviceID: gates)!
+        precondition(severed.signals[splitPlug(23)] == 0)
+        precondition(severed.signals[splitPlug(24)] == 0)
+        split.clearRuntimeCuts()
+        precondition(split.nativePortPass(events: [.cutTransfer(middle)],
+                                          conductingByDeviceID: gates) == nil)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
