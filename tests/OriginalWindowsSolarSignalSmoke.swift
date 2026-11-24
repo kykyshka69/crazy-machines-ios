@@ -35,6 +35,28 @@ struct OriginalWindowsSolarSignalSmoke {
                      interceptedFraction: 1, pathLength: 1) == nil)
         precondition(scalar.collectedPower(rayContributions: [-0.1]) == nil)
         precondition(scalar.collectedPower(rayContributions: [.nan]) == nil)
+        typealias O = CMOriginalLiveOptics
+        eq(O.lampContribution(power: 10, pathLength: 0.4, unobstructed: true), 0.5)
+        eq(O.lampContribution(power: 0, pathLength: 0.4, unobstructed: true), 0)
+        eq(O.lampContribution(power: 10, pathLength: 0.4, unobstructed: false), 0)
+        precondition(O.lampContribution(power: 10, pathLength: 0, unobstructed: true) == nil)
+        let axis = SIMD3<Float>(1, 0, 0)
+        let target = SIMD3<Float>(0.4, 0, 0)
+        let ray = O.pocketContribution(lit: true, axis: axis,
+            displacement: target, unobstructed: true)!
+        precondition(ray > 0.5 && ray <= 1)
+        eq(O.pocketContribution(lit: false, axis: axis,
+            displacement: target, unobstructed: true), 0)
+        eq(O.pocketContribution(lit: true, axis: axis,
+            displacement: target, unobstructed: false), 0)
+        eq(O.pocketContribution(lit: true, axis: axis,
+            displacement: -target, unobstructed: true), 0)
+        eq(O.pocketContribution(lit: true, axis: -axis,
+            displacement: -target, unobstructed: true), ray)
+        eq(O.pocketContribution(lit: true, axis: axis,
+            displacement: .init(3, 0, 0), unobstructed: true), 0)
+        eq(O.pocketContribution(lit: true, axis: axis,
+            displacement: .init(0.4, 0.4, 0), unobstructed: true), 0)
         print("Win32 solar ray attenuation / accumulator saturation / GOAL threshold passed")
     }
 }
