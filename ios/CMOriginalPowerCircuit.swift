@@ -651,6 +651,18 @@ public struct CMOriginalPowerCircuit {
             && sourceDeviceIDs.allSatisfy { id in recoveredNativeSlotOrder?[id]?.count == 1 }
     }
 
+    /// Solar sources execute in the optical phase; disrupter gates are
+    /// sampled from the running scene. Generator callbacks require a
+    /// separate mechanical schedule and are not covered by this adapter.
+    public var supportsOrderedElectricalFrames: Bool {
+        recoveredNativeOwnerOrder != nil && recoveredNativeSlotOrder != nil
+            && !sourceDeviceIDs.union(solarDeviceIDs).isEmpty
+            && generatorDeviceIDs.isEmpty
+            && sourceDeviceIDs.union(solarDeviceIDs).allSatisfy {
+                recoveredNativeSlotOrder?[$0]?.count == 1
+            }
+    }
+
     public struct BatteryFrame: Equatable {
         public let state: NativePortState
         public let processedCuts: Set<Cable>
@@ -659,11 +671,29 @@ public struct CMOriginalPowerCircuit {
     public func advanceOrderedBatteryFrame(
         previous: BatteryFrame?, closedSwitchIDs: Set<String>
     ) -> BatteryFrame? {
-        guard supportsOrderedBatteryFrames,
+        guard supportsOrderedBatteryFrames else { return nil }
+        return advanceOrderedElectricalFrame(previous: previous,
+            closedSwitchIDs: closedSwitchIDs)
+    }
+
+    public func advanceOrderedElectricalFrame(
+        previous: BatteryFrame?, closedSwitchIDs: Set<String>,
+        solarRayContributionsByDeviceID: [String: [Float]] = [:],
+        disrupterRotorAnglesByDeviceID: [String: Float] = [:]
+    ) -> BatteryFrame? {
+        guard supportsOrderedElectricalFrames,
               let ownerOrder = recoveredNativeOwnerOrder,
               let slotOrder = recoveredNativeSlotOrder else { return nil }
-        let gates = Dictionary(uniqueKeysWithValues:
+        var gates = Dictionary(uniqueKeysWithValues:
             switchDeviceIDs.map { ($0, closedSwitchIDs.contains($0)) })
+        for id in disrupterDeviceIDs {
+            // No known angle: fail closed until the renderer samples it.
+            gates[id] = CMOriginalWindowsPowerDisrupter.conducts(
+                rotorAngle: disrupterRotorAnglesByDeviceID[id] ?? .nan)
+        }
+        let rays = Dictionary(uniqueKeysWithValues: solarDeviceIDs.map {
+            ($0, solarRayContributionsByDeviceID[$0] ?? [])
+        })
         // Initial zero is a reconstruction of a fresh run, not a measured
         // native memory dump. Thereafter plug state persists between frames.
         var state = previous?.state ?? NativePortState(signals:
@@ -681,14 +711,15 @@ public struct CMOriginalPowerCircuit {
             state = interrupted
         }
         guard let next = nativeElectricalUpdate(previous: state,
-            ownerOrder: ownerOrder, solarRayContributionsByDeviceID: [:],
+            ownerOrder: ownerOrder, solarRayContributionsByDeviceID: rays,
             conductingByDeviceID: gates, observedSlotOrder: slotOrder)
         else { return nil }
         return BatteryFrame(state: next, processedCuts: cuts)
     }
 
     public func orderedBatteryObservation(_ frame: BatteryFrame,
-                                          closedSwitchIDs: Set<String>) -> NetworkObservation {
+                                          closedSwitchIDs: Set<String>,
+                                          disrupterRotorAnglesByDeviceID: [String: Float] = [:]) -> NetworkObservation {
         let state = frame.state
         var devices: [String: Float] = [:]
         for (id, slots) in recoveredNativeSlotOrder ?? [:] {
@@ -698,9 +729,13 @@ public struct CMOriginalPowerCircuit {
                 if port.deviceType == "tmo_power_amperemeter" {
                     value = max(read.first ?? 0, read.second ?? 0)
                 } else { value = read.first }
-            } else if sourceDeviceIDs.contains(id) {
+            } else if sourceDeviceIDs.contains(id) || solarDeviceIDs.contains(id) {
                 value = state.sourceReads[id]
             } else if switchDeviceIDs.contains(id) && !closedSwitchIDs.contains(id) {
+                value = nil
+            } else if disrupterDeviceIDs.contains(id) &&
+                !CMOriginalWindowsPowerDisrupter.conducts(
+                    rotorAngle: disrupterRotorAnglesByDeviceID[id] ?? .nan) {
                 value = nil
             } else { value = state.signals[first] }
             if let value, value.isFinite, value > 0 { devices[id] = value }
