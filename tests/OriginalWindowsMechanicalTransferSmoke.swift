@@ -457,6 +457,36 @@ struct OriginalWindowsMechanicalTransferSmoke {
         }
         precondition(CMOriginalRotaryConstraint.solve(firstSpeed:1,secondSpeed:1,
             firstInertia:0,secondInertia:1,firstCoefficient:1,secondCoefficient:1)==nil)
+        // A sleeping mesh remains a real link until actual separation.
+        // Repeated and reversed manifold reports update, not duplicate.
+        for a: Float in [0.1,0.125,0.13,0.25] {
+            for b: Float in [0.1,0.125,0.13,0.25] {
+                var g = B.GearContacts()
+                precondition(g.observe("a","b",radiusA:a,radiusB:b,valfA:a,valfB:b))
+                for _ in 0..<60 {
+                    precondition(g.nativePairs == [B.Pair("a","b")!])
+                    precondition(g.observations.count == 1)
+                }
+                precondition(g.observe("b","a",radiusA:b,radiusB:a,valfA:b,valfB:a))
+                precondition(g.observations[0].firstVALF == a && g.observations[0].secondRadius == b)
+                precondition(g.observations.count == 1)
+                g.end("b","a")
+                precondition(g.nativePairs.isEmpty && g.observations.isEmpty)
+                precondition(g.observe("a","b",radiusA:a,radiusB:b,valfA:nil,valfB:nil))
+                precondition(g.nativePairs.isEmpty && g.observations.count == 1)
+                precondition(!g.observe("a","b",radiusA:a,radiusB:b,valfA:a,valfB:nil))
+                precondition(g.observations.isEmpty)
+                precondition(!g.observe("a","b",radiusA:a,radiusB:b,valfA:0,valfB:b))
+                precondition(!g.observe("a","b",radiusA:a,radiusB:b,valfA:0.000001,valfB:b))
+                precondition(!g.observe("a","b",radiusA:.nan,radiusB:b,valfA:a,valfB:b))
+                precondition(g.observe("a","b",radiusA:a,radiusB:b,valfA:a,valfB:b))
+                precondition(g.observe("b","c",radiusA:b,radiusB:a,valfA:b,valfB:a))
+                g.end("b","a")
+                precondition(g.nativePairs == [B.Pair("b","c")!])
+                g.reset()
+                precondition(g.nativePairs.isEmpty && g.observations.isEmpty)
+            }
+        }
         print("Native mechanical VALF ratios, linked sign, observed stop decay: 1000 cases passed")
     }
 }
