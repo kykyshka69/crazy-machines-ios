@@ -754,6 +754,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var liveOpticalLampPower: [String: Float] = [:]
         private var liveOpticalEmitters: [String: SCNNode] = [:]
         private var liveOpticalReceivers: [String: SCNNode] = [:]
+        private var magnifierGlows: [String: [CMOriginalMagnifier.Side: SCNNode]] = [:]
+        private var magnifierFoci: [(owner: String, node: SCNNode, light: Float)] = []
         private var liveFlowerProgress: [String: Float] = [:]
         private var liveFlowerMorphers: [String: SCNMorpher] = [:]
         private var liveFlowerLight: [String: Float] = [:]
@@ -2179,6 +2181,19 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             registerOriginalSteamNetwork(objects: originalObjects)
             registerLiveOptics(objects: originalObjects)
             scene.rootNode.enumerateChildNodes { node, _ in
+                if let id = self.owningOriginalObjectID(for: node),
+                   self.originalTypesByID[id] == "tmo_light_magnifier" {
+                    let side: CMOriginalMagnifier.Side?
+                    switch node.name {
+                    case "original-effect-glow-to_light_magnifier_glow_left": side = .negative
+                    case "original-effect-glow-to_light_magnifier_glow_right": side = .positive
+                    default: side = nil
+                    }
+                    if let side {
+                        self.magnifierGlows[id, default: [:]][side] = node
+                        node.opacity = 0
+                    }
+                }
                 guard let mesh = node as? CMOriginalObjectMeshNode,
                       let id = mesh.originalObjectID,
                       self.originalTypesByID[id] == "tmo_light_flower",
@@ -2226,6 +2241,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private func registerLiveOptics(objects: [CMOriginalGameplaySession.Object]) {
             liveOpticalEmitters.removeAll()
             liveOpticalReceivers.removeAll()
+            magnifierGlows.removeAll()
+            magnifierFoci.removeAll()
             liveFlowerProgress.removeAll()
             liveFlowerMorphers.removeAll()
             liveFlowerLight.removeAll()
@@ -2243,7 +2260,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     if let marker = exactOriginalAnchor("Light", on: item.id) {
                         liveOpticalEmitters[item.id] = marker
                     }
-                case "tmo_power_solarcell", "tmo_light_flower":
+                case "tmo_power_solarcell", "tmo_light_flower", "tmo_light_magnifier":
                     if let marker = exactOriginalAnchor("Light", on: item.id) {
                         liveOpticalReceivers[item.id] = marker
                         if item.type == "tmo_light_flower" {
@@ -2263,9 +2280,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 lastLiveOpticalTime = time
                 var solar: [String: [Float]] = [:]
                 var flowers: [String: Float] = [:]
+                magnifierFoci.removeAll(keepingCapacity: true)
+                for glows in magnifierGlows.values { for glow in glows.values { glow.opacity = 0 } }
                 for (id, receiver) in liveOpticalReceivers.sorted(by: { $0.key < $1.key }) {
                     var rays: [Float] = []
+                    var lensRays: [CMOriginalMagnifier.Side: [Float]] = [:]
                     let to = receiver.presentation.simdWorldPosition
+                    let lens = originalTypesByID[id] == "tmo_light_magnifier"
+                    let lensBasis = receiver.presentation.simdWorldTransform.columns.2
+                    let lensAxis = SIMD3<Float>(lensBasis.x, lensBasis.y, lensBasis.z)
                     for (sourceID, marker) in liveOpticalEmitters.sorted(by: { $0.key < $1.key }) {
                         let kind = originalTypesByID[sourceID]
                         let power = liveOpticalLampPower[sourceID] ?? 0
@@ -2300,9 +2323,25 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                 axis: .init(m.columns.2.x, m.columns.2.y, m.columns.2.z),
                                 displacement: offset, unobstructed: unobstructed)
                         }
-                        if let ray, ray > 0 { rays.append(ray) }
+                        if lens {
+                            guard let side = CMOriginalMagnifier.incomingSide(axis: lensAxis, sourceOffset: -offset) else { continue }
+                            let accepted = kind == "tmo_power_lamp"
+                                ? CMOriginalMagnifier.acceptsLamp(axis: lensAxis, sourceOffset: -offset,
+                                    power: power, pathLength: length, unobstructed: unobstructed)
+                                : ray
+                            if let accepted, accepted > 0 { lensRays[side, default: []].append(accepted) }
+                        } else if let ray, ray > 0 { rays.append(ray) }
                     }
-                    if originalTypesByID[id] == "tmo_power_solarcell" {
+                    if lens {
+                        for side in [CMOriginalMagnifier.Side.negative, .positive] {
+                            let light = CMOriginalMagnifier.clampedLight(lensRays[side] ?? []) ?? 0
+                            let opposite: CMOriginalMagnifier.Side = side == .negative ? .positive : .negative
+                            if let glow = magnifierGlows[id]?[opposite] {
+                                glow.opacity = CGFloat(light)
+                                magnifierFoci.append((owner: id, node: glow, light: light))
+                            }
+                        }
+                    } else if originalTypesByID[id] == "tmo_power_solarcell" {
                         solar[id] = rays
                     } else if let light = CMOriginalWindowsSolarSignal.collectedPower(rayContributions: rays) {
                         flowers[id] = light / 10
@@ -2989,7 +3028,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     time: clock, projectedCandleHeat: projectedFraction,
                     projectedBlowtorchHit: projectedBlowtorchHit,
                     rocketBodyPresent: body != nil,
-                    directionAndInitialVelocityUsable: force != nil)
+                    directionAndInitialVelocityUsable: force != nil,
+                    projectedMagnifierHeatHit: target.map { point in
+                        magnifierFoci.contains { focus in
+                            CMOriginalMagnifier.heats(light: focus.light,
+                                focus: focus.node.presentation.simdWorldPosition,
+                                receiver: .init(point.x, point.y, point.z))
+                        }
+                    } ?? false)
                 rocketSceneStages[childID] = state
                 // Show only the genuine user's rocket_effect.tga on the
                 // actual imported Explode attachment; never a fabricated
