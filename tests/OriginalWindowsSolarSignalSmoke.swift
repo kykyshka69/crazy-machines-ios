@@ -57,6 +57,23 @@ struct OriginalWindowsSolarSignalSmoke {
             displacement: .init(3, 0, 0), unobstructed: true), 0)
         eq(O.pocketContribution(lit: true, axis: axis,
             displacement: .init(0.4, 0.4, 0), unobstructed: true), 0)
+        typealias M = CMOriginalMagnifier
+        precondition(M.incomingSide(axis: .init(1,0,0), sourceOffset: .init(-0.4,0,0)) == .negative)
+        precondition(M.incomingSide(axis: .init(1,0,0), sourceOffset: .init(0.4,0,0)) == .positive)
+        precondition(M.incomingSide(axis: .init(1,0,0), sourceOffset: .init(0,0.4,0)) == nil)
+        eq(M.acceptsLamp(axis: .init(1,0,0), sourceOffset: .init(-0.4,0,0),
+            power: 10, pathLength: 0.4, unobstructed: true),
+            M.acceptsLamp(axis: .init(1,0,0), sourceOffset: .init(0.4,0,0),
+            power: 10, pathLength: 0.4, unobstructed: true)!)
+        eq(M.acceptsLamp(axis: .init(1,0,0), sourceOffset: .init(0.4,0,0),
+            power: 10, pathLength: 0.4, unobstructed: false), 0)
+        eq(M.clampedLight([0.6,0.6]), 1)
+        eq(M.clampedLight([]), 0)
+        precondition(!M.heats(light: Float(0.5).nextDown, focus: .zero, receiver: .zero))
+        precondition(M.heats(light: 0.5, focus: .zero, receiver: .zero))
+        precondition(M.heats(light: 0.5, focus: .zero, receiver: .init(0.049,0,1)))
+        precondition(!M.heats(light: 1, focus: .zero, receiver: .init(0.05,0,0)))
+        precondition(!M.heats(light: .nan, focus: .zero, receiver: .zero))
         print("Win32 solar ray attenuation / accumulator saturation / GOAL threshold passed")
     }
 }
