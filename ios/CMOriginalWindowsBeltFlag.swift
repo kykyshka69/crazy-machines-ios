@@ -166,3 +166,58 @@ public enum CMOriginalWindowsBeltFlag {
                      angularFalloff: 1 / angle)
     }
 }
+
+
+/// Original bellows state: 0 ready, 1 exhausting, 2 spent.
+/// Win32 0x444C96–0x444D22 sets power 5 on a qualifying lever
+/// collision; 0x44DB4D–0x44DC8E decays power by 30*dt and scales
+/// the lever's captured angle by remaining power/5.
+public struct CMOriginalBellows {
+    public enum Phase { case ready, exhausting, spent }
+    public private(set) var phase: Phase = .ready
+    public private(set) var power: Float = 0
+    public private(set) var capturedAngle: Float = 0
+    public private(set) var rangeExtension: Float = 0
+    public init() {}
+
+    @discardableResult
+    public mutating func strike(normalY: Float, leverAngle: Float) -> Bool {
+        guard phase == .ready, normalY.isFinite, normalY > Float(bitPattern: 0x3F666666),
+              leverAngle.isFinite else { return false }
+        phase = .exhausting
+        power = 5
+        capturedAngle = leverAngle
+        return true
+    }
+
+    @discardableResult
+    public mutating func advance(delta: Double) -> Bool {
+        guard delta.isFinite, delta >= 0, delta <= 0.25 else { return false }
+        guard phase == .exhausting else { return true }
+        rangeExtension = power * 0.5
+        power = max(0, Float(Double(power) - 30 * delta))
+        if power == 0 {
+            rangeExtension = 0
+            phase = .spent
+        }
+        return true
+    }
+
+    public var leverAngle: Float { capturedAngle * power / 5 }
+
+    /// Native bellows constructor 0x454A27..0x454A4F.
+    public func region(axis: CMOriginalWindowsWindRegion.Vector3)
+        -> CMOriginalWindowsWindRegion.Parameters? {
+        guard phase == .exhausting, rangeExtension > 0,
+              axis.x.isFinite, axis.y.isFinite,
+              axis.x*axis.x + axis.y*axis.y > 0 else { return nil }
+        let angle: Float = 15 * 0.01745329238474369
+        let near = abs(tan(Float(90) + angle) * 0.5)
+        let outer = near + rangeExtension
+        let lo = near*near, hi = outer*outer
+        guard hi.isFinite, hi > lo else { return nil }
+        return .init(nativeAxis: axis, minRadiusSquared: lo,
+                     maxRadiusSquared: hi, radialFalloff: 1/(hi-lo),
+                     maximumAngle: angle, angularFalloff: 1/angle)
+    }
+}
