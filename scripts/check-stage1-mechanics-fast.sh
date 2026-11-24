@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 python3 tools/check_stage1_source_references.py
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-swiftc ios/CMOriginalGeneratorRotorObservation.swift     tests/OriginalGeneratorRotorObservationSmoke.swift -o "$tmp/generator"
+swiftc ios/CMOriginalGeneratorRotorObservation.swift ios/CMOriginalWindowsMechanicalTransfer.swift ios/CMOriginalWindowsWindmill.swift tests/OriginalGeneratorRotorObservationSmoke.swift -o "$tmp/generator"
 "$tmp/generator"
 swiftc ios/CMOriginalWindowsMechanicalTransfer.swift     ios/CMOriginalGearContactTransfer.swift     tests/OriginalGearContactTransferSmoke.swift -o "$tmp/gears"
 "$tmp/gears"
