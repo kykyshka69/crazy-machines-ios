@@ -129,6 +129,7 @@ struct CMOriginalQuickPlayView: View {
     @State private var physicsPaused = false
     @State private var sceneRevision = UUID()
     @State private var orderedBatteryFrame: CMOriginalPowerCircuit.BatteryFrame?
+    @State private var orderedGeneratorDrivers: [String: String]?
     @State private var cameraResetRevision = 0
     @State private var undoPlacementRevision = 0
     @State private var canUndoPlacement = false
@@ -223,7 +224,7 @@ struct CMOriginalQuickPlayView: View {
     private var liveElectricalObservation: CMOriginalPowerCircuit.NetworkObservation? {
         guard experimentalPhysics && experimentalWiredPower,
               let network = powerCircuit else { return nil }
-        if network.supportsOrderedElectricalFrames {
+        if network.supportsOrderedElectricalFrames || orderedGeneratorDrivers != nil {
             guard let frame = orderedBatteryFrame else {
                 return CMOriginalPowerCircuit.NetworkObservation(deviceSignals: [:], cableSignals: [:])
             }
@@ -237,14 +238,44 @@ struct CMOriginalQuickPlayView: View {
             disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
     }
 
-    private func advanceOrderedElectricalFrame() {
+    private func advanceOrderedElectricalFrame(activeBelts: Set<CMOriginalDriveBelt.Pair>) {
+        // A unique, geometrically valid direct belt is a concrete driver
+        // relation; arbitrary gears, steam drives and competing links
+        // retain the existing live componentwise approximation.
+        let byID = Dictionary(uniqueKeysWithValues: originalSession.objects.map { ($0.id, $0) })
+        var drivers: [String: String] = [:]
+        for pair in activeBelts {
+            guard let a = byID[pair.first], let b = byID[pair.second] else { continue }
+            let generator = a.type == "tmo_power_generator_rotor" ? a : b
+            let motor = a.type == "tmo_power_motor_rotor" ? a : b
+            guard generator.type == "tmo_power_generator_rotor",
+                  motor.type == "tmo_power_motor_rotor",
+                  let g = generator.parentID, let m = motor.parentID,
+                  byID[g]?.type == "tmo_power_generator",
+                  byID[m]?.type == "tmo_power_motor",
+                  activeBelts.filter({ $0.first == generator.id || $0.second == generator.id }).count == 1,
+                  activeBelts.filter({ $0.first == motor.id || $0.second == motor.id }).count == 1
+            else { continue }
+            drivers[g] = m
+        }
         guard experimentalPhysics && experimentalWiredPower, !physicsPaused,
-              let network = powerCircuit, network.supportsOrderedElectricalFrames
+              let network = powerCircuit, network.supportsOrderedFrameTopology
         else { return }
+        guard network.supportsMotorDrivenOrderedFrames(drivers) else {
+            orderedGeneratorDrivers = nil
+            orderedBatteryFrame = nil
+            return
+        }
+        if orderedGeneratorDrivers != drivers {
+            orderedBatteryFrame = nil
+            orderedGeneratorDrivers = drivers
+        }
         guard let next = network.advanceOrderedElectricalFrame(
             previous: orderedBatteryFrame, closedSwitchIDs: flippedOriginalSwitchIDs,
             solarRayContributionsByDeviceID: originalSolarRays,
-            disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID) else {
+            disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID,
+            generatorMotorOwners: drivers,
+            generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID) else {
             // Invalid frame evidence must not leave a stale powered motor.
             orderedBatteryFrame = nil
             return
@@ -422,6 +453,7 @@ struct CMOriginalQuickPlayView: View {
                         windowsGoalCounter?.reset()
         canUndoPlacement = false
         orderedBatteryFrame = nil
+        orderedGeneratorDrivers = nil
         sceneRevision = UUID()
     }
 
@@ -465,6 +497,7 @@ struct CMOriginalQuickPlayView: View {
         windowsGoalCounter?.reset()
         canUndoPlacement = false
         orderedBatteryFrame = nil
+        orderedGeneratorDrivers = nil
         sceneRevision = UUID()
         // Re-evaluate real connected battery sources even if no rotor,
         // switch or optical callback will arrive during this new run.
@@ -995,9 +1028,9 @@ struct CMOriginalQuickPlayView: View {
                     _ = objectiveLedger?.recordGoalStateChanged(
                         parentID, isSimulationRunning: true)
                 },
-                onOriginalElectricalFrame: powerCircuit?.supportsOrderedElectricalFrames == true && experimentalWiredPower ? {
+                onOriginalElectricalFrame: powerCircuit?.supportsOrderedFrameTopology == true && experimentalWiredPower ? { activeBelts in
                     guard eventRevision == sceneRevision else { return }
-                    advanceOrderedElectricalFrame()
+                    advanceOrderedElectricalFrame(activeBelts: activeBelts)
                 } : nil
             )
             .id(sceneRevision)
@@ -1434,6 +1467,7 @@ struct CMOriginalQuickPlayView: View {
                                 .font(.caption)
                                 .onChange(of: experimentalWiredPower) { _, enabled in
                                     orderedBatteryFrame = nil
+                                    orderedGeneratorDrivers = nil
                                     if enabled { creditExperimentalElectricGoals() }
                                 }
                                 .accessibilityIdentifier("cm.original.wired-motor-drive")
@@ -1553,6 +1587,7 @@ struct CMOriginalQuickPlayView: View {
                         windowsGoalCounter?.reset()
                     canUndoPlacement = false
                     orderedBatteryFrame = nil
+                    orderedGeneratorDrivers = nil
                     sceneRevision = UUID()
                 }
                 .font(.caption.weight(.semibold))
