@@ -141,6 +141,27 @@ struct OriginalPowerCircuitSmoke {
         precondition(allWires.values.allSatisfy { $0 == 10 })
         precondition(CMOriginalWindowsPowerScalar.motorTriggersGoal(
             power: closedSignal[motorID]!))
+        // Win32 scissors fires only when blade-angle difference is
+        // strictly greater than the original float Pi/6 constant.
+        typealias Scissors = CMOriginalScissorsCableGeometry
+        let angle = Scissors.activationAngle
+        precondition(!Scissors.activates(firstAngle: angle, secondAngle: 0))
+        precondition(Scissors.activates(firstAngle: angle.nextUp, secondAngle: 0))
+        precondition(Scissors.activates(firstAngle: -angle.nextUp, secondAngle: 0))
+        precondition(!Scissors.activates(firstAngle: .nan, secondAngle: 0))
+        let bladeA = SIMD3<Float>(0, 0, 0)
+        let bladeB = SIMD3<Float>(0.2, 0, 0)
+        func cutAt(_ x: Float, depth: Float = 0) -> Bool {
+            Scissors.cuts(bladeStart: bladeA, bladeEnd: bladeB,
+                cableStart: .init(x, -0.1, depth),
+                cableEnd: .init(x, 0.1, depth))
+        }
+        precondition(cutAt(0.1))
+        precondition(!cutAt(0.3))
+        precondition(!cutAt(0.1, depth: 0.02))
+        precondition(!cutAt(.nan))
+        precondition(!Scissors.cuts(bladeStart: bladeA, bladeEnd: bladeA,
+            cableStart: .init(0, -1, 0), cableEnd: .init(0, 1, 0)))
         // A real scissors cut is run-local, interrupts both authentic
         // endpoints, and never edits the saved player wiring arrangement.
         var cutRun = net
