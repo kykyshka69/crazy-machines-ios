@@ -23,6 +23,14 @@ public enum CMOriginalPhysicsRolePlanner {
                 // Preserve hinged and axle-driven components even when
                 // original metadata does not include a VALB moving flag.
                 role = .movable
+            } else if ["tmo_rope_scissors_1", "tmo_rope_scissors_2"].contains(object.type),
+                      let parentID = object.parentID,
+                      session.objects.contains(where: {
+                          $0.id == parentID && $0.type == "tmo_rope_scissors"
+                      }) {
+                // Authentic scissors blades have independent physical
+                // angle components even though their CML omits VALB.
+                role = .movable
             } else if object.type == "tmo_heat_rocket_rocket",
                       let parentID = object.parentID,
                       session.objects.contains(where: {
