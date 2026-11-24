@@ -183,7 +183,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalGrillGoal: ((String) -> Void)? = nil
     var onOriginalFlaskGoal: ((String) -> Void)? = nil
     var onOriginalFlagGoal: ((String) -> Void)? = nil
-    var onOriginalWindCandleGoal: ((String) -> Void)? = nil
+    var onOriginalEnvironmentalCandleGoal: ((String) -> Void)? = nil
     var onOriginalSolarRays: (([String: [Float]]) -> Void)? = nil
     var onOriginalFlowerGoal: ((String) -> Void)? = nil
     // Reports a user-operated original PC power switch. This changes its
@@ -456,7 +456,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalGrillGoal = onOriginalGrillGoal
         context.coordinator.onOriginalFlaskGoal = onOriginalFlaskGoal
         context.coordinator.onOriginalFlagGoal = onOriginalFlagGoal
-        context.coordinator.onOriginalWindCandleGoal = onOriginalWindCandleGoal
+        context.coordinator.onOriginalEnvironmentalCandleGoal = onOriginalEnvironmentalCandleGoal
         context.coordinator.onOriginalSolarRays = onOriginalSolarRays
         context.coordinator.onOriginalFlowerGoal = onOriginalFlowerGoal
         context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower)
@@ -586,7 +586,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalGrillGoal = onOriginalGrillGoal
         context.coordinator.onOriginalFlaskGoal = onOriginalFlaskGoal
         context.coordinator.onOriginalFlagGoal = onOriginalFlagGoal
-        context.coordinator.onOriginalWindCandleGoal = onOriginalWindCandleGoal
+        context.coordinator.onOriginalEnvironmentalCandleGoal = onOriginalEnvironmentalCandleGoal
         context.coordinator.onOriginalSolarRays = onOriginalSolarRays
         context.coordinator.onOriginalFlowerGoal = onOriginalFlowerGoal
         context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower)
@@ -760,7 +760,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalGrillGoal: ((String) -> Void)?
         var onOriginalFlaskGoal: ((String) -> Void)?
         var onOriginalFlagGoal: ((String) -> Void)?
-        var onOriginalWindCandleGoal: ((String) -> Void)?
+        var onOriginalEnvironmentalCandleGoal: ((String) -> Void)?
         private struct FlagDrive {
             let wheel: SCNNode
             let telescope3: SCNNode
@@ -1886,7 +1886,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       }),
                       session?.toggleOriginalHeatSource(id) == false else { continue }
                 for glow in originalCandleGlowNodes[id] ?? [] { glow.opacity = 0 }
-                let deliver = onOriginalWindCandleGoal
+                let deliver = onOriginalEnvironmentalCandleGoal
                 DispatchQueue.main.async { deliver?(id) }
             }
         }
@@ -2816,6 +2816,24 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     } else if let light = CMOriginalWindowsSolarSignal.collectedPower(rayContributions: rays) {
                         flowers[id] = light / 10
                     }
+                }
+                // Native 0x44CD30/0x44CF59 directly ignites a cold
+                // candle at a measured focus, then dispatches owner GOAL.
+                // updateAtTime already owns sessionLock.
+                for id in originalTypesByID.keys.sorted() {
+                    guard let type = originalTypesByID[id],
+                          type == "tmo_candle" || type == "tmo_candle_dyn",
+                          session?.originalHeatSourceStates[id] != true,
+                          let marker = exactOriginalAnchor("Heat", on: id),
+                          magnifierFoci.contains(where: { focus in
+                              focus.owner != id && CMOriginalMagnifier.heats(
+                                  light: focus.light, focus: focus.position,
+                                  receiver: marker.presentation.simdWorldPosition)
+                          }),
+                          session?.igniteOriginalCandleFromFocus(id) == true else { continue }
+                    for glow in originalCandleGlowNodes[id] ?? [] { glow.opacity = 1 }
+                    let deliver = onOriginalEnvironmentalCandleGoal
+                    DispatchQueue.main.async { deliver?(id) }
                 }
                 liveFlowerLight = flowers
                 if solar != lastSolarRays {
