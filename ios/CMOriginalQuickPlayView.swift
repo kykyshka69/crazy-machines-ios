@@ -237,14 +237,17 @@ struct CMOriginalQuickPlayView: View {
             disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
     }
 
-    // Only already wired, original CML terminal pairs which have matched
-    // finite nonzero experimental voltage at BOTH device ends render
-    // bright. This is a UI trace, NOT a native Win32 current estimate.
+    // Exact traversed plug pairs, with source ambiguity suppressed.
+    // This is a scalar propagation trace, NOT native current in amperes.
     private var experimentalCablePowerSignals:
         [CMOriginalPowerCircuit.Cable: Float] {
-        guard let network = powerCircuit else { return [:] }
-        return network.experimentalCablePowerSignals(
-            powerByDeviceID: experimentalPowerSignals)
+        guard experimentalPhysics && experimentalWiredPower,
+              let network = powerCircuit else { return [:] }
+        return network.experimentalNetworkObservation(
+            closedSwitchIDs: flippedOriginalSwitchIDs,
+            generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID,
+            solarRayContributionsByDeviceID: originalSolarRays,
+            disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID).cableSignals
     }
 
     // Three authentic original PC ammeters are present on levels 40,
@@ -1419,7 +1422,7 @@ struct CMOriginalQuickPlayView: View {
                         Text(message).font(.caption2)
                             .accessibilityIdentifier("cm.original.power-cable-message")
                     }
-                    Text("Connected original power_cable.tga wires dim when one end has no known matching signal; both ends at the same finite powered value render bright. Battery 10.0 and physically observed generator drive the experimental circuit. Native current, resistance, return paths and polarity remain unverified.")
+                    Text("Connected original power_cable.tga wires brighten only on an observed unambiguous source propagation path. Battery 10.0 and physically observed generator drive the experimental circuit. Native current, resistance, return paths and polarity remain unverified.")
                         .accessibilityIdentifier("cm.original.generator-power-rules")
                         .font(.caption2).foregroundStyle(.secondary)
                 }
