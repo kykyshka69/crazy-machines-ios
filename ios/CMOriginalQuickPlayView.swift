@@ -215,8 +215,9 @@ struct CMOriginalQuickPlayView: View {
     private var independentOpticalLampPower: [String: Float] {
         guard experimentalPhysics && experimentalWiredPower,
               let network = powerCircuit else { return [:] }
-        let signals = network.settledSingleBatteryObservation(
+        let signals = network.settledIndependentSourceObservation(
             closedSwitchIDs: flippedOriginalSwitchIDs,
+            generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID,
             disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)?.deviceSignals
             ?? network.experimentalNetworkSignals(
                 closedSwitchIDs: flippedOriginalSwitchIDs,
@@ -228,14 +229,16 @@ struct CMOriginalQuickPlayView: View {
         })
     }
 
-    // Use the restored per-plug walker for the single-battery acyclic
-    // subset. Dynamic/multi-source networks keep the conservative path
-    // until native scheduling and component ordering are confirmed.
+    // Use the restored per-plug walker for source-disjoint acyclic networks.
+    // Interacting sources/cycles retain the conservative path until native
+    // scheduling and component ordering are confirmed.
     private var liveElectricalObservation: CMOriginalPowerCircuit.NetworkObservation? {
         guard experimentalPhysics && experimentalWiredPower,
               let network = powerCircuit else { return nil }
-        return network.settledSingleBatteryObservation(
+        return network.settledIndependentSourceObservation(
             closedSwitchIDs: flippedOriginalSwitchIDs,
+            generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID,
+            solarRayContributionsByDeviceID: originalSolarRays,
             disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
             ?? network.experimentalNetworkObservation(
                 closedSwitchIDs: flippedOriginalSwitchIDs,
