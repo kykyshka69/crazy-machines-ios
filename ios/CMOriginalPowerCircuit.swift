@@ -35,6 +35,11 @@ public struct CMOriginalPowerCircuit {
         }
     }
 
+    public struct NetworkObservation {
+        public let deviceSignals: [String: Float]
+        public let cableSignals: [Cable: Float]
+    }
+
     public enum ConnectResult: Equatable {
         case connected
         case disconnected
@@ -249,7 +254,7 @@ public struct CMOriginalPowerCircuit {
         return devicesReachable(
             from: sources, closedSwitchIDs: closedSwitchIDs,
             disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID,
-            switchContactsByDeviceID: switchContactsByDeviceID)
+            switchContactsByDeviceID: switchContactsByDeviceID).devices
     }
 
     /// Strict reachability through explicitly authored cable pairs, using
@@ -260,13 +265,14 @@ public struct CMOriginalPowerCircuit {
         from sources: Set<String>, closedSwitchIDs: Set<String>,
         disrupterRotorAnglesByDeviceID: [String: Float],
         switchContactsByDeviceID: [String: CMOriginalWindowsSwitchContactGate.ContactPair]
-    ) -> Set<String> {
-        var edges: [String: Set<String>] = [:]
+    ) -> (devices: Set<String>, cables: Set<Cable>) {
+        var edges: [String: [(neighbor: String, cable: Cable)]] = [:]
+        var traversed = Set<Cable>()
         for cable in activeCables {
             guard let a = byPlugID[cable.firstPlugID],
                   let b = byPlugID[cable.secondPlugID] else { continue }
-            edges[a.deviceID, default: []].insert(b.deviceID)
-            edges[b.deviceID, default: []].insert(a.deviceID)
+            edges[a.deviceID, default: []].append((b.deviceID, cable))
+            edges[b.deviceID, default: []].append((a.deviceID, cable))
         }
         var visited = sources
         var queue = Array(sources)
@@ -286,7 +292,8 @@ public struct CMOriginalPowerCircuit {
                         CMOriginalWindowsPowerDisrupter.conducts(rotorAngle: $0)
                     } == true)
             guard transmits else { continue }
-            for neighbor in edges[current] ?? [] {
+            for edge in edges[current] ?? [] {
+                let neighbor = edge.neighbor
                 // Win32 0x44CC0F–0x44CC37 explicitly compares the NEXT
                 // attached object type with "tmo_power_battery" and SKIPS
                 // its recursive power propagation. A battery's native
@@ -296,6 +303,8 @@ public struct CMOriginalPowerCircuit {
                 // Previous code erroneously walked into another battery
                 // and could mark its known 10.0 output "ambiguous".
                 guard !sourceDeviceIDs.contains(neighbor) else { continue }
+                // Incoming plug receives source before outgoing gate.
+                traversed.insert(edge.cable)
                 // Win32 0x44CA24 clears power on a switch whose contact
                 // +0xEC and +0xC8 mismatch at an exact ±1 position.
                 // Only independently observed contact pairs override the
@@ -316,7 +325,7 @@ public struct CMOriginalPowerCircuit {
                 if visited.insert(neighbor).inserted { queue.append(neighbor) }
             }
         }
-        return visited
+        return (visited, traversed)
     }
 
     /// An explicitly labeled iOS experiment, not the full Win32 circuit
@@ -334,6 +343,21 @@ public struct CMOriginalPowerCircuit {
         disrupterRotorAnglesByDeviceID: [String: Float] = [:],
         switchContactsByDeviceID: [String: CMOriginalWindowsSwitchContactGate.ContactPair] = [:]
     ) -> [String: Float] {
+        experimentalNetworkObservation(closedSwitchIDs: closedSwitchIDs,
+            generatorRotorCommandsByDeviceID: generatorRotorCommandsByDeviceID,
+            solarRayContributionsByDeviceID: solarRayContributionsByDeviceID,
+            disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID,
+            switchContactsByDeviceID: switchContactsByDeviceID).deviceSignals
+    }
+
+    /// One source-aware pass records actual traversed plug pairs.
+    public func experimentalNetworkObservation(
+        closedSwitchIDs: Set<String> = [],
+        generatorRotorCommandsByDeviceID: [String: Float] = [:],
+        solarRayContributionsByDeviceID: [String: [Float]] = [:],
+        disrupterRotorAnglesByDeviceID: [String: Float] = [:],
+        switchContactsByDeviceID: [String: CMOriginalWindowsSwitchContactGate.ContactPair] = [:]
+    ) -> NetworkObservation {
         var sources: [(String, Float)] = sourceDeviceIDs.sorted().map {
             ($0, CMOriginalWindowsPowerScalar.batterySource)
         }
@@ -355,12 +379,19 @@ public struct CMOriginalPowerCircuit {
         }
         var power: [String: Float] = [:]
         var ambiguous = Set<String>()
+        var wirePower: [Cable: Float] = [:]
+        var ambiguousWires = Set<Cable>()
         for (sourceID, signal) in sources {
-            for id in devicesReachable(
+            let trace = devicesReachable(
                 from: [sourceID], closedSwitchIDs: closedSwitchIDs,
                 disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID,
                 switchContactsByDeviceID: switchContactsByDeviceID
-            ) {
+            )
+            for wire in trace.cables {
+                if wirePower[wire] != nil { ambiguousWires.insert(wire) }
+                else { wirePower[wire] = signal }
+            }
+            for id in trace.devices {
                 // Two distinct *physical* sources are ambiguous even if
                 // both happen to output the SAME numeric scalar (e.g. two
                 // native 10.0 batteries). Equality does not prove that
@@ -375,7 +406,12 @@ public struct CMOriginalPowerCircuit {
             }
         }
         for id in ambiguous { power.removeValue(forKey: id) }
-        return power
+        for wire in ambiguousWires { wirePower.removeValue(forKey: wire) }
+        wirePower = wirePower.filter { wire, _ in
+            guard let a = byPlugID[wire.firstPlugID], let b = byPlugID[wire.secondPlugID] else { return false }
+            return !ambiguous.contains(a.deviceID) && !ambiguous.contains(b.deviceID)
+        }
+        return NetworkObservation(deviceSignals: power, cableSignals: wirePower)
     }
 
     /// Visually mark only exact user-paired original wires with a finite,
