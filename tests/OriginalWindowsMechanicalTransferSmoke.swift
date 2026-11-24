@@ -73,6 +73,39 @@ struct OriginalWindowsMechanicalTransferSmoke {
         precondition(!cut(.nan))
         precondition(!R.intersectsScissors(ropeStart: ropeStart, ropeEnd: ropeStart,
             bladeStart: .init(0, -1, 0), bladeEnd: .init(0, 1, 0)))
+        typealias B = CMOriginalDriveBelt
+        precondition(B.Pair("a", "b") == B.Pair("b", "a"))
+        precondition(B.Pair("a", "a") == nil)
+        precondition(B.accepts(type: "tmo_power_generator_rotor"))
+        precondition(!B.accepts(type: "tmo_windmill_wings"))
+        func beltTorque(_ a: Float, _ b: Float) -> B.Torque? {
+            B.correction(firstSpeed: a, secondSpeed: b, firstVALF: 0.125, secondVALF: 0.1)
+        }
+        precondition(beltTorque(0, 0) == nil)
+        precondition(beltTorque(2, 2.5) == nil)
+        precondition(beltTorque(2, 0)!.first < 0 && beltTorque(2, 0)!.second > 0)
+        precondition(beltTorque(-2, 0)!.first > 0 && beltTorque(-2, 0)!.second < 0)
+        precondition(beltTorque(.nan, 0) == nil)
+        precondition(B.tangentNormals(dx: 0.2, dy: 0, dz: 0,
+            firstRadius: 0.125, secondRadius: 0.1) == nil)
+        precondition(B.tangentNormals(dx: 1, dy: 0, dz: 0.1,
+            firstRadius: 0.125, secondRadius: 0.1) == nil)
+        let normals = B.tangentNormals(dx: 1, dy: 0, dz: 0,
+            firstRadius: 0.125, secondRadius: 0.1)!
+        for n in [normals.0, normals.1] {
+            precondition(abs(n.x*n.x + n.y*n.y - 1) < 0.00001)
+            let tangent = SIMD2<Float>(1, 0) + n * (0.1 - 0.125)
+            precondition(abs(n.x*tangent.x + n.y*tangent.y) < 0.00001)
+        }
+        for i in -80...80 {
+            for j in -80...80 {
+                let a = Float(i), b = Float(j)
+                if let t = beltTorque(a, b) {
+                    precondition(t.first*a + t.second*b <= 0.0001)
+                    precondition(abs(t.first) <= 1 && abs(t.second) <= 0.80001)
+                }
+            }
+        }
         for i in 0..<1000 {
             let input = Float(i - 500) * 0.005
             let next = M.transmittedSignal(sourceSignal: input,
