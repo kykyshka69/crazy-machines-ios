@@ -262,6 +262,18 @@ public enum CMOriginalHammerDrive {
         return value.isFinite ? value : nil
     }
 
+    /// Win32 0x44BF1C–0x44BF45 adds direction * (pi/2 - acos(gap/scale)).
+    /// The CRT wrapper 0x4D4D04 implements acos (0 maps to pi/2).
+    /// Native scale must be supplied; SceneKit uses measured arm radius
+    /// as an explicit approximation, not the unidentified PC global +0x20.
+    public static func correctedAngle(angle: Float, direction: Float,
+                                      gap: Float, scale: Float) -> Float? {
+        guard angle.isFinite, direction == 1 || direction == -1,
+              gap.isFinite, scale.isFinite, scale > 0,
+              abs(gap) <= scale else { return nil }
+        return angle + direction * (liftLimit - acos(gap / scale))
+    }
+
     public struct Strike {
         public let nailY: Float
         public let terminal: Bool
