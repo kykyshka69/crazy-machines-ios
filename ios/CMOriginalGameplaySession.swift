@@ -457,6 +457,11 @@ public struct CMOriginalGameplaySession {
     public let originalConnections: [OriginalConnection]
     public let originalPowerTerminals: [OriginalPowerTerminal]
     public let powerTerminalNumbersAreUnique: Bool
+    /// Dense, zero-based native global +0xFE slot ordinals, recovered
+    /// from the actual Win32 loader/save pair. Nil means incomplete or
+    /// unsupported hierarchy; never manufacture a runtime order.
+    public let recoveredNativeElectricalSlotOrder: [String: [String]]?
+    public let recoveredNativeElectricalOwnerOrder: [String]?
     private let validObjectIDs: Set<String>
     public private(set) var phase: Phase = .ready
     public private(set) var elapsedSimulationTime: TimeInterval = 0
@@ -587,6 +592,49 @@ public struct CMOriginalGameplaySession {
             guard let number = terminal.originalTerminalNumber else { return true }
             return seenTerminalNumbers.insert(number).inserted
         }
+        // Win32 0x41E2DA initializes +0xEC to zero; 0x42272A reads
+        // authored VALF. 0x44A4F7..0x44A51F resolves that ordinal against
+        // the entire level_elements +0xFE traversal. Save does the inverse
+        // at 0x44A067..0x44A0D4. It is NOT a cable pair identifier.
+        // Keep legacy public terminal numbers intact; recover order only
+        // from a complete dense sequence with top-level device ownership.
+        var indexed: [(ordinal: Int, owner: String, plug: String)] = []
+        let rootOwners = Set(elementObjectIDs.values)
+        var validOrder = !originalPowerTerminals.isEmpty
+        for terminal in originalPowerTerminals {
+            guard let owner = terminal.deviceObjectID, rootOwners.contains(owner),
+                  let plug = byID[terminal.plugObjectID] else {
+                validOrder = false; break
+            }
+            let fields = plug.fields["VALF"] ?? []
+            let value: Double
+            if fields.isEmpty { value = 0 }
+            else if fields.count == 1, let parsed = Double(fields[0].trimmingCharacters(in: .whitespacesAndNewlines)) {
+                value = parsed
+            } else { validOrder = false; break }
+            guard value.isFinite, value >= 0, value < Double(originalPowerTerminals.count),
+                  value.rounded(.towardZero) == value else { validOrder = false; break }
+            indexed.append((Int(value), owner, terminal.plugObjectID))
+        }
+        indexed.sort { $0.ordinal < $1.ordinal }
+        var slotOrder: [String: [String]] = [:]
+        var ownerOrder: [String] = []
+        if validOrder && indexed.map(\.ordinal) == Array(0..<originalPowerTerminals.count) {
+            for slot in indexed {
+                if ownerOrder.last != slot.owner {
+                    // A top-level owner's native recursive slots form a
+                    // contiguous block. Reject interleaved ownership.
+                    if slotOrder[slot.owner] != nil { validOrder = false; break }
+                    ownerOrder.append(slot.owner)
+                }
+                slotOrder[slot.owner, default: []].append(slot.plug)
+            }
+            let authoredOwners = elementObjectIDs.keys.sorted().compactMap { elementObjectIDs[$0] }
+                .filter { slotOrder[$0] != nil }
+            if ownerOrder != authoredOwners { validOrder = false }
+        } else { validOrder = false }
+        recoveredNativeElectricalSlotOrder = validOrder ? slotOrder : nil
+        recoveredNativeElectricalOwnerOrder = validOrder ? ownerOrder : nil
         // The authentic CML source scalar is active even before Run.
         // Delaying initialization until start() incorrectly hides
         // initially lit candles and the level-92 pocketlamp in the editor.
