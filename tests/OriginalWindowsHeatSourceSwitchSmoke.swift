@@ -99,6 +99,22 @@ struct OriginalWindowsHeatSourceSwitchSmoke {
                 }
             }
         }
+        // A contact sliding along the housing can enter the button
+        // radius after its first physics callback, but only once.
+        for axis in 0..<3 {
+            for direction: Float in [-1, 1] {
+                var stroke = CMOriginalCatapultStroke()
+                for distance: Float in [0.3, 0.2, 0.15, 0.10001, 0.1, 0.099, 0.01, 0] {
+                    var point = SIMD3<Float>.zero
+                    point[axis] = direction * distance
+                    precondition(stroke.trigger(contact: point, button: .zero) == (distance == 0.099))
+                }
+                precondition(stroke.phase == .triggered)
+                for _ in 0..<10 { _ = stroke.advance(delta: 0.025) }
+                precondition(stroke.phase == .finished)
+                precondition(!stroke.trigger(contact: .zero, button: .zero))
+            }
+        }
         for fps in [30, 60, 120, 240] {
             var stroke = CMOriginalCatapultStroke()
             let dt = 1.0 / Double(fps)
