@@ -3554,29 +3554,19 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         self?.onOriginalWindmillSignal?(windmillID, measured)
                     }
                 }
-                for (rotorID, generatorID) in generatorIDByRotorID {
-                    guard let node = physicsNodesByObjectID[rotorID]?.first,
-                          let body = node.physicsBody, body.type == .dynamic
-                    else {
-                        clearUnavailableGenerator(generatorID)
-                        continue
-                    }
-                    guard let speed = planarSpeed(body) else {
-                        clearUnavailableGenerator(generatorID)
-                        continue
-                    }
-                    // Do not keep an outdated nonzero generator signal
-                    // just because the new speed is within the polling
-                    // threshold. A rotor entering numerical rest must emit
-                    // a single real ZERO and remove its electrical source.
-                    guard let reported =
-                        CMOriginalGeneratorRotorObservation.report(
-                            previous: lastGeneratorScalars[generatorID],
-                            measured: speed) else { continue }
-                    lastGeneratorScalars[generatorID] = reported
-                    DispatchQueue.main.async { [weak self] in
-                        self?.onOriginalGeneratorSignal?(generatorID, reported)
-                    }
+            }
+            // Electrical source readings must follow the running physics
+            // frame, not the windmill UI poll. A distinct finite value
+            // can change shared-source agreement even below a GOAL cutoff.
+            for (rotorID, generatorID) in generatorIDByRotorID {
+                let body = physicsNodesByObjectID[rotorID]?.first?.physicsBody
+                let measured = body.flatMap { $0.type == .dynamic ? planarSpeed($0) : nil }
+                guard let reported = CMOriginalGeneratorRotorObservation.frameReport(
+                    previous: lastGeneratorScalars[generatorID],
+                    measured: measured) else { continue }
+                lastGeneratorScalars[generatorID] = reported
+                DispatchQueue.main.async { [weak self] in
+                    self?.onOriginalGeneratorSignal?(generatorID, reported)
                 }
             }
             // Render-timestep-aware buoyancy for authentic tmo_balloon
