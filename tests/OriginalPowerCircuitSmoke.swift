@@ -708,6 +708,50 @@ struct OriginalPowerCircuitSmoke {
         precondition(optical.independentOpticalLampSignals() == [independentLamp: 10])
         optical.clearRuntimeCuts()
         precondition(optical.independentOpticalLampSignals().isEmpty)
+        // Win32 stores global zero-based slot indices in plug +0xEC
+        // (CML VALF). The zero slot can omit VALF. CML child order is
+        // deliberately different from the native distributor slot order.
+        var indexedRaw = raw
+        indexedRaw["root"] = ["name": "level", "fields": [], "children": [
+            ["name": "level_elements", "fields": [], "children": [
+                device("tmo_power_battery", [nil]),
+                device("tmo_power_distributor", [2,1,3]),
+                device("tmo_power_solarcell", [4]),
+                device("tmo_power_motor", [5])
+            ]]
+        ]]
+        let indexedDoc = try CMOriginalSceneDocument.read(JSONSerialization.data(withJSONObject: indexedRaw))
+        let indexedSession = CMOriginalGameplaySession(document: indexedDoc)
+        var indexedCircuit = CMOriginalPowerCircuit(session: indexedSession)!
+        func indexedPort(_ n: Int) -> CMOriginalPowerCircuit.Terminal {
+            indexedCircuit.terminals.first { $0.number == n }!
+        }
+        let indexedBattery = indexedCircuit.terminals.first { $0.deviceType == "tmo_power_battery" }!
+        let indexedDistributor = indexedPort(1).deviceID
+        let indexedSolar = indexedPort(4).deviceID
+        let indexedMotor = indexedPort(5).deviceID
+        precondition(indexedCircuit.recoveredNativeSlotOrder?[indexedDistributor] ==
+            [indexedPort(1).plugID,indexedPort(2).plugID,indexedPort(3).plugID])
+        precondition(indexedCircuit.recoveredNativeOwnerOrder ==
+            [indexedBattery.deviceID,indexedDistributor,indexedSolar,indexedMotor])
+        precondition(indexedCircuit.toggleCable(between: indexedBattery.plugID,
+            and: indexedPort(1).plugID) == .connected)
+        precondition(indexedCircuit.toggleCable(between: indexedPort(4).plugID,
+            and: indexedPort(2).plugID) == .connected)
+        precondition(indexedCircuit.toggleCable(between: indexedPort(3).plugID,
+            and: indexedPort(5).plugID) == .connected)
+        let indexedRead = indexedCircuit.nativePortPass(previous: .init(signals: [
+            indexedPort(1).plugID: 1, indexedPort(2).plugID: 2]),
+            events: [.sampleConsumer(ownerID: indexedDistributor)],
+            conductingByDeviceID: [:])!
+        precondition(indexedRead.consumerReads[indexedDistributor]?.first == 1)
+        precondition(indexedRead.consumerReads[indexedDistributor]?.second == 2)
+        let indexedPower = indexedCircuit.componentwiseElectricalObservation(
+            solarRayContributionsByDeviceID: [indexedSolar: [0.4]])
+        precondition(indexedPower.deviceSignals[indexedMotor] == 4)
+        precondition(indexedPower.deviceSignals[indexedBattery.deviceID] == 10)
+        precondition(indexedPower.cableSignals.count == 2)
+        precondition(net.recoveredNativeSlotOrder == nil)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
