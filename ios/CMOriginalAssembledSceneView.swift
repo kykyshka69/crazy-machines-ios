@@ -755,7 +755,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var liveOpticalEmitters: [String: SCNNode] = [:]
         private var liveOpticalReceivers: [String: SCNNode] = [:]
         private var magnifierGlows: [String: [CMOriginalMagnifier.Side: SCNNode]] = [:]
-        private var magnifierFoci: [(owner: String, node: SCNNode, light: Float)] = []
+        private var magnifierFoci: [(owner: String, position: SIMD3<Float>, light: Float)] = []
         private var liveFlowerProgress: [String: Float] = [:]
         private var liveFlowerMorphers: [String: SCNMorpher] = [:]
         private var liveFlowerLight: [String: Float] = [:]
@@ -2336,10 +2336,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         for side in [CMOriginalMagnifier.Side.negative, .positive] {
                             let light = CMOriginalMagnifier.clampedLight(lensRays[side] ?? []) ?? 0
                             let opposite: CMOriginalMagnifier.Side = side == .negative ? .positive : .negative
-                            if let glow = magnifierGlows[id]?[opposite] {
-                                glow.opacity = CGFloat(light)
-                                magnifierFoci.append((owner: id, node: glow, light: light))
-                            }
+                            magnifierGlows[id]?[opposite]?.opacity = CGFloat(light)
+                            // Both authentic CML glow offsets are +/-0.3 on
+                            // the lens's local X (Light marker local Z).
+                            // Missing optional TGA must not disable physics.
+                            let focus = receiver.presentation.simdConvertPosition(
+                                SIMD3<Float>(0, 0, Float(opposite.rawValue) * 0.3), to: nil)
+                            magnifierFoci.append((owner: id, position: focus, light: light))
                         }
                     } else if originalTypesByID[id] == "tmo_power_solarcell" {
                         solar[id] = rays
@@ -3032,7 +3035,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     projectedMagnifierHeatHit: target.map { point in
                         magnifierFoci.contains { focus in
                             CMOriginalMagnifier.heats(light: focus.light,
-                                focus: focus.node.presentation.simdWorldPosition,
+                                focus: focus.position,
                                 receiver: .init(point.x, point.y, point.z))
                         }
                     } ?? false)
