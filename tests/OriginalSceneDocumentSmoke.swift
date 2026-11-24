@@ -175,7 +175,7 @@ enum OriginalSceneDocumentSmoke {
             .appendingPathComponent("cm-resolver-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: assetDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: assetDir) }
-        for name in ["wall.ucm", "ball.ucm", "crate.UCM", "zone.UCM",
+        for name in ["wall.ucm", "ball.ucm", "ball_bt.ucm", "crate.UCM", "zone.UCM",
                      "belt_conveyor_roll2.ucm"] {
             try Data("UCM1".utf8).write(to: assetDir.appendingPathComponent(name))
         }
@@ -186,7 +186,7 @@ enum OriginalSceneDocumentSmoke {
             precondition(originalMeshes.resolve(original)?.lastPathComponent == "wall.ucm")
         }
         for original in ["to_ball_tennis", "to_ball_billard"] {
-            precondition(originalMeshes.resolve(original)?.lastPathComponent == "ball.ucm")
+            precondition(originalMeshes.resolve(original)?.lastPathComponent == "ball_bt.ucm")
         }
         precondition(originalMeshes.resolve("to_crate")?.lastPathComponent == "crate.UCM")
         precondition(originalMeshes.resolve("to_zone")?.lastPathComponent == "zone.UCM")
