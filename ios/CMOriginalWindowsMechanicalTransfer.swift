@@ -92,4 +92,58 @@ public enum CMOriginalRope {
               distance > restLength, distance <= 60 else { return 0 }
         return min(25, (distance - restLength) * 35)
     }
+
+    // Win32 rope/fuze-independent cut path 0x456FB0–0x4571D9.
+    // 0x457042: rope samples every 0.05; 0x4571BB: blade samples
+    // every 0.01; 0x4570F5: strict distance < 0.05. The actual game
+    // samples its flexible rope; here the two live UCM endpoints define
+    // a straight approximation. No native rope mesh or GOAL is inferred.
+    public static func intersectsScissors(
+        ropeStart: SIMD3<Float>, ropeEnd: SIMD3<Float>,
+        bladeStart: SIMD3<Float>, bladeEnd: SIMD3<Float>
+    ) -> Bool {
+        guard [ropeStart, ropeEnd, bladeStart, bladeEnd].allSatisfy({
+            $0.x.isFinite && $0.y.isFinite && $0.z.isFinite
+        }) else { return false }
+        func dot(_ a: SIMD3<Float>, _ b: SIMD3<Float>) -> Float {
+            a.x*b.x + a.y*b.y + a.z*b.z
+        }
+        let rope = ropeEnd - ropeStart
+        let blade = bladeEnd - bladeStart
+        let ropeLength = sqrt(dot(rope, rope))
+        let bladeLength = sqrt(dot(blade, blade))
+        guard ropeLength.isFinite, bladeLength.isFinite,
+              ropeLength > 0, ropeLength <= 60,
+              bladeLength > 0, bladeLength <= 4 else { return false }
+        let ropeDirection = rope / ropeLength
+        let bladeDirection = blade / bladeLength
+        let ropeStep = Float(bitPattern: 0x3D4CCCCD)
+        let bladeStep = Float(bitPattern: 0x3C23D70A)
+        let cutoff = Float(bitPattern: 0x3D4CCCCD)
+        // Cheap rejection for distant segments, without inventing
+        // a cut based on overlapping bounding boxes alone.
+        for axis in 0..<3 {
+            if min(ropeStart[axis], ropeEnd[axis]) >
+                max(bladeStart[axis], bladeEnd[axis]) + cutoff ||
+                min(bladeStart[axis], bladeEnd[axis]) >
+                max(ropeStart[axis], ropeEnd[axis]) + cutoff { return false }
+        }
+        var distance: Float = 0
+        while distance < ropeLength {
+            let point = ropeStart + ropeDirection * distance
+            let projection = dot(point - bladeStart, bladeDirection)
+            let index = max(0, min(floor(projection / bladeStep),
+                                   ceil(bladeLength / bladeStep) - 1))
+            // For a straight blade, its nearest discrete sample is one
+            // of these two adjacent indices. Avoid a nested sampling loop.
+            for sample in [index, index + 1] {
+                let along = sample * bladeStep
+                guard along < bladeLength else { continue }
+                let difference = point - (bladeStart + bladeDirection * along)
+                if sqrt(dot(difference, difference)) < cutoff { return true }
+            }
+            distance += ropeStep
+        }
+        return false
+    }
 }
