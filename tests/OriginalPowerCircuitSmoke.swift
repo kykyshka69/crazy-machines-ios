@@ -981,6 +981,35 @@ struct OriginalPowerCircuitSmoke {
         precondition(w2.state.consumerReads[wl.deviceID]?.first == 0)
         precondition(wf.advanceOrderedElectricalFrame(previous: w2, closedSwitchIDs: [],
             generatorMotorOwners: windDriver) == nil)
+        // Boiler resets the visit markers before forwarding its steam
+        // wheel output (0x44E036 -> 0x44C3F0 -> 0x44C7AF).
+        var boilerFrameRaw = raw
+        boilerFrameRaw["root"] = ["name": "level", "fields": [], "children": [
+            ["name": "level_elements", "fields": [], "children": [
+                device("tmo_boiler", []),
+                device("tmo_power_generator", [nil]),
+                device("tmo_power_lamp", [1])
+            ]]
+        ]]
+        let boilerFrameDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: boilerFrameRaw))
+        let boilerSession = CMOriginalGameplaySession(document: boilerFrameDoc)
+        var bf = CMOriginalPowerCircuit(session: boilerSession)!
+        let boilerOwner = boilerSession.objects.first { $0.type == "tmo_boiler" }!.id
+        let bg = bf.terminals.first { $0.number == nil }!
+        let bl = bf.terminals.first { $0.number == 1 }!
+        let boilerDriver = [bg.deviceID: boilerOwner]
+        precondition(bf.supportsDirectDriveOrderedFrames(boilerDriver))
+        precondition(bf.toggleCable(between: bg.plugID, and: bl.plugID) == .connected)
+        let b1 = bf.advanceOrderedElectricalFrame(previous: nil, closedSwitchIDs: [],
+            generatorMotorOwners: boilerDriver,
+            generatorRotorCommandsByDeviceID: [bg.deviceID: -5])!
+        precondition(b1.state.sourceReads[bg.deviceID] == 5)
+        precondition(b1.state.consumerReads[bl.deviceID]?.first == 5)
+        let b2 = bf.advanceOrderedElectricalFrame(previous: b1, closedSwitchIDs: [],
+            generatorMotorOwners: boilerDriver,
+            generatorRotorCommandsByDeviceID: [bg.deviceID: 0])!
+        precondition(b2.state.consumerReads[bl.deviceID]?.first == 0)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
