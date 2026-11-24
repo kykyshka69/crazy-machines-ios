@@ -637,10 +637,10 @@ public struct CMOriginalPowerCircuit {
                               observedSlotOrder: observedSlotOrder)
     }
 
-    /// Settled per-port bridge for source-disjoint networks.
-    /// Each connected component must have either one potential source or
-    /// exclusively native 10.0 batteries and conducting gates. The latter
-    /// always transfers the same scalar, not a sum of source voltages.
+    /// Settled per-port bridge for order-independent networks.
+    /// Each component has one source or fully observed equal source
+    /// values and conducting gates. The latter transfers the same scalar,
+    /// not a sum of source voltages.
     /// Native transient scheduling and unequal sources still require the
     /// ordered runtime model.
     /// Cycles are order-independent only when every gate in their powered
@@ -671,17 +671,14 @@ public struct CMOriginalPowerCircuit {
             if x == y { cycleOwners.insert(a.deviceID) }
             else { parents[x] = y }
         }
-        // Native battery writes 10 before propagation (0x4504C9).
-        // Multiple batteries may share a settled component only when
-        // every potential source is a battery and all gates conduct.
+        // Native battery, generator and solar each write their own scalar
+        // before invoking the same visited-owner propagation function.
         let sourcesByRoot = Dictionary(grouping: sources, by: root)
         let sourceRoots = Set(sourcesByRoot.keys)
         let sharedRoots = Set(sourcesByRoot.compactMap { component, members in
             members.count > 1 ? component : nil
         })
-        guard sharedRoots.allSatisfy({ component in
-            sourcesByRoot[component]?.allSatisfy { sourceDeviceIDs.contains($0) } == true
-        }) else { return nil }
+        var sourceValues: [String: Float] = [:]
         var events: [NativePortEvent] = []
         for id in sources.sorted() {
             guard let plug = groups[id]?.first else { return nil }
@@ -689,16 +686,25 @@ public struct CMOriginalPowerCircuit {
             if sourceDeviceIDs.contains(id) {
                 value = CMOriginalWindowsPowerScalar.batterySource
             } else if generatorDeviceIDs.contains(id) {
+                if sharedRoots.contains(root(id)), generatorRotorCommandsByDeviceID[id] == nil { return nil }
                 guard let output = CMOriginalWindowsPowerScalar.generatorSignal(
                     fromRotorCommand: generatorRotorCommandsByDeviceID[id] ?? 0) else { return nil }
                 value = output
             } else {
+                if sharedRoots.contains(root(id)), solarRayContributionsByDeviceID[id] == nil { return nil }
                 guard let output = CMOriginalWindowsSolarSignal.collectedPower(
                     rayContributions: solarRayContributionsByDeviceID[id] ?? []) else { return nil }
                 value = output
             }
+            sourceValues[id] = value
             events.append(.source(plugID: plug.plugID, value: value))
         }
+        // Exact equality only. Do not invent precedence for unequal values,
+        // or mistake an absent dynamic observation for a measured zero.
+        guard sharedRoots.allSatisfy({ component in
+            guard let members = sourcesByRoot[component] else { return false }
+            return Set(members.compactMap { sourceValues[$0] }).count == 1
+        }) else { return nil }
         var gates: [String: Bool] = [:]
         for id in switchDeviceIDs { gates[id] = closedSwitchIDs.contains(id) }
         for id in disrupterDeviceIDs {
@@ -740,7 +746,7 @@ public struct CMOriginalPowerCircuit {
             // load path on a direct battery-to-battery connection.
             guard let left = byPlugID[cable.firstPlugID],
                   let right = byPlugID[cable.secondPlugID],
-                  !(sourceDeviceIDs.contains(left.deviceID) && sourceDeviceIDs.contains(right.deviceID)),
+                  !(sources.contains(left.deviceID) && sources.contains(right.deviceID)),
                   let a = state.signals[cable.firstPlugID],
                   let b = state.signals[cable.secondPlugID], a == b, a > 0 else { continue }
             wires[cable] = a
