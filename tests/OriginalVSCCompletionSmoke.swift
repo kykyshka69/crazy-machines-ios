@@ -39,6 +39,34 @@ struct OriginalVSCCompletionSmoke {
   precondition(!CMOriginalSoundLibrary.validWAV(Data(wav.dropLast())))
   var bad = wav; bad[4] = 0
   precondition(!CMOriginalSoundLibrary.validWAV(bad))
+  let collisionTypes = ["tmo_ball_steel","tmo_ball_basket","tmo_ball_billard",
+      "tmo_ball_beach","tmo_ball_tennis","tmo_ball_tt","tmo_domino","tmo_crate",
+      "tmo_bucket","tmo_rope_cage","tmo_weight","tmo_board","tmo_zone"]
+  let collisionNames = ["BALL_STEEL","BALL_BASKET","BALL_BILLARD","BALL_BEACH",
+      "BALL_TENNIS","BALL_TABLETENNIS","DOMINO","CRATE","BUCKET","CAGE","WEIGHT"]
+  for (i,type) in collisionTypes.enumerated() {
+      precondition(CMOriginalCollisionSound.effect(type:type)
+          == (i < collisionNames.count ? "SOUND_FX_"+collisionNames[i] : nil))
+  }
+  for a in collisionTypes {
+      for b in collisionTypes {
+          for ma in [true,false] {
+              for mb in [true,false] {
+                  var gate = CMOriginalCollisionSound.Gate()
+                  let expected = a == "tmo_zone" || b == "tmo_zone" ? [] :
+                      Set([ma ? CMOriginalCollisionSound.effect(type:a) : nil,
+                           mb ? CMOriginalCollisionSound.effect(type:b) : nil].compactMap{$0}).sorted()
+                  for bad in [0,-1,0.02,.nan,.infinity] as [Double] {
+                      precondition(gate.consume(a:"a",b:"b",typeA:a,typeB:b,movableA:ma,movableB:mb,impulse:bad).isEmpty)
+                  }
+                  precondition(gate.consume(a:"a",b:"b",typeA:a,typeB:b,movableA:ma,movableB:mb,impulse:1)==expected)
+                  precondition(gate.consume(a:"b",b:"a",typeA:b,typeB:a,movableA:mb,movableB:ma,impulse:1).isEmpty)
+                  gate.end("b","a")
+                  precondition(gate.consume(a:"a",b:"b",typeA:a,typeB:b,movableA:ma,movableB:mb,impulse:1)==expected)
+              }
+          }
+      }
+  }
   print("Original Win32 completion-dialog value-script semantics verified")
  }
 }
