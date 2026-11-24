@@ -607,6 +607,18 @@ struct CMOriginalQuickPlayView: View {
                     _ = objectiveLedger?.recordGoalStateChanged(
                         ownerID, isSimulationRunning: true)
                 },
+                onOriginalGrillGoal: { ownerID in
+                    guard eventRevision == sceneRevision, experimentalPhysics,
+                          originalSession.objects.contains(where: {
+                              $0.id == ownerID && $0.type == "tmo_heat_grill"
+                          }) else { return }
+                    // The original thermal predicate uses both accumulated
+                    // heat and sausage shade, not rotation alone.
+                    _ = windowsGoalCounter?.recordGoalEvent(
+                        objectID: ownerID, simulationRunning: true)
+                    _ = objectiveLedger?.recordGoalStateChanged(
+                        ownerID, isSimulationRunning: true)
+                },
                 onOriginalDisrupterAngle: { disrupterID, wheelAngle in
                     guard eventRevision == sceneRevision else { return }
                     guard experimentalPhysics else { return }
