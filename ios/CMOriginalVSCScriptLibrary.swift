@@ -126,3 +126,49 @@ public enum CMOriginalSoundLibrary {
         return length % alignment == 0
     }
 }
+
+
+/// Original collision effect selection recovered from the Windows dispatcher.
+/// Impulse is a SceneKit observation, not the original native scalar.
+public enum CMOriginalCollisionSound {
+    public static func effect(type: String) -> String? {
+        switch type {
+        case "tmo_ball_steel": return "SOUND_FX_BALL_STEEL"
+        case "tmo_ball_basket": return "SOUND_FX_BALL_BASKET"
+        case "tmo_ball_billard": return "SOUND_FX_BALL_BILLARD"
+        case "tmo_ball_beach": return "SOUND_FX_BALL_BEACH"
+        case "tmo_ball_tennis": return "SOUND_FX_BALL_TENNIS"
+        case "tmo_ball_tt": return "SOUND_FX_BALL_TABLETENNIS"
+        case "tmo_domino": return "SOUND_FX_DOMINO"
+        case "tmo_crate": return "SOUND_FX_CRATE"
+        case "tmo_bucket": return "SOUND_FX_BUCKET"
+        case "tmo_rope_cage": return "SOUND_FX_CAGE"
+        case "tmo_weight": return "SOUND_FX_WEIGHT"
+        default: return nil
+        }
+    }
+
+    public struct Gate {
+        private struct Pair: Hashable {
+            let first: String
+            let second: String
+            init(_ a: String, _ b: String) {
+                first = min(a,b); second = max(a,b)
+            }
+        }
+        private var sounded = Set<Pair>()
+        public init() {}
+        public mutating func consume(a: String, b: String, typeA: String, typeB: String,
+                                     movableA: Bool, movableB: Bool, impulse: Double) -> [String] {
+            guard a != b, typeA != "tmo_zone", typeB != "tmo_zone",
+                  impulse.isFinite, impulse > 0.02 else { return [] }
+            let ids = Set([movableA ? CMOriginalCollisionSound.effect(type: typeA) : nil,
+                           movableB ? CMOriginalCollisionSound.effect(type: typeB) : nil].compactMap { $0 })
+            guard !ids.isEmpty, sounded.insert(Pair(a,b)).inserted else { return [] }
+            return ids.sorted()
+        }
+        public mutating func end(_ a: String, _ b: String) {
+            sounded.remove(Pair(a,b))
+        }
+    }
+}
