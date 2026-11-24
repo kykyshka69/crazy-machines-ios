@@ -850,6 +850,16 @@ struct CMOriginalQuickPlayView: View {
                     }
                     creditExperimentalElectricGoals(capturedWhileRunning: true)
                 },
+                onOriginalSwitchImpactGoal: { ownerID in
+                    guard eventRevision == sceneRevision, experimentalPhysics,
+                          originalSession.objects.contains(where: {
+                              $0.id == ownerID && $0.type == "tmo_power_switch"
+                          }) else { return }
+                    _ = windowsGoalCounter?.recordGoalEvent(
+                        objectID: ownerID, simulationRunning: true)
+                    _ = objectiveLedger?.recordGoalStateChanged(
+                        ownerID, isSimulationRunning: true)
+                },
                 onOriginalSwitchContact: { hit in
                     guard eventRevision == sceneRevision else { return }
                     // The renderer authenticated this event while running. Pause
