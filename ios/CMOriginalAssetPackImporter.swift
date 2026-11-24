@@ -63,7 +63,7 @@ enum CMOriginalAssetPackImporter {
         guard count > 0 && count <= 1024 else {
             throw PackError.invalid("Invalid game pack entry count")
         }
-        let allowed = Set(["ucm", "tga", "cml", "json", "fsc", "vsc"])
+        let allowed = Set(["ucm", "tga", "cml", "json", "fsc", "vsc", "wav"])
         var entries: [Entry] = []
         entries.reserveCapacity(count)
         var names = Set<String>()
@@ -118,6 +118,10 @@ enum CMOriginalAssetPackImporter {
                 // Reject malformed scripts before installing any files.
                 guard (try? CMOriginalVSCDecoder.read(bytes)) != nil else {
                     throw PackError.invalid("Invalid original Windows Value Script: \(name)")
+                }
+            } else if kind == "wav" {
+                guard CMOriginalSoundLibrary.validWAV(bytes) else {
+                    throw PackError.invalid("Invalid original sound effect: \(name)")
                 }
             } else if kind == "json" {
                 guard (try? CMOriginalSceneDocument.read(bytes)) != nil else {
