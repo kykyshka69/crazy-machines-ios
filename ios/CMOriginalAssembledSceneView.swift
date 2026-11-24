@@ -176,6 +176,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // Native original click produces a GOAL only if +0xEC differs
     // from its original start-of-run snapshot at +0xF0.
     var onOriginalPlayerSourceGoal: ((String) -> Void)? = nil
+    // Native hammer terminal depth callback, reconstructed SceneKit cycle.
+    var onOriginalHammerGoal: ((String) -> Void)? = nil
     // Reports a user-operated original PC power switch. This changes its
     // actual lever mesh, NOT the unrecovered electrical connectivity.
     var onOriginalDisrupterAngle: ((String, Float) -> Void)? = nil
@@ -441,6 +443,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalBucketCapture = onOriginalBucketCapture
         context.coordinator.onOriginalCageCapture = onOriginalCageCapture
         context.coordinator.onOriginalPlayerSourceGoal = onOriginalPlayerSourceGoal
+        context.coordinator.onOriginalHammerGoal = onOriginalHammerGoal
         context.coordinator.fourthLevelRun = CMOriginalFourthLevelRun(document: document)
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
@@ -562,6 +565,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalBucketCapture = onOriginalBucketCapture
         context.coordinator.onOriginalCageCapture = onOriginalCageCapture
         context.coordinator.onOriginalPlayerSourceGoal = onOriginalPlayerSourceGoal
+        context.coordinator.onOriginalHammerGoal = onOriginalHammerGoal
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
         context.coordinator.onOriginalOpticalSightlines = onOriginalOpticalSightlines
@@ -727,6 +731,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalBucketCapture: ((String, String) -> Void)?
         var onOriginalCageCapture: ((String, String) -> Void)?
         var onOriginalPlayerSourceGoal: ((String) -> Void)?
+        var onOriginalHammerGoal: ((String) -> Void)?
         // Win32 0x44D874..0x44D9A2 checks actual GOAL-marked
         // tmo_bucket objects against tmo_ball_ objects, not only puzzle 4.
         // Retain authentic UCM mesh identities for geometry containment.
@@ -1435,6 +1440,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         drive.nail.physicsBody?.resetTransform()
                         drive.releasing = false
                         drive.finished = strike.terminal
+                        // Win32 0x44BF7D–0x44BFA5: only after the nail
+                        // has been clamped to -0.17 and the arm enters
+                        // its terminal state, dispatch channel zero for
+                        // the original HAMMER OWNER, never the nail ID.
+                        if drive.finished {
+                            let deliver = onOriginalHammerGoal
+                            DispatchQueue.main.async { deliver?(id) }
+                        }
                     }
                 }
                 hammerDrives[id] = drive
