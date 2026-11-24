@@ -351,12 +351,20 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         let magnet = app.buttons["cm.original.magnetism-viewport"]
         XCTAssertTrue(magnet.waitForExistence(timeout: 10),
                       "Level 4 must expose an always-visible magnet control")
-        XCTAssertEqual(magnet.label, "Enable experimental magnet attraction")
-        magnet.tap()
-        XCTAssertEqual(magnet.label, "Disable experimental magnet attraction")
+        XCTAssertEqual(magnet.label, "Disable experimental magnet attraction",
+                       "Permanent magnets must start active with a normal puzzle run")
         attachScreenshot(app, named: "07-experimental-magnet-3D-viewport")
         magnet.tap()
         XCTAssertEqual(magnet.label, "Enable experimental magnet attraction")
+        magnet.tap()
+        XCTAssertEqual(magnet.label, "Disable experimental magnet attraction")
+        physics.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertEqual(physics.value as? String, "0")
+        physics.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertEqual(physics.value as? String, "1")
+        XCTAssertTrue(magnet.waitForExistence(timeout: 10))
+        XCTAssertEqual(magnet.label, "Disable experimental magnet attraction",
+                       "Starting a new run must restore the permanent field")
     }
 
     func testContinueRestoresLastOpenedOriginalLevel() {
