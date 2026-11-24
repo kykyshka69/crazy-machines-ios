@@ -92,3 +92,49 @@ public enum CMOriginalLiveOptics {
                 angularFalloff: 1 / radians))
     }
 }
+
+
+/// Native magnifier 0x44FD13..0x44FDF8, 0x44FED4..0x44FF1C,
+/// 0x45011F..0x4503BC: two separate clamped light accumulators.
+/// The receiver cones have the same 30-degree/.3/1.5 shape as the
+/// pocketlamp (0x454316..0x45442E). Heat is emitted for >=0.5 light
+/// at each opposite focus; never relay a magnifier as a solar lamp.
+public enum CMOriginalMagnifier {
+    public enum Side: Int { case negative = -1, positive = 1 }
+
+    public static func incomingSide(axis: SIMD3<Float>, sourceOffset: SIMD3<Float>) -> Side? {
+        guard [axis.x, axis.y, sourceOffset.x, sourceOffset.y].allSatisfy(\.isFinite) else { return nil }
+        let d = axis.x * sourceOffset.x + axis.y * sourceOffset.y
+        guard d.isFinite, d != 0 else { return nil }
+        return d > 0 ? .positive : .negative
+    }
+
+    public static func acceptsLamp(axis: SIMD3<Float>, sourceOffset: SIMD3<Float>,
+                                   power: Float, pathLength: Float,
+                                   unobstructed: Bool) -> Float? {
+        guard let side = incomingSide(axis: axis, sourceOffset: sourceOffset),
+              let weight = CMOriginalLiveOptics.pocketContribution(lit: true,
+                  axis: axis * Float(side.rawValue), displacement: sourceOffset,
+                  unobstructed: unobstructed) else { return nil }
+        return CMOriginalWindowsSolarSignal.rayContribution(
+            emitterPower: power, interceptedFraction: weight, pathLength: pathLength)
+    }
+
+    public static func clampedLight(_ rays: [Float]) -> Float? {
+        CMOriginalWindowsSolarSignal.collectedPower(rayContributions: rays).map { $0 / 10 }
+    }
+
+    /// Native 0x450256/0x450392: inclusive 0.5 input cutoff.
+    /// Native focus positions depend on the effect component transform.
+    /// The adapter uses the authentic authored +/-0.3 glow positions,
+    /// supplied as actual world coordinates by the scene.
+    public static func heats(light: Float, focus: SIMD3<Float>,
+                             receiver: SIMD3<Float>, radius: Float = 0.05) -> Bool {
+        guard light.isFinite, light >= 0.5, light <= 1,
+              radius.isFinite, radius > 0,
+              [focus.x, focus.y, receiver.x, receiver.y].allSatisfy(\.isFinite) else { return false }
+        let d = receiver - focus
+        // Native 0x44CEA0/0x44CEBE zero Z; 0x44CF59 strictly <.05.
+        return d.x*d.x + d.y*d.y < radius*radius
+    }
+}
