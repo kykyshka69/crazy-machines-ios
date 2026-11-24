@@ -42,3 +42,54 @@ public enum CMOriginalWindowsMechanicalTransfer {
         return Float(result)
     }
 }
+
+
+/// Player-authored rope between exact named attachments in original UCMs.
+/// The elastic tension is an iOS reconstruction, not recovered Win32 rope
+/// solver constants. CONNECTED_TO objective references never create ropes.
+public enum CMOriginalRope {
+    public struct Endpoint: Hashable {
+        public let objectID: String
+        public let marker: String
+        public init(objectID: String, marker: String) {
+            self.objectID = objectID
+            self.marker = marker
+        }
+    }
+
+    public struct Pair: Hashable {
+        public let first: Endpoint
+        public let second: Endpoint
+        public init?(_ a: Endpoint, _ b: Endpoint) {
+            guard a.objectID != b.objectID else { return nil }
+            if a.objectID < b.objectID {
+                first = a; second = b
+            } else {
+                first = b; second = a
+            }
+        }
+    }
+
+    /// Names verified in the authentic rope UCMs; case-sensitive.
+    public static func accepts(type: String, marker: String) -> Bool {
+        switch type {
+        case "tmo_rope_hook", "tmo_rope_cage", "tmo_rope_crossbow_lever":
+            return marker == "Rope"
+        case "tmo_rope_scissors_1", "tmo_rope_scissors_2":
+            return marker == "Rope01"
+        case "tmo_rope_seesaw_lever":
+            return marker == "Rope01" || marker == "Rope02"
+        default:
+            return false
+        }
+    }
+
+    /// A rope pulls only while stretched; never pushes, injects tension
+    /// at rest, or changes authored length during the simulation.
+    public static func tension(distance: Float, restLength: Float) -> Float {
+        guard distance.isFinite, restLength.isFinite,
+              restLength >= 0.01, restLength <= 30,
+              distance > restLength, distance <= 60 else { return 0 }
+        return min(25, (distance - restLength) * 35)
+    }
+}
