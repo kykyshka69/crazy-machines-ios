@@ -739,3 +739,29 @@ public struct CMOriginalCatapultStroke {
         return travel
     }
 }
+
+
+/// Original game crossbow release predicate 0x45783B..0x4578A9,
+/// and its virtual projectile velocity 0x450594..0x4505EA.
+/// Inputs describe the imported puzzle geometry, not physical hardware.
+public struct CMOriginalCrossbowRelease {
+    public private(set) var released = false
+
+    public init() {}
+
+    public static func leverReady(angle: Float, mirrored: Bool) -> Bool {
+        guard angle.isFinite else { return false }
+        return mirrored ? angle > 0.3 : angle < -0.3
+    }
+
+    public mutating func release(angle: Float, mirrored: Bool,
+                                 direction: SIMD3<Float>) -> SIMD3<Float>? {
+        guard !released, Self.leverReady(angle: angle, mirrored: mirrored),
+              [direction.x, direction.y, direction.z].allSatisfy(\.isFinite),
+              abs(direction.x) > 0.0001 else { return nil }
+        let velocity = SIMD3<Float>(direction.x * 20, direction.y, 0)
+        guard velocity.x.isFinite else { return nil }
+        released = true
+        return velocity
+    }
+}
