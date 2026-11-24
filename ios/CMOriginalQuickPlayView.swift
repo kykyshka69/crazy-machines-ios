@@ -826,7 +826,7 @@ struct CMOriginalQuickPlayView: View {
                 onOriginalRopeCut: { pair in
                     guard eventRevision == sceneRevision, experimentalPhysics,
                           originalRopes.contains(pair), cutOriginalRopes.insert(pair).inserted else { return }
-                    ropeMessage = "Original scissors cut a rope"
+                    ropeMessage = "Original rope released during simulation"
                 },
                 onOriginalCableCut: { pair in
                     guard eventRevision == sceneRevision, experimentalPhysics,
