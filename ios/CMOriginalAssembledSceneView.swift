@@ -183,6 +183,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalGrillGoal: ((String) -> Void)? = nil
     var onOriginalFlaskGoal: ((String) -> Void)? = nil
     var onOriginalFlagGoal: ((String) -> Void)? = nil
+    var onOriginalWindCandleGoal: ((String) -> Void)? = nil
     var onOriginalSolarRays: (([String: [Float]]) -> Void)? = nil
     var onOriginalFlowerGoal: ((String) -> Void)? = nil
     // Reports a user-operated original PC power switch. This changes its
@@ -455,6 +456,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalGrillGoal = onOriginalGrillGoal
         context.coordinator.onOriginalFlaskGoal = onOriginalFlaskGoal
         context.coordinator.onOriginalFlagGoal = onOriginalFlagGoal
+        context.coordinator.onOriginalWindCandleGoal = onOriginalWindCandleGoal
         context.coordinator.onOriginalSolarRays = onOriginalSolarRays
         context.coordinator.onOriginalFlowerGoal = onOriginalFlowerGoal
         context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower)
@@ -584,6 +586,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalGrillGoal = onOriginalGrillGoal
         context.coordinator.onOriginalFlaskGoal = onOriginalFlaskGoal
         context.coordinator.onOriginalFlagGoal = onOriginalFlagGoal
+        context.coordinator.onOriginalWindCandleGoal = onOriginalWindCandleGoal
         context.coordinator.onOriginalSolarRays = onOriginalSolarRays
         context.coordinator.onOriginalFlowerGoal = onOriginalFlowerGoal
         context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower)
@@ -757,6 +760,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalGrillGoal: ((String) -> Void)?
         var onOriginalFlaskGoal: ((String) -> Void)?
         var onOriginalFlagGoal: ((String) -> Void)?
+        var onOriginalWindCandleGoal: ((String) -> Void)?
         private struct FlagDrive {
             let wheel: SCNNode
             let telescope3: SCNNode
@@ -1725,7 +1729,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 bellowsDrives[owner.id] = .init(lever: body, wind: marker)
                 bellowsOwnerByLeverID[lever.id] = owner.id
             }
-            guard !flagDrives.isEmpty || !bellowsDrives.isEmpty else { return }
             for owner in objects where owner.type == "tmo_windmill" {
                 guard let w = child(owner.id, "tmo_windmill_wheel"),
                       let wings = child(owner.id, "tmo_windmill_wings"),
@@ -1791,22 +1794,100 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 drive.lever.eulerAngles.z = drive.state.leverAngle
                 drive.lever.physicsBody?.resetTransform()
                 bellowsDrives[id] = drive
-                guard drive.state.power > 0 else { continue }
-                for (owner, target) in flagWindmills {
-                    guard let observation = bellowsObservation(id: id,
-                            target: target.fixedFrame.presentation.simdWorldPosition),
-                          let wingsID = windmillIDByWingsID.first(where: { $0.value == owner })?.key,
-                          let wings = physicsNodesByObjectID[wingsID]?.first?.physicsBody,
-                          wings.type == .dynamic else { continue }
-                    // Win32 0x44F5A5 multiplies region fraction * power * .75.
-                    // SceneKit torque conversion is explicitly provisional.
-                    let angular = wings.angularVelocity
-                    let desired = observation.signedIntersection * observation.originalWindPower * 0.75
-                    guard desired != 0 else { continue }
-                    let torque = max(-2,min(2,(desired - angular.z * angular.w) * 0.5))
-                    guard torque.isFinite, abs(torque) > 0.001 else { continue }
-                    wings.applyTorque(SCNVector4(0,0,torque < 0 ? -1 : 1,abs(torque)), asImpulse: false)
+            }
+        }
+
+        private struct WindSourceSnapshot {
+            let id: String
+            let power: Float
+            let mirror: Float
+            let origin: SIMD2<Float>
+            let region: CMOriginalWindowsWindRegion.Parameters
+        }
+
+        private func originalWindSources() -> [WindSourceSnapshot] {
+            var sources: [WindSourceSnapshot] = []
+            func append(_ id: String, _ power: Float, _ transform: simd_float4x4,
+                        _ region: CMOriginalWindowsWindRegion.Parameters?) {
+                guard power.isFinite, power != 0, let region else { return }
+                let axis = SIMD2<Float>(region.nativeAxis.x, region.nativeAxis.y)
+                let length = simd_length(axis)
+                let determinant = simd_determinant(transform)
+                guard length.isFinite, length > 0.00001,
+                      determinant.isFinite, abs(determinant) > 0.00001 else { return }
+                let origin = SIMD2<Float>(transform.columns.3.x,transform.columns.3.y)
+                    - axis / length * sqrt(region.minRadiusSquared)
+                sources.append(.init(id: id, power: power, mirror: determinant < 0 ? -1 : 1,
+                                     origin: origin, region: region))
+            }
+            for (id, drive) in bellowsDrives {
+                let m = drive.wind.presentation.simdWorldTransform
+                append(id, drive.state.power, m,
+                    drive.state.region(axis: .init(m.columns.2.x,m.columns.2.y,m.columns.2.z)))
+            }
+            for (id, drive) in flagWindmills {
+                guard let body = drive.wheel.physicsBody, body.type == .dynamic else { continue }
+                let v = body.angularVelocity
+                let power = v.z * v.w
+                let m = drive.fixedFrame.presentation.simdWorldTransform
+                append(id, power, m, CMOriginalWindowsBeltFlag.windmillRegion(
+                    axis: .init(m.columns.2.x,m.columns.2.y,m.columns.2.z), wheelSignal: power))
+            }
+            return sources.sorted { $0.id < $1.id }
+        }
+
+        private func applyOriginalWindReceivers(delta: Double) {
+            let sources = originalWindSources()
+            guard !sources.isEmpty else { return }
+            func fraction(_ source: WindSourceSnapshot, _ target: SIMD3<Float>) -> Float? {
+                CMOriginalWindowsWindRegion.measuredFraction(
+                    nativeDisplacement: .init(target.x-source.origin.x,target.y-source.origin.y,0),
+                    region: source.region)
+            }
+            // Native 0x44F528 checks only other windmills, then the
+            // candle prefix. Do not invent generic forces on loose bodies.
+            for (owner, receiver) in flagWindmills.sorted(by: { $0.key < $1.key }) {
+                guard let wingsID = windmillIDByWingsID.first(where: { $0.value == owner })?.key,
+                      let wings = physicsNodesByObjectID[wingsID]?.first?.physicsBody,
+                      wings.type == .dynamic else { continue }
+                let matrix = receiver.fixedFrame.presentation.simdWorldTransform
+                let determinant = simd_determinant(matrix)
+                guard determinant.isFinite, abs(determinant) > 0.00001 else { continue }
+                let mirror: Float = determinant < 0 ? -1 : 1
+                let angular = wings.angularVelocity
+                let previous = angular.z * angular.w
+                var command = previous
+                let target = receiver.fixedFrame.presentation.simdWorldPosition
+                for source in sources where source.id != owner {
+                    guard let f = fraction(source,target), f > 0,
+                          let desired = CMOriginalWindReceiver.wingsTarget(fraction: f,
+                            power: source.power, sourceMirror: source.mirror, receiverMirror: mirror),
+                          let next = CMOriginalWindReceiver.nextWingsSignal(previous: command,
+                            target: desired, delta: delta) else { continue }
+                    command = next
                 }
+                // Convert the native scalar increment to bounded SceneKit
+                // torque; actual Win32 inertia correspondence is provisional.
+                guard delta > 0 else { continue }
+                let torque = max(-2,min(2,(command-previous)/Float(delta)*0.5))
+                guard torque.isFinite, abs(torque) > 0.001 else { continue }
+                wings.applyTorque(SCNVector4(0,0,torque < 0 ? -1 : 1,abs(torque)), asImpulse: false)
+            }
+            // 0x44F6AD checks the tmo_candle prefix, selector 3 and lit
+            // state, then 0x44F749..0x44F7C0 extinguishes and dispatches GOAL.
+            let lit = CMOriginalRocketSceneHeatSources.litCandleIDs(
+                sourceStates: session?.originalHeatSourceStates ?? [:],
+                originalTypesByID: originalTypesByID)
+            for id in lit {
+                guard let marker = exactOriginalAnchor("Heat", on: id),
+                      sources.contains(where: { source in
+                          guard let f = fraction(source, marker.presentation.simdWorldPosition) else { return false }
+                          return CMOriginalWindReceiver.extinguishesCandle(lit: true, fraction: f, power: source.power)
+                      }),
+                      session?.toggleOriginalHeatSource(id) == false else { continue }
+                for glow in originalCandleGlowNodes[id] ?? [] { glow.opacity = 0 }
+                let deliver = onOriginalWindCandleGoal
+                DispatchQueue.main.async { deliver?(id) }
             }
         }
 
@@ -3031,6 +3112,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             advanceOriginalSteamNetwork(delta: delta)
             advanceOriginalSteamPistons()
             advanceOriginalBellows(delta: delta)
+            applyOriginalWindReceivers(delta: delta)
             advanceOriginalFlags(delta: delta)
             advanceOriginalFlasks(delta: delta, root: renderer.scene?.rootNode)
             sampleOriginalRocketAnchorFrames(at: time)
