@@ -210,3 +210,109 @@ public enum CMOriginalUCMCollisionVolumes {
         return Volumes(spheres: spheres, boxes: boxes)
     }
 }
+
+
+/// Portable overlap of the authored collision primitives after applying
+/// the live model transform. This is a geometric SAT adapter, not the
+/// Windows rigid-body solver. Invalid/sheared transforms return nil.
+public enum CMOriginalVolumeOverlap {
+    public typealias V = SIMD3<Double>
+    public enum Primitive {
+        case sphere(center: V, radius: Double)
+        case box(center: V, axes: [V], half: V)
+    }
+
+    public struct Transform {
+        public let origin: V
+        public let x: V
+        public let y: V
+        public let z: V
+        public init(origin: V, x: V, y: V, z: V) {
+            self.origin = origin; self.x = x; self.y = y; self.z = z
+        }
+        func vector(_ v: V) -> V { x*v.x + y*v.y + z*v.z }
+        func point(_ v: V) -> V { origin + vector(v) }
+    }
+    private static func dot(_ a: V, _ b: V) -> Double {
+        a.x*b.x + a.y*b.y + a.z*b.z
+    }
+    private static func cross(_ a: V, _ b: V) -> V {
+        V(a.y*b.z-a.z*b.y, a.z*b.x-a.x*b.z, a.x*b.y-a.y*b.x)
+    }
+    private static func length(_ a: V) -> Double { sqrt(dot(a,a)) }
+    private static func finite(_ a: V) -> Bool {
+        a.x.isFinite && a.y.isFinite && a.z.isFinite
+    }
+    private static func v(_ a: [Float], _ start: Int = 0) -> V {
+        V(Double(a[start]),Double(a[start+1]),Double(a[start+2]))
+    }
+    private static func orthogonal(_ axes: [V]) -> Bool {
+        abs(dot(axes[0],axes[1])) < 0.002 &&
+        abs(dot(axes[0],axes[2])) < 0.002 &&
+        abs(dot(axes[1],axes[2])) < 0.002
+    }
+
+    public static func world(_ volumes: CMOriginalUCMCollisionVolumes.Volumes,
+                             transform t: Transform) -> [Primitive]? {
+        guard finite(t.origin), finite(t.x), finite(t.y), finite(t.z) else { return nil }
+        let lengths = [length(t.x),length(t.y),length(t.z)]
+        guard lengths.allSatisfy({ $0.isFinite && $0 > 1e-8 }),
+              orthogonal([t.x/lengths[0], t.y/lengths[1], t.z/lengths[2]])
+            else { return nil }
+        var result: [Primitive] = []
+        for s in volumes.spheres {
+            // A nonuniformly scaled sphere becomes an ellipsoid; do not
+            // substitute a guessed inflated sphere for an exact observation.
+            guard let lo = lengths.min(), let hi = lengths.max(),
+                  hi-lo <= hi*0.002 else { return nil }
+            let c = t.point(v(s.center)), radius = Double(s.radius)*hi
+            guard finite(c), radius.isFinite, radius > 0 else { return nil }
+            result.append(.sphere(center: c, radius: radius))
+        }
+        for b in volumes.boxes {
+            var axes: [V] = []
+            var half = v(b.halfExtents)
+            for i in 0..<3 {
+                let axis = t.vector(v(b.axes, i*3)), size = length(axis)
+                guard size.isFinite, size > 1e-8 else { return nil }
+                axes.append(axis/size)
+                half[i] *= size
+            }
+            let c = t.point(v(b.center))
+            guard orthogonal(axes), finite(half), finite(c),
+                  half.x > 0, half.y > 0, half.z > 0 else { return nil }
+            result.append(.box(center: c, axes: axes, half: half))
+        }
+        return result
+    }
+
+    public static func intersects(_ a: Primitive, _ b: Primitive) -> Bool {
+        switch (a,b) {
+        case let (.sphere(c,r),.sphere(d,s)):
+            return dot(c-d,c-d) <= (r+s)*(r+s)
+        case let (.sphere(c,r),.box(d,axes,h)), let (.box(d,axes,h),.sphere(c,r)):
+            let delta = c-d
+            var residual = delta
+            for i in 0..<3 {
+                residual -= axes[i]*max(-h[i],min(h[i],dot(delta,axes[i])))
+            }
+            return dot(residual,residual) <= r*r
+        case let (.box(c,aa,ha),.box(d,bb,hb)):
+            // Six face axes plus nine pairwise edge cross products.
+            let candidates = aa + bb + aa.flatMap { u in bb.map { cross(u,$0) } }
+            for axis in candidates {
+                let size = length(axis)
+                if size <= 1e-10 { continue }
+                let n = axis/size
+                let ra = (0..<3).reduce(0.0) { $0 + abs(dot(n,aa[$1]))*ha[$1] }
+                let rb = (0..<3).reduce(0.0) { $0 + abs(dot(n,bb[$1]))*hb[$1] }
+                if abs(dot(d-c,n)) > ra+rb { return false }
+            }
+            return true
+        }
+    }
+
+    public static func intersects(_ a: [Primitive], _ b: [Primitive]) -> Bool {
+        a.contains { x in b.contains { intersects(x,$0) } }
+    }
+}
