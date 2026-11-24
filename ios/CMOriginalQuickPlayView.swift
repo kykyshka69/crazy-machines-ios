@@ -266,12 +266,16 @@ struct CMOriginalQuickPlayView: View {
         guard network.supportsDirectDriveOrderedFrames(drivers) else {
             orderedGeneratorDrivers = nil
             orderedBatteryFrame = nil
+            // Keep the existing componentwise fallback, but evaluate its
+            // receivers only after the frame's complete observed topology.
+            creditExperimentalElectricGoals(capturedWhileRunning: true,
+                settledElectricalFrame: true)
             return
         }
-        if orderedGeneratorDrivers != drivers {
-            orderedBatteryFrame = nil
-            orderedGeneratorDrivers = drivers
-        }
+        // A different valid mechanical driver changes event order, not
+        // the level's physical electrical slots. Retain the previous
+        // native slot state across valid-to-valid driver changes.
+        orderedGeneratorDrivers = drivers
         guard let next = network.advanceOrderedElectricalFrame(
             previous: orderedBatteryFrame, closedSwitchIDs: flippedOriginalSwitchIDs,
             solarRayContributionsByDeviceID: originalSolarRays,
@@ -282,10 +286,9 @@ struct CMOriginalQuickPlayView: View {
             orderedBatteryFrame = nil
             return
         }
-        if orderedBatteryFrame != next {
-            orderedBatteryFrame = next
-            creditExperimentalElectricGoals(capturedWhileRunning: true)
-        }
+        if orderedBatteryFrame != next { orderedBatteryFrame = next }
+        creditExperimentalElectricGoals(capturedWhileRunning: true,
+            settledElectricalFrame: true)
     }
 
     private var experimentalPowerSignals: [String: Float] {
@@ -354,14 +357,22 @@ struct CMOriginalQuickPlayView: View {
         Set(wiredMotorRotorDriveSignals.keys)
     }
 
-    private func creditExperimentalElectricGoals(capturedWhileRunning: Bool = false) {
+    private func creditExperimentalElectricGoals(capturedWhileRunning: Bool = false,
+                                                   settledElectricalFrame: Bool = false) {
         guard experimentalPhysics && experimentalWiredPower,
               !physicsPaused || capturedWhileRunning else {
             return
         }
+        // Generator/solar GOALs have independent measured inputs.
+        // Receivers on ordered-capable networks must wait until the
+        // renderer's frame event follows all individual source callbacks.
+        // Never latch a lamp/motor/bell from a partially updated frame.
+        let receiverSignals: [String: Float] =
+            powerCircuit?.supportsOrderedFrameTopology == true && !settledElectricalFrame
+                ? [:] : experimentalPowerSignals
         let eligible = CMOriginalWindowsElectricalGoals.activeGoalIDs(
             session: originalSession,
-            powerByDeviceID: experimentalPowerSignals,
+            powerByDeviceID: receiverSignals,
             solarRayContributionsByDeviceID: originalSolarRays,
             generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID
         )
