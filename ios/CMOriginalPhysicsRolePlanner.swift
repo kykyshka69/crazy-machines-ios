@@ -19,6 +19,7 @@ public enum CMOriginalPhysicsRolePlanner {
                 // drop, bounce or obstruct the falling PC objects.
                 role = .sensor
             } else if object.type == "tmo_rope_seesaw_lever"
+                        || object.type == "tmo_pipe_ventil_lever"
                         || CMOriginalAxleParts.rotatingKinds.contains(object.type) {
                 // Preserve hinged and axle-driven components even when
                 // original metadata does not include a VALB moving flag.
