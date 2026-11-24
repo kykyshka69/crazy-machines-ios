@@ -149,8 +149,10 @@ enum CMOriginalModelResolver {
                 "to_power_generator_body": "power_generator_base",
                 // The PC ships shared wall/ball geometry with per-type shaders.
                 // The named wall/ball textures are preserved by the renderer.
-                "to_ball_tennis": "ball",
-                "to_ball_billard": "ball",
+                // Original elements.fsc: both reference MODEL_BALL_BT,
+                // not MODEL_BALL (radius 0.25 versus authored 0.11).
+                "to_ball_tennis": "ball_bt",
+                "to_ball_billard": "ball_bt",
                 // The PC archive contains heat_cannon_ball.tga but no
                 // heat_cannon_ball.ucm. Reuse the game's own generic ball
                 // geometry for this projectile, respecting the SCAL 0.35
