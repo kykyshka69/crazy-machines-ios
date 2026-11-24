@@ -19,12 +19,13 @@ private enum CMOriginalPhysicsLayers {
         "tmo_windmill",
         "tmo_hammer",
         "tmo_belt_flag",
-        "tmo_heat_grill"
+        "tmo_heat_grill",
+        "tmo_rope_crossbow"
     ]
 
     static func category(for kind: String) -> Int {
         if kind == "tmo_zone" { return zone }
-        if CMOriginalAxleParts.rotatingKinds.contains(kind) { return axle }
+        if CMOriginalAxleParts.rotatingKinds.contains(kind) || kind == "tmo_rope_crossbow_lever" || kind == "tmo_rope_crossbow_arrow" { return axle }
         if housingKinds.contains(kind) { return housing }
         return object
     }
@@ -888,6 +889,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
         private var catapultDrives: [String: CatapultDrive] = [:]
         private var catapultSlingIDs = Set<String>()
+        private struct CrossbowDrive {
+            let lever: SCNNode
+            let arrow: SCNNode
+            let arrowID: String
+            let direction: SCNNode
+            let restAxis: SIMD2<Float>
+            let mirrored: Bool
+            var release = CMOriginalCrossbowRelease()
+        }
+        private var crossbowDrives: [String: CrossbowDrive] = [:]
+        private var crossbowArrowIDs = Set<String>()
+        private var releasedCrossbowArrowIDs = Set<String>()
         private var qualifiedWindmillGoalIDs = Set<String>()
         private var disrupterIDByWheelID: [String: String] = [:]
         private var lastDisrupterConduction: [String: Bool] = [:]
@@ -1121,6 +1134,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     body.isAffectedByGravity = false
                     body.collisionBitMask = CMOriginalPhysicsLayers.collisionMask(for: body.categoryBitMask)
                     body.contactTestBitMask = CMOriginalPhysicsLayers.contactMask(for: body.categoryBitMask)
+                    continue
+                }
+                if crossbowArrowIDs.contains(id) {
+                    // The loaded arrow cannot collide or move until release.
+                    // Do not reapply the general physics role mid-flight.
                     continue
                 }
                 // Script-driven original hammer arm and nail retain collision
@@ -1483,6 +1501,76 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
         // Actual bidirectional physical coupling: belt-driven wheel moves
         // wings, and externally moved wings can drive the same wheel.
+        private func registerOriginalCrossbows(objects: [CMOriginalGameplaySession.Object],
+                                               scene: SCNScene) {
+            for owner in objects where owner.type == "tmo_rope_crossbow" {
+                let levers = objects.filter {
+                    $0.parentID == owner.id && $0.type == "tmo_rope_crossbow_lever"
+                }
+                let arrows = objects.filter {
+                    $0.parentID == owner.id && $0.type == "tmo_rope_crossbow_arrow"
+                }
+                guard levers.count == 1, arrows.count == 1,
+                      let lever = physicsNodesByObjectID[levers[0].id]?.first,
+                      let arrow = physicsNodesByObjectID[arrows[0].id]?.first,
+                      let leverBody = lever.physicsBody, let arrowBody = arrow.physicsBody,
+                      let hinge = exactOriginalAnchor("Mechanic01", on: levers[0].id),
+                      let direction = exactOriginalAnchor("Direction", on: owner.id)
+                else { continue }
+                let x = lever.simdWorldTransform.columns.0
+                let rest = SIMD2<Float>(x.x,x.y)
+                let length = simd_length(rest)
+                let forward = direction.simdWorldTransform.columns.2
+                guard length.isFinite, length > 0.0001, forward.x.isFinite,
+                      abs(forward.x) > 0.0001 else { continue }
+                let anchor = lever.simdConvertPosition(hinge.simdWorldPosition, from: nil)
+                guard [anchor.x,anchor.y,anchor.z].allSatisfy(\.isFinite) else { continue }
+                leverBody.type = .dynamic
+                leverBody.isAffectedByGravity = false
+                scene.physicsWorld.addBehavior(SCNPhysicsHingeJoint(
+                    body: leverBody, axis: SCNVector3(0,0,1),
+                    anchor: SCNVector3(anchor.x,anchor.y,anchor.z)))
+                arrowBody.clearAllForces()
+                arrowBody.velocity = SCNVector3Zero
+                arrowBody.type = .kinematic
+                arrowBody.isAffectedByGravity = false
+                arrowBody.collisionBitMask = 0
+                arrowBody.contactTestBitMask = 0
+                crossbowArrowIDs.insert(arrows[0].id)
+                crossbowDrives[owner.id] = .init(lever: lever, arrow: arrow,
+                    arrowID: arrows[0].id, direction: direction,
+                    restAxis: rest / length, mirrored: forward.x < 0)
+            }
+        }
+
+        private func advanceOriginalCrossbows() {
+            for id in Array(crossbowDrives.keys) {
+                guard var drive = crossbowDrives[id], !drive.release.released,
+                      let body = drive.arrow.physicsBody, body.type == .kinematic else { continue }
+                let basis = drive.lever.presentation.simdWorldTransform.columns.0
+                let current = SIMD2<Float>(basis.x,basis.y)
+                let length = simd_length(current)
+                guard length.isFinite, length > 0.0001 else { continue }
+                let unit = current / length
+                let angle = atan2(drive.restAxis.x*unit.y-drive.restAxis.y*unit.x,
+                                  simd_dot(drive.restAxis,unit))
+                let forward = drive.direction.presentation.simdWorldTransform.columns.2
+                guard let velocity = drive.release.release(angle: angle,
+                    mirrored: drive.mirrored, direction: .init(forward.x,forward.y,forward.z))
+                else { continue }
+                // Preserve original world pose before the body becomes dynamic.
+                drive.arrow.transform = drive.arrow.presentation.transform
+                body.type = .dynamic
+                body.isAffectedByGravity = true
+                body.collisionBitMask = CMOriginalPhysicsLayers.collisionMask(for: body.categoryBitMask)
+                body.contactTestBitMask = CMOriginalPhysicsLayers.contactMask(for: body.categoryBitMask)
+                body.resetTransform()
+                body.velocity = SCNVector3(velocity.x,velocity.y,velocity.z)
+                releasedCrossbowArrowIDs.insert(drive.arrowID)
+                crossbowDrives[id] = drive
+            }
+        }
+
         private func registerOriginalCatapults(objects: [CMOriginalGameplaySession.Object]) {
             for owner in objects where owner.type == "tmo_catapult" {
                 let children = objects.filter {
@@ -2421,6 +2509,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             drivenHammerPartIDs.removeAll()
             catapultDrives.removeAll()
             catapultSlingIDs.removeAll()
+            crossbowDrives.removeAll()
+            crossbowArrowIDs.removeAll()
+            releasedCrossbowArrowIDs.removeAll()
             qualifiedWindmillGoalIDs.removeAll()
             disrupterIDByWheelID.removeAll()
             lastDisrupterConduction.removeAll()
@@ -2731,6 +2822,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             registerOriginalGrillDrives(objects: originalObjects)
             registerOriginalHammerDrives(objects: originalObjects)
             registerOriginalCatapults(objects: originalObjects)
+            registerOriginalCrossbows(objects: originalObjects, scene: scene)
             registerOriginalSteamNetwork(objects: originalObjects)
             registerOriginalFlagDrives(objects: originalObjects)
             registerOriginalFlasks(objects: originalObjects, directory: originalDirectory)
@@ -3216,6 +3308,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             advanceOriginalGrillDrives(delta: Float(delta))
             advanceOriginalHammerDrives(delta: delta)
             advanceOriginalCatapults(delta: delta)
+            advanceOriginalCrossbows()
             advanceOriginalSteamNetwork(delta: delta)
             advanceOriginalSteamPistons()
             advanceOriginalBellows(delta: delta)
@@ -3435,6 +3528,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                   !poppedBalloonIDs.contains(balloon),
                   !pendingBalloonPops.contains(balloon),
                   let type = originalTypesByID[sharp],
+                  type != "tmo_rope_crossbow_arrow" || releasedCrossbowArrowIDs.contains(sharp),
                   let rule = CMOriginalBalloonPuncture.rule(for: type),
                   let marker = exactOriginalAnchor(rule.marker, on: sharp),
                   CMOriginalBalloonPuncture.hits(
