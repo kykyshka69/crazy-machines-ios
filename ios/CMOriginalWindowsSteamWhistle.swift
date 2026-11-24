@@ -88,4 +88,74 @@ public enum CMOriginalSteamNetwork {
               delta.isFinite, delta > 0, delta <= 0.25 else { return nil }
         return previous + (input - previous) / Float(1 + 500 * delta)
     }
+
+    /// Reconstructed acyclic single-source steam flow. The original
+    /// 0x44C270 counts terminal exits before 0x44C4C2 divides branch
+    /// input. Track each outgoing pipe scalar separately. Ambiguous
+    /// loops, multiple boilers, valves and missing geometry fail closed.
+    /// A whistle's incoming scalar precedes its downstream lever gate.
+    public static func advance(
+        ports: [Port], types: [String: String], boilerSignals: [String: Float],
+        previous: [Int: Float], delta: Double
+    ) -> (outgoing: [Int: Float], receiverSignals: [String: Float]) {
+        let joined = mates(ports)
+        let indices = Dictionary(grouping: ports.indices, by: { ports[$0].owner })
+        var output: [Int: Float] = [:], receivers: [String: Float] = [:]
+        var claimed = Set<String>()
+        for source in boilerSignals.keys.sorted() {
+            guard types[source] == "tmo_boiler",
+                  let signal = boilerSignals[source], signal.isFinite, signal >= 0,
+                  let starts = indices[source], starts.count == 1,
+                  let start = starts.first, let incoming = joined[start] else { continue }
+            var visited: Set<String> = [source]
+            var children: [Int: [Int]] = [:], exits: [Int: Int] = [:]
+            var valid = true
+            func count(_ port: Int) -> Int {
+                let owner = ports[port].owner
+                guard visited.insert(owner).inserted,
+                      let type = types[owner], let all = indices[owner],
+                      all.count == portCount(type: type) else {
+                    valid = false; return 0
+                }
+                if type == "tmo_pipe_whistle" || type == "tmo_steam_body" {
+                    exits[port] = 1; return 1
+                }
+                guard ["tmo_pipe", "tmo_pipe_corner", "tmo_pipe_distributor"].contains(type) else {
+                    valid = false; return 0
+                }
+                let next = all.filter { $0 != port }
+                children[port] = next
+                var total = 0
+                for out in next {
+                    total += joined[out].map { count($0) } ?? 1
+                }
+                exits[port] = total
+                return total
+            }
+            _ = count(incoming)
+            guard valid, claimed.isDisjoint(with: visited) else {
+                // Do not keep a first-source result in a mixed network.
+                if !claimed.isDisjoint(with: visited) { return ([:], [:]) }
+                continue
+            }
+            claimed.formUnion(visited)
+            output[start] = signal
+            func propagate(_ port: Int, _ input: Float) {
+                let owner = ports[port].owner
+                if children[port] == nil {
+                    receivers[owner] = input; return
+                }
+                let next = children[port] ?? []
+                let target = input / Float(next.count > 1 ? max(1, exits[port] ?? 1) : 1)
+                for out in next {
+                    let value = nextPipeSignal(previous: previous[out] ?? 0,
+                                               input: target, delta: delta) ?? 0
+                    output[out] = value
+                    if let mate = joined[out] { propagate(mate, value) }
+                }
+            }
+            propagate(incoming, signal)
+        }
+        return (output, receivers)
+    }
 }
