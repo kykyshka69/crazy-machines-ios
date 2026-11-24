@@ -4050,6 +4050,35 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 root.physicsBody = body
             }
 
+            // Original levels 31, 58, 70, 72, 83, 88, 93, 94 contain
+            // exactly two scissors blades under a common fixed owner, both
+            // authored at POSREL 0,0,0. Give them the shared physical pin
+            // so actual contacts change their relative angle instead of
+            // allowing unrelated translation of the two imported bodies.
+            for (ownerID, kind) in objectTypes where kind == "tmo_rope_scissors" {
+                guard let owner = objectRoots[ownerID] else { continue }
+                let blades = owner.childNodes.compactMap { child -> CMOriginalPhysicsOwnerNode? in
+                    child as? CMOriginalPhysicsOwnerNode
+                }
+                let first = blades.filter { node in
+                    guard let id = node.originalObjectID else { return false }
+                    return objectTypes[id] == "tmo_rope_scissors_1"
+                }
+                let second = blades.filter { node in
+                    guard let id = node.originalObjectID else { return false }
+                    return objectTypes[id] == "tmo_rope_scissors_2"
+                }
+                guard first.count == 1, second.count == 1,
+                      let a = first[0].physicsBody, let b = second[0].physicsBody
+                else { continue }
+                for body in [a, b] {
+                    body.isAffectedByGravity = false
+                    scene.physicsWorld.addBehavior(SCNPhysicsHingeJoint(
+                        body: body, axis: SCNVector3(0, 0, 1),
+                        anchor: SCNVector3Zero))
+                }
+            }
+
             // Recover the original seesaw's central pin. In PC level data,
             // tmo_rope_seesaw_lever is a child of tmo_rope_seesaw and its
             // POSREL is exactly (0, 0, 0). The authentic rope_seesaw.ucm
