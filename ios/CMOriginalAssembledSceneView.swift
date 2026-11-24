@@ -6288,6 +6288,38 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 body.friction = kind == "tmo_belt_gear" ? 0.92 : 0.6
                 body.angularDamping = kind == "tmo_belt_gear" ? 0.07 : 0.1
                 body.restitution = 0.15
+                // Apply recovered per-type material only when complete
+                // authored collision tables are available. Missing/fixture
+                // geometry retains the previous SceneKit fallback.
+                if let material = CMOriginalBodyMaterial.material(for: kind) {
+                    var massVolumes: [CMOriginalVolumeOverlap.Primitive] = []
+                    var complete = true
+                    for mesh in meshes where !CMOriginalUCMCollisionVolumes.isBoundsHelper(
+                        kind: kind, model: mesh.name ?? "") {
+                        guard let volumes = (mesh as? CMOriginalObjectMeshNode)?.originalCollisionVolumes,
+                              !volumes.isEmpty else { complete = false; break }
+                        // Convert to the body's own frame, preserving the
+                        // authored nested 3DO transforms and scale.
+                        let m = simd_float4x4(mesh.convertTransform(SCNMatrix4Identity, to: root))
+                        func vec(_ v: SIMD4<Float>) -> SIMD3<Double> {
+                            SIMD3<Double>(Double(v.x), Double(v.y), Double(v.z))
+                        }
+                        let t = CMOriginalVolumeOverlap.Transform(
+                            origin: vec(m.columns.3), x: vec(m.columns.0),
+                            y: vec(m.columns.1), z: vec(m.columns.2))
+                        guard let primitives = CMOriginalVolumeOverlap.world(volumes, transform: t)
+                        else { complete = false; break }
+                        massVolumes.append(contentsOf: primitives)
+                    }
+                    if complete, let properties = CMOriginalBodyMaterial.massProperties(
+                        material: material, primitives: massVolumes) {
+                        body.mass = CGFloat(properties.sceneKitMass)
+                        body.friction = CGFloat(material.friction)
+                        body.restitution = CGFloat(material.bounce)
+                        body.centerOfMassOffset = SCNVector3(
+                            Float(properties.center.x), Float(properties.center.y), Float(properties.center.z))
+                    }
+                }
                 body.continuousCollisionDetectionThreshold = 0.001
                 // The original parent housing is a visual and physical
                 // fixture. Its nested roller or motor rotor must not collide
