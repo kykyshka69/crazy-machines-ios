@@ -205,9 +205,9 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
             "Four distinct original-style linked objects did not reach " +
             "the shared capture zone; last progress: \(progress.label)"
         )
-        let continueToLevel2 = app.buttons["cm.original.first-level-next"]
+        let continueToLevel2 = app.buttons["cm.original.windows-win-next"]
         XCTAssertTrue(continueToLevel2.waitForExistence(timeout: 10),
-                      "Continue must remain accessible over the 3D viewport at 4/4")
+                      "Native win dispatcher must expose Continue after all four required contacts")
         XCTAssertTrue(continueToLevel2.isEnabled,
                       "Level 2 was imported but Continue is disabled")
         attachScreenshot(app, named: "07-synthetic-four-linked-deliveries-complete")
@@ -260,7 +260,7 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
             "Basket and its own crate did not produce the real SceneKit " +
             "CONNECTED_TO contact; last progress: \(progress.label)"
         )
-        let continueToLevel3 = app.buttons["cm.original.second-level-next"]
+        let continueToLevel3 = app.buttons["cm.original.windows-win-next"]
         XCTAssertTrue(continueToLevel3.waitForExistence(timeout: 10))
         XCTAssertTrue(continueToLevel3.isEnabled)
         attachScreenshot(app, named: "09-synthetic-level-2-basket-crate-contact")
@@ -268,7 +268,7 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         XCTAssertTrue(
             app.staticTexts["Original level 3: CM synthetic CI level 3"]
                 .waitForExistence(timeout: 20),
-            "Basket-to-crate prototype did not continue to level 3"
+            "Native link channel did not continue to level 3"
         )
     }
 
@@ -314,7 +314,7 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
             "Five linked crates were not each collected by their exact " +
             "original zone; last progress: \(progress.label)"
         )
-        let continueToLevel4 = app.buttons["cm.original.third-level-next"]
+        let continueToLevel4 = app.buttons["cm.original.windows-win-next"]
         XCTAssertTrue(continueToLevel4.waitForExistence(timeout: 10))
         XCTAssertTrue(continueToLevel4.isEnabled)
         attachScreenshot(app, named: "10-synthetic-five-linked-crates-collected")
@@ -322,7 +322,7 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
         XCTAssertTrue(
             app.staticTexts["Original level 4: CM synthetic CI level 4"]
                 .waitForExistence(timeout: 20),
-            "Five original-style crate deliveries did not advance to level 4"
+            "Native win dispatcher did not advance after five linked deliveries"
         )
     }
 
