@@ -4325,31 +4325,22 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // telemetry and only to the matching dynamic rocket child.
             deliverObservedNativeRocketForces()
 
-            // Win32 0x44D874..0x44D9A2: actual ball center must approach
-            // the original target's Catch/Test helper at distance <0.1.
-            // This is true for a GOAL bucket/cage AND an original ball
-            // linked to a bucket/cage by CONNECTED_TO. A collision with
-            // the outside of a container is never equivalent to catching
-            // that ball. Ten authentic PC inputs use the latter channel.
-            //
-            // We continue sampling all balls even after a container's
-            // GOAL latches: another uniquely linked original ball may
-            // still need to reach the same Catch/Test point.
+            // Win32 0x44D874..0x44D9A2: GOAL capture is a spatial
+            // check, independent of the collision-driven CONNECTED_TO
+            // channel at 0x443FAB..0x444024.
             for (targetID, markerMesh) in catchGoalMarkerMeshes.sorted(
                 by: { $0.key < $1.key }
             ) {
                 let goalKind = catchGoalKindsByID[targetID]
-                let linked = linkedContainerSourcesByTarget[targetID] ?? []
-                guard (goalKind != nil && !capturedCatchGoalIDs.contains(targetID))
-                    || !linked.isEmpty else { continue }
+                guard goalKind != nil && !capturedCatchGoalIDs.contains(targetID)
+                    else { continue }
                 let targetWorld = markerMesh.presentation.worldPosition
                 for (ballID, ballMesh) in originalBallMeshes.sorted(
                     by: { $0.key < $1.key }
                 ) {
                     let needsGoal = goalKind != nil
                         && !capturedCatchGoalIDs.contains(targetID)
-                    let candidateLink = linked.contains(ballID)
-                    guard needsGoal || candidateLink,
+                    guard needsGoal,
                           physicsNodesByObjectID[ballID]?.first?
                             .physicsBody?.type == .dynamic else { continue }
                     let (low, high) = ballMesh.boundingBox
@@ -4378,21 +4369,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             }
                         }
                     }
-                    // CONNECTED_TO is owned by a specific ball source.
-                    // Do not award it to a different ball in the same
-                    // container, nor twice from repeated physics frames.
-                    if candidateLink {
-                        let key = ballID + "|" + targetID
-                        sessionLock.lock()
-                        let fresh = reportedOriginalConnections.insert(key)
-                            .inserted
-                        sessionLock.unlock()
-                        if fresh {
-                            DispatchQueue.main.async { [weak self] in
-                                self?.onOriginalConnectionContact?(ballID, targetID)
-                            }
-                        }
-                    }
+
                 }
             }
         }
@@ -4645,29 +4622,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     previouslyClosed: conductingSwitchIDs.contains(hit.switchID))
                 impactSwitchState = (hit.switchID, newState)
             }
-            // CONNECTED_TO refers to another original level element, not
-            // necessarily a tmo_zone. Report exact linked contact pairs:
-            // 67 originals point to capture zones; the other 13 point to
-            // crates, buckets, cages, the pocket lamp and the board.
-            // Do not count generic collisions as original puzzle progress.
+            // Native collision dispatch resolves both bodies to their
+            // level-element owners before testing the CONNECTED_TO pointer.
+            // Container GOAL capture is a separate channel: the native
+            // contact dispatcher does not exclude a bucket or cage link.
             var newlyObservedConnections: [(String, String)] = []
-            if session?.phase == .running {
-                for link in session?.originalConnections ?? [] {
-                    guard (link.sourceID == a && link.targetID == b)
-                           || (link.sourceID == b && link.targetID == a)
-                    else { continue }
-                    // Containers use their native internal Catch/Test
-                    // radius, not exterior-wall physics contact. Otherwise
-                    // ten original ball->bucket/cage CONNECTED_TO inputs
-                    // would be falsely marked solved on first collision.
-                    if link.targetType == "tmo_bucket"
-                        || link.targetType == "tmo_rope_cage" {
-                        continue
-                    }
-                    let key = link.sourceID + "|" + link.targetID
-                    if reportedOriginalConnections.insert(key).inserted {
-                        newlyObservedConnections.append((link.sourceID, link.targetID))
-                    }
+            for link in session?.linkedCollisionInputs(a, b) ?? [] {
+                let key = link.sourceID + "|" + link.targetID
+                if reportedOriginalConnections.insert(key).inserted {
+                    newlyObservedConnections.append((link.sourceID, link.targetID))
                 }
             }
             // Original PC 'tmo_zone' nodes are collection areas. Notify the
