@@ -663,3 +663,36 @@ public enum CMOriginalSpringContact {
         return SIMD3<Float>(result.x,result.y,0)
     }
 }
+
+
+/// Passive, inertia-aware adapter for the recovered native angular ratios.
+/// This projects two angular velocities toward a single no-slip constraint,
+/// without assuming the same inertia for every wheel. It does not reproduce
+/// the native Windows transmission solver or drive torque.
+public enum CMOriginalRotaryConstraint {
+    public struct Impulses {
+        public let first: Double
+        public let second: Double
+    }
+
+    public static func solve(firstSpeed: Double, secondSpeed: Double,
+                             firstInertia: Double, secondInertia: Double,
+                             firstCoefficient: Double, secondCoefficient: Double,
+                             fraction: Double = 1) -> Impulses? {
+        guard [firstSpeed,secondSpeed,firstInertia,secondInertia,
+               firstCoefficient,secondCoefficient,fraction].allSatisfy(\.isFinite),
+              firstInertia > 0, secondInertia > 0,
+              firstCoefficient != 0, secondCoefficient != 0,
+              (0...1).contains(fraction) else { return nil }
+        let slip = firstCoefficient * firstSpeed + secondCoefficient * secondSpeed
+        let inverse = firstCoefficient * firstCoefficient / firstInertia
+            + secondCoefficient * secondCoefficient / secondInertia
+        guard inverse.isFinite, inverse > 0, slip.isFinite else { return nil }
+        let lambda = -fraction * slip / inverse
+        let a = firstCoefficient * lambda, b = secondCoefficient * lambda
+        guard a.isFinite, b.isFinite,
+              abs(a) <= Double(Float.greatestFiniteMagnitude),
+              abs(b) <= Double(Float.greatestFiniteMagnitude) else { return nil }
+        return Impulses(first: a, second: b)
+    }
+}
