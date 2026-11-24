@@ -13,6 +13,8 @@ public struct CMUCMModel {
     public let indices: [UInt16]
     public let vertexCount: Int
     public let triangleCount: Int
+    public let vertexGroupCount: Int
+    public let verticesPerGroup: Int
 
     public init(data: Data) throws {
         func u32(_ offset: Int) throws -> UInt32 {
@@ -90,6 +92,24 @@ public struct CMUCMModel {
         self.indices = parsedIndices
         self.vertexCount = count
         self.triangleCount = faces
+        self.vertexGroupCount = groups
+        self.verticesPerGroup = verticesPerGroup
+    }
+
+    /// Original UCM two-frame morphs share face indices and UV coordinates.
+    /// Only accept verified two-group layouts; unrelated multi-group models
+    /// retain their existing decoding/rendering path.
+    public func pairedMorphVertexData(group: Int) -> Data? {
+        guard vertexGroupCount == 2, (0...1).contains(group),
+              indices.allSatisfy({ Int($0) < verticesPerGroup }) else { return nil }
+        let stride = verticesPerGroup * 32
+        let raw = [UInt8](vertexData)
+        for offset in 0..<verticesPerGroup {
+            let uv = offset * 32 + 24
+            guard raw[uv..<(uv + 8)].elementsEqual(
+                raw[(stride + uv)..<(stride + uv + 8)]) else { return nil }
+        }
+        return vertexData.subdata(in: (group * stride)..<((group + 1) * stride))
     }
 
 #if canImport(Metal)
