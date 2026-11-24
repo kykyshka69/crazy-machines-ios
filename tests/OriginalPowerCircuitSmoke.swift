@@ -840,6 +840,29 @@ struct OriginalPowerCircuitSmoke {
         precondition(ts4.state.consumerReads[tsLamp.deviceID]?.first == 0)
         precondition(ts4.state.sourceReads[tsPanel.deviceID] == 0)
         precondition(ts4.state.signals[tsLamp.plugID] == 0)
+        // Original puzzles can omit physical plug records, leaving gaps
+        // in the native global ordinal sequence. Preserve relative order
+        // without pretending the first visible plug is native slot zero.
+        var sparseRaw = raw
+        sparseRaw["root"] = ["name": "level", "fields": [], "children": [
+            ["name": "level_elements", "fields": [], "children": [
+                device("tmo_power_battery", [nil]),
+                device("tmo_power_distributor", [4,2]),
+                device("tmo_power_lamp", [6])
+            ]]
+        ]]
+        let sparseDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: sparseRaw))
+        let sparse = CMOriginalPowerCircuit(session:
+            CMOriginalGameplaySession(document: sparseDoc))!
+        let sp2 = sparse.terminals.first { $0.number == 2 }!
+        let sp4 = sparse.terminals.first { $0.number == 4 }!
+        precondition(sparse.recoveredNativeSlotOrder == nil)
+        precondition(sparse.recoveredNativeOwnerOrder == nil)
+        precondition(!sparse.supportsOrderedElectricalFrames)
+        precondition(sparse.recoveredNativeRelativeSlotOrder?[sp2.deviceID] ==
+            [sp2.plugID, sp4.plugID])
+        precondition(sparse.terminals.count == 4)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
