@@ -436,6 +436,10 @@ struct CMOriginalQuickPlayView: View {
         windowsGoalCounter?.reset()
         canUndoPlacement = false
         sceneRevision = UUID()
+        // Re-evaluate real connected battery sources even if no rotor,
+        // switch or optical callback will arrive during this new run.
+        if experimentalPhysics { creditExperimentalElectricGoals() }
+        if windowsGoalCounter?.completed == true { physicsPaused = true }
     }
 
     var body: some View {
@@ -1203,7 +1207,6 @@ struct CMOriginalQuickPlayView: View {
                         pendingBeltWheel = nil
                         pendingPowerPlugID = nil
                         restartCurrentPuzzle()
-                        if newValue { creditExperimentalElectricGoals() }
                     }
                     .disabled(!originalTemplatesLoadFinished)
                     .accessibilityIdentifier("cm.original.quickplay-physics")
