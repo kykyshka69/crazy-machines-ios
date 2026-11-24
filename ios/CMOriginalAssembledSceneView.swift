@@ -741,6 +741,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var motorRotorObjectIDs = Set<String>()
         private var generatorIDByRotorID: [String: String] = [:]
         private var windmillIDByWingsID: [String: String] = [:]
+        private var windmillWheelByWingsID: [String: String] = [:]
         private var qualifiedWindmillGoalIDs = Set<String>()
         private var disrupterIDByWheelID: [String: String] = [:]
         private var lastDisrupterConduction: [String: Bool] = [:]
@@ -1305,6 +1306,25 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             return beltWheels[id] != nil
         }
 
+        // Actual bidirectional physical coupling: belt-driven wheel moves
+        // wings, and externally moved wings can drive the same wheel.
+        private func transferOriginalWindmillMotion() {
+            for (wingsID, wheelID) in windmillWheelByWingsID {
+                guard let wheels = physicsNodesByObjectID[wheelID], wheels.count == 1,
+                      let wings = physicsNodesByObjectID[wingsID], wings.count == 1,
+                      let wheelBody = wheels[0].physicsBody, wheelBody.type == .dynamic,
+                      let wingsBody = wings[0].physicsBody, wingsBody.type == .dynamic,
+                      wheelBody !== wingsBody else { continue }
+                let w = wheelBody.angularVelocity
+                let v = wingsBody.angularVelocity
+                guard let torque = CMOriginalWindowsWindmill.coupledTorque(
+                    wheelSpeed: w.z * w.w, wingsSpeed: v.z * v.w) else { continue }
+                let axisTorque = SCNVector4(0, 0, torque < 0 ? -1 : 1, abs(torque))
+                wheelBody.applyTorque(axisTorque, asImpulse: false)
+                wingsBody.applyTorque(axisTorque, asImpulse: false)
+            }
+        }
+
         private func refreshOriginalBelts(applyTorque: Bool = false) {
             beltLock.lock(); defer { beltLock.unlock() }
             refreshOriginalBeltsLocked(applyTorque: applyTorque)
@@ -1483,6 +1503,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             coastingMotorRotorIDs.removeAll()
             generatorIDByRotorID.removeAll()
             windmillIDByWingsID.removeAll()
+            windmillWheelByWingsID.removeAll()
             qualifiedWindmillGoalIDs.removeAll()
             disrupterIDByWheelID.removeAll()
             lastDisrupterConduction.removeAll()
@@ -1581,6 +1602,19 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     else { return nil }
                     return (wings.id, ownerID)
                 })
+            // Win32 copies the negated wheel +0xE8 to this owner's
+            // wings +0xE0 (0x44BB49), and the inverse at 0x451201.
+            // Only a unique pair under the same genuine windmill is valid.
+            for (wingsID, ownerID) in windmillIDByWingsID {
+                let wheels = originalObjects.filter {
+                    $0.parentID == ownerID && $0.type == "tmo_windmill_wheel"
+                }
+                let wings = originalObjects.filter {
+                    $0.parentID == ownerID && $0.type == "tmo_windmill_wings"
+                }
+                guard wheels.count == 1, wings.count == 1 else { continue }
+                windmillWheelByWingsID[wingsID] = wheels[0].id
+            }
             // Read the EXACT original hierarchy. Never attach a disrupter
             // to an arbitrary nearby gear by model name or proximity.
             disrupterIDByWheelID = Dictionary(
@@ -2063,6 +2097,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             sampleOriginalScissorsCuts()
             refreshOriginalRopes(applyTension: true)
             refreshOriginalBelts(applyTorque: true)
+            transferOriginalWindmillMotion()
             sampleOriginalRocketAnchorFrames(at: time)
             if time - lastGeneratorPollTime >= 0.16 {
                 lastGeneratorPollTime = time
