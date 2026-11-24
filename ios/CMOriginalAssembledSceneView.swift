@@ -748,10 +748,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var beltWheels: [String: (marker: SCNNode, coefficient: Float, axisColumn: Int)] = [:]
         private var beltSpans: [CMOriginalDriveBelt.Pair: [SCNNode]] = [:]
         private var activeElectricalDriveBelts = Set<CMOriginalDriveBelt.Pair>()
-        // Observed during SceneKit contact callbacks, consumed once per frame.
+        // Authenticated mesh contacts survive resting/sleeping frames;
+        // didEnd or scene registration removes them.
         private let gearDriveLock = NSLock()
-        private var observedElectricalGearContacts = Set<CMOriginalDriveBelt.Pair>()
-        private var correctedGearPairsThisStep = Set<CMOriginalDriveBelt.Pair>()
+        private var gearContacts = CMOriginalDriveBelt.GearContacts()
         var onOriginalRopeCut: ((CMOriginalRope.Pair) -> Void)?
         // Renderer-local cut latch prevents a queued UI update recreating a severed rope.
         private var severedRopes = Set<CMOriginalRope.Pair>()
@@ -2512,7 +2512,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
 
         private func refreshOriginalBeltsLocked(applyTorque: Bool) {
-            if applyTorque { activeElectricalDriveBelts.removeAll(keepingCapacity: true) }
+            var meshed = Set<CMOriginalDriveBelt.Pair>()
+            if applyTorque {
+                activeElectricalDriveBelts.removeAll(keepingCapacity: true)
+                gearDriveLock.lock()
+                meshed = Set(gearContacts.observations.map(\.pair))
+                gearDriveLock.unlock()
+            }
             for (pair, spans) in beltSpans {
                 guard let first = beltWheels[pair.first], let second = beltWheels[pair.second] else { continue }
                 let a = first.marker.presentation.simdWorldPosition
@@ -2551,6 +2557,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 guard let firstSpeed = planarSpeed(firstBody),
                       let secondSpeed = planarSpeed(secondBody) else { continue }
                 activeElectricalDriveBelts.insert(pair)
+                // An open belt and external gear mesh impose opposite
+                // directions. Keep evidence for electrical conflict
+                // detection, but do not apply incompatible impulses.
+                guard !meshed.contains(pair) else { continue }
                 if coupleRotaryBodies(firstBody,secondBody,
                     first:Double(first.coefficient),second:-Double(second.coefficient)) { continue }
                 guard let torque = CMOriginalDriveBelt.correction(
@@ -2728,8 +2738,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
         func registerPhysicsNodes(in scene: SCNScene, originalDirectory: URL) {
             gearDriveLock.lock()
-            observedElectricalGearContacts.removeAll()
-            correctedGearPairsThisStep.removeAll()
+            gearContacts.reset()
             gearDriveLock.unlock()
             effectVoices.values.flatMap { $0 }.forEach { $0.stop() }
             effectVoices.removeAll()
@@ -3578,11 +3587,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 return
             }
             defer { lastRendererTime = time }
-            // Contact delegates may report multiple manifold points per
-            // pair. Apply the rotary correction only once per physics step.
-            gearDriveLock.lock()
-            correctedGearPairsThisStep.removeAll(keepingCapacity: true)
-            gearDriveLock.unlock()
             // updateAtTime precedes SceneKit's physics step. Preserve the
             // approach velocity before the contact solver changes it.
             if !springObjectIDs.isEmpty {
@@ -3611,6 +3615,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             retireOriginalBalloons()
             refreshOriginalRopes(applyTension: true, delta: delta)
             refreshOriginalBelts(applyTorque: true)
+            advanceOriginalGearContacts()
             transferOriginalWindmillMotion()
             advanceOriginalGrillDrives(delta: Float(delta))
             advanceOriginalHammerDrives(delta: delta)
@@ -3680,8 +3685,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 let belts = activeElectricalDriveBelts
                 beltLock.unlock()
                 gearDriveLock.lock()
-                let contacts = observedElectricalGearContacts
-                observedElectricalGearContacts.removeAll(keepingCapacity: true)
+                let contacts = gearContacts.nativePairs
                 gearDriveLock.unlock()
                 // A belt and meshing gear on the same pair give opposing
                 // rotation constraints. Reject their affected components.
@@ -4666,61 +4670,60 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             let posB = b.presentation.worldPosition
             let radiusA = hypot(p.x - posA.x, p.y - posA.y)
             let radiusB = hypot(p.x - posB.x, p.y - posB.y)
-            guard let speedA = planarSpeed(aBody), let speedB = planarSpeed(bBody) else { return }
-            // Record validated contact even when slip is zero. A meshed
-            // wheel need not require correction torque every physics frame.
-            if let first = originalMechanicalVALFByID[aID],
-               let second = originalMechanicalVALFByID[bID],
-               let ratio = CMOriginalWindowsMechanicalTransfer.transmittedSignal(
-                    sourceSignal: 1, sourceVALF: first, targetVALF: second),
-               ratio > 0, ratio <= 100,
-               (0.008...3).contains(radiusA), (0.008...3).contains(radiusB),
-               abs(speedA) <= 80, abs(speedB) <= 80,
-               aBody.mass > 0, aBody.mass <= 1000,
-               bBody.mass > 0, bBody.mass <= 1000,
-               let edge = CMOriginalDriveBelt.Pair(aID, bID) {
-                gearDriveLock.lock()
-                observedElectricalGearContacts.insert(edge)
-                gearDriveLock.unlock()
-            }
-            // Do not substitute a geometric ratio for one missing native
-            // coefficient. The geometric fallback is only for old fixtures.
-            let va = originalMechanicalVALFByID[aID], vb = originalMechanicalVALFByID[bID]
-            guard (va == nil) == (vb == nil),
-                  (0.008...3).contains(radiusA), (0.008...3).contains(radiusB),
-                  let edge = CMOriginalDriveBelt.Pair(aID,bID) else { return }
-            let firstCoefficient: Double
-            let secondCoefficient: Double
-            if let va, let vb {
-                guard let ratio = CMOriginalWindowsMechanicalTransfer.transmittedSignal(
-                    sourceSignal: 1, sourceVALF: va, targetVALF: vb),
-                      ratio > 0, ratio <= 100 else { return }
-                firstCoefficient = Double(ratio)
-                secondCoefficient = 1
-            } else {
-                firstCoefficient = Double(radiusA)
-                secondCoefficient = Double(radiusB)
-            }
             gearDriveLock.lock()
-            let fresh = correctedGearPairsThisStep.insert(edge).inserted
+            gearContacts.observe(aID,bID,radiusA:radiusA,radiusB:radiusB,
+                valfA:originalMechanicalVALFByID[aID],valfB:originalMechanicalVALFByID[bID])
             gearDriveLock.unlock()
-            guard fresh else { return }
-            if coupleRotaryBodies(aBody,bBody,first:firstCoefficient,second:secondCoefficient) { return }
-            guard let pair = CMOriginalGearContactTransfer.correction(
-                firstKind: kindA, secondKind: kindB,
-                firstRadius: radiusA, secondRadius: radiusB,
-                firstAngularSpeed: speedA, secondAngularSpeed: speedB,
-                firstMass: Float(aBody.mass), secondMass: Float(bBody.mass),
-                nativeFirstVALF: originalMechanicalVALFByID[aID],
-                nativeSecondVALF: originalMechanicalVALFByID[bID]
-            ) else { return }
-            // Apply equal/opposing LINEAR contact forces as signed axle
-            // torques; the native +0x84-to-angular-speed mapping is unknown.
-            func torque(_ value: Float) -> SCNVector4 {
-                SCNVector4(0, 0, value < 0 ? -1 : 1, abs(value))
+        }
+
+        /// Once per running step, use only actual, still-registered
+        /// contact pairs. Multiple manifold points no longer multiply
+        /// the physical correction or cause the electrical path to flicker.
+        private func advanceOriginalGearContacts() {
+            beltLock.lock()
+            let belts = activeElectricalDriveBelts
+            beltLock.unlock()
+            gearDriveLock.lock()
+            let observations = gearContacts.observations
+            gearDriveLock.unlock()
+            for observation in observations {
+                let aID = observation.pair.first, bID = observation.pair.second
+                guard let aBody = physicsNodesByObjectID[aID]?.first?.physicsBody,
+                      let bBody = physicsNodesByObjectID[bID]?.first?.physicsBody,
+                      aBody !== bBody, aBody.type == .dynamic, bBody.type == .dynamic else {
+                    gearDriveLock.lock()
+                    gearContacts.end(aID,bID)
+                    gearDriveLock.unlock()
+                    continue
+                }
+                guard !belts.contains(observation.pair),
+                      let kindA = originalTypesByID[aID], let kindB = originalTypesByID[bID],
+                      let speedA = planarSpeed(aBody), let speedB = planarSpeed(bBody) else { continue }
+                let first: Double
+                let second: Double
+                if let va = observation.firstVALF, let vb = observation.secondVALF {
+                    guard let ratio = CMOriginalWindowsMechanicalTransfer.transmittedSignal(
+                        sourceSignal:1,sourceVALF:va,targetVALF:vb),
+                          ratio > 0, ratio <= 100 else { continue }
+                    first = Double(ratio); second = 1
+                } else {
+                    first = Double(observation.firstRadius)
+                    second = Double(observation.secondRadius)
+                }
+                if coupleRotaryBodies(aBody,bBody,first:first,second:second) { continue }
+                guard let correction = CMOriginalGearContactTransfer.correction(
+                    firstKind:kindA,secondKind:kindB,
+                    firstRadius:observation.firstRadius,secondRadius:observation.secondRadius,
+                    firstAngularSpeed:speedA,secondAngularSpeed:speedB,
+                    firstMass:Float(aBody.mass),secondMass:Float(bBody.mass),
+                    nativeFirstVALF:observation.firstVALF,nativeSecondVALF:observation.secondVALF)
+                    else { continue }
+                func torque(_ value: Float) -> SCNVector4 {
+                    SCNVector4(0,0,value < 0 ? -1 : 1,abs(value))
+                }
+                aBody.applyTorque(torque(correction.first),asImpulse:false)
+                bBody.applyTorque(torque(correction.second),asImpulse:false)
             }
-            aBody.applyTorque(torque(pair.first), asImpulse: false)
-            bBody.applyTorque(torque(pair.second), asImpulse: false)
         }
 
         func physicsWorld(_ world: SCNPhysicsWorld, didUpdate contact: SCNPhysicsContact) {
@@ -4935,11 +4938,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                   let b = owningOriginalObjectID(
                       for: physicalNode(for: contact.nodeB)) else { return }
             sessionLock.lock()
-            if let edge = CMOriginalDriveBelt.Pair(a, b) {
-                gearDriveLock.lock()
-                observedElectricalGearContacts.remove(edge)
-                gearDriveLock.unlock()
-            }
+            gearDriveLock.lock()
+            gearContacts.end(a,b)
+            gearDriveLock.unlock()
             switchContacts?.endContact(a, b)
             collisionSoundGate.end(a, b)
             springContactGate.end(.init(spring: a, striker: b))
