@@ -69,6 +69,34 @@ struct OriginalWindowsSteamWhistleSmoke {
             }
             precondition(flask.particles.isEmpty && !flask.goalReached && flask.gas < 0.001)
         }
+        // Native periodic valve gate and downstream steam restoration.
+        precondition(!S.valveConducts(ownerAngle: 0, leverAngle: 0))
+        precondition(S.valveConducts(ownerAngle: .pi/2, leverAngle: 0))
+        precondition(!S.valveConducts(ownerAngle: .pi/8, leverAngle: 0))
+        precondition(S.valveConducts(ownerAngle: .pi/2, leverAngle: .pi))
+        precondition(!S.valveConducts(ownerAngle: .nan, leverAngle: 0))
+        let valveTypes = ["b":"tmo_boiler","p":"tmo_pipe_ventil","w":"tmo_pipe_whistle"]
+        var valveState: [Int: Float] = [:]
+        for _ in 0..<120 {
+            valveState = S.advance(ports: ports, types: valveTypes, boilerSignals: ["b":5],
+                previous: valveState, delta: 1/60, openValveIDs: ["p"]).outgoing
+        }
+        let opened = S.advance(ports: ports, types: valveTypes, boilerSignals: ["b":5],
+            previous: valveState, delta: 1/60, openValveIDs: ["p"])
+        precondition(abs(opened.receiverSignals["w"]! - 5) < 0.001)
+        let shut = S.advance(ports: ports, types: valveTypes, boilerSignals: ["b":5],
+            previous: opened.outgoing, delta: 1/60)
+        precondition(shut.receiverSignals.isEmpty && shut.outgoing[2] == nil)
+        typealias Piston = CMOriginalSteamPiston
+        precondition(Piston.pose(wheelX: .nan, wheelAngle: 0) == nil)
+        precondition(abs(Piston.pose(wheelX: 0.4356, wheelAngle: 0)!.sliderX - 0.1056) < 0.000001)
+        precondition(abs(Piston.pose(wheelX: 0.4356, wheelAngle: .pi)!.sliderX + 0.1544) < 0.000001)
+        for i in 0...3600 {
+            let angle = Float(i) * .pi / 1800
+            let pose = Piston.pose(wheelX: 0.4356, wheelAngle: angle)!
+            precondition(pose.sliderX >= -0.154401 && pose.sliderX <= 0.105601)
+            precondition(abs(sin(pose.rodAngle)*0.47 - sin(angle)*0.13) < 0.000001)
+        }
         print("Win32 original steam whistle: pressure >= 1.0 inclusive x87 goal OK")
     }
 }
