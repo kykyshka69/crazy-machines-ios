@@ -354,6 +354,28 @@ struct OriginalWindowsMechanicalTransferSmoke {
             current:.zero,axis:.zero,contact:.zero,marker:.zero)==nil)
         precondition(CMOriginalSpringContact.rebound(incoming:.init(.nan,-1,0),
             current:.zero,axis:.init(0,1,0),contact:.zero,marker:.zero)==nil)
+        // Native spring morph: half-sine pulse, exact terminal reset.
+        for fps in [30,60,120,240,1000] {
+            var animation = CMOriginalSpringContact.Animation()
+            precondition(animation.advance(delta: 1/Double(fps)) == nil)
+            animation.trigger()
+            for i in 1...Int(ceil(Double(Float.pi)/30*Double(fps))) {
+                let phase = Double(i)/Double(fps)*30
+                let expected: Float = phase >= Double(Float.pi) ? 0 : Float(max(0,sin(phase)*0.5))
+                precondition(abs(animation.advance(delta:1/Double(fps))! - expected)<1e-6)
+            }
+            precondition(animation.elapsed == nil)
+            precondition(animation.advance(delta:0.01) == nil)
+            animation.trigger()
+            precondition(animation.advance(delta:0) == 0)
+            precondition(animation.advance(delta:Double.pi/60) == 0.5)
+            for bad in [-1.0, .nan, .infinity, 0.251] {
+                precondition(animation.advance(delta:bad) == nil)
+            }
+            animation.trigger()
+            precondition(animation.advance(delta:0.25) == 0)
+            precondition(animation.elapsed == nil)
+        }
         print("Native mechanical VALF ratios, linked sign, observed stop decay: 1000 cases passed")
     }
 }
