@@ -155,6 +155,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var originalPlayerRopes: Set<CMOriginalRope.Pair> = []
     var originalRopeEditing = false
     var originalPlayerBelts: Set<CMOriginalDriveBelt.Pair> = []
+    var originalOpticalLampPower: [String: Float] = [:]
     var originalBeltEditing = false
     // Live, matched experimental network signals for original player
     // wires. These change cable brightness only, NEVER native current.
@@ -180,6 +181,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalHammerGoal: ((String) -> Void)? = nil
     var onOriginalSteamGoal: ((String) -> Void)? = nil
     var onOriginalGrillGoal: ((String) -> Void)? = nil
+    var onOriginalSolarRays: (([String: [Float]]) -> Void)? = nil
+    var onOriginalFlowerGoal: ((String) -> Void)? = nil
     // Reports a user-operated original PC power switch. This changes its
     // actual lever mesh, NOT the unrecovered electrical connectivity.
     var onOriginalDisrupterAngle: ((String, Float) -> Void)? = nil
@@ -448,6 +451,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalHammerGoal = onOriginalHammerGoal
         context.coordinator.onOriginalSteamGoal = onOriginalSteamGoal
         context.coordinator.onOriginalGrillGoal = onOriginalGrillGoal
+        context.coordinator.onOriginalSolarRays = onOriginalSolarRays
+        context.coordinator.onOriginalFlowerGoal = onOriginalFlowerGoal
+        context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower)
         context.coordinator.fourthLevelRun = CMOriginalFourthLevelRun(document: document)
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
@@ -572,6 +578,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalHammerGoal = onOriginalHammerGoal
         context.coordinator.onOriginalSteamGoal = onOriginalSteamGoal
         context.coordinator.onOriginalGrillGoal = onOriginalGrillGoal
+        context.coordinator.onOriginalSolarRays = onOriginalSolarRays
+        context.coordinator.onOriginalFlowerGoal = onOriginalFlowerGoal
+        context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower)
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
         context.coordinator.onOriginalOpticalSightlines = onOriginalOpticalSightlines
@@ -740,6 +749,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalHammerGoal: ((String) -> Void)?
         var onOriginalSteamGoal: ((String) -> Void)?
         var onOriginalGrillGoal: ((String) -> Void)?
+        var onOriginalSolarRays: (([String: [Float]]) -> Void)?
+        var onOriginalFlowerGoal: ((String) -> Void)?
+        private var liveOpticalLampPower: [String: Float] = [:]
+        private var liveOpticalEmitters: [String: SCNNode] = [:]
+        private var liveOpticalReceivers: [String: SCNNode] = [:]
+        private var liveFlowerProgress: [String: Float] = [:]
+        private var liveFlowerLight: [String: Float] = [:]
+        private var reportedFlowerGoals = Set<String>()
+        private var lastLiveOpticalTime: TimeInterval = -1
+        private var lastSolarRays: [String: [Float]] = [:]
         private var steamPortNodes: [(owner: String, node: SCNNode)] = []
         private var boilerHeatSignals: [String: Float] = [:]
         private var steamOutgoingSignals: [Int: Float] = [:]
@@ -2157,6 +2176,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             registerOriginalGrillDrives(objects: originalObjects)
             registerOriginalHammerDrives(objects: originalObjects)
             registerOriginalSteamNetwork(objects: originalObjects)
+            registerLiveOptics(objects: originalObjects)
             applyOriginalLampVisualFactors()
             applyOriginalAmmeterSignals()
             // Each original conveyor has a distinct child tmo_belt_conveyer_wheel
@@ -2188,6 +2208,118 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         /// The original Win32 bulb beam directions, hit fraction and
         /// reflections are not recovered, so this observation deliberately
         /// cannot activate a solar cell or a puzzle GOAL.
+        func setLiveOpticalLampPower(_ values: [String: Float]) {
+            sessionLock.lock()
+            defer { sessionLock.unlock() }
+            liveOpticalLampPower = values.filter { $0.value.isFinite && $0.value >= 0 }
+        }
+
+        private func registerLiveOptics(objects: [CMOriginalGameplaySession.Object]) {
+            liveOpticalEmitters.removeAll()
+            liveOpticalReceivers.removeAll()
+            liveFlowerProgress.removeAll()
+            liveFlowerLight.removeAll()
+            reportedFlowerGoals.removeAll()
+            lastSolarRays.removeAll()
+            lastLiveOpticalTime = -1
+            for item in objects {
+                switch item.type {
+                case "tmo_power_lamp":
+                    let bulbs = objects.filter { $0.parentID == item.id && $0.type == "tmo_power_lamp_bulb" }
+                    if bulbs.count == 1, let marker = exactOriginalAnchor("Light", on: bulbs[0].id) {
+                        liveOpticalEmitters[item.id] = marker
+                    }
+                case "tmo_light_pocketlamp":
+                    if let marker = exactOriginalAnchor("Light", on: item.id) {
+                        liveOpticalEmitters[item.id] = marker
+                    }
+                case "tmo_power_solarcell", "tmo_light_flower":
+                    if let marker = exactOriginalAnchor("Light", on: item.id) {
+                        liveOpticalReceivers[item.id] = marker
+                        if item.type == "tmo_light_flower" {
+                            // Initial unilluminated state; native morph geometry remains separate.
+                            liveFlowerProgress[item.id] = 1
+                        }
+                    }
+                default: break
+                }
+            }
+        }
+
+        private func advanceLiveOptics(renderer: SCNSceneRenderer, at time: TimeInterval,
+                                       delta: Double) {
+            guard !liveOpticalReceivers.isEmpty else { return }
+            if time - lastLiveOpticalTime >= 0.10, let root = renderer.scene?.rootNode {
+                lastLiveOpticalTime = time
+                var solar: [String: [Float]] = [:]
+                var flowers: [String: Float] = [:]
+                for (id, receiver) in liveOpticalReceivers.sorted(by: { $0.key < $1.key }) {
+                    var rays: [Float] = []
+                    let to = receiver.presentation.simdWorldPosition
+                    for (sourceID, marker) in liveOpticalEmitters.sorted(by: { $0.key < $1.key }) {
+                        let kind = originalTypesByID[sourceID]
+                        let power = liveOpticalLampPower[sourceID] ?? 0
+                        let lit = session?.originalPocketLampStates[sourceID] == true
+                        guard (kind == "tmo_power_lamp" && power > 0)
+                            || (kind == "tmo_light_pocketlamp" && lit) else { continue }
+                        let m = marker.presentation.simdWorldTransform
+                        let from = SIMD3<Float>(m.columns.3.x, m.columns.3.y, m.columns.3.z)
+                        let offset = to - from
+                        let length = simd_length(offset)
+                        guard length.isFinite, length > 0.001 else { continue }
+                        // Direct visibility of genuine imported UCM meshes.
+                        // Native optical region coordinates and occlusion are
+                        // not identical to SceneKit; fail closed on blockers.
+                        let hits = root.hitTestWithSegment(
+                            from: SCNVector3(from.x, from.y, from.z),
+                            to: SCNVector3(to.x, to.y, to.z),
+                            options: [SCNHitTestOption.firstFoundOnly.rawValue: false,
+                                      SCNHitTestOption.ignoreHiddenNodes.rawValue: true])
+                        let unobstructed = !hits.contains { hit in
+                            guard hit.node is CMOriginalObjectMeshNode else { return false }
+                            guard let part = owningOriginalObjectID(for: hit.node) else { return true }
+                            let owner = opticalEmitterByPartID[part] ?? part
+                            return owner != id && owner != sourceID
+                        }
+                        let ray: Float?
+                        if kind == "tmo_power_lamp" {
+                            ray = CMOriginalLiveOptics.lampContribution(
+                                power: power, pathLength: length, unobstructed: unobstructed)
+                        } else {
+                            ray = CMOriginalLiveOptics.pocketContribution(lit: lit,
+                                axis: .init(m.columns.2.x, m.columns.2.y, m.columns.2.z),
+                                displacement: offset, unobstructed: unobstructed)
+                        }
+                        if let ray, ray > 0 { rays.append(ray) }
+                    }
+                    if originalTypesByID[id] == "tmo_power_solarcell" {
+                        solar[id] = rays
+                    } else if let light = CMOriginalWindowsSolarSignal.collectedPower(rayContributions: rays) {
+                        flowers[id] = light / 10
+                    }
+                }
+                liveFlowerLight = flowers
+                if solar != lastSolarRays {
+                    lastSolarRays = solar
+                    let deliver = onOriginalSolarRays
+                    DispatchQueue.main.async { deliver?(solar) }
+                }
+            }
+            for id in Array(liveFlowerProgress.keys).sorted() {
+                guard let previous = liveFlowerProgress[id],
+                      let light = liveFlowerLight[id],
+                      let progress = CMOriginalWindowsFlower.nextProgress(
+                        previous: previous, observedLightInput: light,
+                        observedNativeDelta: delta) else { continue }
+                liveFlowerProgress[id] = progress
+                if light > 0, CMOriginalWindowsFlower.triggersGoal(observedNativeProgress: progress),
+                   reportedFlowerGoals.insert(id).inserted {
+                    let deliver = onOriginalFlowerGoal
+                    DispatchQueue.main.async { deliver?(id) }
+                }
+            }
+        }
+
         private func sampleOriginalOpticalSightlines(
             renderer: SCNSceneRenderer, at time: TimeInterval
         ) {
@@ -2444,6 +2576,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // independent of electric power propagation and cannot energize
             // solar cells without original ray emission/hit validation.
             sampleOriginalOpticalSightlines(renderer: renderer, at: time)
+            advanceLiveOptics(renderer: renderer, at: time, delta: delta)
             sampleOriginalSwitchConduction()
             sampleOriginalScissorsCuts()
             refreshOriginalRopes(applyTension: true)
