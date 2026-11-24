@@ -15,10 +15,12 @@ struct OriginalWindowsBeltFlagSmoke {
         precondition(goal(marker, 0, -2))
         precondition(!goal(marker, 1, 2))
         precondition(!goal(marker, 0, 0))
-        precondition(goal(0, 0, 1.999))
+        precondition(!goal(0, 0, 1.999))
+        precondition(goal(0, 1, 1.999))
         precondition(!goal(0, 0, 2))
         precondition(!goal(0, 0, -2.001))
-        precondition(!goal(0, 1, 0))
+        precondition(goal(0, 1, 0))
+        precondition(!goal(0, 1, 2))
         precondition(!goal(.nan, 0, 1))
         precondition(!goal(0, 0, .infinity))
         precondition(!goal(0, .nan, 1))
@@ -81,6 +83,25 @@ struct OriginalWindowsBeltFlagSmoke {
         precondition(F.triggersGoal(.init(
             telescopeIndicator: F.nativeTelescopeMarker,
             flagState: 0, observedNetWindForce: measured)))
+        for hz in [30, 60, 120] {
+            var height: Float = 0
+            for _ in 0..<(hz*3) {
+                height = F.nextExtension(previous: height, wheelSignal: 5, delta: 1/Double(hz))!
+                precondition((0...marker).contains(height))
+            }
+            precondition(height == marker)
+            for _ in 0..<(hz*3) {
+                height = F.nextExtension(previous: height, wheelSignal: -5, delta: 1/Double(hz))!
+            }
+            precondition(height == 0)
+        }
+        precondition(F.nextExtension(previous: marker, wheelSignal: 0, delta: 0.1) == marker)
+        precondition(F.nextExtension(previous: 0, wheelSignal: .nan, delta: 0.1) == nil)
+        let forward = F.windmillRegion(axis: .init(1, 0), wheelSignal: 5)!
+        let reverse = F.windmillRegion(axis: .init(1, 0), wheelSignal: -5)!
+        precondition(forward.nativeAxis.x == 1 && reverse.nativeAxis.x == -1)
+        precondition(abs(sqrt(forward.maxRadiusSquared) - sqrt(forward.minRadiusSquared) - 1) < 0.00001)
+        precondition(F.windmillRegion(axis: .init(1, 0), wheelSignal: 0) == nil)
         print("Original flag: measured wind region, complete source inventory, native GOAL bounds OK")
     }
 }
