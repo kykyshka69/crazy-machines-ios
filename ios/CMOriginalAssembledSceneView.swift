@@ -3327,6 +3327,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             advanceLiveOptics(renderer: renderer, at: time, delta: delta)
             sampleOriginalSwitchConduction()
             sampleOriginalScissorsCuts()
+            sampleOriginalBalloonHeat(root: renderer.scene?.rootNode)
             retireOriginalBalloons()
             refreshOriginalRopes(applyTension: true)
             refreshOriginalBelts(applyTorque: true)
@@ -3561,6 +3562,48 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     marker: marker.presentation.simdWorldPosition,
                     radius: rule.radius) else { return }
             pendingBalloonPops.insert(balloon)
+        }
+
+        // The native heat callbacks project a depth-directed shape query
+        // at a virtual heat point. Use the real imported balloon mesh,
+        // not its bounding box or a blanket proximity-based pop.
+        private func sampleOriginalBalloonHeat(root: SCNNode?) {
+            guard !buoyantObjectIDs.isEmpty, let root else { return }
+            var points: [SIMD3<Float>] = []
+            for (id, active) in session?.originalHeatSourceStates ?? [:] where active {
+                guard let type = originalTypesByID[id],
+                      let marker = exactOriginalAnchor("Heat", on: id) else { continue }
+                let m = marker.presentation.simdWorldTransform
+                let origin = SIMD3<Float>(m.columns.3.x, m.columns.3.y, m.columns.3.z)
+                let axis = SIMD3<Float>(m.columns.2.x, m.columns.2.y, m.columns.2.z)
+                let point: SIMD3<Float>?
+                switch type {
+                case "tmo_candle", "tmo_candle_dyn":
+                    point = CMOriginalBalloonHeatSample.candle(origin: origin, axis: axis)
+                case "tmo_heat_blowtorch":
+                    point = CMOriginalBalloonHeatSample.torch(origin: origin, axis: axis)
+                default: point = nil
+                }
+                if let point { points.append(point) }
+            }
+            points.append(contentsOf: magnifierFoci.compactMap {
+                CMOriginalBalloonHeatSample.focus(position: $0.position, light: $0.light)
+            })
+            for p in points {
+                let hits = root.hitTestWithSegment(
+                    from: SCNVector3(p.x, p.y, p.z - 2),
+                    to: SCNVector3(p.x, p.y, p.z + 2),
+                    options: [SCNHitTestOption.firstFoundOnly.rawValue: false,
+                              SCNHitTestOption.ignoreHiddenNodes.rawValue: true,
+                              SCNHitTestOption.backFaceCulling.rawValue: false])
+                for hit in hits {
+                    guard hit.node is CMOriginalObjectMeshNode,
+                          let id = owningOriginalObjectID(for: hit.node),
+                          buoyantObjectIDs.contains(id),
+                          !poppedBalloonIDs.contains(id) else { continue }
+                    pendingBalloonPops.insert(id)
+                }
+            }
         }
 
         private func retireOriginalBalloons() {
