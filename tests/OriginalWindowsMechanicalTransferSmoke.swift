@@ -414,6 +414,49 @@ struct OriginalWindowsMechanicalTransferSmoke {
         precondition(solveDrive([("m","a"),("b","g")]).isEmpty)
         precondition(solveDrive([("m","a"),("a","g"),("a","x")]).isEmpty)
         precondition(solveDrive([("m","g"),("w","g2")]) == ["G":"M","G2":"W"])
+        // Mass-aware unilateral rope and passive rotary reactions.
+        precondition(R.constraintImpulse(distance:0.5,restLength:1,
+            separationRate:0,inverseEffectiveMass:1,delta:1.0/60)==0)
+        precondition(R.constraintImpulse(distance:1,restLength:1,
+            separationRate:5,inverseEffectiveMass:0,delta:1.0/60)==nil)
+        precondition(R.constraintImpulse(distance:1,restLength:1,
+            separationRate:5,inverseEffectiveMass:1,delta:0)==nil)
+        let hinge = R.endpointInverseMass(directionXYLengthSquared:1,
+            leverCrossDirection:0.25,inverseMass:0,inverseInertia:4)!
+        precondition(abs(hinge-0.25)<1e-12)
+        for m1 in [0.01,0.1,1.0,10,100,1000] {
+            for m2 in [0.01,0.1,1.0,10,100,1000] {
+                for d in [0.8,0.999,1.0,1.01,1.2] {
+                    for rate in [-10.0,-1,0,1,10] {
+                        let dt = 1.0/60
+                        let inverse = 1/m1+1/m2
+                        let j = R.constraintImpulse(distance:d,restLength:1,
+                            separationRate:rate,inverseEffectiveMass:inverse,delta:dt)!
+                        let allowed = d<=1 ? (1-d)/dt : -min(2,0.2*(d-1)/dt)
+                        precondition(j>=0)
+                        precondition(abs(rate-j*inverse-min(rate,allowed))<1e-9)
+                        let v1=j/m1, v2=rate-j/m2
+                        precondition(abs(m1*v1+m2*v2-m2*rate)<1e-7)
+                    }
+                }
+            }
+        }
+        for a in [0.1,0.125,0.13,0.25] {
+            for b in [0.1,0.125,0.13,0.25] {
+                for sign in [-1.0,1.0] {
+                    for i in [0.0001,0.01,1.0,100] {
+                        let j = CMOriginalRotaryConstraint.solve(
+                            firstSpeed:20,secondSpeed:-10,firstInertia:i,secondInertia:1,
+                            firstCoefficient:a,secondCoefficient:sign*b,fraction:0.5)!
+                        let w1=20+j.first/i,w2 = -10+j.second
+                        precondition(abs(a*w1+sign*b*w2-0.5*(20*a-10*sign*b))<1e-9)
+                        precondition(0.5*(i*w1*w1+w2*w2)<=0.5*(i*400+100)+1e-8)
+                    }
+                }
+            }
+        }
+        precondition(CMOriginalRotaryConstraint.solve(firstSpeed:1,secondSpeed:1,
+            firstInertia:0,secondInertia:1,firstCoefficient:1,secondCoefficient:1)==nil)
         print("Native mechanical VALF ratios, linked sign, observed stop decay: 1000 cases passed")
     }
 }
