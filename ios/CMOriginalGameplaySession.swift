@@ -897,6 +897,22 @@ public struct CMOriginalFuzeVisualSignal {
         visited = max(0, old.lowerBound-step)...min(1, old.upperBound+step)
     }
 
+    /// Only the advancing edge contributes to game heat observations.
+    /// Already visited interior points are not perpetual heat sources.
+    public mutating func advanceAndObserve(by step: Float) -> [ClosedRange<Float>] {
+        guard let old = visited else { return [] }
+        advance(by: step)
+        guard let next = visited else { return [] }
+        var changes: [ClosedRange<Float>] = []
+        if next.lowerBound < old.lowerBound {
+            changes.append(next.lowerBound...old.lowerBound)
+        }
+        if next.upperBound > old.upperBound {
+            changes.append(old.upperBound...next.upperBound)
+        }
+        return changes
+    }
+
     public func fragment(_ piece: ClosedRange<Float>) -> Self {
         var result = Self()
         guard let old = visited, piece.lowerBound >= 0, piece.upperBound <= 1,
