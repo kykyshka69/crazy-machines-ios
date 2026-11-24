@@ -41,6 +41,21 @@ class OriginalAssetPackBuildTests(unittest.TestCase):
         self.assertEqual(result["types"][".json"], 102)
         verify(output)
 
+    def test_named_sound_resources_are_optional(self):
+        fx = self.game / "data" / "sounds" / "fx"
+        fx.mkdir(parents=True)
+        (fx / "spring.wav").write_bytes(b"synthetic wave")
+        scripts = self.game / "scripts" / "sound"
+        scripts.mkdir(parents=True)
+        (scripts / "soundfx.vsc").write_bytes(b"synthetic script")
+        (self.game / "anonymous.wav").write_bytes(b"unidentified")
+        output = self.root / "named-sound.cmassets"
+        result = build(self.game, None, output)
+        self.assertEqual(result["entries"], 345)
+        self.assertEqual(result["types"][".wav"], 1)
+        self.assertEqual(result["types"][".vsc"], 1)
+        verify(output)
+
     def test_export_count_remains_strict(self):
         (self.scenes / "level-001.json").write_text("{}")
         with self.assertRaisesRegex(ValueError, "Unexpected resource count"):
