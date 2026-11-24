@@ -554,7 +554,7 @@ struct OriginalPowerCircuitSmoke {
         // Do not infer equal or unequal dynamic-source precedence.
         precondition(ordered.settledIndependentSourceObservation(
             closedSwitchIDs: orderedSwitchIDs,
-            generatorRotorCommandsByDeviceID: [orderedPort(21).deviceID: 10]) == nil)
+            generatorRotorCommandsByDeviceID: [ordered.terminals.first { $0.number == 21 }!.deviceID: 10]) == nil)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
