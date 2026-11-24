@@ -4,6 +4,20 @@ import Foundation
 struct OriginalGeneratorRotorObservationSmoke {
     static func main() {
         typealias P = CMOriginalGeneratorRotorObservation
+        // The live electrical path needs precise per-frame observations,
+        // including observed zero, and must distinguish unavailable data.
+        precondition(P.frameReport(previous: nil, measured: 0) == 0)
+        precondition(P.frameReport(previous: 0, measured: 0) == nil)
+        precondition(P.frameReport(previous: 10, measured: Float(10).nextDown) == Float(10).nextDown)
+        precondition(P.frameReport(previous: 10, measured: 10) == nil)
+        precondition(P.frameReport(previous: 0, measured: 0.02) == 0.02)
+        precondition(P.frameReport(previous: 0.02, measured: 0) == 0)
+        precondition(P.frameReport(previous: 0, measured: nil)?.isNaN == true)
+        precondition(P.frameReport(previous: nil, measured: .infinity)?.isNaN == true)
+        precondition(P.frameReport(previous: .nan, measured: nil) == nil)
+        precondition(P.frameReport(previous: .nan, measured: 0) == 0)
+        precondition(P.frameReport(previous: .nan, measured: -2) == -2)
+        precondition(P.frameReport(previous: 0.02, measured: 0.009) == 0)
         precondition(P.report(previous: nil, measured: 0) == nil)
         precondition(P.report(previous: nil, measured: 0.009) == nil)
         precondition(P.report(previous: nil, measured: -2) == -2)
