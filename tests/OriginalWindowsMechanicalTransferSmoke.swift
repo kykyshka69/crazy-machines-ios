@@ -106,6 +106,38 @@ struct OriginalWindowsMechanicalTransferSmoke {
                 }
             }
         }
+        typealias Grill = CMOriginalGrillDrive
+        typealias Hammer = CMOriginalHammerDrive
+        precondition(Grill.phase(previous: 0, wheelSpeed: 2, delta: 0.25) == -0.5)
+        precondition(Grill.phase(previous: 0, wheelSpeed: -2, delta: 0.25) == 0.5)
+        precondition(Grill.phase(previous: 1, wheelSpeed: 0, delta: 0.1) == 1)
+        precondition(Grill.phase(previous: 0, wheelSpeed: .nan, delta: 0.1) == nil)
+        precondition(Grill.phase(previous: 0, wheelSpeed: 2, delta: 0.26) == nil)
+        for v in -80...80 {
+            var phase: Float = 0
+            for _ in 0..<100 {
+                phase = Grill.phase(previous: phase, wheelSpeed: Float(v), delta: 0.25)!
+                precondition(phase.isFinite && abs(phase) < 2 * .pi)
+            }
+        }
+        precondition(Hammer.lift(angle: 0, wheelSignal: -2, direction: 1, step: 0.5)?.angle == 0.5)
+        precondition(Hammer.lift(angle: 0, wheelSignal: -2, direction: -1, step: 0.5)?.angle == -0.5)
+        precondition(Hammer.lift(angle: Hammer.liftLimit.nextDown, wheelSignal: 0, direction: 1, step: 0)?.releases == false)
+        precondition(Hammer.lift(angle: Hammer.liftLimit, wheelSignal: 0, direction: 1, step: 0)?.releases == true)
+        precondition(Hammer.lift(angle: -Hammer.liftLimit, wheelSignal: 0, direction: -1, step: 0)?.releases == true)
+        precondition(Hammer.lift(angle: 0, wheelSignal: 2, direction: 0, step: 0.5) == nil)
+        precondition(Hammer.release(angle: Hammer.liftLimit, direction: 1, step: 0.25) == 0)
+        precondition(Hammer.release(angle: -Hammer.liftLimit, direction: -1, step: 0.25) == 0)
+        precondition(Hammer.strike(nailY: 0, observedGap: Hammer.strikeGap.nextDown) == nil)
+        precondition(Hammer.strike(nailY: 0, observedGap: Hammer.strikeGap)?.nailY == -Hammer.strikeGap)
+        var nail: Float = -0.01017
+        for _ in 0..<6 {
+            let hit = Hammer.strike(nailY: nail, observedGap: Hammer.strikeGap)!
+            precondition(!hit.terminal)
+            nail = hit.nailY
+        }
+        let last = Hammer.strike(nailY: nail, observedGap: Hammer.strikeGap)!
+        precondition(last.terminal && last.nailY == Hammer.nailLimit)
         for i in 0..<1000 {
             let input = Float(i - 500) * 0.005
             let next = M.transmittedSignal(sourceSignal: input,
