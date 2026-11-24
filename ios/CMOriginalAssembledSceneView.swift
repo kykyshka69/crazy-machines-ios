@@ -3448,20 +3448,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
 
-        /// When an original generator rotor loses its physical SceneKit
-        /// body (or its sample becomes nonfinite), do NOT keep the last
-        /// nonzero electrical signal alive. Dispatch the STOP once.
-        private func clearUnavailableGenerator(_ generatorID: String) {
-            guard let stopped =
-                CMOriginalGeneratorRotorObservation.sourceUnavailable(
-                    previous: lastGeneratorScalars[generatorID])
-            else { return }
-            lastGeneratorScalars[generatorID] = stopped
-            DispatchQueue.main.async { [weak self] in
-                self?.onOriginalGeneratorSignal?(generatorID, stopped)
-            }
-        }
-
         func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
             // Real original power-plug endpoints follow the imported bodies
             // in both editor and physics scenes. Geometry is non-colliding.
