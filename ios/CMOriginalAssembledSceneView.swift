@@ -780,6 +780,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var steamOutgoingSignals: [Int: Float] = [:]
         private var steamReceiverOwners: [String: String] = [:]
         private var steamWheelByBody: [String: SCNNode] = [:]
+        private var steamValveLevers: [String: (owner: SCNNode, lever: SCNNode)] = [:]
         private var reportedSteamGoals = Set<String>()
         // Win32 0x44D874..0x44D9A2 checks actual GOAL-marked
         // tmo_bucket objects against tmo_ball_ objects, not only puzzle 4.
@@ -1603,6 +1604,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             steamOutgoingSignals.removeAll()
             steamReceiverOwners.removeAll()
             steamWheelByBody.removeAll()
+            steamValveLevers.removeAll()
             reportedSteamGoals.removeAll()
             for object in objects {
                 guard let count = CMOriginalSteamNetwork.portCount(type: object.type) else { continue }
@@ -1612,6 +1614,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 guard ports.count == count else { continue }
                 steamPortNodes.append(contentsOf: ports.map { (owner: object.id, node: $0) })
                 if object.type == "tmo_boiler" { boilerHeatSignals[object.id] = 0 }
+                if object.type == "tmo_pipe_ventil" {
+                    let levers = objects.filter { $0.parentID == object.id && $0.type == "tmo_pipe_ventil_lever" }
+                    if levers.count == 1,
+                       let bases = physicsNodesByObjectID[object.id], bases.count == 1,
+                       let nodes = physicsNodesByObjectID[levers[0].id], nodes.count == 1 {
+                        steamValveLevers[object.id] = (bases[0], nodes[0])
+                    }
+                }
                 if object.type == "tmo_steam_body",
                    let parent = object.parentID, originalTypesByID[parent] == "tmo_steam_machine" {
                     let wheels = objects.filter { $0.parentID == parent && $0.type == "tmo_steam_wheel" }
@@ -1664,8 +1674,21 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 return .init(owner: entry.owner, position: .init(m.columns.3.x, m.columns.3.y, m.columns.3.z),
                              normal: .init(m.columns.2.x, m.columns.2.y, m.columns.2.z))
             }
+            let openValveIDs = Set(steamValveLevers.compactMap { id, pair -> String? in
+                // Project the actual owner and lever local X axes into the
+                // original puzzle's XY plane. World Euler-Z is ambiguous
+                // under a mirrored or nested assembly.
+                let a = pair.owner.presentation.simdWorldTransform.columns.0
+                let b = pair.lever.presentation.simdWorldTransform.columns.0
+                guard a.x*a.x+a.y*a.y > 0.00001, b.x*b.x+b.y*b.y > 0.00001,
+                      CMOriginalSteamNetwork.valveConducts(ownerAngle: atan2(a.y,a.x),
+                                                          leverAngle: atan2(b.y,b.x))
+                else { return nil }
+                return id
+            })
             let state = CMOriginalSteamNetwork.advance(ports: ports, types: originalTypesByID,
-                boilerSignals: output, previous: steamOutgoingSignals, delta: delta)
+                boilerSignals: output, previous: steamOutgoingSignals, delta: delta,
+                openValveIDs: openValveIDs)
             steamOutgoingSignals = state.outgoing
             for (id, signal) in state.receiverSignals where originalTypesByID[id] == "tmo_pipe_whistle" {
                 if CMOriginalWindowsSteamWhistle.triggersGoal(steamPower: signal),
@@ -5120,10 +5143,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // seesaw was rearranged before starting the experiment.
             for (id, kind) in objectTypes
                 where kind == "tmo_rope_seesaw_lever"
+                    || kind == "tmo_pipe_ventil_lever"
                     || CMOriginalAxleParts.rotatingKinds.contains(kind) {
                 guard let wheel = objectRoots[id],
                       let body = wheel.physicsBody else { continue }
-                if kind == "tmo_rope_seesaw_lever" {
+                if kind == "tmo_rope_seesaw_lever" || kind == "tmo_pipe_ventil_lever" {
                     // Only attach levers which really belong to the PC's
                     // fixed seesaw support, not an unrelated 3DO helper.
                     guard let base = wheel.parent as? CMOriginalPhysicsOwnerNode,
