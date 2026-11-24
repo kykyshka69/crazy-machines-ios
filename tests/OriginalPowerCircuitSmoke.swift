@@ -500,6 +500,44 @@ struct OriginalPowerCircuitSmoke {
             and: dynamicPort(46).plugID) == .connected)
         // Even a currently idle second source makes this order-dependent.
         precondition(dynamic.settledIndependentSourceObservation() == nil)
+        // A single-source loop with all gates conducting has no competing
+        // scalar arrivals. Open gates in a loop still need native slot order.
+        var loopRaw = raw
+        loopRaw["root"] = ["name": "level", "fields": [], "children": [
+            ["name": "level_elements", "fields": [], "children": [
+                device("tmo_power_battery", [51]),
+                device("tmo_power_distributor", [52,53,54]),
+                device("tmo_power_switch", [55,56]),
+                device("tmo_power_lamp", [57,58])
+            ]]
+        ]]
+        let loopDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: loopRaw))
+        var loop = CMOriginalPowerCircuit(session:
+            CMOriginalGameplaySession(document: loopDoc))!
+        func loopPort(_ n: Int) -> CMOriginalPowerCircuit.Terminal {
+            loop.terminals.first { $0.number == n }!
+        }
+        for (a,b) in [(51,52),(53,55),(56,57),(58,54)] {
+            precondition(loop.toggleCable(between: loopPort(a).plugID,
+                and: loopPort(b).plugID) == .connected)
+        }
+        let loopSwitch = loopPort(55).deviceID
+        let loopLamp = loopPort(57).deviceID
+        let loopOn = loop.settledIndependentSourceObservation(closedSwitchIDs: [loopSwitch])!
+        precondition(loopOn.deviceSignals.count == 4)
+        precondition(loopOn.deviceSignals.values.allSatisfy { $0 == 10 })
+        precondition(loopOn.cableSignals.count == 4)
+        precondition(loopOn.cableSignals.values.allSatisfy { $0 == 10 })
+        precondition(loop.settledIndependentSourceObservation() == nil)
+        let loopCut = CMOriginalPowerCircuit.Cable(loopPort(56).plugID, loopPort(57).plugID)
+        precondition(loop.applyObservedCableCut(loopCut))
+        let cutLoop = loop.settledIndependentSourceObservation()!
+        precondition(cutLoop.deviceSignals[loopLamp] == 10)
+        precondition(cutLoop.deviceSignals[loopSwitch] == nil)
+        precondition(cutLoop.cableSignals.count == 3)
+        loop.clearRuntimeCuts()
+        precondition(loop.settledIndependentSourceObservation() == nil)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
