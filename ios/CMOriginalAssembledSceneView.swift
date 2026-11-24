@@ -771,6 +771,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
         private var flagDrives: [String: FlagDrive] = [:]
         private var flagWindmills: [String: FlagWindmill] = [:]
+        private struct BellowsDrive {
+            let lever: SCNNode
+            let wind: SCNNode
+            var state = CMOriginalBellows()
+        }
+        private var bellowsDrives: [String: BellowsDrive] = [:]
+        private var bellowsOwnerByLeverID: [String: String] = [:]
         private var flagWindSourceIDs = Set<String>()
         private var flagScriptedPartIDs = Set<String>()
         private struct FlaskDrive {
@@ -1682,6 +1689,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private func registerOriginalFlagDrives(objects: [CMOriginalGameplaySession.Object]) {
             flagDrives.removeAll()
             flagWindmills.removeAll()
+            bellowsDrives.removeAll()
+            bellowsOwnerByLeverID.removeAll()
             flagScriptedPartIDs.removeAll()
             flagWindSourceIDs = Set(objects.filter {
                 $0.type == "tmo_windmill" || $0.type == "tmo_wind_bellows"
@@ -1708,7 +1717,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 flagDrives[owner.id] = .init(wheel: wheel, telescope3: n3, telescope4: n4, wind: marker)
                 flagScriptedPartIDs.formUnion([t3.id,t4.id])
             }
-            guard !flagDrives.isEmpty else { return }
+            for owner in objects where owner.type == "tmo_wind_bellows" {
+                guard let lever = child(owner.id, "tmo_wind_bellows_lever"),
+                      let body = node(lever.id),
+                      let marker = exactOriginalAnchor("Wind", on: owner.id)
+                else { continue }
+                bellowsDrives[owner.id] = .init(lever: body, wind: marker)
+                bellowsOwnerByLeverID[lever.id] = owner.id
+            }
+            guard !flagDrives.isEmpty || !bellowsDrives.isEmpty else { return }
             for owner in objects where owner.type == "tmo_windmill" {
                 guard let w = child(owner.id, "tmo_windmill_wheel"),
                       let wings = child(owner.id, "tmo_windmill_wings"),
@@ -1722,6 +1739,70 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 base.addChildNode(frame)
                 frame.simdWorldTransform = marker.simdWorldTransform
                 flagWindmills[owner.id] = .init(wheel: wheel, fixedFrame: frame)
+            }
+        }
+
+        // Called under sessionLock from the genuine contact callback.
+        private func strikeOriginalBellows(leverID: String, otherID: String,
+                                            normalY: Float, point: SCNVector3) {
+            guard let id = bellowsOwnerByLeverID[leverID], var drive = bellowsDrives[id],
+                  session?.physicsRole(for: otherID) == .movable,
+                  point.y >= drive.lever.presentation.simdWorldPosition.y - 0.02,
+                  drive.state.strike(normalY: abs(normalY),
+                      leverAngle: drive.lever.presentation.eulerAngles.z)
+            else { return }
+            // The original removes the lever's rigid body during exhaustion.
+            // Keep its visual part but stop collision/impulse feedback.
+            drive.lever.physicsBody?.clearAllForces()
+            drive.lever.physicsBody?.collisionBitMask = 0
+            drive.lever.physicsBody?.contactTestBitMask = 0
+            drive.lever.physicsBody?.type = .kinematic
+            bellowsDrives[id] = drive
+        }
+
+        private func bellowsObservation(id: String, target: SIMD3<Float>)
+            -> CMOriginalWindowsBeltFlag.WindObservation? {
+            guard let drive = bellowsDrives[id] else { return nil }
+            if drive.state.power == 0 {
+                return .init(originalSourceID: id, originalSourceType: "tmo_wind_bellows",
+                             signedIntersection: 0, originalWindPower: 0)
+            }
+            let m = drive.wind.presentation.simdWorldTransform
+            guard let region = drive.state.region(axis: .init(m.columns.2.x,m.columns.2.y,m.columns.2.z))
+            else { return nil }
+            let axis = SIMD2<Float>(region.nativeAxis.x,region.nativeAxis.y)
+            let length = simd_length(axis)
+            guard length.isFinite, length > 0.00001 else { return nil }
+            let o = SIMD2<Float>(m.columns.3.x,m.columns.3.y) - axis / length * sqrt(region.minRadiusSquared)
+            return CMOriginalWindowsBeltFlag.observedSource(originalSourceID: id,
+                originalSourceType: "tmo_wind_bellows", originalWindPower: drive.state.power,
+                observedNativeRegion: region, observedNativeDisplacement: .init(target.x-o.x,target.y-o.y,0),
+                sourceDepth: m.columns.3.x, targetDepth: target.x)
+        }
+
+        private func advanceOriginalBellows(delta: Double) {
+            for id in bellowsDrives.keys.sorted() {
+                guard var drive = bellowsDrives[id], drive.state.phase != .ready,
+                      drive.state.advance(delta: delta) else { continue }
+                drive.lever.eulerAngles.z = drive.state.leverAngle
+                drive.lever.physicsBody?.resetTransform()
+                bellowsDrives[id] = drive
+                guard drive.state.power > 0 else { continue }
+                for (owner, target) in flagWindmills {
+                    guard let observation = bellowsObservation(id: id,
+                            target: target.fixedFrame.presentation.simdWorldPosition),
+                          let wingsID = windmillIDByWingsID.first(where: { $0.value == owner })?.key,
+                          let wings = physicsNodesByObjectID[wingsID]?.first?.physicsBody,
+                          wings.type == .dynamic else { continue }
+                    // Win32 0x44F5A5 multiplies region fraction * power * .75.
+                    // SceneKit torque conversion is explicitly provisional.
+                    let angular = wings.angularVelocity
+                    let desired = observation.signedIntersection * observation.originalWindPower * 0.75
+                    guard desired != 0 else { continue }
+                    let torque = max(-2,min(2,(desired - angular.z * angular.w) * 0.5))
+                    guard torque.isFinite, abs(torque) > 0.001 else { continue }
+                    wings.applyTorque(SCNVector4(0,0,torque < 0 ? -1 : 1,abs(torque)), asImpulse: false)
+                }
             }
         }
 
@@ -1745,6 +1826,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 let target = drive.wind.simdWorldPosition
                 var samples: [CMOriginalWindowsBeltFlag.WindObservation] = []
                 for sourceID in flagWindSourceIDs.sorted() {
+                    if let sample = bellowsObservation(id: sourceID, target: target) {
+                        samples.append(sample)
+                        continue
+                    }
                     guard let source = flagWindmills[sourceID],
                           let rotor = source.wheel.physicsBody, rotor.type == .dynamic else { continue }
                     let a = rotor.angularVelocity
@@ -2941,6 +3026,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             advanceOriginalHammerDrives(delta: delta)
             advanceOriginalSteamNetwork(delta: delta)
             advanceOriginalSteamPistons()
+            advanceOriginalBellows(delta: delta)
             advanceOriginalFlags(delta: delta)
             advanceOriginalFlasks(delta: delta, root: renderer.scene?.rootNode)
             sampleOriginalRocketAnchorFrames(at: time)
@@ -3746,6 +3832,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             sessionLock.lock()
             guard session?.phase == .running else { sessionLock.unlock(); return }
             session?.recordContact(a, b, impulse: Double(contact.collisionImpulse))
+            strikeOriginalBellows(leverID: a, otherID: b, normalY: contact.contactNormal.y, point: contact.contactPoint)
+            strikeOriginalBellows(leverID: b, otherID: a, normalY: contact.contactNormal.y, point: contact.contactPoint)
             // Map actual SceneKit collision owners back to an original PC
             // tmo_power_switch_lever, never an adjacent housing or base.
             let leverHit = switchContacts?.beginContact(
@@ -5315,10 +5403,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             for (id, kind) in objectTypes
                 where kind == "tmo_rope_seesaw_lever"
                     || kind == "tmo_pipe_ventil_lever"
+                    || kind == "tmo_wind_bellows_lever"
                     || CMOriginalAxleParts.rotatingKinds.contains(kind) {
                 guard let wheel = objectRoots[id],
                       let body = wheel.physicsBody else { continue }
-                if kind == "tmo_rope_seesaw_lever" || kind == "tmo_pipe_ventil_lever" {
+                if kind == "tmo_rope_seesaw_lever" || kind == "tmo_pipe_ventil_lever" || kind == "tmo_wind_bellows_lever" {
                     // Only attach levers which really belong to the PC's
                     // fixed seesaw support, not an unrelated 3DO helper.
                     guard let base = wheel.parent as? CMOriginalPhysicsOwnerNode,
