@@ -720,29 +720,6 @@ struct CMOriginalQuickPlayView: View {
                         powerConnectionMessage = "Choose the second original power plug"
                     }
                 },
-                onOriginalBeltTap: { wheel in
-                    guard eventRevision == sceneRevision, !experimentalPhysics, beltEditing,
-                          let object = originalSession.objects.first(where: { $0.id == wheel }),
-                          CMOriginalDriveBelt.accepts(type: object.type) else { return }
-                    if let first = pendingBeltWheel {
-                        pendingBeltWheel = nil
-                        guard let pair = CMOriginalDriveBelt.Pair(first, wheel) else {
-                            beltMessage = "Choose two different original wheels"
-                            return
-                        }
-                        if originalBelts.remove(pair) != nil {
-                            beltMessage = "Drive belt removed"
-                        } else if originalBelts.count < 64 {
-                            originalBelts.insert(pair)
-                            beltMessage = "Drive belt linked (requires separated, aligned wheels)"
-                        } else {
-                            beltMessage = "Drive belt limit reached"
-                        }
-                    } else {
-                        pendingBeltWheel = wheel
-                        beltMessage = "Tap the second original wheel"
-                    }
-                },
                 onOriginalRopeTap: { endpoint in
                     guard eventRevision == sceneRevision, !experimentalPhysics, ropeEditing,
                           let object = originalSession.objects.first(where: { $0.id == endpoint.objectID }),
@@ -768,6 +745,29 @@ struct CMOriginalQuickPlayView: View {
                     } else {
                         pendingRopeEndpoint = endpoint
                         ropeMessage = "Tap the second rope attachment"
+                    }
+                },
+                onOriginalBeltTap: { wheel in
+                    guard eventRevision == sceneRevision, !experimentalPhysics, beltEditing,
+                          let object = originalSession.objects.first(where: { $0.id == wheel }),
+                          CMOriginalDriveBelt.accepts(type: object.type) else { return }
+                    if let first = pendingBeltWheel {
+                        pendingBeltWheel = nil
+                        guard let pair = CMOriginalDriveBelt.Pair(first, wheel) else {
+                            beltMessage = "Choose two different original wheels"
+                            return
+                        }
+                        if originalBelts.remove(pair) != nil {
+                            beltMessage = "Drive belt removed"
+                        } else if originalBelts.count < 64 {
+                            originalBelts.insert(pair)
+                            beltMessage = "Drive belt linked (requires separated, aligned wheels)"
+                        } else {
+                            beltMessage = "Drive belt limit reached"
+                        }
+                    } else {
+                        pendingBeltWheel = wheel
+                        beltMessage = "Tap the second original wheel"
                     }
                 },
                 onOriginalRopeCut: { pair in
