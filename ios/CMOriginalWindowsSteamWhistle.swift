@@ -18,8 +18,8 @@ public enum CMOriginalWindowsSteamWhistle {
 /// Reconstructed pipe topology from original UCM Pipe attachment frames.
 /// The snap tolerance is a SceneKit approximation, not a native constant.
 /// Only mutually unique opposed ports may join; unmatched ends vent.
-/// Valves and whistle downstream throttling are deliberately not traversed
-/// until their native angle correspondence is available.
+/// Valve traversal uses measured relative lever angle. Whistle downstream
+/// throttling remains unsupported until its native angle mapping is known.
 public enum CMOriginalSteamNetwork {
     public struct Port {
         public let owner: String
@@ -89,14 +89,25 @@ public enum CMOriginalSteamNetwork {
         return previous + (input - previous) / Float(1 + 500 * delta)
     }
 
+    /// Native exit-count gate 0x44C2B2–0x44C2F0, modulo π.
+    /// Equality at π/4 conducts. Missing angle fails closed.
+    public static func valveConducts(ownerAngle: Float, leverAngle: Float) -> Bool {
+        guard ownerAngle.isFinite, leverAngle.isFinite else { return false }
+        let relative = ownerAngle - leverAngle + Float(bitPattern: 0x41490FDB)
+        guard relative.isFinite else { return false }
+        let phase = relative.truncatingRemainder(dividingBy: Float(bitPattern: 0x40490FDB))
+        return phase >= Float(bitPattern: 0x3F490FDB)
+    }
+
     /// Reconstructed acyclic single-source steam flow. The original
     /// 0x44C270 counts terminal exits before 0x44C4C2 divides branch
     /// input. Track each outgoing pipe scalar separately. Ambiguous
-    /// loops, multiple boilers, valves and missing geometry fail closed.
+    /// loops, multiple boilers and missing geometry fail closed.
     /// A whistle's incoming scalar precedes its downstream lever gate.
     public static func advance(
         ports: [Port], types: [String: String], boilerSignals: [String: Float],
-        previous: [Int: Float], delta: Double
+        previous: [Int: Float], delta: Double,
+        openValveIDs: Set<String> = []
     ) -> (outgoing: [Int: Float], receiverSignals: [String: Float]) {
         let joined = mates(ports)
         let indices = Dictionary(grouping: ports.indices, by: { ports[$0].owner })
@@ -120,7 +131,11 @@ public enum CMOriginalSteamNetwork {
                 if type == "tmo_pipe_whistle" || type == "tmo_steam_body" {
                     exits[port] = 1; return 1
                 }
-                guard ["tmo_pipe", "tmo_pipe_corner", "tmo_pipe_distributor"].contains(type) else {
+                if type == "tmo_pipe_ventil", !openValveIDs.contains(owner) {
+                    // A shut valve contributes no terminal exits (0x44C2EE).
+                    exits[port] = 0; return 0
+                }
+                guard ["tmo_pipe", "tmo_pipe_corner", "tmo_pipe_distributor", "tmo_pipe_ventil"].contains(type) else {
                     valid = false; return 0
                 }
                 let next = all.filter { $0 != port }
@@ -143,10 +158,12 @@ public enum CMOriginalSteamNetwork {
             func propagate(_ port: Int, _ input: Float) {
                 let owner = ports[port].owner
                 if children[port] == nil {
-                    receivers[owner] = input; return
+                    if types[owner] != "tmo_pipe_ventil" { receivers[owner] = input }
+                    return
                 }
                 let next = children[port] ?? []
-                let target = input / Float(next.count > 1 ? max(1, exits[port] ?? 1) : 1)
+                let target = next.count > 1 && exits[port] == 0 ? 0 :
+                    input / Float(next.count > 1 ? max(1, exits[port] ?? 1) : 1)
                 for out in next {
                     let value = nextPipeSignal(previous: previous[out] ?? 0,
                                                input: target, delta: delta) ?? 0
