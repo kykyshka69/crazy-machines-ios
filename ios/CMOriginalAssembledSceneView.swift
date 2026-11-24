@@ -720,6 +720,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // Only real authored per-object values may calibrate gear transfer.
         private var originalMechanicalVALFByID: [String: Float] = [:]
         private var conveyorWheelNodes: [String: SCNNode] = [:]
+        private var conveyorRollerNodes: [String: [(kind: String, node: SCNNode)]] = [:]
         // The exact original UCM belt surface is offset from its housing.
         private var conveyorBeltNodes: [String: SCNNode] = [:]
         private var conveyorBeltMaterials: [String: SCNMaterial] = [:]
@@ -1202,6 +1203,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             physicsNodesByObjectID.removeAll()
             appliedPhysicsRoles.removeAll()
             conveyorWheelNodes.removeAll()
+            conveyorRollerNodes.removeAll()
             conveyorBeltNodes.removeAll()
             conveyorBeltMaterials.removeAll()
             conveyorTextureOffsets.removeAll()
@@ -1536,6 +1538,17 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       let wheelNode = physicsNodesByObjectID[part.id]?.first,
                       wheelNode.physicsBody != nil else { continue }
                 conveyorWheelNodes[parentID] = wheelNode
+            }
+            // Each genuine conveyor has one large and three small rollers.
+            // Authenticate exact CML parent ownership rather than proximity.
+            for part in originalObjects {
+                guard CMOriginalConveyorContact.rollerRadius(for: part.type) != nil,
+                      let parentID = part.parentID,
+                      originalTypesByID[parentID] == "tmo_belt_conveyer",
+                      conveyorWheelNodes[parentID] != nil,
+                      let nodes = physicsNodesByObjectID[part.id], nodes.count == 1,
+                      let node = nodes.first, node.physicsBody != nil else { continue }
+                conveyorRollerNodes[parentID, default: []].append((part.type, node))
             }
         }
 
@@ -1886,6 +1899,24 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     let velocity = body.velocity
                     let upSpeed = min(2.0, velocity.y + Float(delta) * 1.25)
                     body.velocity = SCNVector3(velocity.x, upSpeed, velocity.z)
+                }
+            }
+            // Couple real internal rollers mechanically even without belt texture.
+            for (conveyorID, wheel) in conveyorWheelNodes {
+                guard let drive = wheel.physicsBody, drive.type == .dynamic else { continue }
+                let angular = drive.angularVelocity
+                let speed = angular.z < 0 ? -angular.w : angular.w
+                for roller in conveyorRollerNodes[conveyorID] ?? [] {
+                    guard let body = roller.node.physicsBody, body.type == .dynamic else { continue }
+                    let spin = body.angularVelocity
+                    let rollerSpeed = spin.z < 0 ? -spin.w : spin.w
+                    guard let torque = CMOriginalConveyorContact.rollerTorque(
+                        kind: roller.kind, driveSpeed: speed,
+                        rollerSpeed: rollerSpeed, rollerMass: Float(body.mass)) else { continue }
+                    drive.applyTorque(SCNVector4(0, 0, torque.drive < 0 ? -1 : 1,
+                                                 abs(torque.drive)), asImpulse: false)
+                    body.applyTorque(SCNVector4(0, 0, torque.roller < 0 ? -1 : 1,
+                                                abs(torque.roller)), asImpulse: false)
                 }
             }
             // Scroll the REAL original 512x64 belt texture using the same
