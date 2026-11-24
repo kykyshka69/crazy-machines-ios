@@ -73,7 +73,7 @@ public enum CMOriginalRope {
     /// Names verified in the authentic rope UCMs; case-sensitive.
     public static func accepts(type: String, marker: String) -> Bool {
         switch type {
-        case "tmo_rope_hook", "tmo_rope_cage", "tmo_rope_crossbow_lever", "tmo_pipe_ventil_lever":
+        case "tmo_rope_hook", "tmo_rope_cage", "tmo_rope_crossbow_lever", "tmo_pipe_ventil_lever", "tmo_balloon":
             return marker == "Rope"
         case "tmo_rope_scissors_1", "tmo_rope_scissors_2":
             return marker == "Rope01"
@@ -82,6 +82,14 @@ public enum CMOriginalRope {
         default:
             return false
         }
+    }
+
+    /// Retiring a simulated original owner must sever only its incident
+    /// links. The editor's authored links are retained for replay.
+    public static func incidentPairs(in pairs: Set<Pair>, retiredOwners: Set<String>) -> Set<Pair> {
+        Set(pairs.filter {
+            retiredOwners.contains($0.first.objectID) || retiredOwners.contains($0.second.objectID)
+        })
     }
 
     /// A rope pulls only while stretched; never pushes, injects tension
