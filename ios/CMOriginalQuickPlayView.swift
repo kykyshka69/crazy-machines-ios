@@ -582,6 +582,19 @@ struct CMOriginalQuickPlayView: View {
                         isSimulationRunning: true
                     )
                 },
+                onOriginalHammerGoal: { ownerID in
+                    // Native 0x44BFA5 emits channel 0 after the nail
+                    // enters the terminal depth state. The renderer's
+                    // reconstructed mechanism captures this while running.
+                    guard eventRevision == sceneRevision, experimentalPhysics,
+                          originalSession.objects.contains(where: {
+                              $0.id == ownerID && $0.type == "tmo_hammer"
+                          }) else { return }
+                    _ = windowsGoalCounter?.recordGoalEvent(
+                        objectID: ownerID, simulationRunning: true)
+                    _ = objectiveLedger?.recordGoalStateChanged(
+                        ownerID, isSimulationRunning: true)
+                },
                 onOriginalDisrupterAngle: { disrupterID, wheelAngle in
                     guard eventRevision == sceneRevision else { return }
                     guard experimentalPhysics else { return }
