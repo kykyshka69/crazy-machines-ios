@@ -641,6 +641,17 @@ struct CMOriginalQuickPlayView: View {
                     _ = objectiveLedger?.recordGoalStateChanged(
                         ownerID, isSimulationRunning: true)
                 },
+                onOriginalFlaskGoal: { ownerID in
+                    guard eventRevision == sceneRevision, experimentalPhysics,
+                          originalSession.objects.contains(where: {
+                              $0.id == ownerID && $0.type == "tmo_flask"
+                          }) else { return }
+                    // Reconstructed active particle count >5, not heat alone.
+                    _ = windowsGoalCounter?.recordGoalEvent(
+                        objectID: ownerID, simulationRunning: true)
+                    _ = objectiveLedger?.recordGoalStateChanged(
+                        ownerID, isSimulationRunning: true)
+                },
                 onOriginalSolarRays: { rays in
                     guard eventRevision == sceneRevision, experimentalPhysics else { return }
                     originalSolarRays = rays
