@@ -28,6 +28,29 @@ struct OriginalPlacementHistorySmoke {
         assert(CMOriginalPlacementHistory.Pose(identifier: "../../escape", position: [0, 0, 0], rotation: [0, 0, 0]) == nil)
         assert(CMOriginalPlacementHistory.Pose(identifier: "original-node-1", position: [Double.infinity, 0, 0], rotation: [0, 0, 0]) == nil)
         assert(CMOriginalPlacementHistory.Pose(identifier: "original-node-1", position: [0, 0, 0], rotation: [0, Double.nan, 0]) == nil)
+        struct Node {
+            let id: Int
+            let parent: Int?
+            let unlocked: Bool
+        }
+        let nodes = [
+            Node(id: 0, parent: nil, unlocked: false),
+            Node(id: 1, parent: 0, unlocked: true),
+            Node(id: 2, parent: 1, unlocked: false),
+            Node(id: 3, parent: 2, unlocked: false),
+            Node(id: 4, parent: 0, unlocked: false),
+            Node(id: 5, parent: 1, unlocked: true),
+            Node(id: 6, parent: 5, unlocked: false)
+        ]
+        func editable(_ id: Int?) -> Int? {
+            CMOriginalPlacementHistory.editableAncestor(
+                startingAt: id, parent: { nodes[$0].parent },
+                unlocked: { nodes[$0].unlocked })
+        }
+        for (id, expected) in [(0,nil),(1,1),(2,1),(3,1),(4,nil),(5,5),(6,5)] as [(Int,Int?)] {
+            precondition(editable(id) == expected)
+        }
+        precondition(editable(nil) == nil)
         print("Original placement undo smoke passed")
     }
 }
