@@ -748,6 +748,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalCableCut: ((CMOriginalPowerCircuit.Cable) -> Void)?
         private var scissorsBladesByOwner: [String: (first: String, second: String)] = [:]
         private var firedScissorsIDs = Set<String>()
+        private var originalFuzeSegments: [SCNNode] = []
         private var reportedCutCables = Set<CMOriginalPowerCircuit.Cable>()
         func setPoweredMotorDriveSignals(_ signals: [String: Float]) {
             sessionLock.lock()
@@ -1402,6 +1403,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 let a = start.presentation.simdWorldPosition
                 let b = end.presentation.simdWorldPosition
                 cutOriginalRopes(bladeStart: a, bladeEnd: b)
+                cutOriginalFuzeSegments(bladeStart: a, bladeEnd: b)
                 originalCableVisualLock.lock()
                 // Texture/visual availability must not determine electrical cuts.
                 let hits = originalPhysicalCablePairs.filter { pair in
@@ -1422,6 +1424,47 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                 }
             }
+        }
+
+        // Virtual scissors cut the actual authored route, not a fictitious
+        // rigid body. Preserve both visible fragments and their owner.
+        // The curved native spline is still represented by straight CML spans.
+        private func cutOriginalFuzeSegments(bladeStart: SIMD3<Float>, bladeEnd: SIMD3<Float>) {
+            var survivors: [SCNNode] = []
+            for node in originalFuzeSegments {
+                guard let strip = node.geometry as? SCNCylinder,
+                      let parent = node.parent,
+                      let owner = owningOriginalObjectID(for: node),
+                      originalTypesByID[owner] == "tmo_fuze" else { continue }
+                let half = Float(strip.height)/2
+                let a = node.presentation.simdConvertPosition(.init(0,-half,0), to: nil)
+                let b = node.presentation.simdConvertPosition(.init(0,half,0), to: nil)
+                guard CMOriginalRope.intersectsScissors(ropeStart: a, ropeEnd: b,
+                    bladeStart: bladeStart, bladeEnd: bladeEnd),
+                    let fraction = CMOriginalFuzePath.closestCutFraction(
+                        spanStart: a, spanEnd: b, bladeStart: bladeStart, bladeEnd: bladeEnd)
+                else { survivors.append(node); continue }
+                // The gap is a display-only break in the virtual route.
+                let pieces = CMOriginalFuzePath.visiblePieces(cut: fraction,
+                    gap: min(1, 0.025 / max(0.025, Float(strip.height))))
+                for piece in pieces {
+                    let bottom = -half + Float(strip.height)*piece.lowerBound
+                    let top = -half + Float(strip.height)*piece.upperBound
+                    guard top-bottom > 0.0001 else { continue }
+                    let shape = SCNCylinder(radius: strip.radius, height: CGFloat(top-bottom))
+                    shape.radialSegmentCount = strip.radialSegmentCount
+                    shape.materials = strip.materials
+                    let fragment = CMOriginalObjectMeshNode(geometry: shape)
+                    fragment.originalObjectID = owner
+                    fragment.name = "original-authored-fuze-fragment"
+                    fragment.simdTransform = node.simdTransform
+                    fragment.simdPosition = node.simdConvertPosition(.init(0,(bottom+top)/2,0), to: parent)
+                    parent.addChildNode(fragment)
+                    survivors.append(fragment)
+                }
+                node.removeFromParentNode()
+            }
+            originalFuzeSegments = survivors
         }
 
         // Native scissors samples rope and power cable in separate calls.
@@ -2567,6 +2610,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 uniqueKeysWithValues: originalObjects.map { ($0.id, $0.type) }
             )
             scissorsBladesByOwner.removeAll()
+            originalFuzeSegments.removeAll()
             firedScissorsIDs.removeAll()
             reportedCutCables.removeAll()
             for owner in originalObjects where owner.type == "tmo_rope_scissors" {
@@ -2705,6 +2749,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             )
             let ambiguousSwitchIDs = Set(Dictionary(grouping: switchByLeverID.values, by: { $0 }).filter { $0.value.count != 1 }.keys)
             scene.rootNode.enumerateChildNodes { node, _ in
+                if node.name?.hasPrefix("original-authored-fuze-segment-") == true,
+                   let id = self.owningOriginalObjectID(for: node),
+                   self.originalTypesByID[id] == "tmo_fuze",
+                   node.geometry is SCNCylinder {
+                    self.originalFuzeSegments.append(node)
+                }
                 if node.name?.hasPrefix("original-ucm-anchor-") == true,
                    let owner = self.owningOriginalObjectID(for: node) {
                     self.originalNamedAnchorNodesByObjectID[owner, default: []]
