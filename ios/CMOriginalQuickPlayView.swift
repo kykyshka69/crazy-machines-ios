@@ -662,6 +662,18 @@ struct CMOriginalQuickPlayView: View {
                     _ = objectiveLedger?.recordGoalStateChanged(
                         ownerID, isSimulationRunning: true)
                 },
+                onOriginalWindCandleGoal: { ownerID in
+                    guard eventRevision == sceneRevision, experimentalPhysics,
+                          originalSession.objects.contains(where: {
+                              $0.id == ownerID && ["tmo_candle", "tmo_candle_dyn"].contains($0.type)
+                          }) else { return }
+                    // Native wind receiver invokes GOAL only after the
+                    // lit candle has actually been extinguished.
+                    _ = windowsGoalCounter?.recordGoalEvent(
+                        objectID: ownerID, simulationRunning: true)
+                    _ = objectiveLedger?.recordGoalStateChanged(
+                        ownerID, isSimulationRunning: true)
+                },
                 onOriginalSolarRays: { rays in
                     guard eventRevision == sceneRevision, experimentalPhysics else { return }
                     originalSolarRays = rays
