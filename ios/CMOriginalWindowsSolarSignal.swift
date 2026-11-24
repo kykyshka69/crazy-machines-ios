@@ -57,3 +57,38 @@ public enum CMOriginalWindowsSolarSignal {
         solarPower.isFinite && solarPower > solarGoalCutoff
     }
 }
+
+/// Optical adapters using authentic Light UCM marker coordinates.
+/// Original direct lamp branch 0x44FE00..0x44FE23 uses power/10/(distance*5).
+/// Pocketlamp branch 0x44FE4D..0x44FF2E requires +0xEC != 0 and adds
+/// the cone fraction directly. It is not a 10-unit electrical lamp.
+public enum CMOriginalLiveOptics {
+    public static func lampContribution(power: Float, pathLength: Float,
+                                        unobstructed: Bool) -> Float? {
+        guard power.isFinite, power >= 0, pathLength.isFinite, pathLength > 0 else { return nil }
+        guard unobstructed else { return 0 }
+        return CMOriginalWindowsSolarSignal.rayContribution(
+            emitterPower: power, interceptedFraction: 1, pathLength: pathLength)
+    }
+
+    /// Native pocketlamp cone constructor 0x45422A..0x454259:
+    /// angle 30 degrees, near scale .3, outer extension 1.5.
+    /// Like the candle constructor, 0x409860 uses literal 90 in tan.
+    public static func pocketContribution(lit: Bool, axis: SIMD3<Float>,
+                                          displacement: SIMD3<Float>,
+                                          unobstructed: Bool) -> Float? {
+        guard [axis.x, axis.y, displacement.x, displacement.y].allSatisfy(\.isFinite)
+        else { return nil }
+        guard lit, unobstructed else { return 0 }
+        let radians: Float = 30 * 0.01745329238474369
+        let inner = abs(tan(Float(90) + radians) * 0.3)
+        let outer = inner + 1.5
+        let minSq = inner * inner, maxSq = outer * outer
+        return CMOriginalWindowsWindRegion.measuredFraction(
+            nativeDisplacement: .init(displacement.x, displacement.y, 0),
+            region: .init(nativeAxis: .init(axis.x, axis.y, 0),
+                minRadiusSquared: minSq, maxRadiusSquared: maxSq,
+                radialFalloff: 1 / (maxSq - minSq), maximumAngle: radians,
+                angularFalloff: 1 / radians))
+    }
+}
