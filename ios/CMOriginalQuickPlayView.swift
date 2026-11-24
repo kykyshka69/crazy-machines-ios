@@ -104,6 +104,7 @@ struct CMOriginalQuickPlayView: View {
     @State private var undoPlacementRevision = 0
     @State private var canUndoPlacement = false
     @State private var showAllLevels = false
+    @State private var originalTemplatesLoadFinished = false
     @State private var originalWindowsTemplates:
         [String: CMOriginalElementsTemplateCatalog.Template]?
     @State private var originalLevelDoneActions:
@@ -253,8 +254,9 @@ struct CMOriginalQuickPlayView: View {
         Set(wiredMotorRotorDriveSignals.keys)
     }
 
-    private func creditExperimentalElectricGoals() {
-        guard experimentalPhysics && experimentalWiredPower && !physicsPaused else {
+    private func creditExperimentalElectricGoals(capturedWhileRunning: Bool = false) {
+        guard experimentalPhysics && experimentalWiredPower,
+              !physicsPaused || capturedWhileRunning else {
             return
         }
         let eligible = CMOriginalWindowsElectricalGoals.activeGoalIDs(
@@ -429,7 +431,7 @@ struct CMOriginalQuickPlayView: View {
                 document: document,
                 assetDirectory: assetDirectory,
                 experimentalPhysics: experimentalPhysics,
-                physicsPaused: physicsPaused,
+                physicsPaused: physicsPaused || windowsGoalCounter?.completed == true,
                 cameraResetRevision: cameraResetRevision,
                 undoPlacementRevision: undoPlacementRevision,
                 onCanUndoPlacementChange: { value in
@@ -456,17 +458,17 @@ struct CMOriginalQuickPlayView: View {
                 configuredPhysicsRoles: experimentalPhysicsRoles,
                 onOriginalZoneContact: { type in
                     guard eventRevision == sceneRevision else { return }
-                    // SceneKit dispatches observations asynchronously. A queued
-                    // event must not revive progress after Pause, Stop or Reset.
-                    guard experimentalPhysics && !physicsPaused else { return }
+                    // The renderer authenticated this event while running. Pause
+                    // does not erase it; Stop/Replay invalidates its scene revision.
+                    guard experimentalPhysics else { return }
                     // Callback is posted to the main thread by SceneKit bridge.
                     zoneContacts[type, default: 0] += 1
                 },
                 onLinkedZoneContact: { sourceID, zoneID in
                     guard eventRevision == sceneRevision else { return }
-                    // SceneKit dispatches observations asynchronously. A queued
-                    // event must not revive progress after Pause, Stop or Reset.
-                    guard experimentalPhysics && !physicsPaused else { return }
+                    // The renderer authenticated this event while running. Pause
+                    // does not erase it; Stop/Replay invalidates its scene revision.
+                    guard experimentalPhysics else { return }
                     // Only a contact with the source object's OWN original
                     // CONNECTED_TO zone counts as a recovered objective.
                     let isOriginalTarget = originalZoneConnections.contains {
@@ -495,16 +497,16 @@ struct CMOriginalQuickPlayView: View {
                 },
                 onOriginalConnectionContact: { sourceID, targetID in
                     guard eventRevision == sceneRevision else { return }
-                    // SceneKit dispatches observations asynchronously. A queued
-                    // event must not revive progress after Pause, Stop or Reset.
-                    guard experimentalPhysics && !physicsPaused else { return }
+                    // The renderer authenticated this event while running. Pause
+                    // does not erase it; Stop/Replay invalidates its scene revision.
+                    guard experimentalPhysics else { return }
                     _ = windowsGoalCounter?.recordConnectedToEvent(
                         sourceID: sourceID, targetID: targetID,
-                        simulationRunning: experimentalPhysics && !physicsPaused
+                        simulationRunning: true
                     )
                     _ = objectiveLedger?.recordPhysicalContact(
                         sourceID, targetID,
-                        isSimulationRunning: experimentalPhysics && !physicsPaused
+                        isSimulationRunning: true
                     )
                     let key = sourceID + "|" + targetID
                     if originalMechanismConnections.contains(where: {
@@ -524,18 +526,18 @@ struct CMOriginalQuickPlayView: View {
                 },
                 onOriginalBucketCapture: { ballID, bucketID in
                     guard eventRevision == sceneRevision else { return }
-                    // SceneKit dispatches observations asynchronously. A queued
-                    // event must not revive progress after Pause, Stop or Reset.
-                    guard experimentalPhysics && !physicsPaused else { return }
+                    // The renderer authenticated this event while running. Pause
+                    // does not erase it; Stop/Replay invalidates its scene revision.
+                    guard experimentalPhysics else { return }
                     // Real original tmo_ball_* approaches the authored
                     // Test/Catch marker within native Win32 radius 0.1.
                     _ = windowsGoalCounter?.recordGoalEvent(
                         objectID: bucketID,
-                        simulationRunning: experimentalPhysics && !physicsPaused
+                        simulationRunning: true
                     )
                     _ = objectiveLedger?.recordGoalStateChanged(
                         bucketID,
-                        isSimulationRunning: experimentalPhysics && !physicsPaused
+                        isSimulationRunning: true
                     )
                     if fourthLevelRun?.recordCapture(
                         ballID: ballID, bucketID: bucketID
@@ -545,27 +547,27 @@ struct CMOriginalQuickPlayView: View {
                 },
                 onOriginalCageCapture: { ballID, cageID in
                     guard eventRevision == sceneRevision else { return }
-                    // SceneKit dispatches observations asynchronously. A queued
-                    // event must not revive progress after Pause, Stop or Reset.
-                    guard experimentalPhysics && !physicsPaused else { return }
+                    // The renderer authenticated this event while running. Pause
+                    // does not erase it; Stop/Replay invalidates its scene revision.
+                    guard experimentalPhysics else { return }
                     // Native Win32 Catch/Test path 0x44D874...0x44D9A2
                     // also accepts GOAL-marked tmo_rope_cage containers.
                     // A ball within the original 0.1 spatial target radius
                     // generates one channel-0 event for the cage owner.
                     _ = windowsGoalCounter?.recordGoalEvent(
                         objectID: cageID,
-                        simulationRunning: experimentalPhysics && !physicsPaused
+                        simulationRunning: true
                     )
                     _ = objectiveLedger?.recordGoalStateChanged(
                         cageID,
-                        isSimulationRunning: experimentalPhysics && !physicsPaused
+                        isSimulationRunning: true
                     )
                 },
                 onOriginalPlayerSourceGoal: { originalID in
                     guard eventRevision == sceneRevision else { return }
-                    // SceneKit dispatches observations asynchronously. A queued
-                    // event must not revive progress after Pause, Stop or Reset.
-                    guard experimentalPhysics && !physicsPaused else { return }
+                    // The renderer authenticated this event while running. Pause
+                    // does not erase it; Stop/Replay invalidates its scene revision.
+                    guard experimentalPhysics else { return }
                     // Real x86 0x455241 captures the initial source state
                     // in +0xF0. Native 0x434A76/0x434B12 emits channel-0
                     // only AFTER user click changes +0xEC against +0xF0.
@@ -573,16 +575,16 @@ struct CMOriginalQuickPlayView: View {
                     // on the real imported, GOAL-marked PC element.
                     _ = windowsGoalCounter?.recordGoalEvent(
                         objectID: originalID,
-                        simulationRunning: experimentalPhysics && !physicsPaused
+                        simulationRunning: true
                     )
                     _ = objectiveLedger?.recordGoalStateChanged(
                         originalID,
-                        isSimulationRunning: experimentalPhysics && !physicsPaused
+                        isSimulationRunning: true
                     )
                 },
                 onOriginalDisrupterAngle: { disrupterID, wheelAngle in
                     guard eventRevision == sceneRevision else { return }
-                    guard experimentalPhysics && !physicsPaused else { return }
+                    guard experimentalPhysics else { return }
                     guard originalSession.objects.contains(where: {
                         $0.id == disrupterID
                             && $0.type == "tmo_power_disrupter"
@@ -590,22 +592,22 @@ struct CMOriginalQuickPlayView: View {
                     // Only genuine original wheel->device ownership events.
                     // Missing angle always blocks power, never auto-enables.
                     disrupterAnglesByDeviceID[disrupterID] = wheelAngle
-                    creditExperimentalElectricGoals()
+                    creditExperimentalElectricGoals(capturedWhileRunning: true)
                 },
                 onOriginalGeneratorSignal: { generatorID, rotorSpeed in
                     guard eventRevision == sceneRevision else { return }
-                    guard experimentalPhysics && !physicsPaused else { return }
+                    guard experimentalPhysics else { return }
                     generatorRotorSpeedsByDeviceID[generatorID] = rotorSpeed
                     if CMOriginalWindowsPowerScalar.generatorTriggersGoal(
                         rotor: rotorSpeed) {
                         _ = windowsGoalCounter?.recordGoalEvent(
                             objectID: generatorID, simulationRunning: true)
                     }
-                    creditExperimentalElectricGoals()
+                    creditExperimentalElectricGoals(capturedWhileRunning: true)
                 },
                 onOriginalWindmillSignal: { windmillID, measuredRotorSpeed in
                     guard eventRevision == sceneRevision else { return }
-                    guard experimentalPhysics && !physicsPaused else { return }
+                    guard experimentalPhysics else { return }
                     // The native GOAL predicate is exact; mapping SceneKit
                     // angular velocity to Win32 +0xE0 remains provisional.
                     if CMOriginalWindowsWindmill.triggersGoal(
@@ -706,7 +708,7 @@ struct CMOriginalQuickPlayView: View {
                     powerCircuit = circuit
                     // Do not save a simulation cut into editor wiring.
                     powerConnectionMessage = "Original scissors cut a power cable"
-                    creditExperimentalElectricGoals()
+                    creditExperimentalElectricGoals(capturedWhileRunning: true)
                 },
                 onOriginalSwitchToggle: { switchID, isOn in
                     guard eventRevision == sceneRevision, experimentalPhysics else { return }
@@ -719,13 +721,13 @@ struct CMOriginalQuickPlayView: View {
                     } else {
                         flippedOriginalSwitchIDs.remove(switchID)
                     }
-                    creditExperimentalElectricGoals()
+                    creditExperimentalElectricGoals(capturedWhileRunning: true)
                 },
                 onOriginalSwitchContact: { hit in
                     guard eventRevision == sceneRevision else { return }
-                    // SceneKit dispatches observations asynchronously. A queued
-                    // event must not revive progress after Pause, Stop or Reset.
-                    guard experimentalPhysics && !physicsPaused else { return }
+                    // The renderer authenticated this event while running. Pause
+                    // does not erase it; Stop/Replay invalidates its scene revision.
+                    guard experimentalPhysics else { return }
                     // Collision evidence is not Win32 +0xEC/+0xC8 closure:
                     // only expose verified original object identities.
                     observedOriginalLeverStrikers.insert(
@@ -734,19 +736,19 @@ struct CMOriginalQuickPlayView: View {
                 },
                 onOriginalOpticalSightlines: { observations in
                     guard eventRevision == sceneRevision else { return }
-                    // SceneKit dispatches observations asynchronously. A queued
-                    // event must not revive progress after Pause, Stop or Reset.
-                    guard experimentalPhysics && !physicsPaused else { return }
+                    // The renderer authenticated this event while running. Pause
+                    // does not erase it; Stop/Replay invalidates its scene revision.
+                    guard experimentalPhysics else { return }
                     originalOpticalSightlines = observations
                 },
                 onOriginalRocketAnchorSnapshots: { snapshots in
                     guard eventRevision == sceneRevision,
-                          experimentalPhysics && !physicsPaused else { return }
+                          experimentalPhysics else { return }
                     observedOriginalRocketAnchors = snapshots
                 },
                 onOriginalCandleRocketHeatPairs: { measured in
                     guard eventRevision == sceneRevision,
-                          experimentalPhysics && !physicsPaused else { return }
+                          experimentalPhysics else { return }
                     observedCandleRocketHeatPairs = measured
                 },
                 onOriginalReconstructedRocketGoal: { parentID, childID in
@@ -1018,42 +1020,16 @@ struct CMOriginalQuickPlayView: View {
                 Toggle("Run experimental physics", isOn: $experimentalPhysics)
                     .font(.caption)
                     .onChange(of: experimentalPhysics) { _, newValue in
-                        cutOriginalRopes.removeAll()
-                        pendingRopeEndpoint = nil
                         ropeEditing = false
-                        ropeMessage = nil
                         beltEditing = false
-                        pendingBeltWheel = nil
-                        beltMessage = nil
-                        powerCircuit?.clearRuntimeCuts()
-                        pendingPowerPlugID = nil
-                        powerConnectionMessage = nil
                         if !newValue {
                             experimentalMotorDrive = false
                             experimentalMagnetism = false
                             experimentalWiredPower = false
                         }
-                        physicsPaused = false
-                        zoneContacts.removeAll()
-                        matchedZoneLinks.removeAll()
-                        matchedMechanismLinks.removeAll()
-                        flippedOriginalSwitchIDs.removeAll()
-                        observedOriginalLeverStrikers.removeAll()
-                        originalOpticalSightlines.removeAll()
-        observedOriginalRocketAnchors.removeAll()
-        observedCandleRocketHeatPairs.removeAll()
-                        generatorRotorSpeedsByDeviceID.removeAll()
-        disrupterAnglesByDeviceID.removeAll()
-                        firstLevelRun?.reset()
-        secondLevelRun?.reset()
-                        thirdLevelRun?.reset()
-                        fourthLevelRun?.reset()
-                        objectiveLedger?.reset()
-                        windowsGoalCounter?.reset()
-                        // Rebuild bodies only after changing scene physics mode.
-                        canUndoPlacement = false
-                        sceneRevision = UUID()
+                        restartCurrentPuzzle()
                     }
+                    .disabled(!originalTemplatesLoadFinished)
                     .accessibilityIdentifier("cm.original.quickplay-physics")
                 if experimentalPhysics {
                     Button(physicsPaused ? "Resume" : "Pause") {
@@ -1064,6 +1040,7 @@ struct CMOriginalQuickPlayView: View {
                     // XCUI/VoiceOver. SceneKit may render continuously, so
                     // the accessibility snapshot must expose the live
                     // SwiftUI state rather than rely on a stale button label.
+                    .disabled(windowsGoalCounter?.completed == true)
                     .accessibilityLabel(physicsPaused ? "Resume" : "Pause")
                     .accessibilityValue(physicsPaused ? "paused" : "running")
                     .accessibilityIdentifier("cm.original.quickplay-pause")
@@ -1580,15 +1557,20 @@ struct CMOriginalQuickPlayView: View {
             let original = await Task.detached(priority: .utility) {
                 CMOriginalWindowsScriptLibrary.load(directory: directory)
             }.value
-            if let original {
+            // Never replace the running board while retaining old GOAL latches.
+            // Initial run is disabled until this first template load completes.
+            if !originalTemplatesLoadFinished {
                 originalWindowsTemplates = original
-                if experimentalPhysics { sceneRevision = UUID() }
+                originalTemplatesLoadFinished = true
             }
             // Original PC completion UI is another encrypted script, using
             // the independently recovered tz023416 Value Script key.
             originalLevelDoneActions = await Task.detached(priority: .utility) {
                 CMOriginalVSCScriptLibrary.loadLevelDone(directory: directory)
             }.value
+        }
+        .onChange(of: windowsGoalCounter?.completed == true) { _, completed in
+            if completed { physicsPaused = true }
         }
         .onChange(of: document.index) { _, newIndex in
             lastPlayedOriginalLevel = newIndex
