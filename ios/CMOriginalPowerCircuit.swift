@@ -754,6 +754,125 @@ public struct CMOriginalPowerCircuit {
         return NetworkObservation(deviceSignals: devices, cableSignals: wires)
     }
 
+    /// Bounded settled consensus over unresolved source and component
+    /// slot orders. Unlike the old device reachability fallback, this keeps
+    /// only positive values that agree in EVERY enumerated native walk.
+    /// This is not a substitute for the original frame schedule; an unknown
+    /// observation or excessive permutation count rejects the approximation.
+    public func settledOrderConsensusObservation(
+        closedSwitchIDs: Set<String> = [],
+        generatorRotorCommandsByDeviceID: [String: Float] = [:],
+        solarRayContributionsByDeviceID: [String: [Float]] = [:],
+        disrupterRotorAnglesByDeviceID: [String: Float] = [:]
+    ) -> NetworkObservation? {
+        let groups = Dictionary(grouping: terminals, by: \.deviceID)
+        let sources = sourceDeviceIDs.union(conditionalSourceDeviceIDs)
+        guard !sources.isEmpty, sources.allSatisfy({ groups[$0]?.count == 1 }) else { return nil }
+        let limit = 256
+        func permutations(_ values: [String]) -> [[String]]? {
+            var result: [[String]] = [[]]
+            for value in values {
+                var next: [[String]] = []
+                for order in result {
+                    for index in 0...order.count {
+                        guard next.count < limit else { return nil }
+                        var candidate = order
+                        candidate.insert(value, at: index)
+                        next.append(candidate)
+                    }
+                }
+                result = next
+            }
+            return result
+        }
+        var values: [String: Float] = [:]
+        for id in sources {
+            if sourceDeviceIDs.contains(id) {
+                values[id] = CMOriginalWindowsPowerScalar.batterySource
+            } else if generatorDeviceIDs.contains(id) {
+                guard let speed = generatorRotorCommandsByDeviceID[id],
+                      let value = CMOriginalWindowsPowerScalar.generatorSignal(fromRotorCommand: speed)
+                else { return nil }
+                values[id] = value
+            } else {
+                guard let rays = solarRayContributionsByDeviceID[id],
+                      let value = CMOriginalWindowsSolarSignal.collectedPower(rayContributions: rays)
+                else { return nil }
+                values[id] = value
+            }
+        }
+        guard let sourceOrders = permutations(sources.sorted()) else { return nil }
+        var orders: [[String: [String]]] = [[:]]
+        let connected = Set(activeCables.flatMap { [$0.firstPlugID, $0.secondPlugID] })
+        for owner in groups.keys.sorted() {
+            guard let slots = groups[owner] else { return nil }
+            let ids = slots.map(\.plugID)
+            // Unwired slots cannot change traversal order. Consumer reads
+            // below require agreement across all slots, not a guessed first.
+            let linked = ids.filter { connected.contains($0) }
+            let unlinked = ids.filter { !connected.contains($0) }
+            guard let variants = permutations(linked),
+                  orders.count <= limit / sourceOrders.count / variants.count else { return nil }
+            var next: [[String: [String]]] = []
+            for order in orders {
+                for variant in variants {
+                    var candidate = order
+                    candidate[owner] = variant + unlinked
+                    next.append(candidate)
+                }
+            }
+            orders = next
+        }
+        var gates: [String: Bool] = [:]
+        for id in switchDeviceIDs { gates[id] = closedSwitchIDs.contains(id) }
+        for id in disrupterDeviceIDs {
+            guard let phase = disrupterRotorAnglesByDeviceID[id], phase.isFinite else { return nil }
+            gates[id] = CMOriginalWindowsPowerDisrupter.conducts(rotorAngle: phase)
+        }
+        var active = self
+        active.cables = activeCables
+        active.clearRuntimeCuts()
+        let initial = NativePortState(signals: Dictionary(uniqueKeysWithValues:
+            terminals.map { ($0.plugID, Float(0)) }))
+        var consensusDevices: [String: Float]?
+        var consensusWires: [Cable: Float]?
+        for sourceOrder in sourceOrders {
+            let events = sourceOrder.compactMap { id -> NativePortEvent? in
+                guard let plug = groups[id]?.first, let value = values[id] else { return nil }
+                return .source(plugID: plug.plugID, value: value)
+            }
+            guard events.count == sources.count else { return nil }
+            for order in orders {
+                guard let state = active.nativePortPass(previous: initial, events: events,
+                    conductingByDeviceID: gates, observedSlotOrder: order) else { return nil }
+                var devices: [String: Float] = [:]
+                for (id, slots) in groups {
+                    guard gates[id] != false, let first = slots.first,
+                          let value = state.signals[first.plugID], value > 0,
+                          slots.allSatisfy({ state.signals[$0.plugID] == value }) else { continue }
+                    devices[id] = value
+                }
+                var wires: [Cable: Float] = [:]
+                for cable in active.cables {
+                    guard let left = byPlugID[cable.firstPlugID],
+                          let right = byPlugID[cable.secondPlugID],
+                          !(sources.contains(left.deviceID) && sources.contains(right.deviceID)),
+                          let value = state.signals[cable.firstPlugID], value > 0,
+                          state.signals[cable.secondPlugID] == value else { continue }
+                    wires[cable] = value
+                }
+                consensusDevices = consensusDevices.map { prior in
+                    prior.filter { devices[$0.key] == $0.value }
+                } ?? devices
+                consensusWires = consensusWires.map { prior in
+                    prior.filter { wires[$0.key] == $0.value }
+                } ?? wires
+            }
+        }
+        return NetworkObservation(deviceSignals: consensusDevices ?? [:],
+                                  cableSignals: consensusWires ?? [:])
+    }
+
     /// Compatibility entry for the earlier restricted battery-only bridge.
     public func settledSingleBatteryObservation(
         closedSwitchIDs: Set<String> = [],
