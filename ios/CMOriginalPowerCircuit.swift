@@ -637,11 +637,13 @@ public struct CMOriginalPowerCircuit {
                               observedSlotOrder: observedSlotOrder)
     }
 
-    /// Settled per-port bridge for source-disjoint acyclic networks.
+    /// Settled per-port bridge for source-disjoint networks.
     /// Every connected component must have at most one potential source
     /// (including inactive generators and solar cells). Thus source order
     /// cannot affect its settled load signals. Native transient scheduling
     /// and interacting sources still require the ordered runtime model.
+    /// Cycles are order-independent only when every gate in their powered
+    /// component conducts: no conflicting zero/positive path can arrive.
     public func settledIndependentSourceObservation(
         closedSwitchIDs: Set<String> = [],
         generatorRotorCommandsByDeviceID: [String: Float] = [:],
@@ -653,8 +655,9 @@ public struct CMOriginalPowerCircuit {
         let groups = Dictionary(grouping: terminals, by: \.deviceID)
         guard sources.allSatisfy({ groups[$0]?.count == 1 }) else { return nil }
 
-        // A forest has exactly one path between any pair of owners.
-        // Reject cycles, including two parallel cables between owners.
+        // Identify connected components and cyclic components, including
+        // parallel cables. Resolve roots after all unions are complete.
+        var cycleOwners = Set<String>()
         var parents = Dictionary(uniqueKeysWithValues: groups.keys.map { ($0, $0) })
         func root(_ id: String) -> String {
             var current = id
@@ -664,8 +667,8 @@ public struct CMOriginalPowerCircuit {
         for cable in activeCables {
             guard let a = byPlugID[cable.firstPlugID], let b = byPlugID[cable.secondPlugID] else { return nil }
             let x = root(a.deviceID), y = root(b.deviceID)
-            guard x != y else { return nil }
-            parents[x] = y
+            if x == y { cycleOwners.insert(a.deviceID) }
+            else { parents[x] = y }
         }
         // Do not decide source precedence using an invented order.
         var sourceRoots = Set<String>()
@@ -696,6 +699,13 @@ public struct CMOriginalPowerCircuit {
                 CMOriginalWindowsPowerDisrupter.conducts(rotorAngle: $0)
             } == true
         }
+        let cyclicRoots = Set(cycleOwners.map(root)).intersection(sourceRoots)
+        // A blocked gate could cause the native first-arrival walker to
+        // choose between zero and positive inputs around a cycle. Until
+        // slot order is known, retain the conservative fallback for it.
+        guard !gates.contains(where: { id, conducting in
+            !conducting && cyclicRoots.contains(root(id))
+        }) else { return nil }
         // Cut cables are absent from this settled reconstruction. Every
         // remaining slot starts at zero, avoiding stale disconnected power.
         var active = self
@@ -708,7 +718,7 @@ public struct CMOriginalPowerCircuit {
             conductingByDeviceID: gates) else { return nil }
         var devices: [String: Float] = [:]
         for (owner, slots) in groups {
-            // In a forest, all ungated slots on a reached owner carry the
+            // In a forest or fully conducting cycle, all ungated slots on a reached owner carry the
             // same value. The first-slot consumer read therefore does not
             // depend on unverified CML vs native component ordering.
             guard let first = slots.first, let signal = state.signals[first.plugID],
