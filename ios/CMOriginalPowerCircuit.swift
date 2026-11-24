@@ -638,10 +638,11 @@ public struct CMOriginalPowerCircuit {
     }
 
     /// Settled per-port bridge for source-disjoint networks.
-    /// Every connected component must have at most one potential source
-    /// (including inactive generators and solar cells). Thus source order
-    /// cannot affect its settled load signals. Native transient scheduling
-    /// and interacting sources still require the ordered runtime model.
+    /// Each connected component must have either one potential source or
+    /// exclusively native 10.0 batteries and conducting gates. The latter
+    /// always transfers the same scalar, not a sum of source voltages.
+    /// Native transient scheduling and unequal sources still require the
+    /// ordered runtime model.
     /// Cycles are order-independent only when every gate in their powered
     /// component conducts: no conflicting zero/positive path can arrive.
     public func settledIndependentSourceObservation(
@@ -670,11 +671,17 @@ public struct CMOriginalPowerCircuit {
             if x == y { cycleOwners.insert(a.deviceID) }
             else { parents[x] = y }
         }
-        // Do not decide source precedence using an invented order.
-        var sourceRoots = Set<String>()
-        for id in sources {
-            guard sourceRoots.insert(root(id)).inserted else { return nil }
-        }
+        // Native battery writes 10 before propagation (0x4504C9).
+        // Multiple batteries may share a settled component only when
+        // every potential source is a battery and all gates conduct.
+        let sourcesByRoot = Dictionary(grouping: sources, by: root)
+        let sourceRoots = Set(sourcesByRoot.keys)
+        let sharedRoots = Set(sourcesByRoot.compactMap { component, members in
+            members.count > 1 ? component : nil
+        })
+        guard sharedRoots.allSatisfy({ component in
+            sourcesByRoot[component]?.allSatisfy { sourceDeviceIDs.contains($0) } == true
+        }) else { return nil }
         var events: [NativePortEvent] = []
         for id in sources.sorted() {
             guard let plug = groups[id]?.first else { return nil }
@@ -703,8 +710,9 @@ public struct CMOriginalPowerCircuit {
         // A blocked gate could cause the native first-arrival walker to
         // choose between zero and positive inputs around a cycle. Until
         // slot order is known, retain the conservative fallback for it.
+        let orderSensitiveRoots = cyclicRoots.union(sharedRoots)
         guard !gates.contains(where: { id, conducting in
-            !conducting && cyclicRoots.contains(root(id))
+            !conducting && orderSensitiveRoots.contains(root(id))
         }) else { return nil }
         // Cut cables are absent from this settled reconstruction. Every
         // remaining slot starts at zero, avoiding stale disconnected power.
@@ -728,7 +736,12 @@ public struct CMOriginalPowerCircuit {
         }
         var wires: [Cable: Float] = [:]
         for cable in active.cables {
-            guard let a = state.signals[cable.firstPlugID],
+            // Equal independent battery seeds are not evidence of a
+            // load path on a direct battery-to-battery connection.
+            guard let left = byPlugID[cable.firstPlugID],
+                  let right = byPlugID[cable.secondPlugID],
+                  !(sourceDeviceIDs.contains(left.deviceID) && sourceDeviceIDs.contains(right.deviceID)),
+                  let a = state.signals[cable.firstPlugID],
                   let b = state.signals[cable.secondPlugID], a == b, a > 0 else { continue }
             wires[cable] = a
         }
