@@ -293,6 +293,31 @@ struct OriginalWindowsMechanicalTransferSmoke {
         precondition(CMOriginalDriveBelt.contour(offset:.zero,firstRadius:0.1,secondRadius:0.2)==nil)
         precondition(CMOriginalDriveBelt.contour(offset:.init(1,0,0.1),firstRadius:0.1,secondRadius:0.2)==nil)
         precondition(CMOriginalDriveBelt.contour(offset:.init(.nan,0,0),firstRadius:0.1,secondRadius:0.2)==nil)
+        let axleTypes = ["tmo_belt_gear","tmo_power_motor_rotor","tmo_power_generator_rotor",
+            "tmo_belt_conveyer_wheel","tmo_power_disrupter_wheel","tmo_steam_wheel",
+            "tmo_windmill_wheel","tmo_hammer_wheel","tmo_belt_flag_wheel","tmo_heat_grill_wheel"]
+        for type in axleTypes {
+            precondition(CMOriginalDriveBelt.wheelAxisColumn(type:type)
+                == (type == "tmo_power_generator_rotor" ? 1 : 2))
+        }
+        precondition(CMOriginalDriveBelt.wheelAxisColumn(type:"tmo_board") == nil)
+        for angle in 0...180 {
+            let a = Float(angle) * .pi / 180
+            for scale: Float in [0.1,1,5] {
+                let axis = SIMD3<Float>(sin(a)*scale,0,cos(a)*scale)
+                precondition(CMOriginalDriveBelt.planarAxle(axis) == (abs(cos(a)) >= 0.995))
+                for speed: Float in [-20,0,20] {
+                    precondition(abs(CMOriginalDriveBelt.planarAngularSpeed(
+                        axis:axis,magnitude:speed)! - speed*cos(a)) < 0.00001)
+                }
+            }
+        }
+        precondition(!CMOriginalDriveBelt.planarAxle(.zero))
+        precondition(!CMOriginalDriveBelt.planarAxle(.init(.nan,0,1)))
+        precondition(CMOriginalDriveBelt.planarAngularSpeed(axis:.zero,magnitude:1) == nil)
+        precondition(CMOriginalDriveBelt.planarAngularSpeed(axis:.zero,magnitude:0) == 0)
+        precondition(CMOriginalDriveBelt.planarAngularSpeed(axis:.init(1,0,0),magnitude:2) == 0)
+        precondition(CMOriginalDriveBelt.planarAngularSpeed(axis:.init(0,0,1),magnitude:.infinity) == nil)
         print("Native mechanical VALF ratios, linked sign, observed stop decay: 1000 cases passed")
     }
 }
