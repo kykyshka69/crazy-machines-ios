@@ -637,6 +637,69 @@ public struct CMOriginalPowerCircuit {
                               observedSlotOrder: observedSlotOrder)
     }
 
+    /// Live bridge for a restricted, order-independent subset: one battery
+    /// with one plug, no generator/solar sources, and acyclic active wiring.
+    /// The settled result deliberately does not emulate transient frame order.
+    /// Unsupported networks continue through the existing conservative solver.
+    public func settledSingleBatteryObservation(
+        closedSwitchIDs: Set<String> = [],
+        disrupterRotorAnglesByDeviceID: [String: Float] = [:]
+    ) -> NetworkObservation? {
+        guard sourceDeviceIDs.count == 1, conditionalSourceDeviceIDs.isEmpty,
+              let source = sourceDeviceIDs.first else { return nil }
+        let groups = Dictionary(grouping: terminals, by: \.deviceID)
+        guard groups[source]?.count == 1, let sourcePort = groups[source]?.first else { return nil }
+
+        // A forest has exactly one path between any pair of owners.
+        // Reject cycles, including two parallel cables between owners.
+        var parents = Dictionary(uniqueKeysWithValues: groups.keys.map { ($0, $0) })
+        func root(_ id: String) -> String {
+            var current = id
+            while let next = parents[current], next != current { current = next }
+            return current
+        }
+        for cable in activeCables {
+            guard let a = byPlugID[cable.firstPlugID], let b = byPlugID[cable.secondPlugID] else { return nil }
+            let x = root(a.deviceID), y = root(b.deviceID)
+            guard x != y else { return nil }
+            parents[x] = y
+        }
+        var gates: [String: Bool] = [:]
+        for id in switchDeviceIDs { gates[id] = closedSwitchIDs.contains(id) }
+        for id in disrupterDeviceIDs {
+            gates[id] = disrupterRotorAnglesByDeviceID[id].map {
+                CMOriginalWindowsPowerDisrupter.conducts(rotorAngle: $0)
+            } == true
+        }
+        // Cut cables are absent from this settled reconstruction. Every
+        // remaining slot starts at zero, avoiding stale disconnected power.
+        var active = self
+        active.cables = activeCables
+        active.clearRuntimeCuts()
+        let initial = NativePortState(signals: Dictionary(uniqueKeysWithValues:
+            terminals.map { ($0.plugID, Float(0)) }))
+        guard let state = active.nativePortPass(previous: initial,
+            events: [.source(plugID: sourcePort.plugID, value: CMOriginalWindowsPowerScalar.batterySource)],
+            conductingByDeviceID: gates) else { return nil }
+        var devices: [String: Float] = [:]
+        for (owner, slots) in groups {
+            // In a forest, all ungated slots on a reached owner carry the
+            // same value. The first-slot consumer read therefore does not
+            // depend on unverified CML vs native component ordering.
+            guard let first = slots.first, let signal = state.signals[first.plugID],
+                  signal > 0 else { continue }
+            if gates[owner] == false { continue }
+            devices[owner] = signal
+        }
+        var wires: [Cable: Float] = [:]
+        for cable in active.cables {
+            guard let a = state.signals[cable.firstPlugID],
+                  let b = state.signals[cable.secondPlugID], a == b, a > 0 else { continue }
+            wires[cable] = a
+        }
+        return NetworkObservation(deviceSignals: devices, cableSignals: wires)
+    }
+
     /// Compatibility for purely battery-driven puzzles: a single source
     /// returns the recovered 10.0 Win32 scalar, not a made-up VALF voltage.
     public func experimentalBatterySignals(
