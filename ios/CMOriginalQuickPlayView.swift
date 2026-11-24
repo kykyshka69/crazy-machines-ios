@@ -238,7 +238,7 @@ struct CMOriginalQuickPlayView: View {
             disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
     }
 
-    private func advanceOrderedElectricalFrame(activeBelts: Set<CMOriginalDriveBelt.Pair>) {
+    private func advanceOrderedElectricalFrame(activeBelts: Set<CMOriginalDriveBelt.Pair>, steamBoilers: [String: String]) {
         // A unique, geometrically valid direct belt is a concrete driver
         // relation; arbitrary gears, steam drives and competing links
         // retain the existing live componentwise approximation. Direct windmill
@@ -253,11 +253,15 @@ struct CMOriginalQuickPlayView: View {
                   let g = generator.parentID, let m = drive.parentID,
                   byID[g]?.type == "tmo_power_generator",
                   (drive.type == "tmo_power_motor_rotor" && byID[m]?.type == "tmo_power_motor")
-                    || (drive.type == "tmo_windmill_wheel" && byID[m]?.type == "tmo_windmill"),
+                    || (drive.type == "tmo_windmill_wheel" && byID[m]?.type == "tmo_windmill")
+                    || (drive.type == "tmo_steam_wheel" && byID[m]?.type == "tmo_steam_machine" && steamBoilers[m] != nil),
                   activeBelts.filter({ $0.first == generator.id || $0.second == generator.id }).count == 1,
                   activeBelts.filter({ $0.first == drive.id || $0.second == drive.id }).count == 1
             else { continue }
-            drivers[g] = m
+            if drive.type == "tmo_steam_wheel" {
+                guard let boiler = steamBoilers[m], byID[boiler]?.type == "tmo_boiler" else { continue }
+                drivers[g] = boiler
+            } else { drivers[g] = m }
         }
         guard experimentalPhysics && experimentalWiredPower, !physicsPaused,
               let network = powerCircuit, network.supportsOrderedFrameTopology
@@ -1029,9 +1033,9 @@ struct CMOriginalQuickPlayView: View {
                     _ = objectiveLedger?.recordGoalStateChanged(
                         parentID, isSimulationRunning: true)
                 },
-                onOriginalElectricalFrame: powerCircuit?.supportsOrderedFrameTopology == true && experimentalWiredPower ? { activeBelts in
+                onOriginalElectricalFrame: powerCircuit?.supportsOrderedFrameTopology == true && experimentalWiredPower ? { activeBelts, steamBoilers in
                     guard eventRevision == sceneRevision else { return }
-                    advanceOrderedElectricalFrame(activeBelts: activeBelts)
+                    advanceOrderedElectricalFrame(activeBelts: activeBelts, steamBoilers: steamBoilers)
                 } : nil
             )
             .id(sceneRevision)
