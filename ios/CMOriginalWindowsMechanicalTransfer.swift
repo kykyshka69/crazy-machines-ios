@@ -206,3 +206,25 @@ public enum CMOriginalDriveBelt {
         return (unit * cosine + side * sine, unit * cosine - side * sine)
     }
 }
+
+
+/// Win32 0x44BD1E–0x44BD78: tmo_heat_grill receives a mechanical
+/// source and copies its negated +0xE8 into both children +0xE0.
+/// This does not reconstruct thermal processing or its GOAL.
+public enum CMOriginalGrillDrive {
+    public static func linkedSignal(_ source: Float) -> Float? {
+        source.isFinite ? -source : nil
+    }
+
+    /// iOS rotation bridge: integrate measured wheel angular velocity
+    /// over actual running time, retaining a bounded phase. The original
+    /// native scalar-to-physical-speed correspondence remains provisional.
+    public static func phase(previous: Float, wheelSpeed: Float,
+                             delta: Float) -> Float? {
+        guard previous.isFinite, abs(previous) <= 2 * Float.pi,
+              delta.isFinite, delta >= 0, delta <= 0.25,
+              abs(wheelSpeed) <= 80,
+              let speed = linkedSignal(wheelSpeed) else { return nil }
+        return (previous + speed * delta).truncatingRemainder(dividingBy: 2 * .pi)
+    }
+}
