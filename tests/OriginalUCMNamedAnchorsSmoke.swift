@@ -85,6 +85,35 @@ struct OriginalUCMNamedAnchorsSmoke {
         precondition(CMOriginalUCMCollisionVolumes.isBoundsHelper(kind: "tmo_bucket", model: "TO_DUMMY_BOUNDING"))
         precondition(!CMOriginalUCMCollisionVolumes.isBoundsHelper(kind: "tmo_bucket", model: "to_bucket"))
         precondition(!CMOriginalUCMCollisionVolumes.isBoundsHelper(kind: "tmo_board", model: "to_dummy_bounding"))
+        typealias Overlap = CMOriginalVolumeOverlap
+        typealias V = Overlap.V
+        func pose(_ p: V, angle: Double = 0, scale: Double = 1) -> Overlap.Transform {
+            .init(origin: p, x: V(cos(angle),sin(angle),0)*scale,
+                  y: V(-sin(angle),cos(angle),0)*scale, z: V(0,0,scale))
+        }
+        let worldVolumes = Overlap.world(volumes, transform: pose(.zero))!
+        precondition(worldVolumes.count == 2)
+        let translated = Overlap.world(volumes, transform: pose(V(10,0,0)))!
+        precondition(!Overlap.intersects(worldVolumes, translated))
+        for i in 0..<24 {
+            let angle = Double(i)*Double.pi/12
+            let rotated = Overlap.world(volumes, transform: pose(.zero,angle:angle))!
+            precondition(Overlap.intersects(rotated,worldVolumes))
+            precondition(Overlap.intersects(worldVolumes,rotated))
+        }
+        let axes = [V(1,0,0),V(0,1,0),V(0,0,1)]
+        let zone = Overlap.Primitive.box(center:.zero, axes:axes, half:V(0.5,0.5,0.1))
+        let sphereNear = Overlap.Primitive.sphere(center:V(0.7,0,0),radius:0.25)
+        let sphereFar = Overlap.Primitive.sphere(center:V(0.76,0,0),radius:0.25)
+        let depthMiss = Overlap.Primitive.sphere(center:V(0,0,0.5),radius:0.25)
+        precondition(Overlap.intersects(zone,sphereNear))
+        precondition(!Overlap.intersects(zone,sphereFar))
+        precondition(!Overlap.intersects(zone,depthMiss))
+        precondition(Overlap.world(volumes, transform:.init(origin:.zero,
+            x:V(2,0,0), y:V(0,1,0), z:V(0,0,1))) == nil)
+        precondition(Overlap.world(volumes, transform:.init(origin:.zero,
+            x:V(1,0,0), y:V(0.2,1,0), z:V(0,0,1))) == nil)
+        precondition(!Overlap.intersects([zone], []))
         print("UCM1 named attachment records and matrices: valid/invalid tests passed")
         if CommandLine.arguments.count >= 3 {
             let candle = try CMOriginalUCMNamedAnchors.decode(Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1])))
