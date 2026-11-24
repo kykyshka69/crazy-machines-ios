@@ -102,6 +102,18 @@ struct OriginalWindowsBeltFlagSmoke {
         precondition(forward.nativeAxis.x == 1 && reverse.nativeAxis.x == -1)
         precondition(abs(sqrt(forward.maxRadiusSquared) - sqrt(forward.minRadiusSquared) - 1) < 0.00001)
         precondition(F.windmillRegion(axis: .init(1, 0), wheelSignal: 0) == nil)
+        // A glancing initial contact followed by an actual lever press
+        // produces one pulse; subsequent updates cannot replenish it.
+        var lateBellows = CMOriginalBellows()
+        precondition(!lateBellows.strike(normalY: 0.4, leverAngle: 0.37))
+        precondition(lateBellows.phase == .ready && lateBellows.power == 0)
+        precondition(lateBellows.strike(normalY: 0.99, leverAngle: 0.2))
+        precondition(lateBellows.advance(delta: 0.05))
+        precondition(!lateBellows.strike(normalY: 1, leverAngle: 0.37))
+        precondition(abs(lateBellows.power - 3.5) < 0.00001)
+        precondition(lateBellows.advance(delta: 0.2))
+        precondition(lateBellows.phase == .spent)
+        precondition(!lateBellows.strike(normalY: 1, leverAngle: 0.37))
         for hz in [30,60,120] {
             for sign: Float in [-1,1] {
                 var bellows = CMOriginalBellows()
