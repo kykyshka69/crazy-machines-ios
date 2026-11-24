@@ -435,6 +435,13 @@ struct OriginalPowerCircuitSmoke {
         precondition(liveCut.cableSignals.isEmpty)
         phase.clearRuntimeCuts()
         precondition(phase.settledSingleBatteryObservation()!.cableSignals.count == 2)
+        let liveOpen = loaded.settledSingleBatteryObservation()!
+        precondition(liveOpen.deviceSignals[motorID] == nil)
+        precondition(liveOpen.cableSignals == [.init(battery.plugID, terminal(1)): 10])
+        let liveClosed = loaded.settledSingleBatteryObservation(closedSwitchIDs: [switchID])!
+        precondition(liveClosed.deviceSignals[motorID] == 10)
+        precondition(liveClosed.deviceSignals[lampID] == 10)
+        precondition(liveClosed.cableSignals.count == 4)
         precondition(split.settledSingleBatteryObservation() == nil)
         precondition(ordered.settledSingleBatteryObservation() == nil)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
