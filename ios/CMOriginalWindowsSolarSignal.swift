@@ -138,3 +138,20 @@ public enum CMOriginalMagnifier {
         return d.x*d.x + d.y*d.y < radius*radius
     }
 }
+
+
+/// Separate observed load power from the conservative solar-source input.
+/// A solar-powered lamp can illuminate non-electrical receivers, but cannot
+/// seed another solar observation until native feedback is reconstructed.
+/// Ambiguous or absent full-network power is never treated as emitted light.
+public enum CMOriginalOpticalPowerRouting {
+    public static func emitterPower(
+        fullNetwork: Float?, independentNetwork: Float?, receiverIsSolar: Bool
+    ) -> Float {
+        guard let full = fullNetwork, full.isFinite, full > 0 else { return 0 }
+        guard receiverIsSolar else { return full }
+        guard let independent = independentNetwork, independent.isFinite,
+              independent == full else { return 0 }
+        return full
+    }
+}
