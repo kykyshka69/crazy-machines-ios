@@ -158,6 +158,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var originalRopeEditing = false
     var originalPlayerBelts: Set<CMOriginalDriveBelt.Pair> = []
     var originalOpticalLampPower: [String: Float] = [:]
+    var originalIndependentOpticalLampPower: [String: Float]? = nil
     var originalBeltEditing = false
     // Live, matched experimental network signals for original player
     // wires. These change cable brightness only, NEVER native current.
@@ -475,7 +476,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalCatapultGoal = onOriginalCatapultGoal
         context.coordinator.onOriginalSolarRays = onOriginalSolarRays
         context.coordinator.onOriginalFlowerGoal = onOriginalFlowerGoal
-        context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower)
+        context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower,
+            independent: originalIndependentOpticalLampPower)
         context.coordinator.fourthLevelRun = CMOriginalFourthLevelRun(document: document)
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalSwitchImpactGoal = onOriginalSwitchImpactGoal
@@ -608,7 +610,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalCatapultGoal = onOriginalCatapultGoal
         context.coordinator.onOriginalSolarRays = onOriginalSolarRays
         context.coordinator.onOriginalFlowerGoal = onOriginalFlowerGoal
-        context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower)
+        context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower,
+            independent: originalIndependentOpticalLampPower)
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalSwitchImpactGoal = onOriginalSwitchImpactGoal
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
@@ -820,6 +823,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalSolarRays: (([String: [Float]]) -> Void)?
         var onOriginalFlowerGoal: ((String) -> Void)?
         private var liveOpticalLampPower: [String: Float] = [:]
+        private var liveIndependentOpticalLampPower: [String: Float] = [:]
         private var liveOpticalEmitters: [String: SCNNode] = [:]
         private var liveOpticalReceivers: [String: SCNNode] = [:]
         private var magnifierGlows: [String: [CMOriginalMagnifier.Side: SCNNode]] = [:]
@@ -3051,12 +3055,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         /// The original Win32 bulb beam directions, hit fraction and
         /// reflections are not recovered, so this observation deliberately
         /// cannot activate a solar cell or a puzzle GOAL.
-        func setLiveOpticalLampPower(_ values: [String: Float]) {
+        func setLiveOpticalLampPower(_ values: [String: Float],
+                                     independent: [String: Float]? = nil) {
             sessionLock.lock()
             defer { sessionLock.unlock() }
             let next = values.filter { $0.value.isFinite && $0.value >= 0 }
-            guard next != liveOpticalLampPower else { return }
+            let safe = (independent ?? values).filter { $0.value.isFinite && $0.value >= 0 }
+            guard next != liveOpticalLampPower || safe != liveIndependentOpticalLampPower else { return }
             liveOpticalLampPower = next
+            liveIndependentOpticalLampPower = safe
             // Source changes must be measured on the next running frame,
             // rather than retaining solar/flower/focus light until the
             // ordinary periodic geometry sample.
@@ -3116,7 +3123,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     let lensAxis = SIMD3<Float>(lensBasis.x, lensBasis.y, lensBasis.z)
                     for (sourceID, marker) in liveOpticalEmitters.sorted(by: { $0.key < $1.key }) {
                         let kind = originalTypesByID[sourceID]
-                        let power = liveOpticalLampPower[sourceID] ?? 0
+                        let power = CMOriginalOpticalPowerRouting.emitterPower(
+                            fullNetwork: liveOpticalLampPower[sourceID],
+                            independentNetwork: liveIndependentOpticalLampPower[sourceID],
+                            receiverIsSolar: originalTypesByID[id] == "tmo_power_solarcell")
                         let lit = session?.originalPocketLampStates[sourceID] == true
                         guard (kind == "tmo_power_lamp" && power > 0)
                             || (kind == "tmo_light_pocketlamp" && lit) else { continue }
