@@ -182,6 +182,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalSteamGoal: ((String) -> Void)? = nil
     var onOriginalGrillGoal: ((String) -> Void)? = nil
     var onOriginalFlaskGoal: ((String) -> Void)? = nil
+    var onOriginalFlagGoal: ((String) -> Void)? = nil
     var onOriginalSolarRays: (([String: [Float]]) -> Void)? = nil
     var onOriginalFlowerGoal: ((String) -> Void)? = nil
     // Reports a user-operated original PC power switch. This changes its
@@ -453,6 +454,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalSteamGoal = onOriginalSteamGoal
         context.coordinator.onOriginalGrillGoal = onOriginalGrillGoal
         context.coordinator.onOriginalFlaskGoal = onOriginalFlaskGoal
+        context.coordinator.onOriginalFlagGoal = onOriginalFlagGoal
         context.coordinator.onOriginalSolarRays = onOriginalSolarRays
         context.coordinator.onOriginalFlowerGoal = onOriginalFlowerGoal
         context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower)
@@ -581,6 +583,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalSteamGoal = onOriginalSteamGoal
         context.coordinator.onOriginalGrillGoal = onOriginalGrillGoal
         context.coordinator.onOriginalFlaskGoal = onOriginalFlaskGoal
+        context.coordinator.onOriginalFlagGoal = onOriginalFlagGoal
         context.coordinator.onOriginalSolarRays = onOriginalSolarRays
         context.coordinator.onOriginalFlowerGoal = onOriginalFlowerGoal
         context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower)
@@ -753,6 +756,23 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalSteamGoal: ((String) -> Void)?
         var onOriginalGrillGoal: ((String) -> Void)?
         var onOriginalFlaskGoal: ((String) -> Void)?
+        var onOriginalFlagGoal: ((String) -> Void)?
+        private struct FlagDrive {
+            let wheel: SCNNode
+            let telescope3: SCNNode
+            let telescope4: SCNNode
+            let wind: SCNNode
+            var extensionValue: Float = 0
+            var reported = false
+        }
+        private struct FlagWindmill {
+            let wheel: SCNNode
+            let fixedFrame: SCNNode
+        }
+        private var flagDrives: [String: FlagDrive] = [:]
+        private var flagWindmills: [String: FlagWindmill] = [:]
+        private var flagWindSourceIDs = Set<String>()
+        private var flagScriptedPartIDs = Set<String>()
         private struct FlaskDrive {
             let heat: SCNNode
             let gas: SCNNode
@@ -1069,7 +1089,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
                 // Script-driven original hammer arm and nail retain collision
                 // geometry but are positioned by the mechanism state machine.
-                if drivenHammerPartIDs.contains(id) || steamScriptedPartIDs.contains(id) {
+                if drivenHammerPartIDs.contains(id) || steamScriptedPartIDs.contains(id) || flagScriptedPartIDs.contains(id) {
                     for node in nodes {
                         guard let body = node.physicsBody else { continue }
                         body.type = .kinematic
@@ -1656,6 +1676,113 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         steamScriptedPartIDs.formUnion([pistons[0].id, rods[0].id])
                     }
                 }
+            }
+        }
+
+        private func registerOriginalFlagDrives(objects: [CMOriginalGameplaySession.Object]) {
+            flagDrives.removeAll()
+            flagWindmills.removeAll()
+            flagScriptedPartIDs.removeAll()
+            flagWindSourceIDs = Set(objects.filter {
+                $0.type == "tmo_windmill" || $0.type == "tmo_wind_bellows"
+            }.map(\.id))
+            func child(_ parent: String, _ kind: String) -> CMOriginalGameplaySession.Object? {
+                let found = objects.filter { $0.parentID == parent && $0.type == kind }
+                return found.count == 1 ? found[0] : nil
+            }
+            func node(_ id: String) -> SCNNode? {
+                guard let nodes = physicsNodesByObjectID[id], nodes.count == 1 else { return nil }
+                return nodes[0]
+            }
+            for owner in objects where owner.type == "tmo_belt_flag" {
+                guard let w = child(owner.id, "tmo_belt_flag_wheel"),
+                      let t1 = child(owner.id, "tmo_belt_flag_telescope1"),
+                      let t2 = child(t1.id, "tmo_belt_flag_telescope2"),
+                      let t3 = child(t2.id, "tmo_belt_flag_telescope3"),
+                      let t4 = child(t3.id, "tmo_belt_flag_telescope4"),
+                      let wheel = node(w.id), let n3 = node(t3.id), let n4 = node(t4.id),
+                      n4.parent === n3,
+                      abs(n3.position.y) < 0.001, abs(n4.position.y) < 0.001,
+                      let marker = exactOriginalAnchor("Wind", on: t4.id)
+                else { continue }
+                flagDrives[owner.id] = .init(wheel: wheel, telescope3: n3, telescope4: n4, wind: marker)
+                flagScriptedPartIDs.formUnion([t3.id,t4.id])
+            }
+            guard !flagDrives.isEmpty else { return }
+            for owner in objects where owner.type == "tmo_windmill" {
+                guard let w = child(owner.id, "tmo_windmill_wheel"),
+                      let wings = child(owner.id, "tmo_windmill_wings"),
+                      let wheel = node(w.id), let wingNode = node(wings.id),
+                      let base = wingNode.parent,
+                      let marker = exactOriginalAnchor("Wind", on: wings.id)
+                else { continue }
+                // The native wind axis does not spin with the rotor.
+                // Preserve the authored Wind marker in the fixed assembly.
+                let frame = SCNNode()
+                base.addChildNode(frame)
+                frame.simdWorldTransform = marker.simdWorldTransform
+                flagWindmills[owner.id] = .init(wheel: wheel, fixedFrame: frame)
+            }
+        }
+
+        private func advanceOriginalFlags(delta: Double) {
+            for id in flagDrives.keys.sorted() {
+                guard var drive = flagDrives[id], let body = drive.wheel.physicsBody,
+                      body.type == .dynamic else { continue }
+                let angular = body.angularVelocity
+                let wheelSignal = angular.z * angular.w
+                guard let height = CMOriginalWindowsBeltFlag.nextExtension(
+                    previous: drive.extensionValue, wheelSignal: wheelSignal, delta: delta)
+                else { continue }
+                drive.extensionValue = height
+                drive.telescope3.position.y = height
+                drive.telescope4.position.y = height
+                drive.telescope3.physicsBody?.resetTransform()
+                drive.telescope4.physicsBody?.resetTransform()
+                // Only the authentic authored retracted flag mode is
+                // reconstructed here; the alternate editor mode is not.
+                // Missing bellows or any other source fails closed.
+                let target = drive.wind.simdWorldPosition
+                var samples: [CMOriginalWindowsBeltFlag.WindObservation] = []
+                for sourceID in flagWindSourceIDs.sorted() {
+                    guard let source = flagWindmills[sourceID],
+                          let rotor = source.wheel.physicsBody, rotor.type == .dynamic else { continue }
+                    let a = rotor.angularVelocity
+                    let signal = a.z * a.w
+                    guard signal.isFinite, abs(signal) <= 80 else { continue }
+                    let m = source.fixedFrame.simdWorldTransform
+                    if signal == 0 {
+                        samples.append(.init(originalSourceID: sourceID, originalSourceType: "tmo_windmill",
+                                             signedIntersection: 0, originalWindPower: 0))
+                    } else if let region = CMOriginalWindowsBeltFlag.windmillRegion(
+                        axis: .init(m.columns.2.x,m.columns.2.y,m.columns.2.z), wheelSignal: signal) {
+                        // 0x409860 shifts the native cone origin behind
+                        // its source aperture by its near distance.
+                        let axis = SIMD2<Float>(region.nativeAxis.x,region.nativeAxis.y)
+                        let length = simd_length(axis)
+                        guard length.isFinite, length > 0.00001 else { continue }
+                        let o = SIMD2<Float>(m.columns.3.x,m.columns.3.y)
+                            - axis / length * sqrt(region.minRadiusSquared)
+                        if let sample = CMOriginalWindowsBeltFlag.observedSource(
+                            originalSourceID: sourceID, originalSourceType: "tmo_windmill",
+                            originalWindPower: signal, observedNativeRegion: region,
+                            observedNativeDisplacement: .init(target.x-o.x,target.y-o.y,0),
+                            sourceDepth: m.columns.3.x, targetDepth: target.x) {
+                            samples.append(sample)
+                        }
+                    }
+                }
+                if !drive.reported,
+                   let wind = CMOriginalWindowsBeltFlag.nativeWindSum(observations: samples,
+                        requiredOriginalWindSourceIDs: flagWindSourceIDs,
+                        allOriginalWindSourcesObserved: samples.count == flagWindSourceIDs.count),
+                   CMOriginalWindowsBeltFlag.triggersGoal(.init(telescopeIndicator: height,
+                       flagState: 0, observedNetWindForce: wind)) {
+                    drive.reported = true
+                    let deliver = onOriginalFlagGoal
+                    DispatchQueue.main.async { deliver?(id) }
+                }
+                flagDrives[id] = drive
             }
         }
 
@@ -2347,6 +2474,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             registerOriginalGrillDrives(objects: originalObjects)
             registerOriginalHammerDrives(objects: originalObjects)
             registerOriginalSteamNetwork(objects: originalObjects)
+            registerOriginalFlagDrives(objects: originalObjects)
             registerOriginalFlasks(objects: originalObjects, directory: originalDirectory)
             registerLiveOptics(objects: originalObjects)
             scene.rootNode.enumerateChildNodes { node, _ in
@@ -2813,6 +2941,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             advanceOriginalHammerDrives(delta: delta)
             advanceOriginalSteamNetwork(delta: delta)
             advanceOriginalSteamPistons()
+            advanceOriginalFlags(delta: delta)
             advanceOriginalFlasks(delta: delta, root: renderer.scene?.rootNode)
             sampleOriginalRocketAnchorFrames(at: time)
             if time - lastGeneratorPollTime >= 0.16 {
