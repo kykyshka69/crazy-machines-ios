@@ -90,3 +90,80 @@ public enum CMOriginalUCMNamedAnchors {
         return result
     }
 }
+
+
+/// Authored collision primitives in the UCM1 tail, following marker matrices.
+/// Native 0x46AAE0 uses 16-byte sphere and 60-byte oriented-box records.
+/// No collision geometry is manufactured for absent or empty tables.
+public enum CMOriginalUCMCollisionVolumes {
+    public struct Sphere {
+        public let center: [Float]
+        public let radius: Float
+    }
+    public struct Box {
+        public let center: [Float]
+        public let halfExtents: [Float]
+        public let axes: [Float]
+    }
+    public struct Volumes {
+        public let spheres: [Sphere]
+        public let boxes: [Box]
+        public var isEmpty: Bool { spheres.isEmpty && boxes.isEmpty }
+    }
+
+    public static func decode(_ data: Data) throws -> Volumes {
+        typealias ParseError = CMOriginalUCMNamedAnchors.Error
+        guard data.count >= 92, data.prefix(4).elementsEqual([85,67,77,49])
+            else { throw ParseError.invalidHeader }
+        func u32(_ at: Int) throws -> UInt32 {
+            guard at >= 0, at <= data.count - 4 else { throw ParseError.invalidLayout }
+            return UInt32(data[at]) | UInt32(data[at+1]) << 8
+                | UInt32(data[at+2]) << 16 | UInt32(data[at+3]) << 24
+        }
+        let version = try u32(4)
+        guard version == 1 || version == 2 else { throw ParseError.invalidHeader }
+        let g = Int(try u32(72)), f = Int(try u32(76))
+        let v = Int(try u32(80)), m = Int(try u32(84))
+        guard (1...10000).contains(g), (1...1000000).contains(f),
+              (1...100000).contains(v), m <= 1000000, g*m <= 50000
+            else { throw ParseError.invalidLayout }
+        var offset = 92 + 12*f + 32*g*v + 16*m + 64*g*m
+        guard offset <= data.count else { throw ParseError.invalidLayout }
+        if offset == data.count { return Volumes(spheres: [], boxes: []) }
+        let ns = Int(try u32(offset)), nb = Int(try u32(offset+4))
+        offset += 8
+        guard ns <= 10000, nb <= 10000,
+              offset + 16*ns + 60*nb == data.count
+            else { throw ParseError.invalidLayout }
+        func floats(_ count: Int) throws -> [Float] {
+            var a: [Float] = []
+            for _ in 0..<count {
+                let value = Float(bitPattern: try u32(offset))
+                guard value.isFinite else { throw ParseError.invalidMatrix }
+                a.append(value)
+                offset += 4
+            }
+            return a
+        }
+        var spheres: [Sphere] = []
+        var boxes: [Box] = []
+        for _ in 0..<ns {
+            let a = try floats(4)
+            guard a[3] > 0 else { throw ParseError.invalidLayout }
+            spheres.append(Sphere(center: Array(a[0..<3]), radius: a[3]))
+        }
+        for _ in 0..<nb {
+            let a = try floats(15)
+            let axes = Array(a[6..<15])
+            guard a[3..<6].allSatisfy({ $0 > 0 }) else { throw ParseError.invalidLayout }
+            func dot(_ i: Int, _ j: Int) -> Float {
+                (0..<3).reduce(Float(0)) { $0 + axes[i*3+$1]*axes[j*3+$1] }
+            }
+            guard (0..<3).allSatisfy({ abs(dot($0,$0)-1) < 0.002 }),
+                  abs(dot(0,1)) < 0.002, abs(dot(0,2)) < 0.002, abs(dot(1,2)) < 0.002
+                else { throw ParseError.invalidMatrix }
+            boxes.append(Box(center: Array(a[0..<3]), halfExtents: Array(a[3..<6]), axes: axes))
+        }
+        return Volumes(spheres: spheres, boxes: boxes)
+    }
+}
