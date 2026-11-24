@@ -230,6 +230,45 @@ public enum CMOriginalGrillDrive {
 }
 
 
+/// Native candle->grill branch 0x44E4B1..0x44E717.
+/// The source intersects the sausage Heat receiver, not the grill base.
+/// Accumulated heat is stored separately from the sausage's RGB factor.
+/// The same original material factor is written to all three channels.
+public enum CMOriginalGrillHeat {
+    public struct State {
+        public var heat: Float = 0
+        public var shade: Float = 1
+        public var completed = false
+        public init() {}
+    }
+
+    /// No intersecting source means this native branch is not executed.
+    /// A non-rotating spit darkens while heat * 0.1 < 1; after that,
+    /// GOAL requires both heat * 0.1 >= 1 and shade >= 0.75.
+    public static func advance(_ previous: State, fraction: Float,
+                               spitSignal: Float, delta: Double) -> State? {
+        guard previous.heat.isFinite, previous.heat >= 0,
+              previous.shade.isFinite, (0.2...1).contains(previous.shade),
+              fraction.isFinite, (0...1).contains(fraction),
+              spitSignal.isFinite, delta.isFinite,
+              delta >= 0, delta <= 0.25 else { return nil }
+        guard fraction > 0, !previous.completed else { return previous }
+        var next = previous
+        next.heat = Float(Double(previous.heat) + Double(fraction) * delta)
+        guard next.heat.isFinite else { return nil }
+        let progress = next.heat * Float(bitPattern: 0x3DCCCCCD)
+        let candidate = progress < 1
+            ? max(Float(bitPattern: 0x3E4CCCCD),
+                  previous.shade - Float(delta * Double(Float(bitPattern: 0x3D4CCCCD))))
+            : previous.shade
+        if abs(spitSignal) < 1 { next.shade = candidate }
+        // Native branch compares the candidate even when RGB was not written.
+        next.completed = progress >= 1 && candidate >= 0.75
+        return next
+    }
+}
+
+
 /// Recovered portions of the Win32 hammer state machine 0x44BD7D–0x44C076.
 /// Native +0xDC direction, timestep +0x128 and the marker gap must be
 /// supplied by observation. This does not yet dispatch a gameplay GOAL.
