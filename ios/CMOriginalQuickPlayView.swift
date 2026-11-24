@@ -13,6 +13,21 @@ struct CMOriginalQuickPlayView: View {
     // recomputes these properties on every physics/status update; rebuilding
     // a 1000-object registry for each frame adds avoidable latency.
     @State private var originalSession: CMOriginalGameplaySession
+    // Scene identity is immutable for a run. Cache the mechanical registry
+    // rather than allocating two full object dictionaries at physics rate.
+    @State private var driveRegistry: DriveRegistry
+
+    private struct DriveRegistry {
+        let types: [String: String]
+        let parents: [String: String]
+        init(session: CMOriginalGameplaySession) {
+            types = Dictionary(uniqueKeysWithValues: session.objects.map { ($0.id, $0.type) })
+            parents = Dictionary(uniqueKeysWithValues: session.objects.compactMap {
+                object -> (String, String)? in
+                object.parentID.map { (object.id, $0) }
+            })
+        }
+    }
     // Bounded LRU avoids re-decoding previous/next original JSON levels
     // every time SwiftUI redraws after a physics contact.
     @State private var sceneCache: CMOriginalLevelDocumentCache
@@ -22,6 +37,7 @@ struct CMOriginalQuickPlayView: View {
         _document = State(initialValue: document)
         let session = CMOriginalGameplaySession(document: document)
         _originalSession = State(initialValue: session)
+        _driveRegistry = State(initialValue: DriveRegistry(session: session))
         _powerCircuit = State(initialValue: Self.restoredCircuit(for: session))
         let mechanical = Self.restoredMechanicalLinks(for: session)
         _originalRopes = State(initialValue: mechanical.ropes)
@@ -239,17 +255,14 @@ struct CMOriginalQuickPlayView: View {
     }
 
     private func advanceOrderedElectricalFrame(activeBelts: Set<CMOriginalDriveBelt.Pair>, steamBoilers: [String: String]) {
-        let types = Dictionary(uniqueKeysWithValues: originalSession.objects.map { ($0.id, $0.type) })
-        let parents = Dictionary(uniqueKeysWithValues: originalSession.objects.compactMap {
-            object -> (String, String)? in
-            object.parentID.map { (object.id, $0) }
-        })
-        let drivers = CMOriginalDriveBelt.generatorDrivers(
-            links: activeBelts, types: types, parentOwners: parents,
-            steamBoilers: steamBoilers)
         guard experimentalPhysics && experimentalWiredPower, !physicsPaused,
               let network = powerCircuit, network.supportsOrderedFrameTopology
         else { return }
+        // Battery/solar-only levels never need mechanical provenance.
+        let drivers: [String: String] = network.supportsOrderedElectricalFrames ? [:] :
+            CMOriginalDriveBelt.generatorDrivers(
+                links: activeBelts, types: driveRegistry.types,
+                parentOwners: driveRegistry.parents, steamBoilers: steamBoilers)
         guard network.supportsDirectDriveOrderedFrames(drivers) else {
             orderedGeneratorDrivers = nil
             orderedBatteryFrame = nil
@@ -403,6 +416,7 @@ struct CMOriginalQuickPlayView: View {
         pendingBeltWheel = nil
         beltMessage = nil
         originalSession = CMOriginalGameplaySession(document: next)
+        driveRegistry = DriveRegistry(session: originalSession)
         let mechanical = Self.restoredMechanicalLinks(for: originalSession)
         originalRopes = mechanical.ropes
         originalBelts = mechanical.belts
