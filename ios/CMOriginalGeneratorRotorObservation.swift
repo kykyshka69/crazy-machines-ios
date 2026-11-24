@@ -7,6 +7,22 @@ public enum CMOriginalGeneratorRotorObservation {
     public static let prototypeRestEpsilon: Float = 0.01
     public static let prototypePollDelta: Float = 0.05
 
+    /// Live electrical sampling: distinct measured values (including the
+    /// initial zero) must reach the solver. A NaN observation represents
+    /// an unavailable rotor, NOT a confirmed stopped rotor; the solver
+    /// rejects it as a source and does not treat it as consensus evidence.
+    /// Retain the documented SceneKit rest tolerance, but do not debounce
+    /// different nonzero scalars: exact source agreement can change.
+    public static func frameReport(previous: Float?, measured: Float?) -> Float? {
+        guard let measured, measured.isFinite else {
+            if let previous, !previous.isFinite { return nil }
+            return .nan
+        }
+        let speed: Float = abs(measured) <= prototypeRestEpsilon ? 0 : measured
+        if let previous, previous == speed { return nil }
+        return speed
+    }
+
     /// Nil means 'no change'. Non-nil zero is a required stop transition.
     /// Otherwise a cached 0.03 speed could electrically power a device
     /// forever once the measured wheel stopped, since 0.03 < poll delta.
