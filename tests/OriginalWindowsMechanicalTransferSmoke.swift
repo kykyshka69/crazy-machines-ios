@@ -59,6 +59,20 @@ struct OriginalWindowsMechanicalTransferSmoke {
         precondition(R.tension(distance: 4, restLength: 1) == 25)
         precondition(R.tension(distance: .nan, restLength: 1) == 0)
         precondition(R.tension(distance: 1, restLength: 0) == 0)
+        let ropeStart = SIMD3<Float>(0, 0, 0)
+        let ropeEnd = SIMD3<Float>(1, 0, 0)
+        func cut(_ x: Float, _ depth: Float = 0) -> Bool {
+            R.intersectsScissors(ropeStart: ropeStart, ropeEnd: ropeEnd,
+                bladeStart: .init(x, -0.2, depth), bladeEnd: .init(x, 0.2, depth))
+        }
+        precondition(cut(0.5))
+        precondition(cut(0.525))
+        precondition(cut(0.5, 0.04))
+        precondition(!cut(0.5, 0.051))
+        precondition(!cut(1.2))
+        precondition(!cut(.nan))
+        precondition(!R.intersectsScissors(ropeStart: ropeStart, ropeEnd: ropeStart,
+            bladeStart: .init(0, -1, 0), bladeEnd: .init(0, 1, 0)))
         for i in 0..<1000 {
             let input = Float(i - 500) * 0.005
             let next = M.transmittedSignal(sourceSignal: input,
