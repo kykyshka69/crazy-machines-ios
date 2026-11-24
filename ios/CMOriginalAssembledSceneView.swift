@@ -743,7 +743,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var originalBeltEditing = false
         private let beltLock = NSLock()
         private weak var beltSceneRoot: SCNNode?
-        private var beltWheels: [String: (marker: SCNNode, coefficient: Float)] = [:]
+        private var beltWheels: [String: (marker: SCNNode, coefficient: Float, axisColumn: Int)] = [:]
         private var beltSpans: [CMOriginalDriveBelt.Pair: [SCNNode]] = [:]
         var onOriginalRopeCut: ((CMOriginalRope.Pair) -> Void)?
         // Renderer-local cut latch prevents a queued UI update recreating a severed rope.
@@ -1547,13 +1547,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                           value.isFinite, value >= 0.008, value <= 3 else { return nil }
                     return (object.id, value)
                 })
+                let types = Dictionary(uniqueKeysWithValues: (session?.objects ?? []).map { ($0.id,$0.type) })
                 var duplicates = Set<String>()
                 scene.rootNode.enumerateChildNodes { node, _ in
                     guard CMOriginalRocketAnchorTelemetry.originalName(inSceneNodeName: node.name ?? "") == "Wheel",
                           let id = self.owningOriginalObjectID(for: node),
-                          let coefficient = coefficients[id] else { return }
+                          let coefficient = coefficients[id], let type = types[id],
+                          let column = CMOriginalDriveBelt.wheelAxisColumn(type: type) else { return }
                     if self.beltWheels[id] != nil { duplicates.insert(id) }
-                    else { self.beltWheels[id] = (node, coefficient) }
+                    else { self.beltWheels[id] = (node, coefficient, column) }
                 }
                 for id in duplicates { beltWheels.removeValue(forKey: id) }
             }
@@ -2417,7 +2419,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 let a = first.marker.presentation.simdWorldPosition
                 let b = second.marker.presentation.simdWorldPosition
                 let offset = b - a
-                guard let contour = CMOriginalDriveBelt.contour(
+                func axis(_ wheel: (marker: SCNNode, coefficient: Float, axisColumn: Int)) -> SIMD3<Float> {
+                    let basis = wheel.marker.presentation.simdWorldTransform
+                    let v = wheel.axisColumn == 1 ? basis.columns.1 : basis.columns.2
+                    return SIMD3<Float>(v.x,v.y,v.z)
+                }
+                guard CMOriginalDriveBelt.planarAxle(axis(first)),
+                      CMOriginalDriveBelt.planarAxle(axis(second)),
+                      let contour = CMOriginalDriveBelt.contour(
                     offset: offset, firstRadius: first.coefficient,
                     secondRadius: second.coefficient), contour.count == spans.count
                 else { spans.forEach { $0.isHidden = true }; continue }
@@ -2440,12 +2449,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       let firstBody = physicalNode(for: first.marker)?.physicsBody, firstBody.type == .dynamic,
                       let secondBody = physicalNode(for: second.marker)?.physicsBody, secondBody.type == .dynamic,
                       firstBody !== secondBody else { continue }
-                func speed(_ body: SCNPhysicsBody) -> Float {
+                func speed(_ body: SCNPhysicsBody) -> Float? {
                     let rotation = body.angularVelocity
-                    return rotation.z < 0 ? -rotation.w : rotation.w
+                    return CMOriginalDriveBelt.planarAngularSpeed(
+                        axis: .init(rotation.x,rotation.y,rotation.z), magnitude: rotation.w)
                 }
-                guard let torque = CMOriginalDriveBelt.correction(
-                    firstSpeed: speed(firstBody), secondSpeed: speed(secondBody),
+                guard let firstSpeed = speed(firstBody), let secondSpeed = speed(secondBody),
+                      let torque = CMOriginalDriveBelt.correction(
+                    firstSpeed: firstSpeed, secondSpeed: secondSpeed,
                     firstVALF: first.coefficient, secondVALF: second.coefficient) else { continue }
                 func apply(_ body: SCNPhysicsBody, _ value: Float) {
                     body.applyTorque(SCNVector4(0, 0, value < 0 ? -1 : 1, abs(value)), asImpulse: false)
