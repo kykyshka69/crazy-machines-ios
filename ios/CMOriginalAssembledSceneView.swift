@@ -1562,7 +1562,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
             for pair in pairs where beltSpans[pair] == nil {
                 guard beltWheels[pair.first] != nil, beltWheels[pair.second] != nil else { continue }
-                let spans = (0..<2).map { _ -> SCNNode in
+                let spans = (0..<CMOriginalDriveBelt.contourSpanCount).map { _ -> SCNNode in
                     let shape = SCNBox(width: 0.012, height: 1, length: 0.025, chamferRadius: 0)
                     shape.firstMaterial?.diffuse.contents = UIColor.darkGray
                     let node = SCNNode(geometry: shape)
@@ -2417,21 +2417,23 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 let a = first.marker.presentation.simdWorldPosition
                 let b = second.marker.presentation.simdWorldPosition
                 let offset = b - a
-                guard let normals = CMOriginalDriveBelt.tangentNormals(
-                    dx: offset.x, dy: offset.y, dz: offset.z,
-                    firstRadius: first.coefficient, secondRadius: second.coefficient)
+                guard let contour = CMOriginalDriveBelt.contour(
+                    offset: offset, firstRadius: first.coefficient,
+                    secondRadius: second.coefficient), contour.count == spans.count
                 else { spans.forEach { $0.isHidden = true }; continue }
-                for (index, normal) in [normals.0, normals.1].enumerated() {
-                    let n = SIMD3<Float>(normal.x, normal.y, 0)
-                    let start = a + n * first.coefficient
-                    let end = b + n * second.coefficient
+                for (node, span) in zip(spans, contour) {
+                    let start = a + span.start
+                    let end = a + span.end
                     let vector = end - start
                     let length = simd_length(vector)
-                    let node = spans[index]
-                    guard length.isFinite, length > 0.002 else { node.isHidden = true; continue }
+                    guard length.isFinite, length > 0.00001 else { node.isHidden = true; continue }
                     node.isHidden = false
                     node.simdPosition = (start + end) * 0.5
-                    node.eulerAngles.z = atan2(vector.y, vector.x) - .pi / 2
+                    let direction = vector / length
+                    let up = SIMD3<Float>(0,1,0)
+                    node.simdOrientation = simd_dot(up, direction) < -0.9999
+                        ? simd_quatf(angle: .pi, axis: SIMD3<Float>(1,0,0))
+                        : simd_quatf(from: up, to: direction)
                     (node.geometry as? SCNBox)?.height = CGFloat(length)
                 }
                 guard applyTorque,
