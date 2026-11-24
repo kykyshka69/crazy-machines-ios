@@ -141,6 +141,28 @@ struct OriginalPowerCircuitSmoke {
         precondition(allWires.values.allSatisfy { $0 == 10 })
         precondition(CMOriginalWindowsPowerScalar.motorTriggersGoal(
             power: closedSignal[motorID]!))
+        // A real scissors cut is run-local, interrupts both authentic
+        // endpoints, and never edits the saved player wiring arrangement.
+        var cutRun = net
+        let cutWire = CMOriginalPowerCircuit.Cable(terminal(4), terminal(5))
+        precondition(cutRun.applyObservedCableCut(cutWire))
+        precondition(!cutRun.applyObservedCableCut(cutWire))
+        precondition(!cutRun.applyObservedCableCut(.init(terminal(1), terminal(6))))
+        precondition(cutRun.cutPlugIDs == [terminal(4), terminal(5)])
+        precondition(cutRun.cables == net.cables)
+        precondition(cutRun.activeCables.count == 3)
+        let cutSignals = cutRun.experimentalBatterySignals(closedSwitchIDs: [switchID])
+        precondition(cutSignals[motorID] == nil && cutSignals[lampID] == nil)
+        precondition(cutSignals[junctionID] == 10)
+        precondition(cutRun.experimentalCablePowerSignals(powerByDeviceID: closedSignal)[cutWire] == nil)
+        let cutSnapshot = try cutRun.snapshotData()
+        precondition(cutSnapshot == snapshot)
+        cutRun.clearRuntimeCuts()
+        precondition(cutRun.activeCables == net.cables)
+        precondition(cutRun.experimentalBatterySignals(closedSwitchIDs: [switchID])[lampID] == 10)
+        precondition(cutRun.applyObservedCableCut(cutWire))
+        precondition(cutRun.restoreSnapshot(snapshot))
+        precondition(cutRun.cutPlugIDs.isEmpty)
         let withSwitch = net.reachableDevices(closedSwitchIDs: [switchID])
         precondition(withSwitch.contains(sourceID))
         precondition(withSwitch.contains(junctionID))
