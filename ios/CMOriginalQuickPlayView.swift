@@ -91,6 +91,7 @@ struct CMOriginalQuickPlayView: View {
     @State private var ropeEditing = false
     @State private var pendingRopeEndpoint: CMOriginalRope.Endpoint?
     @State private var originalRopes = Set<CMOriginalRope.Pair>()
+    @State private var cutOriginalRopes = Set<CMOriginalRope.Pair>()
     @State private var ropeMessage: String?
     @State private var powerConnectionMessage: String?
     @State private var physicsPaused = false
@@ -299,6 +300,7 @@ struct CMOriginalQuickPlayView: View {
         guard let next = scene(at: document.index + step) else { return }
         document = next
         originalRopes.removeAll()
+        cutOriginalRopes.removeAll()
         pendingRopeEndpoint = nil
         ropeEditing = false
         ropeMessage = nil
@@ -343,6 +345,7 @@ struct CMOriginalQuickPlayView: View {
     /// Same restart action for the normal iPhone control and the genuine
     /// Windows VSC Replay button. No game assets or game-state shortcuts.
     private func restartCurrentPuzzle() {
+        cutOriginalRopes.removeAll()
         pendingRopeEndpoint = nil
         ropeMessage = nil
         powerCircuit?.clearRuntimeCuts()
@@ -435,7 +438,7 @@ struct CMOriginalQuickPlayView: View {
                 originalPlayerPowerCables: powerCircuit.map {
                     Array($0.activeCables)
                 } ?? [],
-                originalPlayerRopes: originalRopes,
+                originalPlayerRopes: originalRopes.subtracting(cutOriginalRopes),
                 originalRopeEditing: ropeEditing,
                 originalPlayerCablePowerSignals: experimentalCablePowerSignals,
                 configuredPhysicsRoles: experimentalPhysicsRoles,
@@ -655,6 +658,11 @@ struct CMOriginalQuickPlayView: View {
                         pendingRopeEndpoint = endpoint
                         ropeMessage = "Tap the second rope attachment"
                     }
+                },
+                onOriginalRopeCut: { pair in
+                    guard eventRevision == sceneRevision, experimentalPhysics,
+                          originalRopes.contains(pair), cutOriginalRopes.insert(pair).inserted else { return }
+                    ropeMessage = "Original scissors cut a rope"
                 },
                 onOriginalCableCut: { pair in
                     guard eventRevision == sceneRevision, experimentalPhysics,
@@ -983,6 +991,7 @@ struct CMOriginalQuickPlayView: View {
                 Toggle("Run experimental physics", isOn: $experimentalPhysics)
                     .font(.caption)
                     .onChange(of: experimentalPhysics) { _, newValue in
+                        cutOriginalRopes.removeAll()
                         pendingRopeEndpoint = nil
                         ropeEditing = false
                         ropeMessage = nil
@@ -1099,7 +1108,7 @@ struct CMOriginalQuickPlayView: View {
                 ["Rope", "Rope01", "Rope02"].contains { CMOriginalRope.accepts(type: object.type, marker: $0) }
             }).count > 1 {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Original rope links: \(originalRopes.count)")
+                    Text("Original rope links: \(originalRopes.count - cutOriginalRopes.count) · cut: \(cutOriginalRopes.count)")
                         .font(.caption.weight(.semibold))
                     if !experimentalPhysics {
                         Toggle("Connect original ropes", isOn: $ropeEditing)
@@ -1116,12 +1125,13 @@ struct CMOriginalQuickPlayView: View {
                         if !originalRopes.isEmpty {
                             Button("Clear ropes") {
                                 originalRopes.removeAll()
+                                cutOriginalRopes.removeAll()
                                 pendingRopeEndpoint = nil
                                 ropeMessage = nil
                             }.font(.caption)
                         }
-                        if let ropeMessage { Text(ropeMessage).font(.caption2) }
                     }
+                    if let ropeMessage { Text(ropeMessage).font(.caption2) }
                     Text("Ropes pull at authentic UCM attachments when stretched. SceneKit tension and straight visual segments are experimental.")
                         .font(.caption2).foregroundStyle(.secondary)
                 }.padding(.horizontal, 14).padding(.vertical, 6)
@@ -1236,6 +1246,7 @@ struct CMOriginalQuickPlayView: View {
                         forKey: "cm.original.rotations.\(document.sceneSHA256)"
                     )
                     originalRopes.removeAll()
+                    cutOriginalRopes.removeAll()
                     pendingRopeEndpoint = nil
                     ropeEditing = false
                     ropeMessage = nil
