@@ -419,3 +419,50 @@ public struct CMOriginalPowerCircuit {
         clearRuntimeCuts()
     }
 }
+
+/// Original 0x4579AD strict blade-angle threshold and 0x457285–0x4573E8
+/// cut sampling. The live iOS straight Wire-to-Wire segment substitutes for
+/// the native cable polyline, so the geometry is a documented reconstruction.
+public enum CMOriginalScissorsCableGeometry {
+    public static let activationAngle = Float(bitPattern: 0x3F060A92)
+    public static let sampleStep = Float(bitPattern: 0x3A83126F)
+    public static let hitDistanceSquared = Float(bitPattern: 0x38D1B717)
+
+    public static func activates(firstAngle: Float, secondAngle: Float) -> Bool {
+        guard firstAngle.isFinite, secondAngle.isFinite else { return false }
+        let difference = firstAngle - secondAngle
+        return difference.isFinite && abs(difference) > activationAngle
+    }
+
+    private static func dot(_ a: SIMD3<Float>, _ b: SIMD3<Float>) -> Float {
+        a.x * b.x + a.y * b.y + a.z * b.z
+    }
+
+    public static func cuts(bladeStart: SIMD3<Float>, bladeEnd: SIMD3<Float>,
+                            cableStart: SIMD3<Float>, cableEnd: SIMD3<Float>) -> Bool {
+        guard [bladeStart, bladeEnd, cableStart, cableEnd].allSatisfy({
+            $0.x.isFinite && $0.y.isFinite && $0.z.isFinite
+        }) else { return false }
+        let blade = bladeEnd - bladeStart
+        let wire = cableEnd - cableStart
+        let bladeSquared = dot(blade, blade)
+        let wireSquared = dot(wire, wire)
+        guard bladeSquared.isFinite, wireSquared.isFinite,
+              bladeSquared > 0, wireSquared > 0 else { return false }
+        let length = sqrt(bladeSquared)
+        // Imported blade UCMs are small; reject corrupt unbounded geometry
+        // instead of spending an unbounded number of iterations per frame.
+        guard length <= 4 else { return false }
+        let direction = blade / length
+        var sample: Float = 0
+        while sample < length {
+            let point = bladeStart + direction * sample
+            let offset = point - cableStart
+            let fraction = min(1, max(0, dot(offset, wire) / wireSquared))
+            let delta = offset - wire * fraction
+            if dot(delta, delta) < hitDistanceSquared { return true }
+            sample += sampleStep
+        }
+        return false
+    }
+}
