@@ -886,8 +886,20 @@ struct OriginalPowerCircuitSmoke {
             and: physicalMeter.plugID) == .connected)
         let physicalFrame = physicalCircuit.advanceOrderedElectricalFrame(
             previous: nil, closedSwitchIDs: [])!
-        precondition(physicalFrame.state.consumerReads[physicalMeter.deviceID]?.first == nil)
+        // 0x44C988 writes every physical outgoing slot before checking
+        // for a cable. The omitted socket receives power but remains
+        // absent from the player-visible terminal registry.
+        precondition(physicalFrame.state.consumerReads[physicalMeter.deviceID]?.first == 10)
         precondition(physicalFrame.state.consumerReads[physicalMeter.deviceID]?.second == 10)
+        precondition(physicalFrame.state.unwiredPhysicalSignals[physicalMeter.deviceID]?[0] == 10)
+        let physicalCut = CMOriginalPowerCircuit.Cable(physicalBattery.plugID, physicalMeter.plugID)
+        precondition(physicalCircuit.applyObservedCableCut(physicalCut))
+        let cutPhysicalFrame = physicalCircuit.advanceOrderedElectricalFrame(
+            previous: physicalFrame, closedSwitchIDs: [])!
+        precondition(cutPhysicalFrame.state.unwiredPhysicalSignals[physicalMeter.deviceID]?[0] == 0)
+        precondition(cutPhysicalFrame.state.consumerReads[physicalMeter.deviceID]?.first == 0)
+        precondition(cutPhysicalFrame.state.consumerReads[physicalMeter.deviceID]?.second == 0)
+        physicalCircuit.clearRuntimeCuts()
         precondition(physicalCircuit.orderedBatteryObservation(physicalFrame,
             closedSwitchIDs: []).deviceSignals[physicalMeter.deviceID] == 10)
         precondition(physicalCircuit.terminals.count == 2)
