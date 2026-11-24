@@ -229,28 +229,16 @@ struct CMOriginalQuickPlayView: View {
         })
     }
 
-    // Use the restored per-plug walker for order-independent networks,
-    // including conducting loops and shared native 10.0 battery sources.
-    // Bounded order consensus handles unambiguous parts of interacting
-    // sources and blocked loops; unsupported cases retain fallback.
+    // Each active component uses its own native-derived solver and budget.
+    // Unknown inputs or order ambiguity cannot downgrade unrelated circuits.
     private var liveElectricalObservation: CMOriginalPowerCircuit.NetworkObservation? {
         guard experimentalPhysics && experimentalWiredPower,
               let network = powerCircuit else { return nil }
-        return network.settledIndependentSourceObservation(
+        return network.componentwiseElectricalObservation(
             closedSwitchIDs: flippedOriginalSwitchIDs,
             generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID,
             solarRayContributionsByDeviceID: originalSolarRays,
             disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
-            ?? network.settledOrderConsensusObservation(
-                closedSwitchIDs: flippedOriginalSwitchIDs,
-                generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID,
-                solarRayContributionsByDeviceID: originalSolarRays,
-                disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
-            ?? network.experimentalNetworkObservation(
-                closedSwitchIDs: flippedOriginalSwitchIDs,
-                generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID,
-                solarRayContributionsByDeviceID: originalSolarRays,
-                disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
     }
 
     private var experimentalPowerSignals: [String: Float] {
