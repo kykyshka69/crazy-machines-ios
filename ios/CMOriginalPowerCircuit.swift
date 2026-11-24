@@ -443,7 +443,7 @@ public struct CMOriginalPowerCircuit {
 
     /// Reference state for the confirmed ordered Win32 plug walker.
     /// Sparse values mean not yet observed, not an implicit powered device.
-    public struct NativePortState {
+    public struct NativePortState: Equatable {
         public var signals: [String: Float]
         public var visitedOwners: Set<String>
         public fileprivate(set) var consumerReads: [String: NativeConsumerRead] = [:]
@@ -639,6 +639,81 @@ public struct CMOriginalPowerCircuit {
         return nativePortPass(previous: previous, events: events,
                               conductingByDeviceID: conductingByDeviceID,
                               observedSlotOrder: observedSlotOrder)
+    }
+
+    /// Persistent ordered electrical frames for the subset whose owner/slot
+    /// order is recovered and whose only sources are batteries. Dynamic
+    /// sources and unobserved disrupter timing remain on the existing solver.
+    public var supportsOrderedBatteryFrames: Bool {
+        recoveredNativeOwnerOrder != nil && recoveredNativeSlotOrder != nil
+            && !sourceDeviceIDs.isEmpty && conditionalSourceDeviceIDs.isEmpty
+            && disrupterDeviceIDs.isEmpty
+            && sourceDeviceIDs.allSatisfy { id in recoveredNativeSlotOrder?[id]?.count == 1 }
+    }
+
+    public struct BatteryFrame: Equatable {
+        public let state: NativePortState
+        public let processedCuts: Set<Cable>
+    }
+
+    public func advanceOrderedBatteryFrame(
+        previous: BatteryFrame?, closedSwitchIDs: Set<String>
+    ) -> BatteryFrame? {
+        guard supportsOrderedBatteryFrames,
+              let ownerOrder = recoveredNativeOwnerOrder,
+              let slotOrder = recoveredNativeSlotOrder else { return nil }
+        let gates = Dictionary(uniqueKeysWithValues:
+            switchDeviceIDs.map { ($0, closedSwitchIDs.contains($0)) })
+        // Initial zero is a reconstruction of a fresh run, not a measured
+        // native memory dump. Thereafter plug state persists between frames.
+        var state = previous?.state ?? NativePortState(signals:
+            Dictionary(uniqueKeysWithValues: terminals.map { ($0.plugID, Float(0)) }))
+        let cuts = cables.subtracting(activeCables)
+        guard (previous?.processedCuts ?? []).isSubset(of: cuts) else { return nil }
+        let newCuts = cuts.subtracting(previous?.processedCuts ?? []).sorted {
+            ($0.firstPlugID, $0.secondPlugID) < ($1.firstPlugID, $1.secondPlugID)
+        }
+        if !newCuts.isEmpty {
+            guard let interrupted = nativePortPass(previous: state,
+                events: newCuts.map { .cutTransfer($0) },
+                conductingByDeviceID: gates, observedSlotOrder: slotOrder)
+            else { return nil }
+            state = interrupted
+        }
+        guard let next = nativeElectricalUpdate(previous: state,
+            ownerOrder: ownerOrder, solarRayContributionsByDeviceID: [:],
+            conductingByDeviceID: gates, observedSlotOrder: slotOrder)
+        else { return nil }
+        return BatteryFrame(state: next, processedCuts: cuts)
+    }
+
+    public func orderedBatteryObservation(_ frame: BatteryFrame,
+                                          closedSwitchIDs: Set<String>) -> NetworkObservation {
+        let state = frame.state
+        var devices: [String: Float] = [:]
+        for (id, slots) in recoveredNativeSlotOrder ?? [:] {
+            guard let first = slots.first, let port = byPlugID[first] else { continue }
+            let value: Float?
+            if let read = state.consumerReads[id] {
+                if port.deviceType == "tmo_power_amperemeter" {
+                    value = max(read.first ?? 0, read.second ?? 0)
+                } else { value = read.first }
+            } else if sourceDeviceIDs.contains(id) {
+                value = state.sourceReads[id]
+            } else if switchDeviceIDs.contains(id) && !closedSwitchIDs.contains(id) {
+                value = nil
+            } else { value = state.signals[first] }
+            if let value, value.isFinite, value > 0 { devices[id] = value }
+        }
+        var wires: [Cable: Float] = [:]
+        for cable in activeCables {
+            guard let a = byPlugID[cable.firstPlugID], let b = byPlugID[cable.secondPlugID],
+                  !(sourceDeviceIDs.contains(a.deviceID) && sourceDeviceIDs.contains(b.deviceID)),
+                  let value = state.signals[cable.firstPlugID], value > 0,
+                  state.signals[cable.secondPlugID] == value else { continue }
+            wires[cable] = value
+        }
+        return NetworkObservation(deviceSignals: devices, cableSignals: wires)
     }
 
     /// Settled per-port bridge for order-independent networks.
