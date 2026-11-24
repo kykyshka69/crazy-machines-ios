@@ -667,6 +667,47 @@ struct OriginalPowerCircuitSmoke {
             solarRayContributionsByDeviceID: [solarOwner: [0.4]])
         precondition(localUnequal.deviceSignals[sparkLoad] == 4)
         precondition(localUnequal.deviceSignals[lampLoad] == nil)
+        // Independent optical power cannot originate in a solar-powered
+        // lamp, or from a disputed order-sensitive circuit.
+        var opticalRaw = raw
+        opticalRaw["root"] = ["name": "level", "fields": [], "children": [
+            ["name": "level_elements", "fields": [], "children": [
+                device("tmo_power_battery", [91]),
+                device("tmo_power_lamp", [92,93]),
+                device("tmo_power_solarcell", [94]),
+                device("tmo_power_lamp", [95])
+            ]]
+        ]]
+        let opticalDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: opticalRaw))
+        var optical = CMOriginalPowerCircuit(session:
+            CMOriginalGameplaySession(document: opticalDoc))!
+        func opticalPort(_ n: Int) -> CMOriginalPowerCircuit.Terminal {
+            optical.terminals.first { $0.number == n }!
+        }
+        precondition(optical.toggleCable(between: opticalPort(91).plugID,
+            and: opticalPort(92).plugID) == .connected)
+        precondition(optical.toggleCable(between: opticalPort(94).plugID,
+            and: opticalPort(95).plugID) == .connected)
+        let independentLamp = opticalPort(92).deviceID
+        let solarLamp = opticalPort(95).deviceID
+        let panel = opticalPort(94).deviceID
+        precondition(optical.independentOpticalLampSignals() == [independentLamp: 10])
+        let fullOptical = optical.componentwiseElectricalObservation(
+            solarRayContributionsByDeviceID: [panel: [1]])
+        precondition(fullOptical.deviceSignals[solarLamp] == 10)
+        precondition(fullOptical.deviceSignals[independentLamp] == 10)
+        precondition(optical.toggleCable(between: opticalPort(94).plugID,
+            and: opticalPort(95).plugID) == .disconnected)
+        precondition(optical.toggleCable(between: opticalPort(94).plugID,
+            and: opticalPort(93).plugID) == .connected)
+        precondition(optical.independentOpticalLampSignals().isEmpty)
+        let opticalCut = CMOriginalPowerCircuit.Cable(
+            opticalPort(93).plugID, opticalPort(94).plugID)
+        precondition(optical.applyObservedCableCut(opticalCut))
+        precondition(optical.independentOpticalLampSignals() == [independentLamp: 10])
+        optical.clearRuntimeCuts()
+        precondition(optical.independentOpticalLampSignals().isEmpty)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
