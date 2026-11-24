@@ -178,6 +178,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalGeneratorSignal: ((String, Float) -> Void)? = nil
     var onOriginalWindmillSignal: ((String, Float) -> Void)? = nil
     var onOriginalPowerPlugTap: ((String) -> Void)? = nil
+    var onOriginalCableCut: ((CMOriginalPowerCircuit.Cable) -> Void)? = nil
     var onOriginalSwitchToggle: ((String, Bool) -> Void)? = nil
     // Contact pairs from the actual imported PC switch lever and striker.
     // This reports a physical event; it does not invent Win32 +0xEC/+0xC8
@@ -443,6 +444,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalReconstructedRocketGoal =
             onOriginalReconstructedRocketGoal
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
+        context.coordinator.onOriginalCableCut = onOriginalCableCut
         context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
         context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal
         context.coordinator.onOriginalWindmillSignal = onOriginalWindmillSignal
@@ -555,6 +557,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalReconstructedRocketGoal =
             onOriginalReconstructedRocketGoal
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
+        context.coordinator.onOriginalCableCut = onOriginalCableCut
         context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
         context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal
         context.coordinator.onOriginalWindmillSignal = onOriginalWindmillSignal
@@ -664,6 +667,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             sessionLock.unlock()
         }
         var onOriginalPowerPlugTap: ((String) -> Void)?
+        var onOriginalCableCut: ((CMOriginalPowerCircuit.Cable) -> Void)?
+        private var scissorsBladesByOwner: [String: (first: String, second: String)] = [:]
+        private var firedScissorsIDs = Set<String>()
+        private var reportedCutCables = Set<CMOriginalPowerCircuit.Cable>()
         func setPoweredMotorDriveSignals(_ signals: [String: Float]) {
             sessionLock.lock()
             poweredMotorDriveSignals = signals.filter { $0.value.isFinite }
@@ -1139,6 +1146,47 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
 
+        // The genuine scissors use the first blade's Cut01/Cut02 frames
+        // once the two physical blade angles cross the native threshold.
+        // We test the actual rendered straight cable, not a guessed owner
+        // overlap. Native flexible cable tessellation is still unrecovered.
+        private func sampleOriginalScissorsCuts() {
+            guard !scissorsBladesByOwner.isEmpty else { return }
+            for (owner, blades) in scissorsBladesByOwner {
+                guard !firedScissorsIDs.contains(owner),
+                      let first = physicsNodesByObjectID[blades.first]?.first,
+                      let second = physicsNodesByObjectID[blades.second]?.first,
+                      first.physicsBody != nil, second.physicsBody != nil,
+                      let start = exactOriginalAnchor("Cut01", on: blades.first),
+                      let end = exactOriginalAnchor("Cut02", on: blades.first),
+                      CMOriginalScissorsCableGeometry.activates(
+                        firstAngle: first.presentation.eulerAngles.z,
+                        secondAngle: second.presentation.eulerAngles.z)
+                else { continue }
+                firedScissorsIDs.insert(owner)
+                let a = start.presentation.simdWorldPosition
+                let b = end.presentation.simdWorldPosition
+                originalCableVisualLock.lock()
+                let hits = originalCableNodes.keys.filter { pair in
+                    guard !reportedCutCables.contains(pair),
+                          let left = originalCableWireMarkers[pair.firstPlugID],
+                          let right = originalCableWireMarkers[pair.secondPlugID]
+                    else { return false }
+                    return CMOriginalScissorsCableGeometry.cuts(
+                        bladeStart: a, bladeEnd: b,
+                        cableStart: left.presentation.simdWorldPosition,
+                        cableEnd: right.presentation.simdWorldPosition)
+                }
+                reportedCutCables.formUnion(hits)
+                originalCableVisualLock.unlock()
+                for pair in hits {
+                    DispatchQueue.main.async { [weak self] in
+                        self?.onOriginalCableCut?(pair)
+                    }
+                }
+            }
+        }
+
         private func refreshOriginalCableGeometry() {
             originalCableVisualLock.lock()
             refreshOriginalCableGeometryLocked()
@@ -1212,6 +1260,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             originalTypesByID = Dictionary(
                 uniqueKeysWithValues: originalObjects.map { ($0.id, $0.type) }
             )
+            scissorsBladesByOwner.removeAll()
+            firedScissorsIDs.removeAll()
+            reportedCutCables.removeAll()
+            for owner in originalObjects where owner.type == "tmo_rope_scissors" {
+                let first = originalObjects.filter { $0.parentID == owner.id && $0.type == "tmo_rope_scissors_1" }
+                let second = originalObjects.filter { $0.parentID == owner.id && $0.type == "tmo_rope_scissors_2" }
+                if first.count == 1, second.count == 1 {
+                    scissorsBladesByOwner[owner.id] = (first[0].id, second[0].id)
+                }
+            }
             originalRocketParentByChildID = Dictionary(
                 uniqueKeysWithValues: originalObjects.compactMap { child
                     -> (String, String)? in
@@ -1739,6 +1797,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // independent of electric power propagation and cannot energize
             // solar cells without original ray emission/hit validation.
             sampleOriginalOpticalSightlines(renderer: renderer, at: time)
+            sampleOriginalScissorsCuts()
             sampleOriginalRocketAnchorFrames(at: time)
             if time - lastGeneratorPollTime >= 0.16 {
                 lastGeneratorPollTime = time
