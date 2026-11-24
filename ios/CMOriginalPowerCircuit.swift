@@ -46,6 +46,31 @@ public struct CMOriginalPowerCircuit {
     public let terminals: [Terminal]
     public private(set) var cables: Set<Cable> = []
 
+    // Run-local native scissors interruption. Keep the authored arrangement
+    // for replay; never persist a physical cut as a player editing action.
+    public private(set) var cutPlugIDs: Set<String> = []
+
+    public var activeCables: Set<Cable> {
+        cables.filter { !cutPlugIDs.contains($0.firstPlugID)
+            && !cutPlugIDs.contains($0.secondPlugID) }
+    }
+
+    /// Win32 0x457312/0x45731F marks both real endpoints +0x50=1,
+    /// clears +0x40, then propagates the interruption in both directions.
+    /// Only an independently observed cut of an existing exact wire may
+    /// invoke this transition. The native blade test is a separate path.
+    @discardableResult
+    public mutating func applyObservedCableCut(_ cable: Cable) -> Bool {
+        guard activeCables.contains(cable) else { return false }
+        cutPlugIDs.insert(cable.firstPlugID)
+        cutPlugIDs.insert(cable.secondPlugID)
+        return true
+    }
+
+    public mutating func clearRuntimeCuts() {
+        cutPlugIDs.removeAll(keepingCapacity: true)
+    }
+
     private let byPlugID: [String: Terminal]
     private let sourceDeviceIDs: Set<String>
     private let generatorDeviceIDs: Set<String>
@@ -167,12 +192,14 @@ public struct CMOriginalPowerCircuit {
         }
         var candidate = self
         candidate.cables.removeAll(keepingCapacity: true)
+        candidate.clearRuntimeCuts()
         for cable in saved.cables {
             guard candidate.toggleCable(
                 between: cable.firstPlugID, and: cable.secondPlugID
             ) == .connected else { return false }
         }
         cables = candidate.cables
+        clearRuntimeCuts()
         return true
     }
 
@@ -191,7 +218,11 @@ public struct CMOriginalPowerCircuit {
               let a = byPlugID[left], let b = byPlugID[right],
               a.deviceID != b.deviceID else { return .rejected }
         let cable = Cable(left, right)
-        if cables.remove(cable) != nil { return .disconnected }
+        if cables.remove(cable) != nil {
+            cutPlugIDs.remove(left)
+            cutPlugIDs.remove(right)
+            return .disconnected
+        }
         guard !cables.contains(where: {
             $0.firstPlugID == left || $0.secondPlugID == left
                 || $0.firstPlugID == right || $0.secondPlugID == right
@@ -231,7 +262,7 @@ public struct CMOriginalPowerCircuit {
         switchContactsByDeviceID: [String: CMOriginalWindowsSwitchContactGate.ContactPair]
     ) -> Set<String> {
         var edges: [String: Set<String>] = [:]
-        for cable in cables {
+        for cable in activeCables {
             guard let a = byPlugID[cable.firstPlugID],
                   let b = byPlugID[cable.secondPlugID] else { continue }
             edges[a.deviceID, default: []].insert(b.deviceID)
@@ -354,7 +385,7 @@ public struct CMOriginalPowerCircuit {
         powerByDeviceID: [String: Float]
     ) -> [Cable: Float] {
         var known: [Cable: Float] = [:]
-        for wire in cables {
+        for wire in activeCables {
             guard let left = byPlugID[wire.firstPlugID],
                   let right = byPlugID[wire.secondPlugID],
                   // Native traversal explicitly skips entering another battery.
@@ -383,5 +414,8 @@ public struct CMOriginalPowerCircuit {
             switchContactsByDeviceID: switchContactsByDeviceID)
     }
 
-    public mutating func reset() { cables.removeAll(keepingCapacity: true) }
+    public mutating func reset() {
+        cables.removeAll(keepingCapacity: true)
+        clearRuntimeCuts()
+    }
 }
