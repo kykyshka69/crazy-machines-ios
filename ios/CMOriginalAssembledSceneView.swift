@@ -751,6 +751,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // Observed during SceneKit contact callbacks, consumed once per frame.
         private let gearDriveLock = NSLock()
         private var observedElectricalGearContacts = Set<CMOriginalDriveBelt.Pair>()
+        private var correctedGearPairsThisStep = Set<CMOriginalDriveBelt.Pair>()
         var onOriginalRopeCut: ((CMOriginalRope.Pair) -> Void)?
         // Renderer-local cut latch prevents a queued UI update recreating a severed rope.
         private var severedRopes = Set<CMOriginalRope.Pair>()
@@ -2462,6 +2463,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       let wheelBody = wheels[0].physicsBody, wheelBody.type == .dynamic,
                       let wingsBody = wings[0].physicsBody, wingsBody.type == .dynamic,
                       wheelBody !== wingsBody else { continue }
+                if coupleRotaryBodies(wheelBody,wingsBody,first:1,second:1) { continue }
                 guard let wheelSpeed = planarSpeed(wheelBody),
                       let wingsSpeed = planarSpeed(wingsBody),
                       let torque = CMOriginalWindowsWindmill.coupledTorque(
@@ -2470,6 +2472,30 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 wheelBody.applyTorque(axisTorque, asImpulse: false)
                 wingsBody.applyTorque(axisTorque, asImpulse: false)
             }
+        }
+
+        // All supported rotary couplings use the same inertia-aware
+        // reaction. Native drive ratios are preserved; the impulse solver
+        // is a passive SceneKit adapter, not a source of motor power.
+        @discardableResult
+        private func coupleRotaryBodies(_ a: SCNPhysicsBody, _ b: SCNPhysicsBody,
+                                        first: Double, second: Double) -> Bool {
+            guard a !== b, a.type == .dynamic, b.type == .dynamic,
+                  let wa = planarSpeed(a), let wb = planarSpeed(b),
+                  let impulses = CMOriginalRotaryConstraint.solve(
+                    firstSpeed: Double(wa), secondSpeed: Double(wb),
+                    firstInertia: Double(a.momentOfInertia.z),
+                    secondInertia: Double(b.momentOfInertia.z),
+                    firstCoefficient: first, secondCoefficient: second,
+                    fraction: 0.5) else { return false }
+            func apply(_ body: SCNPhysicsBody, _ impulse: Double) {
+                let magnitude = Float(abs(impulse))
+                guard magnitude > 0.0000001 else { return }
+                body.applyTorque(SCNVector4(0,0,impulse < 0 ? -1 : 1,magnitude), asImpulse: true)
+            }
+            apply(a, impulses.first)
+            apply(b, impulses.second)
+            return true
         }
 
         // Every planar mechanism must read the same projected angular
@@ -2525,6 +2551,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 guard let firstSpeed = planarSpeed(firstBody),
                       let secondSpeed = planarSpeed(secondBody) else { continue }
                 activeElectricalDriveBelts.insert(pair)
+                if coupleRotaryBodies(firstBody,secondBody,
+                    first:Double(first.coefficient),second:-Double(second.coefficient)) { continue }
                 guard let torque = CMOriginalDriveBelt.correction(
                     firstSpeed: firstSpeed, secondSpeed: secondSpeed,
                     firstVALF: first.coefficient, secondVALF: second.coefficient) else { continue }
@@ -2685,6 +2713,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         func registerPhysicsNodes(in scene: SCNScene, originalDirectory: URL) {
             gearDriveLock.lock()
             observedElectricalGearContacts.removeAll()
+            correctedGearPairsThisStep.removeAll()
             gearDriveLock.unlock()
             effectVoices.values.flatMap { $0 }.forEach { $0.stop() }
             effectVoices.removeAll()
@@ -3533,6 +3562,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 return
             }
             defer { lastRendererTime = time }
+            // Contact delegates may report multiple manifold points per
+            // pair. Apply the rotary correction only once per physics step.
+            gearDriveLock.lock()
+            correctedGearPairsThisStep.removeAll(keepingCapacity: true)
+            gearDriveLock.unlock()
             // updateAtTime precedes SceneKit's physics step. Preserve the
             // approach velocity before the contact solver changes it.
             if !springObjectIDs.isEmpty {
@@ -3701,6 +3735,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 guard let speed = planarSpeed(drive) else { continue }
                 for roller in conveyorRollerNodes[conveyorID] ?? [] {
                     guard let body = roller.node.physicsBody, body.type == .dynamic else { continue }
+                    if let radius = CMOriginalConveyorContact.rollerRadius(for: roller.kind),
+                       coupleRotaryBodies(drive,body,first:0.09,second:-Double(radius)) { continue }
                     guard let rollerSpeed = planarSpeed(body),
                           let torque = CMOriginalConveyorContact.rollerTorque(
                         kind: roller.kind, driveSpeed: speed,
@@ -4631,6 +4667,29 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 observedElectricalGearContacts.insert(edge)
                 gearDriveLock.unlock()
             }
+            // Do not substitute a geometric ratio for one missing native
+            // coefficient. The geometric fallback is only for old fixtures.
+            let va = originalMechanicalVALFByID[aID], vb = originalMechanicalVALFByID[bID]
+            guard (va == nil) == (vb == nil),
+                  (0.008...3).contains(radiusA), (0.008...3).contains(radiusB),
+                  let edge = CMOriginalDriveBelt.Pair(aID,bID) else { return }
+            let firstCoefficient: Double
+            let secondCoefficient: Double
+            if let va, let vb {
+                guard let ratio = CMOriginalWindowsMechanicalTransfer.transmittedSignal(
+                    sourceSignal: 1, sourceVALF: va, targetVALF: vb),
+                      ratio > 0, ratio <= 100 else { return }
+                firstCoefficient = Double(ratio)
+                secondCoefficient = 1
+            } else {
+                firstCoefficient = Double(radiusA)
+                secondCoefficient = Double(radiusB)
+            }
+            gearDriveLock.lock()
+            let fresh = correctedGearPairsThisStep.insert(edge).inserted
+            gearDriveLock.unlock()
+            guard fresh else { return }
+            if coupleRotaryBodies(aBody,bBody,first:firstCoefficient,second:secondCoefficient) { return }
             guard let pair = CMOriginalGearContactTransfer.correction(
                 firstKind: kindA, secondKind: kindB,
                 firstRadius: radiusA, secondRadius: radiusB,
