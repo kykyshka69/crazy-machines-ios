@@ -3393,7 +3393,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             sampleOriginalSwitchConduction()
             sampleOriginalScissorsCuts()
             sampleOriginalBalloonHeat(root: renderer.scene?.rootNode)
-            advanceOriginalFuzeVisualSignals(delta: delta)
+            advanceOriginalFuzeVisualSignals(delta: delta, root: renderer.scene?.rootNode)
             retireOriginalBalloons()
             refreshOriginalRopes(applyTension: true)
             refreshOriginalBelts(applyTorque: true)
@@ -3674,7 +3674,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
 
         // Only a genuine scene hit can start the visual path animation.
-        // This intentionally has no receiver activation or GOAL side effect.
+        // Receiver effects are evaluated separately at the advancing edge.
         private func markOriginalFuzeVisualHit(_ hit: SCNHitTestResult) {
             let node = hit.node
             guard originalFuzeSegments.contains(where: { $0 === node }),
@@ -3687,11 +3687,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             fuzeVisualSignals[key] = state
         }
 
-        private func advanceOriginalFuzeVisualSignals(delta: TimeInterval) {
+        private func advanceOriginalFuzeVisualSignals(delta: TimeInterval, root: SCNNode?) {
             guard delta.isFinite, delta > 0, delta <= 0.25,
                   !fuzeVisualSignals.isEmpty else { return }
-            // Provisional UI animation only. The original native time mapping
-            // is not yet established. No native device activation is inferred.
+            // Provisional animation timing. The original native time mapping
+            // is not yet established; use only observed moving fronts for
+            // the reconstructed candle and balloon receiver callbacks.
             struct Span {
                 let node: SCNNode
                 let owner: String
@@ -3707,10 +3708,17 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     b: node.presentation.simdConvertPosition(.init(0,half,0),to:nil))
             }
             var reached: [(owner: String, point: SIMD3<Float>)] = []
+            var fronts: [SIMD3<Float>] = []
             for span in spans {
                 let key = ObjectIdentifier(span.node)
                 guard var state = fuzeVisualSignals[key] else { continue }
-                state.advance(by: Float(delta)*0.6)
+                let changes = state.advanceAndObserve(by: Float(delta)*0.6)
+                for range in changes {
+                    // Sample the newly visited game's route, never the
+                    // persistent visual overlay or disconnected fragments.
+                    let fraction = (range.lowerBound+range.upperBound)/2
+                    fronts.append(span.a+(span.b-span.a)*fraction)
+                }
                 fuzeVisualSignals[key] = state
                 if let range = state.visited {
                     if range.lowerBound == 0 { reached.append((span.owner,span.a)) }
@@ -3718,7 +3726,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
             }
             // Same-owner coincident endpoints only. A scissors gap cannot
-            // be bridged by the visual state. No transfer between devices.
+            // be bridged by the visual state.
             for span in spans {
                 let key = ObjectIdentifier(span.node)
                 var state = fuzeVisualSignals[key] ?? CMOriginalFuzeVisualSignal()
@@ -3747,6 +3755,42 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 overlay.isHidden = fraction <= 0.0001
                 (overlay.geometry as? SCNCylinder)?.height = CGFloat(max(0.0001,fraction)*Float(shape.height))
                 overlay.position.y = Float(shape.height)*((range.lowerBound+range.upperBound)/2-0.5)
+            }
+            // The native path update calls the same heat receiver dispatcher
+            // as the existing focus. Restrict this bridge to supported
+            // original candle and balloon objects, with their usual gates.
+            guard !fronts.isEmpty else { return }
+            for id in originalTypesByID.keys.sorted() {
+                guard let type = originalTypesByID[id],
+                      type == "tmo_candle" || type == "tmo_candle_dyn",
+                      session?.originalHeatSourceStates[id] != true,
+                      let marker = exactOriginalAnchor("Heat", on: id),
+                      fronts.contains(where: {
+                          CMOriginalMagnifier.heats(light: 1, focus: $0,
+                              receiver: marker.presentation.simdWorldPosition)
+                      }),
+                      session?.igniteOriginalCandleFromFocus(id) == true
+                else { continue }
+                for glow in originalCandleGlowNodes[id] ?? [] { glow.opacity = 1 }
+                let deliver = onOriginalEnvironmentalCandleGoal
+                DispatchQueue.main.async { deliver?(id) }
+            }
+            if !buoyantObjectIDs.isEmpty, let root {
+                for p in fronts {
+                    let hits = root.hitTestWithSegment(
+                        from: SCNVector3(p.x,p.y,p.z-2),
+                        to: SCNVector3(p.x,p.y,p.z+2),
+                        options: [SCNHitTestOption.firstFoundOnly.rawValue: false,
+                                  SCNHitTestOption.ignoreHiddenNodes.rawValue: true,
+                                  SCNHitTestOption.backFaceCulling.rawValue: false])
+                    for hit in hits {
+                        guard hit.node is CMOriginalObjectMeshNode,
+                              let id = owningOriginalObjectID(for: hit.node),
+                              buoyantObjectIDs.contains(id),
+                              !poppedBalloonIDs.contains(id) else { continue }
+                        pendingBalloonPops.insert(id)
+                    }
+                }
             }
         }
 
