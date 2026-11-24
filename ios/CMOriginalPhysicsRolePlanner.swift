@@ -33,6 +33,14 @@ public enum CMOriginalPhysicsRolePlanner {
                 // Authentic scissors blades have independent physical
                 // angle components even though their CML omits VALB.
                 role = .movable
+            } else if ["tmo_rope_crossbow_arrow", "tmo_rope_crossbow_lever"].contains(object.type),
+                      let parentID = object.parentID,
+                      session.objects.contains(where: {
+                          $0.id == parentID && $0.type == "tmo_rope_crossbow"
+                      }) {
+                // The arrow is held by the renderer until the native
+                // lever release condition; the lever must rotate under rope force.
+                role = .movable
             } else if object.type == "tmo_heat_rocket_rocket",
                       let parentID = object.parentID,
                       session.objects.contains(where: {
