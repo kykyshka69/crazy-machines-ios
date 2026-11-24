@@ -499,3 +499,51 @@ public enum CMOriginalMechanicalSnapshot {
         return Links(ropes: ropes, belts: belts)
     }
 }
+
+
+/// Game-only spring rebound adapter for authentic tmo_spring bodies.
+/// Win32 0x444D3F..0x444E54 reads relative motion, tests its Y component,
+/// scales by 20 and writes an output vector before setting spring +EC=1.
+/// The native output-vector to SceneKit speed conversion is not recovered.
+/// The bounded rebound below is a provisional planar physical adapter.
+public enum CMOriginalSpringContact {
+    public struct Pair: Hashable {
+        public let spring: String
+        public let striker: String
+        public init(spring: String, striker: String) {
+            self.spring = spring; self.striker = striker
+        }
+    }
+
+    public struct Gate {
+        private var active = Set<Pair>()
+        public init() {}
+        public mutating func accept(_ pair: Pair) -> Bool {
+            guard pair.spring != pair.striker else { return false }
+            return active.insert(pair).inserted
+        }
+        public mutating func end(_ pair: Pair) { active.remove(pair) }
+    }
+
+    public static func rebound(incoming: SIMD3<Float>, current: SIMD3<Float>,
+                               axis: SIMD3<Float>, contact: SIMD3<Float>,
+                               marker: SIMD3<Float>) -> SIMD3<Float>? {
+        guard [incoming,current,axis,contact,marker].allSatisfy({
+            $0.x.isFinite && $0.y.isFinite && $0.z.isFinite
+        }) else { return nil }
+        let length = hypot(axis.x,axis.y)
+        guard length > 0.0001, length.isFinite else { return nil }
+        let n = SIMD3<Float>(axis.x/length,axis.y/length,0)
+        func along(_ v: SIMD3<Float>) -> Float { v.x*n.x+v.y*n.y }
+        // Genuine spring marker sits above the base. Reject underside
+        // contacts instead of bouncing every body touching the mount.
+        guard along(contact-marker) >= -0.03 else { return nil }
+        let approach = -along(incoming)
+        guard approach > 0.05 else { return nil }
+        let desired = min(8,1.6*approach)
+        let correction = desired - along(current)
+        guard correction > 0, correction.isFinite else { return nil }
+        let result = current+n*correction
+        return SIMD3<Float>(result.x,result.y,0)
+    }
+}
