@@ -684,6 +684,16 @@ struct CMOriginalQuickPlayView: View {
                     _ = objectiveLedger?.recordGoalStateChanged(
                         ownerID, isSimulationRunning: true)
                 },
+                onOriginalCatapultGoal: { ownerID in
+                    guard eventRevision == sceneRevision, experimentalPhysics,
+                          originalSession.objects.contains(where: {
+                              $0.id == ownerID && $0.type == "tmo_catapult"
+                          }) else { return }
+                    _ = windowsGoalCounter?.recordGoalEvent(
+                        objectID: ownerID, simulationRunning: true)
+                    _ = objectiveLedger?.recordGoalStateChanged(
+                        ownerID, isSimulationRunning: true)
+                },
                 onOriginalSolarRays: { rays in
                     guard eventRevision == sceneRevision, experimentalPhysics else { return }
                     originalSolarRays = rays
