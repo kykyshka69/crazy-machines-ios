@@ -4492,6 +4492,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 sessionLock.lock()
                 guard session?.phase == .running else { sessionLock.unlock(); return }
                 observeOriginalCollisionSound(a, b, impulse: Double(contact.collisionImpulse))
+                // A crate may initially touch the spring housing, then
+                // reach its actual Spring marker during a later contact
+                // update. Reuse the approach and one-rebound-per-pair gate.
+                observeOriginalSpringContact(spring: a, striker: b, point: contact.contactPoint)
+                observeOriginalSpringContact(spring: b, striker: a, point: contact.contactPoint)
                 // A sustained collision may first reach the authentic
                 // blade/tip marker after didBegin. The pending/retired
                 // balloon sets preserve one-shot dispatch.
