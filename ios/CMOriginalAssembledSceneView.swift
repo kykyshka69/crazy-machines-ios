@@ -1092,6 +1092,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var originalEffects: [String: CMOriginalSoundLibrary.Effect] = [:]
         private var effectVoices: [String: [AVAudioPlayer]] = [:]
         private var unavailableEffects = Set<String>()
+        private var collisionSoundGate = CMOriginalCollisionSound.Gate()
+
+        // Called with sessionLock held by the original contact callbacks.
+        private func observeOriginalCollisionSound(_ a: String, _ b: String,
+                                                   impulse: Double) {
+            guard !originalEffects.isEmpty,
+                  let typeA = originalTypesByID[a], let typeB = originalTypesByID[b] else { return }
+            let sounds = collisionSoundGate.consume(a: a, b: b, typeA: typeA, typeB: typeB,
+                movableA: session?.physicsRole(for: a) == .movable,
+                movableB: session?.physicsRole(for: b) == .movable, impulse: impulse)
+            for sound in sounds { playOriginalEffect(sound) }
+        }
 
         private func playOriginalEffect(_ id: String) {
             DispatchQueue.main.async { [weak self] in
@@ -2601,6 +2613,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             effectVoices.values.flatMap { $0 }.forEach { $0.stop() }
             effectVoices.removeAll()
             unavailableEffects.removeAll()
+            collisionSoundGate = CMOriginalCollisionSound.Gate()
             effectDirectory = originalDirectory
             originalEffects = CMOriginalSoundLibrary.load(directory: originalDirectory)
             collectedPrototypeSources.removeAll()
@@ -4478,6 +4491,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       a != b else { return }
                 sessionLock.lock()
                 guard session?.phase == .running else { sessionLock.unlock(); return }
+                observeOriginalCollisionSound(a, b, impulse: Double(contact.collisionImpulse))
                 // A sustained collision may first reach the authentic
                 // blade/tip marker after didBegin. The pending/retired
                 // balloon sets preserve one-shot dispatch.
@@ -4535,6 +4549,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             sessionLock.lock()
             guard session?.phase == .running else { sessionLock.unlock(); return }
             session?.recordContact(a, b, impulse: Double(contact.collisionImpulse))
+            observeOriginalCollisionSound(a, b, impulse: Double(contact.collisionImpulse))
             observeOriginalSpringContact(spring: a, striker: b, point: contact.contactPoint)
             observeOriginalSpringContact(spring: b, striker: a, point: contact.contactPoint)
             observeOriginalBalloonContact(balloon: a, sharp: b, point: contact.contactPoint)
@@ -4672,6 +4687,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       for: physicalNode(for: contact.nodeB)) else { return }
             sessionLock.lock()
             switchContacts?.endContact(a, b)
+            collisionSoundGate.end(a, b)
             springContactGate.end(.init(spring: a, striker: b))
             springContactGate.end(.init(spring: b, striker: a))
             sessionLock.unlock()
