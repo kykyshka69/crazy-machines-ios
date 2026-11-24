@@ -46,3 +46,83 @@ public enum CMOriginalVSCScriptLibrary {
         return CompletionActions(script: script)
     }
 }
+
+/// Exact effect names and filenames from the private original soundfx.vsc.
+/// No fallback sounds or inference from anonymous CAB entry numbers.
+public enum CMOriginalSoundLibrary {
+    public struct Effect: Equatable {
+        public let filename: String
+        public let loops: Bool
+        public let voiceCount: Int
+    }
+
+    public static func effects(script: CMOriginalVSCDecoder.Script) -> [String: Effect] {
+        var effects: [String: Effect] = [:]
+        var seen = Set<String>()
+        for section in script.sections {
+            let id = section.name.uppercased()
+            guard id.hasPrefix("SOUND_FX_") else { continue }
+            guard seen.insert(id).inserted else { effects.removeValue(forKey: id); continue }
+            guard section.value(for: "Type") == "FAKTSOUND_SOUND_2D",
+                  let raw = section.value(for: "File"),
+                  raw.hasPrefix("data/sounds/fx/") else { continue }
+            let filename = String(raw.dropFirst("data/sounds/fx/".count))
+            guard filename.count <= 128, filename.lowercased().hasSuffix(".wav"),
+                  filename.utf8.allSatisfy({ (65...90).contains($0) ||
+                    (97...122).contains($0) || (48...57).contains($0) ||
+                    $0 == 95 || $0 == 45 || $0 == 46 }),
+                  !filename.contains("..") else { continue }
+            let count = section.value(for: "MultiStatic") == "1"
+                ? (Int(section.value(for: "MultiStaticCount") ?? "") ?? 1) : 1
+            guard (1...8).contains(count) else { continue }
+            effects[id] = Effect(filename: filename, loops: section.value(for: "Loop") == "1",
+                                 voiceCount: count)
+        }
+        return effects
+    }
+
+    public static func load(directory: URL) -> [String: Effect] {
+        let file = directory.appendingPathComponent("soundfx.vsc")
+        guard let metadata = try? file.resourceValues(forKeys: [.isRegularFileKey,.fileSizeKey]),
+              metadata.isRegularFile == true, let size = metadata.fileSize,
+              (32...100_000).contains(size),
+              let bytes = try? Data(contentsOf: file), bytes.count == size,
+              let script = try? CMOriginalVSCDecoder.read(bytes) else { return [:] }
+        return effects(script: script)
+    }
+
+    /// Accept bounded PCM RIFF/WAVE effects, checking all chunk bounds.
+    public static func validWAV(_ data: Data) -> Bool {
+        guard (44...8_000_000).contains(data.count) else { return false }
+        let b = [UInt8](data)
+        func u16(_ i: Int) -> Int { Int(b[i]) | Int(b[i+1]) << 8 }
+        func u32(_ i: Int) -> Int {
+            Int(b[i]) | Int(b[i+1]) << 8 | Int(b[i+2]) << 16 | Int(b[i+3]) << 24
+        }
+        guard b[0..<4].elementsEqual("RIFF".utf8),
+              b[8..<12].elementsEqual("WAVE".utf8), u32(4) == b.count-8 else { return false }
+        var i = 12
+        var alignment: Int?
+        var length: Int?
+        while i < b.count {
+            guard i <= b.count-8 else { return false }
+            let size = u32(i+4), start = i+8
+            guard size <= b.count-start, size+(size%2) <= b.count-start else { return false }
+            if b[i..<i+4].elementsEqual("fmt ".utf8) {
+                guard alignment == nil, size >= 16, u16(start) == 1 else { return false }
+                let channels = u16(start+2), rate = u32(start+4), bits = u16(start+14)
+                guard (1...2).contains(channels), (8000...96000).contains(rate),
+                      bits == 8 || bits == 16,
+                      u16(start+12) == channels*bits/8,
+                      u32(start+8) == rate*channels*bits/8 else { return false }
+                alignment = channels*bits/8
+            } else if b[i..<i+4].elementsEqual("data".utf8) {
+                guard length == nil, size > 0 else { return false }
+                length = size
+            }
+            i = start+size+(size%2)
+        }
+        guard let alignment, let length else { return false }
+        return length % alignment == 0
+    }
+}
