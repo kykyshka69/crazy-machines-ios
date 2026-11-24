@@ -1088,6 +1088,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // the fixed balloon is kept static by configuredPhysicsRoles.
         private var springObjectIDs = Set<String>()
         private var springContactGate = CMOriginalSpringContact.Gate()
+        private var springMorphers: [String: SCNMorpher] = [:]
+        private var springAnimations: [String: CMOriginalSpringContact.Animation] = [:]
         private var springIncomingVelocities: [String: SIMD3<Float>] = [:]
         private var buoyantObjectIDs = Set<String>()
         private var pendingBalloonPops = Set<String>()
@@ -2675,6 +2677,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             )
             springObjectIDs = Set(originalObjects.filter { $0.type == "tmo_spring" }.map(\.id))
             springContactGate = CMOriginalSpringContact.Gate()
+            springMorphers.removeAll()
+            springAnimations.removeAll()
             springIncomingVelocities.removeAll()
             pendingBalloonPops.removeAll()
             poppedBalloonIDs.removeAll()
@@ -2947,10 +2951,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
                 guard let mesh = node as? CMOriginalObjectMeshNode,
                       let id = mesh.originalObjectID,
-                      self.originalTypesByID[id] == "tmo_light_flower",
-                      mesh.name?.lowercased() == "to_light_flower",
                       let morpher = mesh.morpher, morpher.targets.count == 1 else { return }
-                self.liveFlowerMorphers[id] = morpher
+                if self.originalTypesByID[id] == "tmo_light_flower",
+                   mesh.name?.lowercased() == "to_light_flower" {
+                    self.liveFlowerMorphers[id] = morpher
+                } else if self.springObjectIDs.contains(id),
+                          mesh.name?.lowercased() == "to_spring" {
+                    self.springMorphers[id] = morpher
+                }
             }
             applyOriginalLampVisualFactors()
             applyOriginalAmmeterSignals()
@@ -3426,6 +3434,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             advanceOriginalHammerDrives(delta: delta)
             advanceOriginalCatapults(delta: delta)
             advanceOriginalCrossbows()
+            advanceOriginalSpringAnimations(delta: delta)
             advanceOriginalSteamNetwork(delta: delta)
             advanceOriginalSteamPistons()
             advanceOriginalBellows(delta: delta)
@@ -3648,6 +3657,26 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 marker: marker.presentation.simdWorldPosition),
                 springContactGate.accept(.init(spring: spring, striker: striker)) else { return }
             body.velocity = SCNVector3(next.x,next.y,next.z)
+            if springMorphers[spring] != nil {
+                var animation = CMOriginalSpringContact.Animation()
+                animation.trigger()
+                springAnimations[spring] = animation
+                springMorphers[spring]?.setWeight(0, forTargetAt: 0)
+            }
+        }
+
+        private func advanceOriginalSpringAnimations(delta: Double) {
+            for id in Array(springAnimations.keys) {
+                guard var animation = springAnimations[id],
+                      let morpher = springMorphers[id],
+                      let weight = animation.advance(delta: delta) else { continue }
+                morpher.setWeight(CGFloat(weight), forTargetAt: 0)
+                if animation.elapsed == nil {
+                    springAnimations.removeValue(forKey: id)
+                } else {
+                    springAnimations[id] = animation
+                }
+            }
         }
 
         private func observeOriginalBalloonContact(balloon: String, sharp: String,
@@ -5680,18 +5709,19 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             }
                             let mesh = CMOriginalObjectMeshNode(geometry: rendered)
                             mesh.name = name
-                            // Only the authentic flower is a verified two-frame
-                            // UCM morph. Keep the immutable base cached, but
-                            // each flower has an independent SceneKit morpher.
-                            if name.lowercased() == "to_light_flower",
-                               url.deletingPathExtension().lastPathComponent.lowercased() == "light_flower",
+                            // Verified original two-frame UCM morphs.
+                            // Each object owns an independent SceneKit morpher.
+                            let modelStem = url.deletingPathExtension().lastPathComponent.lowercased()
+                            let isFlower = name.lowercased() == "to_light_flower" && modelStem == "light_flower"
+                            let isSpring = name.lowercased() == "to_spring" && modelStem == "spring"
+                            if isFlower || isSpring,
                                let target = try? Self.loadGeometry(url, textureCache: textureCache,
-                                   originalModelReference: name, flowerGroup: 1),
+                                   originalModelReference: name, morphGroup: 1),
                                rendered.sources(for: .vertex).first?.vectorCount == target.sources(for: .vertex).first?.vectorCount {
                                 let morpher = SCNMorpher()
                                 morpher.calculationMode = .normalized
                                 morpher.targets = [target]
-                                morpher.setWeight(1, forTargetAt: 0)
+                                morpher.setWeight(isFlower ? 1 : 0, forTargetAt: 0)
                                 mesh.morpher = morpher
                             }
                             if let currentOwnerID {
@@ -6495,13 +6525,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     private static func loadGeometry(
         _ url: URL, textureCache: OriginalTextureCache,
         originalModelReference: String? = nil,
-        flowerGroup: Int? = nil
+        morphGroup: Int? = nil
     ) throws -> SCNGeometry {
         let model = try CMUCMModel(data: Data(contentsOf: url))
         let raw: [UInt8]
         let count: Int
-        if url.deletingPathExtension().lastPathComponent.lowercased() == "light_flower" {
-            guard let frame = model.pairedMorphVertexData(group: flowerGroup ?? 0) else {
+        if ["light_flower", "spring"].contains(url.deletingPathExtension().lastPathComponent.lowercased()) {
+            guard let frame = model.pairedMorphVertexData(group: morphGroup ?? 0) else {
                 throw CMUCMError.invalidGeometry
             }
             raw = [UInt8](frame)
