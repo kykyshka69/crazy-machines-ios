@@ -241,27 +241,28 @@ struct CMOriginalQuickPlayView: View {
     private func advanceOrderedElectricalFrame(activeBelts: Set<CMOriginalDriveBelt.Pair>) {
         // A unique, geometrically valid direct belt is a concrete driver
         // relation; arbitrary gears, steam drives and competing links
-        // retain the existing live componentwise approximation.
+        // retain the existing live componentwise approximation. Direct windmill
+        // drives use the earlier native owner phase.
         let byID = Dictionary(uniqueKeysWithValues: originalSession.objects.map { ($0.id, $0) })
         var drivers: [String: String] = [:]
         for pair in activeBelts {
             guard let a = byID[pair.first], let b = byID[pair.second] else { continue }
             let generator = a.type == "tmo_power_generator_rotor" ? a : b
-            let motor = a.type == "tmo_power_motor_rotor" ? a : b
+            let drive = generator.id == a.id ? b : a
             guard generator.type == "tmo_power_generator_rotor",
-                  motor.type == "tmo_power_motor_rotor",
-                  let g = generator.parentID, let m = motor.parentID,
+                  let g = generator.parentID, let m = drive.parentID,
                   byID[g]?.type == "tmo_power_generator",
-                  byID[m]?.type == "tmo_power_motor",
+                  (drive.type == "tmo_power_motor_rotor" && byID[m]?.type == "tmo_power_motor")
+                    || (drive.type == "tmo_windmill_wheel" && byID[m]?.type == "tmo_windmill"),
                   activeBelts.filter({ $0.first == generator.id || $0.second == generator.id }).count == 1,
-                  activeBelts.filter({ $0.first == motor.id || $0.second == motor.id }).count == 1
+                  activeBelts.filter({ $0.first == drive.id || $0.second == drive.id }).count == 1
             else { continue }
             drivers[g] = m
         }
         guard experimentalPhysics && experimentalWiredPower, !physicsPaused,
               let network = powerCircuit, network.supportsOrderedFrameTopology
         else { return }
-        guard network.supportsMotorDrivenOrderedFrames(drivers) else {
+        guard network.supportsDirectDriveOrderedFrames(drivers) else {
             orderedGeneratorDrivers = nil
             orderedBatteryFrame = nil
             return
