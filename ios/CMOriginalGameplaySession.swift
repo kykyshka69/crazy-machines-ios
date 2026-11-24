@@ -826,3 +826,47 @@ public enum CMOriginalFuzePath {
         return sorted.map(\.position)
     }
 }
+
+
+extension CMOriginalFuzePath {
+    /// Closest point on an authored in-game path span to the virtual
+    /// scissors segment. Returns a normalized position, not a physical
+    /// cutting model. The existing original rope collision gate is
+    /// supplied by the caller.
+    public static func closestCutFraction(
+        spanStart: SIMD3<Float>, spanEnd: SIMD3<Float>,
+        bladeStart: SIMD3<Float>, bladeEnd: SIMD3<Float>
+    ) -> Float? {
+        let values = [spanStart, spanEnd, bladeStart, bladeEnd]
+        guard values.allSatisfy({ $0.x.isFinite && $0.y.isFinite && $0.z.isFinite })
+        else { return nil }
+        func dot(_ x: SIMD3<Float>, _ y: SIMD3<Float>) -> Float {
+            x.x*y.x + x.y*y.y + x.z*y.z
+        }
+        let u = spanEnd-spanStart, v = bladeEnd-bladeStart, w = spanStart-bladeStart
+        let a = dot(u,u), e = dot(v,v), b = dot(u,v)
+        let c = dot(u,w), f = dot(v,w)
+        guard [a,e,b,c,f].allSatisfy(\.isFinite), a > 1e-8, e > 1e-8
+        else { return nil }
+        func clamp(_ x: Float) -> Float { min(1,max(0,x)) }
+        let determinant = a*e-b*b
+        guard determinant.isFinite else { return nil }
+        var s: Float = determinant > a*e*1e-6 ? clamp((b*f-c*e)/determinant) : 0
+        let t = (b*s+f)/e
+        if t < 0 { s = clamp(-c/a) }
+        else if t > 1 { s = clamp((b-c)/a) }
+        return s.isFinite ? s : nil
+    }
+
+    /// Display-only gap around a virtual cut. Each surviving fraction
+    /// remains attached to the original scene owner; source data is unchanged.
+    public static func visiblePieces(cut: Float, gap: Float) -> [ClosedRange<Float>] {
+        guard cut.isFinite, (0...1).contains(cut),
+              gap.isFinite, gap > 0, gap <= 1 else { return [] }
+        let lo = max(0, cut-gap/2), hi = min(1, cut+gap/2)
+        var pieces: [ClosedRange<Float>] = []
+        if lo > 0.0001 { pieces.append(0...lo) }
+        if hi < 0.9999 { pieces.append(hi...1) }
+        return pieces
+    }
+}
