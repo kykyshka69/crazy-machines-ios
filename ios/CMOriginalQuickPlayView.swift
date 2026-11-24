@@ -239,12 +239,16 @@ struct CMOriginalQuickPlayView: View {
 
     private func advanceOrderedElectricalFrame() {
         guard experimentalPhysics && experimentalWiredPower, !physicsPaused,
-              let network = powerCircuit, network.supportsOrderedElectricalFrames,
-              let next = network.advanceOrderedElectricalFrame(
-                previous: orderedBatteryFrame, closedSwitchIDs: flippedOriginalSwitchIDs,
-                solarRayContributionsByDeviceID: originalSolarRays,
-                disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
+              let network = powerCircuit, network.supportsOrderedElectricalFrames
         else { return }
+        guard let next = network.advanceOrderedElectricalFrame(
+            previous: orderedBatteryFrame, closedSwitchIDs: flippedOriginalSwitchIDs,
+            solarRayContributionsByDeviceID: originalSolarRays,
+            disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID) else {
+            // Invalid frame evidence must not leave a stale powered motor.
+            orderedBatteryFrame = nil
+            return
+        }
         if orderedBatteryFrame != next {
             orderedBatteryFrame = next
             creditExperimentalElectricGoals(capturedWhileRunning: true)
