@@ -2682,8 +2682,24 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     return (body,cross,inverse,velocity,hinged)
                 }
                 guard let left = endpoint(first, id: pair.first.objectID),
-                      let right = endpoint(second, id: pair.second.objectID),
-                      left.body != nil || right.body != nil,
+                      let right = endpoint(second, id: pair.second.objectID) else {
+                    // A SceneKit body may not expose a positive default
+                    // inertia yet. Retain the prior bounded tension only
+                    // for this incomplete physical observation.
+                    let force = direction * CMOriginalRope.tension(distance: length, restLength: rest)
+                    func fallback(_ marker: SCNNode, _ value: SIMD3<Float>) {
+                        guard let owner = physicalNode(for: marker), let body = owner.physicsBody,
+                              body.type == .dynamic else { return }
+                        body.applyForce(SCNVector3(value.x,value.y,0), asImpulse: false)
+                        let lever = marker.presentation.simdWorldPosition - owner.presentation.simdWorldPosition
+                        let torque = simd_cross(lever,value).z
+                        guard torque.isFinite, abs(torque) > 0.00001 else { return }
+                        body.applyTorque(SCNVector4(0,0,torque < 0 ? -1 : 1,min(abs(torque),25)), asImpulse: false)
+                    }
+                    fallback(first,force); fallback(second,-force)
+                    continue
+                }
+                guard left.body != nil || right.body != nil,
                       left.body !== right.body,
                       let impulse = CMOriginalRope.constraintImpulse(
                         distance: Double(length), restLength: Double(rest),
