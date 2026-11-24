@@ -607,6 +607,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // A paused experiment must still display its current 3D frame.
         // Freezing SceneKit's renderer would also prevent camera updates.
         uiView.isPlaying = true
+        // Establish the session phase before resuming the physical clock.
+        // Close the session gate before pausing, so late contacts cannot
+        // consume once-only event latches outside a running frame.
+        if experimentalPhysics { context.coordinator.setSessionPaused(physicsPaused) }
         uiView.scene?.physicsWorld.speed =
             experimentalPhysics && !physicsPaused ? 1 : 0
         uiView.allowsCameraControl = !allowObjectPlacement || experimentalPhysics
@@ -625,7 +629,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
         if experimentalPhysics {
-            context.coordinator.setSessionPaused(physicsPaused)
             context.coordinator.configurePhysicsRoles(configuredPhysicsRoles)
             context.coordinator.pressConfiguredSwitchIfNeeded(switchPressCount)
         }
@@ -3033,6 +3036,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         for: physicalNode(for: contact.nodeB)),
                       a != b else { return }
                 sessionLock.lock()
+                guard session?.phase == .running else { sessionLock.unlock(); return }
                 let actualImpact = switchContacts?.consumeImpact(
                     a, b, impulse: Double(contact.collisionImpulse),
                     aIsMovable: session?.physicsRole(for: a) == .movable,
@@ -3075,6 +3079,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // SceneKit can report a child mesh rather than the owning compound
             // physics node. Resolve both owners before attributing contacts.
             sessionLock.lock()
+            guard session?.phase == .running else { sessionLock.unlock(); return }
             session?.recordContact(a, b, impulse: Double(contact.collisionImpulse))
             // Map actual SceneKit collision owners back to an original PC
             // tmo_power_switch_lever, never an adjacent housing or base.
