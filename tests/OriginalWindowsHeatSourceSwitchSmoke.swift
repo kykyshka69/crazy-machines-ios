@@ -65,7 +65,9 @@ struct OriginalWindowsHeatSourceSwitchSmoke {
         for (type, marker, radius) in [
             ("tmo_nail", "Pike", Float(0.05)),
             ("tmo_hammer_nail", "Pike", Float(0.14)),
-            ("tmo_rope_crossbow_arrow", "Cut", Float(0.09))
+            ("tmo_rope_crossbow_arrow", "Cut", Float(0.09)),
+            ("tmo_rope_scissors_1", "Cut01", Float(0.09)),
+            ("tmo_rope_scissors_2", "Cut01", Float(0.09))
         ] {
             let rule = CMOriginalBalloonPuncture.rule(for: type)!
             precondition(rule.marker == marker && rule.radius == radius)
@@ -80,7 +82,7 @@ struct OriginalWindowsHeatSourceSwitchSmoke {
                 }
             }
         }
-        for type in ["tmo_ball_basket", "tmo_board", "tmo_rope_crossbow", "tmo_hammer"] {
+        for type in ["tmo_ball_basket", "tmo_board", "tmo_rope_crossbow", "tmo_hammer", "tmo_rope_scissors", "tmo_rope_scissors_3", "tmo_balloon"] {
             precondition(CMOriginalBalloonPuncture.rule(for: type) == nil)
         }
         precondition(!CMOriginalBalloonPuncture.hits(
