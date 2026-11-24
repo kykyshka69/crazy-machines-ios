@@ -162,6 +162,25 @@ struct OriginalWindowsHeatSourceSwitchSmoke {
         precondition(Fuze.ordered([k1, .init(index: 2, position: .zero)]) == nil)
         precondition(Fuze.ordered([k1, .init(index: 2, position: .init(.nan, 0, 0))]) == nil)
         precondition(Fuze.ordered([k1, .init(index: 2, position: .init(1001, 0, 0))]) == nil)
+        // Geometry of the virtual scissors cut is independent of the
+        // original route's authored direction and of blade direction.
+        for x: Float in [0, 0.25, 0.5, 0.75, 1] {
+            let a = SIMD3<Float>(0, 0, 0), b = SIMD3<Float>(1, 0, 0)
+            let c = SIMD3<Float>(x, -1, 0), d = SIMD3<Float>(x, 1, 0)
+            precondition(abs(Fuze.closestCutFraction(spanStart: a, spanEnd: b,
+                bladeStart: c, bladeEnd: d)! - x) < 0.00001)
+            precondition(abs(Fuze.closestCutFraction(spanStart: b, spanEnd: a,
+                bladeStart: d, bladeEnd: c)! - (1-x)) < 0.00001)
+        }
+        precondition(Fuze.closestCutFraction(spanStart: .zero, spanEnd: .zero,
+            bladeStart: .zero, bladeEnd: .init(1,0,0)) == nil)
+        precondition(Fuze.closestCutFraction(spanStart: .zero, spanEnd: .init(1,0,0),
+            bladeStart: .init(.nan,0,0), bladeEnd: .init(1,1,0)) == nil)
+        precondition(Fuze.visiblePieces(cut: 0.5, gap: 0.25) == [0...0.375,0.625...1])
+        precondition(Fuze.visiblePieces(cut: 0, gap: 0.25) == [0.125...1])
+        precondition(Fuze.visiblePieces(cut: 1, gap: 0.25) == [0...0.875])
+        precondition(Fuze.visiblePieces(cut: 0.5, gap: 1).isEmpty)
+        precondition(Fuze.visiblePieces(cut: .nan, gap: 0.25).isEmpty)
         print("Original candle, dynamic candle and blowtorch click states +0xEC and VALF initial/reset: OK")
     }
 }
