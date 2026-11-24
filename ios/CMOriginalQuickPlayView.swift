@@ -1434,7 +1434,8 @@ struct CMOriginalQuickPlayView: View {
                     .padding(.horizontal, 14)
             }
 
-            if experimentalPhysics && hasOriginalMotor {
+            if experimentalPhysics && hasOriginalMotor,
+               windowsGoalCounter?.completed != true {
                 HStack(spacing: 8) {
                     Toggle("Experimental motor drive", isOn: $experimentalMotorDrive)
                         .font(.caption.weight(.medium))
