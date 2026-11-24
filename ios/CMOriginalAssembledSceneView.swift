@@ -199,6 +199,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalRopeCut: ((CMOriginalRope.Pair) -> Void)? = nil
     var onOriginalCableCut: ((CMOriginalPowerCircuit.Cable) -> Void)? = nil
     var onOriginalSwitchToggle: ((String, Bool) -> Void)? = nil
+    var onOriginalSwitchImpactGoal: ((String) -> Void)? = nil
     // Contact pairs from the actual imported PC switch lever and striker.
     // This reports a physical event; it does not invent Win32 +0xEC/+0xC8
     // component scalars or energize the unverified electrical network.
@@ -466,6 +467,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower)
         context.coordinator.fourthLevelRun = CMOriginalFourthLevelRun(document: document)
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
+        context.coordinator.onOriginalSwitchImpactGoal = onOriginalSwitchImpactGoal
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
         context.coordinator.onOriginalOpticalSightlines = onOriginalOpticalSightlines
         context.coordinator.onOriginalRocketAnchorSnapshots = onOriginalRocketAnchorSnapshots
@@ -597,6 +599,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalFlowerGoal = onOriginalFlowerGoal
         context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower)
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
+        context.coordinator.onOriginalSwitchImpactGoal = onOriginalSwitchImpactGoal
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
         context.coordinator.onOriginalOpticalSightlines = onOriginalOpticalSightlines
         context.coordinator.onOriginalRocketAnchorSnapshots = onOriginalRocketAnchorSnapshots
@@ -910,8 +913,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var switchLeverRestAngles: [String: SCNVector3] = [:]
         // Renderer-owned conduction observations, not requested lever commands.
         private var conductingSwitchIDs = Set<String>()
+        private var switchImpactGoal = CMOriginalSwitchImpactGoal()
         private var switchContacts: CMOriginalSwitchContactMapper?
         var onOriginalSwitchToggle: ((String, Bool) -> Void)?
+        var onOriginalSwitchImpactGoal: ((String) -> Void)?
         var onOriginalSwitchContact: ((CMOriginalSwitchContactMapper.Hit) -> Void)?
         var onOriginalOpticalSightlines: (([CMOriginalOpticalSightline]) -> Void)?
         var onOriginalRocketAnchorSnapshots:
@@ -2382,6 +2387,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             switchLeverNodes.removeAll()
             switchLeverRestAngles.removeAll()
             conductingSwitchIDs.removeAll()
+            switchImpactGoal = CMOriginalSwitchImpactGoal()
             opticalEmitterMeshes.removeAll()
             opticalSolarMeshes.removeAll()
             originalAmmeterNeedles.removeAll()
@@ -4020,7 +4026,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 if let hit = actualImpact,
                    switchLeverNodes[hit.switchID] != nil,
                    switchLeverRestAngles[hit.switchID] != nil,
+                   session?.originalSwitchStates[hit.switchID] != true,
                    let state = session?.toggleOriginalSwitch(hit.switchID) {
+                    switchImpactGoal.arm(hit.switchID, requestedOn: state,
+                        previouslyClosed: conductingSwitchIDs.contains(hit.switchID))
                     newSwitch = (hit.switchID, state)
                 }
                 sessionLock.unlock()
@@ -4082,7 +4091,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             if let hit = firstImpact,
                switchLeverNodes[hit.switchID] != nil,
                switchLeverRestAngles[hit.switchID] != nil,
+               session?.originalSwitchStates[hit.switchID] != true,
                let newState = session?.toggleOriginalSwitch(hit.switchID) {
+                switchImpactGoal.arm(hit.switchID, requestedOn: newState,
+                    previouslyClosed: conductingSwitchIDs.contains(hit.switchID))
                 impactSwitchState = (hit.switchID, newState)
             }
             // CONNECTED_TO refers to another original level element, not
@@ -4772,13 +4784,23 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 else { return nil }
                 return id
             })
+            // Native impact sets motion -10 at 0x4441DE, then the
+            // 0x450820..0x45086E terminal branch dispatches owner GOAL.
+            // The iOS observed angle is an explicitly reconstructed adapter.
+            for id in switchLeverNodes.keys.sorted() {
+                if switchImpactGoal.observe(id,
+                    requestedOn: session?.originalSwitchStates[id] == true,
+                    observedClosed: observed.contains(id)) {
+                    let deliver = onOriginalSwitchImpactGoal
+                    DispatchQueue.main.async { deliver?(id) }
+                }
+            }
             let changed = observed.symmetricDifference(conductingSwitchIDs)
             conductingSwitchIDs = observed
             for id in changed.sorted() {
                 let closed = observed.contains(id)
-                DispatchQueue.main.async { [weak self] in
-                    self?.onOriginalSwitchToggle?(id, closed)
-                }
+                let deliver = onOriginalSwitchToggle
+                DispatchQueue.main.async { deliver?(id, closed) }
             }
         }
 
@@ -4830,6 +4852,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // flipping a lever when the simulation cannot accept the input.
             sessionLock.lock()
             let nextState = session?.toggleOriginalSwitch(switchID)
+            if nextState != nil { switchImpactGoal.cancel(switchID) }
             sessionLock.unlock()
             guard let isOn = nextState else { return false }
             animateOriginalSwitchLever(switchID, isOn: isOn)
