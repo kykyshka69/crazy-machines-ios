@@ -21,6 +21,20 @@ struct CMOriginalPlacementHistory {
         }
     }
 
+    /// A tap on a locked internal part belongs to its closest editable
+    /// assembly. A wholly locked hierarchy has no editable owner.
+    static func editableAncestor<Node>(
+        startingAt node: Node?, parent: (Node) -> Node?,
+        unlocked: (Node) -> Bool
+    ) -> Node? {
+        var current = node
+        while let candidate = current {
+            if unlocked(candidate) { return candidate }
+            current = parent(candidate)
+        }
+        return nil
+    }
+
     private let capacity: Int
     private var previous: [Pose] = []
     var canUndo: Bool { !previous.isEmpty }
