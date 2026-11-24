@@ -105,7 +105,7 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
 "$tmp/original-windows-win"
 # Validate original Win32 two-ended power cable: real terminals and switch isolation.
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
-  ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsSwitchContactGate.swift ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalWindowsPowerScalar.swift \
+  ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsSwitchContactGate.swift ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalWindowsPowerScalar.swift \
   tests/OriginalPowerCircuitSmoke.swift \
   -o "$tmp/original-power"
 "$tmp/original-power"
@@ -128,13 +128,13 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
 "$tmp/original-electrical-goals"
 # Genuine generator is a mechanism-driven source, not an always-on battery.
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
-  ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsSwitchContactGate.swift ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalWindowsPowerScalar.swift \
+  ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsSwitchContactGate.swift ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalWindowsPowerScalar.swift \
   tests/OriginalGeneratorCircuitSmoke.swift -o "$tmp/original-generator"
 "$tmp/original-generator"
 # Recovered Win32 0x44CA59..0x44CAC8 disrupter gate, not a static
 # always-on cable shortcut. Its wheel signal is orientation-dependent.
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
-  ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsSwitchContactGate.swift ios/CMOriginalWindowsPowerDisrupter.swift \
+  ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsSwitchContactGate.swift ios/CMOriginalWindowsPowerDisrupter.swift \
   ios/CMOriginalWindowsPowerScalar.swift \
   tests/OriginalWindowsPowerDisrupterSmoke.swift -o "$tmp/original-disrupter"
 "$tmp/original-disrupter"
@@ -159,7 +159,7 @@ swiftc ios/CMOriginalWindowsPowerScalar.swift ios/CMOriginalMotorActuator.swift 
 swiftc ios/CMOriginalGeneratorRotorObservation.swift tests/OriginalGeneratorRotorObservationSmoke.swift -o "$tmp/original-generator-rest"
 "$tmp/original-generator-rest"
 # Exact Win32 solar-ray attenuation, 10x conversion, and solar-only GOAL.
-swiftc ios/CMOriginalWindowsSolarSignal.swift tests/OriginalWindowsSolarSignalSmoke.swift \
+swiftc ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsWindRegion.swift tests/OriginalWindowsSolarSignalSmoke.swift \
   -o "$tmp/original-solar-scalar"
 "$tmp/original-solar-scalar"
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
@@ -255,7 +255,7 @@ swiftc ios/CMOriginalWindowsBeamRegion.swift tests/OriginalWindowsBeamRegionSmok
   -o "$tmp/original-win32-beam"
 "$tmp/original-win32-beam"
 swiftc ios/CMOriginalWindowsBeamRegion.swift ios/CMOriginalWindowsOpticalSample.swift \
-  ios/CMOriginalOpticalSightline.swift ios/CMOriginalWindowsSolarSignal.swift \
+  ios/CMOriginalOpticalSightline.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsWindRegion.swift \
   tests/OriginalWindowsOpticalSampleSmoke.swift -o "$tmp/original-win32-optical-solar"
 "$tmp/original-win32-optical-solar"
 # Actual UCM mesh-to-mesh path geometry and intervening original blockers.
@@ -272,7 +272,7 @@ swiftc ios/CMOriginalWindowsSwitchContactGate.swift tests/OriginalWindowsSwitchC
   -o "$tmp/original-win32-switch-contacts"
 "$tmp/original-win32-switch-contacts"
 swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
-  ios/CMOriginalWindowsSwitchContactGate.swift ios/CMOriginalWindowsSolarSignal.swift \
+  ios/CMOriginalWindowsSwitchContactGate.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsWindRegion.swift \
   ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsPowerScalar.swift \
   ios/CMOriginalWindowsPowerDisrupter.swift tests/OriginalWindowsSwitchCircuitSmoke.swift \
   -o "$tmp/original-switch-circuit"
