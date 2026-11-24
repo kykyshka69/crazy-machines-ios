@@ -215,39 +215,42 @@ struct CMOriginalQuickPlayView: View {
     private var independentOpticalLampPower: [String: Float] {
         guard experimentalPhysics && experimentalWiredPower,
               let network = powerCircuit else { return [:] }
-        let signals = network.experimentalNetworkSignals(
+        let signals = network.settledSingleBatteryObservation(
             closedSwitchIDs: flippedOriginalSwitchIDs,
-            generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID,
-            disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
+            disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)?.deviceSignals
+            ?? network.experimentalNetworkSignals(
+                closedSwitchIDs: flippedOriginalSwitchIDs,
+                generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID,
+                disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
         return Dictionary(uniqueKeysWithValues: originalSession.objects.compactMap { object -> (String, Float)? in
             guard object.type == "tmo_power_lamp", let power = signals[object.id] else { return nil }
             return (object.id, power)
         })
     }
 
-    private var experimentalPowerSignals: [String: Float] {
+    // Use the restored per-plug walker for the single-battery acyclic
+    // subset. Dynamic/multi-source networks keep the conservative path
+    // until native scheduling and component ordering are confirmed.
+    private var liveElectricalObservation: CMOriginalPowerCircuit.NetworkObservation? {
         guard experimentalPhysics && experimentalWiredPower,
-              let network = powerCircuit else { return [:] }
-        // Actual Win32 battery, generator and reconstructed optical signals,
-        // transmitted through explicit pairs of original PC power plugs.
-        return network.experimentalNetworkSignals(
+              let network = powerCircuit else { return nil }
+        return network.settledSingleBatteryObservation(
             closedSwitchIDs: flippedOriginalSwitchIDs,
-            generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID,
-            solarRayContributionsByDeviceID: originalSolarRays,
             disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
+            ?? network.experimentalNetworkObservation(
+                closedSwitchIDs: flippedOriginalSwitchIDs,
+                generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID,
+                solarRayContributionsByDeviceID: originalSolarRays,
+                disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
     }
 
-    // Exact traversed plug pairs, with source ambiguity suppressed.
-    // This is a scalar propagation trace, NOT native current in amperes.
+    private var experimentalPowerSignals: [String: Float] {
+        liveElectricalObservation?.deviceSignals ?? [:]
+    }
+
     private var experimentalCablePowerSignals:
         [CMOriginalPowerCircuit.Cable: Float] {
-        guard experimentalPhysics && experimentalWiredPower,
-              let network = powerCircuit else { return [:] }
-        return network.experimentalNetworkObservation(
-            closedSwitchIDs: flippedOriginalSwitchIDs,
-            generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID,
-            solarRayContributionsByDeviceID: originalSolarRays,
-            disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID).cableSignals
+        liveElectricalObservation?.cableSignals ?? [:]
     }
 
     // Three authentic original PC ammeters are present on levels 40,
