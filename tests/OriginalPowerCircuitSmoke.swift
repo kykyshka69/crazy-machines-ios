@@ -632,6 +632,41 @@ struct OriginalPowerCircuitSmoke {
         precondition(loop.applyObservedCableCut(loopCut))
         precondition(loop.settledOrderConsensusObservation()!.deviceSignals[loopLamp] == 10)
         loop.clearRuntimeCuts()
+        // More than six isolated dynamic sources would exceed the old
+        // global permutation cap; none should affect a separate battery.
+        var partitionRaw = raw
+        let partitionDevices = [device("tmo_power_battery", [71]),
+            device("tmo_power_lamp", [72])]
+            + (0..<7).map { device("tmo_power_generator", [80 + $0]) }
+        partitionRaw["root"] = ["name": "level", "fields": [], "children": [
+            ["name": "level_elements", "fields": [], "children": partitionDevices]
+        ]]
+        let partitionDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: partitionRaw))
+        var partition = CMOriginalPowerCircuit(session:
+            CMOriginalGameplaySession(document: partitionDoc))!
+        func partitionPort(_ n: Int) -> CMOriginalPowerCircuit.Terminal {
+            partition.terminals.first { $0.number == n }!
+        }
+        precondition(partition.toggleCable(between: partitionPort(71).plugID,
+            and: partitionPort(72).plugID) == .connected)
+        let localSignals = partition.componentwiseElectricalObservation()
+        precondition(localSignals.deviceSignals[partitionPort(72).deviceID] == 10)
+        precondition(localSignals.cableSignals.count == 1)
+        precondition(localSignals.deviceSignals.count == 2)
+        let partitionCable = CMOriginalPowerCircuit.Cable(
+            partitionPort(71).plugID, partitionPort(72).plugID)
+        precondition(partition.applyObservedCableCut(partitionCable))
+        let localCut = partition.componentwiseElectricalObservation()
+        precondition(localCut.deviceSignals[partitionPort(72).deviceID] == nil)
+        precondition(localCut.cableSignals.isEmpty)
+        partition.clearRuntimeCuts()
+        precondition(partition.componentwiseElectricalObservation().cableSignals.count == 1)
+        let localUnequal = dynamic.componentwiseElectricalObservation(
+            generatorRotorCommandsByDeviceID: [genOwner: 3],
+            solarRayContributionsByDeviceID: [solarOwner: [0.4]])
+        precondition(localUnequal.deviceSignals[sparkLoad] == 4)
+        precondition(localUnequal.deviceSignals[lampLoad] == nil)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
