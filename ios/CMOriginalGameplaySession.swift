@@ -455,6 +455,19 @@ public struct CMOriginalGameplaySession {
     public let sceneSHA256: String
     public let objects: [Object]
     public let originalConnections: [OriginalConnection]
+    private let collisionLevelOwnerByID: [String: String]
+
+    /// Win32 collision dispatcher resolves both bodies through their level
+    /// owner (0x443F79..0x444024) before comparing CONNECTED_TO pointers.
+    /// Keep the original direction, independent of SceneKit contact order.
+    public func linkedCollisionInputs(_ first: String, _ second: String) -> [OriginalConnection] {
+        guard let a = collisionLevelOwnerByID[first],
+              let b = collisionLevelOwnerByID[second], a != b else { return [] }
+        return originalConnections.filter {
+            ($0.sourceID == a && $0.targetID == b) ||
+            ($0.sourceID == b && $0.targetID == a)
+        }
+    }
     public let originalPowerTerminals: [OriginalPowerTerminal]
     public let powerTerminalNumbersAreUnique: Bool
     /// Dense, zero-based native global +0xFE slot ordinals, recovered
@@ -567,6 +580,20 @@ public struct CMOriginalGameplaySession {
         }
 
         let byID = Dictionary(uniqueKeysWithValues: collected.map { ($0.id, $0) })
+        let authoredOwners = Set(elementObjectIDs.values)
+        var collisionOwners: [String: String] = [:]
+        for object in collected {
+            var current: String? = object.id
+            var visited = Set<String>()
+            while let id = current, visited.insert(id).inserted {
+                if authoredOwners.contains(id) {
+                    collisionOwners[object.id] = id
+                    break
+                }
+                current = byID[id]?.parentID
+            }
+        }
+        collisionLevelOwnerByID = collisionOwners
         originalPowerTerminals = collected.compactMap { plug in
             guard plug.type == "tmo_power_plug" else { return nil }
             // Only an integral, positive PC VALF number is a terminal ID.
