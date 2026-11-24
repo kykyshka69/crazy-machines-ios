@@ -462,6 +462,9 @@ public struct CMOriginalPowerCircuit {
     public struct NativePortState: Equatable {
         public var signals: [String: Float]
         public var visitedOwners: Set<String>
+        // Physical UCM sockets without saved CML plug objects still
+        // have their own native +0x40 scalar. Never create cable endpoints.
+        public fileprivate(set) var unwiredPhysicalSignals: [String: [Int: Float]] = [:]
         public fileprivate(set) var consumerReads: [String: NativeConsumerRead] = [:]
         // Source GOAL reads occur before a cut can zero the outgoing plug.
         public fileprivate(set) var sourceReads: [String: Float] = [:]
@@ -521,6 +524,12 @@ public struct CMOriginalPowerCircuit {
               previous.visitedOwners.allSatisfy({ groups[$0] != nil })
         else { return nil }
         let usePhysicalSlots = observedSlotOrder == nil || observedSlotOrder == orderedRuntimeSlots
+        guard previous.unwiredPhysicalSignals.allSatisfy({ owner, readings in
+            guard let slots = recoveredNativePhysicalSlots?[owner] else { return false }
+            return readings.allSatisfy { index, value in
+                slots.indices.contains(index) && slots[index] == nil && value.isFinite
+            }
+        }) else { return nil }
         var state = previous
         state.consumerReads.removeAll(keepingCapacity: true)
         state.sourceReads.removeAll(keepingCapacity: true)
@@ -541,6 +550,20 @@ public struct CMOriginalPowerCircuit {
             state.signals[target] = input
             let gated = switchDeviceIDs.contains(incoming.deviceID)
                 || disrupterDeviceIDs.contains(incoming.deviceID)
+            // The native loop writes +0x40 at 0x44C988 BEFORE checking
+            // the cable peer at 0x44CBD6. An empty physical socket
+            // therefore receives the same outgoing scalar, but cannot
+            // recurse or become a selectable CML plug.
+            if usePhysicalSlots, let physical = recoveredNativePhysicalSlots?[incoming.deviceID] {
+                for index in physical.indices where physical[index] == nil {
+                    let output: Float
+                    if gated {
+                        guard let conducting = conductingByDeviceID[incoming.deviceID] else { return false }
+                        output = conducting ? input : 0
+                    } else { output = input }
+                    state.unwiredPhysicalSignals[incoming.deviceID, default: [:]][index] = output
+                }
+            }
             for port in slots {
                 // A single-slot device does process its incoming slot.
                 let count = usePhysicalSlots ? (recoveredNativePhysicalSlots?[incoming.deviceID]?.count ?? slots.count) : slots.count
@@ -569,8 +592,9 @@ public struct CMOriginalPowerCircuit {
                 guard let slots = groups[ownerID], let first = slots.first else { return nil }
                 if usePhysicalSlots, let physical = recoveredNativePhysicalSlots?[ownerID] {
                     func read(_ index: Int) -> Float? {
-                        guard physical.indices.contains(index), let plug = physical[index] else { return nil }
-                        return state.signals[plug]
+                        guard physical.indices.contains(index) else { return nil }
+                        if let plug = physical[index] { return state.signals[plug] }
+                        return state.unwiredPhysicalSignals[ownerID]?[index]
                     }
                     state.consumerReads[ownerID] = NativeConsumerRead(first: read(0), second: read(1))
                 } else {
@@ -724,6 +748,13 @@ public struct CMOriginalPowerCircuit {
         // native memory dump. Thereafter plug state persists between frames.
         var state = previous?.state ?? NativePortState(signals:
             Dictionary(uniqueKeysWithValues: terminals.map { ($0.plugID, Float(0)) }))
+        if previous == nil {
+            for (owner, slots) in recoveredNativePhysicalSlots ?? [:] {
+                for index in slots.indices where slots[index] == nil {
+                    state.unwiredPhysicalSignals[owner, default: [:]][index] = 0
+                }
+            }
+        }
         let cuts = cables.subtracting(activeCables)
         guard (previous?.processedCuts ?? []).isSubset(of: cuts) else { return nil }
         let newCuts = cuts.subtracting(previous?.processedCuts ?? []).sorted {
