@@ -335,6 +335,7 @@ struct CMOriginalQuickPlayView: View {
     /// Same restart action for the normal iPhone control and the genuine
     /// Windows VSC Replay button. No game assets or game-state shortcuts.
     private func restartCurrentPuzzle() {
+        powerCircuit?.clearRuntimeCuts()
         // Keep deliberate paired wires but discard an unfinished first click.
         // A stale selection must not connect to a future scene or replay.
         pendingPowerPlugID = nil
@@ -422,7 +423,7 @@ struct CMOriginalQuickPlayView: View {
                 experimentalOriginalRocketFlight: true,
                 initialOriginalRocketVelocities: initialOriginalRocketVelocities,
                 originalPlayerPowerCables: powerCircuit.map {
-                    Array($0.cables)
+                    Array($0.activeCables)
                 } ?? [],
                 originalPlayerCablePowerSignals: experimentalCablePowerSignals,
                 configuredPhysicsRoles: experimentalPhysicsRoles,
@@ -615,6 +616,15 @@ struct CMOriginalQuickPlayView: View {
                         pendingPowerPlugID = plugID
                         powerConnectionMessage = "Choose the second original power plug"
                     }
+                },
+                onOriginalCableCut: { pair in
+                    guard eventRevision == sceneRevision, experimentalPhysics,
+                          var circuit = powerCircuit,
+                          circuit.applyObservedCableCut(pair) else { return }
+                    powerCircuit = circuit
+                    // Do not save a simulation cut into editor wiring.
+                    powerConnectionMessage = "Original scissors cut a power cable"
+                    creditExperimentalElectricGoals()
                 },
                 onOriginalSwitchToggle: { switchID, isOn in
                     guard eventRevision == sceneRevision else { return }
@@ -934,6 +944,7 @@ struct CMOriginalQuickPlayView: View {
                 Toggle("Run experimental physics", isOn: $experimentalPhysics)
                     .font(.caption)
                     .onChange(of: experimentalPhysics) { _, newValue in
+                        powerCircuit?.clearRuntimeCuts()
                         pendingPowerPlugID = nil
                         powerConnectionMessage = nil
                         if !newValue {
