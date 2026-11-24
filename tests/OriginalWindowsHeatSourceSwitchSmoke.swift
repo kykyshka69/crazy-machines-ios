@@ -62,6 +62,31 @@ struct OriginalWindowsHeatSourceSwitchSmoke {
         session.start()
         precondition(session.igniteOriginalCandleFromFocus(ids[4]))
         precondition(session.toggleOriginalHeatSource(ids[0]) == false)
+        for (type, marker, radius) in [
+            ("tmo_nail", "Pike", Float(0.05)),
+            ("tmo_hammer_nail", "Pike", Float(0.14)),
+            ("tmo_rope_crossbow_arrow", "Cut", Float(0.09))
+        ] {
+            let rule = CMOriginalBalloonPuncture.rule(for: type)!
+            precondition(rule.marker == marker && rule.radius == radius)
+            for axis in 0..<3 {
+                for sign: Float in [-1, 1] {
+                    for scale: Float in [0, 0.5, 0.999, 1, 1.001, 2] {
+                        var p = SIMD3<Float>.zero
+                        p[axis] = sign * radius * scale
+                        precondition(CMOriginalBalloonPuncture.hits(
+                            point: p, marker: .zero, radius: radius) == (scale < 1))
+                    }
+                }
+            }
+        }
+        for type in ["tmo_ball_basket", "tmo_board", "tmo_rope_crossbow", "tmo_hammer"] {
+            precondition(CMOriginalBalloonPuncture.rule(for: type) == nil)
+        }
+        precondition(!CMOriginalBalloonPuncture.hits(
+            point: .init(.nan, 0, 0), marker: .zero, radius: 0.05))
+        precondition(!CMOriginalBalloonPuncture.hits(
+            point: .zero, marker: .zero, radius: 0))
         print("Original candle, dynamic candle and blowtorch click states +0xEC and VALF initial/reset: OK")
     }
 }
