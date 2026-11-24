@@ -181,6 +181,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalHammerGoal: ((String) -> Void)? = nil
     var onOriginalSteamGoal: ((String) -> Void)? = nil
     var onOriginalGrillGoal: ((String) -> Void)? = nil
+    var onOriginalFlaskGoal: ((String) -> Void)? = nil
     var onOriginalSolarRays: (([String: [Float]]) -> Void)? = nil
     var onOriginalFlowerGoal: ((String) -> Void)? = nil
     // Reports a user-operated original PC power switch. This changes its
@@ -451,6 +452,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalHammerGoal = onOriginalHammerGoal
         context.coordinator.onOriginalSteamGoal = onOriginalSteamGoal
         context.coordinator.onOriginalGrillGoal = onOriginalGrillGoal
+        context.coordinator.onOriginalFlaskGoal = onOriginalFlaskGoal
         context.coordinator.onOriginalSolarRays = onOriginalSolarRays
         context.coordinator.onOriginalFlowerGoal = onOriginalFlowerGoal
         context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower)
@@ -499,7 +501,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         #endif
         context.coordinator.initializeSwitchPressCount(switchPressCount)
         if experimentalPhysics {
-            context.coordinator.registerPhysicsNodes(in: scene)
+            context.coordinator.registerPhysicsNodes(in: scene, originalDirectory: assetDirectory)
             context.coordinator.setOriginalNativeRocketEngineObservations(
                 originalNativeRocketEngineObservations)
             context.coordinator.configurePhysicsRoles(configuredPhysicsRoles)
@@ -578,6 +580,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalHammerGoal = onOriginalHammerGoal
         context.coordinator.onOriginalSteamGoal = onOriginalSteamGoal
         context.coordinator.onOriginalGrillGoal = onOriginalGrillGoal
+        context.coordinator.onOriginalFlaskGoal = onOriginalFlaskGoal
         context.coordinator.onOriginalSolarRays = onOriginalSolarRays
         context.coordinator.onOriginalFlowerGoal = onOriginalFlowerGoal
         context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower)
@@ -749,6 +752,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalHammerGoal: ((String) -> Void)?
         var onOriginalSteamGoal: ((String) -> Void)?
         var onOriginalGrillGoal: ((String) -> Void)?
+        var onOriginalFlaskGoal: ((String) -> Void)?
+        private struct FlaskDrive {
+            let heat: SCNNode
+            let gas: SCNNode
+            var state = CMOriginalFlaskGas()
+            var visuals: [SCNNode] = []
+            var reported = false
+        }
+        private var flaskDrives: [String: FlaskDrive] = [:]
+        private var flaskSteamImage: CGImage?
         var onOriginalSolarRays: (([String: [Float]]) -> Void)?
         var onOriginalFlowerGoal: ((String) -> Void)?
         private var liveOpticalLampPower: [String: Float] = [:]
@@ -1493,6 +1506,97 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
 
+        private func registerOriginalFlasks(objects: [CMOriginalGameplaySession.Object], directory: URL) {
+            flaskDrives.removeAll()
+            flaskSteamImage = nil
+            for item in objects where item.type == "tmo_flask" {
+                let acid = objects.filter { $0.parentID == item.id && $0.type == "tmo_flask_acid" }
+                guard acid.count == 1,
+                      let heat = exactOriginalAnchor("Heat", on: acid[0].id),
+                      let gas = exactOriginalAnchor("Gas", on: item.id)
+                else { continue }
+                flaskDrives[item.id] = FlaskDrive(heat: heat, gas: gas)
+            }
+            if !flaskDrives.isEmpty {
+                // Native TEXTURE_STEAM_EFFECT at 0x431602.
+                flaskSteamImage = OriginalTextureCache(directory: directory).image(named: "steam")
+            }
+        }
+
+        private func advanceOriginalFlasks(delta: Double, root: SCNNode?) {
+            guard !flaskDrives.isEmpty else { return }
+            let states = session?.originalHeatSourceStates ?? [:]
+            let candles = CMOriginalRocketSceneHeatSources.litCandleIDs(
+                sourceStates: states, originalTypesByID: originalTypesByID)
+                .compactMap { exactOriginalAnchor("Heat", on: $0)?.presentation.simdWorldTransform }
+            let torches = states.keys.sorted().filter {
+                states[$0] == true && originalTypesByID[$0] == "tmo_heat_blowtorch"
+            }.compactMap { exactOriginalAnchor("Heat", on: $0)?.presentation.simdWorldTransform }
+            for id in flaskDrives.keys.sorted() {
+                guard var drive = flaskDrives[id] else { continue }
+                let target = drive.heat.presentation.simdWorldPosition
+                var input: Float?
+                for source in candles {
+                    let o = source.columns.3, axis = source.columns.2
+                    if let fraction = CMOriginalWindowsRocketNativeHeat.projectedUCMHeatFraction(
+                        observedSourceWorldYAxis: .init(axis.x, axis.y, axis.z),
+                        observedSourceToTargetWorldXY: .init(target.x-o.x, target.y-o.y, 0)),
+                       fraction > 0 {
+                        input = max(input ?? 0, fraction * 10)
+                    }
+                }
+                for torch in torches {
+                    let o = torch.columns.3, axis = torch.columns.0
+                    if abs(axis.x) > 0.5, abs(axis.y) < 0.5,
+                       CMOriginalWindowsBlowtorchHeat.hits(
+                        sourceX: o.x, sourceY: o.y, receiverX: target.x, receiverY: target.y,
+                        sourceHorizontalDirection: axis.x) == true { input = 10 }
+                }
+                for focus in magnifierFoci {
+                    if let heat = CMOriginalFlaskGas.focusedHeat(
+                        light: focus.light, displacement: target - focus.position) {
+                        input = max(input ?? 0, heat)
+                    }
+                }
+                let m = drive.gas.presentation.simdWorldTransform
+                guard drive.state.advance(input: input, delta: delta,
+                    origin: .init(m.columns.3.x, m.columns.3.y, m.columns.3.z),
+                    forward: .init(m.columns.1.x, m.columns.1.y, m.columns.1.z))
+                else { continue }
+                // Render exactly the reconstructed live particles using the
+                // original steam TGA. No texture is required for the count.
+                if let root, let image = flaskSteamImage {
+                    while drive.visuals.count < drive.state.particles.count {
+                        let plane = SCNPlane(width: 0.25, height: 0.25)
+                        let material = SCNMaterial()
+                        material.diffuse.contents = image
+                        material.lightingModel = .constant
+                        material.isDoubleSided = true
+                        material.writesToDepthBuffer = false
+                        plane.materials = [material]
+                        let node = SCNNode(geometry: plane)
+                        node.name = "original-flask-steam-effect"
+                        node.constraints = [SCNBillboardConstraint()]
+                        root.addChildNode(node)
+                        drive.visuals.append(node)
+                    }
+                    while drive.visuals.count > drive.state.particles.count {
+                        drive.visuals.removeLast().removeFromParentNode()
+                    }
+                    for (index, particle) in drive.state.particles.enumerated() {
+                        drive.visuals[index].simdWorldPosition = particle.position
+                        drive.visuals[index].opacity = CGFloat(min(1, max(0, particle.remaining / 2)))
+                    }
+                }
+                if drive.state.goalReached && !drive.reported {
+                    drive.reported = true
+                    let deliver = onOriginalFlaskGoal
+                    DispatchQueue.main.async { deliver?(id) }
+                }
+                flaskDrives[id] = drive
+            }
+        }
+
         private func registerOriginalSteamNetwork(objects: [CMOriginalGameplaySession.Object]) {
             steamPortNodes.removeAll()
             boilerHeatSignals.removeAll()
@@ -1828,7 +1932,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             originalCableVisualLock.unlock()
         }
 
-        func registerPhysicsNodes(in scene: SCNScene) {
+        func registerPhysicsNodes(in scene: SCNScene, originalDirectory: URL) {
             collectedPrototypeSources.removeAll()
             physicsNodesByObjectID.removeAll()
             appliedPhysicsRoles.removeAll()
@@ -2179,6 +2283,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             registerOriginalGrillDrives(objects: originalObjects)
             registerOriginalHammerDrives(objects: originalObjects)
             registerOriginalSteamNetwork(objects: originalObjects)
+            registerOriginalFlasks(objects: originalObjects, directory: originalDirectory)
             registerLiveOptics(objects: originalObjects)
             scene.rootNode.enumerateChildNodes { node, _ in
                 if let id = self.owningOriginalObjectID(for: node),
@@ -2643,6 +2748,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             advanceOriginalGrillDrives(delta: Float(delta))
             advanceOriginalHammerDrives(delta: delta)
             advanceOriginalSteamNetwork(delta: delta)
+            advanceOriginalFlasks(delta: delta, root: renderer.scene?.rootNode)
             sampleOriginalRocketAnchorFrames(at: time)
             if time - lastGeneratorPollTime >= 0.16 {
                 lastGeneratorPollTime = time
