@@ -89,6 +89,10 @@ struct CMOriginalQuickPlayView: View {
     @State private var disrupterAnglesByDeviceID: [String: Float] = [:]
     @State private var pendingPowerPlugID: String?
     @State private var ropeEditing = false
+    @State private var beltEditing = false
+    @State private var pendingBeltWheel: String?
+    @State private var originalBelts = Set<CMOriginalDriveBelt.Pair>()
+    @State private var beltMessage: String?
     @State private var pendingRopeEndpoint: CMOriginalRope.Endpoint?
     @State private var originalRopes = Set<CMOriginalRope.Pair>()
     @State private var cutOriginalRopes = Set<CMOriginalRope.Pair>()
@@ -301,9 +305,13 @@ struct CMOriginalQuickPlayView: View {
         document = next
         originalRopes.removeAll()
         cutOriginalRopes.removeAll()
+        originalBelts.removeAll()
         pendingRopeEndpoint = nil
         ropeEditing = false
         ropeMessage = nil
+        beltEditing = false
+        pendingBeltWheel = nil
+        beltMessage = nil
         originalSession = CMOriginalGameplaySession(document: next)
         objectiveLedger = CMOriginalObjectiveEvidenceLedger(session: originalSession)
         powerCircuit = Self.restoredCircuit(for: originalSession)
@@ -345,6 +353,8 @@ struct CMOriginalQuickPlayView: View {
     /// Same restart action for the normal iPhone control and the genuine
     /// Windows VSC Replay button. No game assets or game-state shortcuts.
     private func restartCurrentPuzzle() {
+        pendingBeltWheel = nil
+        beltMessage = nil
         cutOriginalRopes.removeAll()
         pendingRopeEndpoint = nil
         ropeMessage = nil
@@ -440,6 +450,8 @@ struct CMOriginalQuickPlayView: View {
                 } ?? [],
                 originalPlayerRopes: originalRopes.subtracting(cutOriginalRopes),
                 originalRopeEditing: ropeEditing,
+                originalPlayerBelts: originalBelts,
+                originalBeltEditing: beltEditing,
                 originalPlayerCablePowerSignals: experimentalCablePowerSignals,
                 configuredPhysicsRoles: experimentalPhysicsRoles,
                 onOriginalZoneContact: { type in
@@ -630,6 +642,29 @@ struct CMOriginalQuickPlayView: View {
                     } else {
                         pendingPowerPlugID = plugID
                         powerConnectionMessage = "Choose the second original power plug"
+                    }
+                },
+                onOriginalBeltTap: { wheel in
+                    guard eventRevision == sceneRevision, !experimentalPhysics, beltEditing,
+                          let object = originalSession.objects.first(where: { $0.id == wheel }),
+                          CMOriginalDriveBelt.accepts(type: object.type) else { return }
+                    if let first = pendingBeltWheel {
+                        pendingBeltWheel = nil
+                        guard let pair = CMOriginalDriveBelt.Pair(first, wheel) else {
+                            beltMessage = "Choose two different original wheels"
+                            return
+                        }
+                        if originalBelts.remove(pair) != nil {
+                            beltMessage = "Drive belt removed"
+                        } else if originalBelts.count < 64 {
+                            originalBelts.insert(pair)
+                            beltMessage = "Drive belt linked (requires separated, aligned wheels)"
+                        } else {
+                            beltMessage = "Drive belt limit reached"
+                        }
+                    } else {
+                        pendingBeltWheel = wheel
+                        beltMessage = "Tap the second original wheel"
                     }
                 },
                 onOriginalRopeTap: { endpoint in
@@ -995,6 +1030,9 @@ struct CMOriginalQuickPlayView: View {
                         pendingRopeEndpoint = nil
                         ropeEditing = false
                         ropeMessage = nil
+                        beltEditing = false
+                        pendingBeltWheel = nil
+                        beltMessage = nil
                         powerCircuit?.clearRuntimeCuts()
                         pendingPowerPlugID = nil
                         powerConnectionMessage = nil
@@ -1104,6 +1142,40 @@ struct CMOriginalQuickPlayView: View {
                 .padding(.horizontal, 14)
             }
 
+            if originalSession.objects.filter({ CMOriginalDriveBelt.accepts(type: $0.type) }).count > 1 {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Original drive belts: \(originalBelts.count)")
+                        .font(.caption.weight(.semibold))
+                    if !experimentalPhysics {
+                        Toggle("Connect original drive belts", isOn: $beltEditing)
+                            .font(.caption)
+                            .onChange(of: beltEditing) { _, enabled in
+                                pendingBeltWheel = nil
+                                beltMessage = nil
+                                if enabled {
+                                    ropeEditing = false
+                                    pendingRopeEndpoint = nil
+                                    pendingPowerPlugID = nil
+                                }
+                            }
+                        if beltEditing {
+                            Text("Tap two separated original wheels with aligned Wheel attachments. Tap the pair again to remove its open belt.")
+                                .font(.caption2).foregroundStyle(.secondary)
+                        }
+                        if !originalBelts.isEmpty {
+                            Button("Clear drive belts") {
+                                originalBelts.removeAll()
+                                pendingBeltWheel = nil
+                                beltMessage = nil
+                            }.font(.caption)
+                        }
+                        if let beltMessage { Text(beltMessage).font(.caption2) }
+                    }
+                    Text("Open belts transmit rotation in the same direction using original VALF ratios. SceneKit coupling and straight belt spans remain experimental.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }.padding(.horizontal, 14).padding(.vertical, 6)
+            }
+
             if originalSession.objects.filter({ object in
                 ["Rope", "Rope01", "Rope02"].contains { CMOriginalRope.accepts(type: object.type, marker: $0) }
             }).count > 1 {
@@ -1113,7 +1185,12 @@ struct CMOriginalQuickPlayView: View {
                     if !experimentalPhysics {
                         Toggle("Connect original ropes", isOn: $ropeEditing)
                             .font(.caption)
-                            .onChange(of: ropeEditing) { _, _ in
+                            .onChange(of: ropeEditing) { _, enabled in
+                                if enabled {
+                                    beltEditing = false
+                                    pendingBeltWheel = nil
+                                    beltMessage = nil
+                                }
                                 pendingRopeEndpoint = nil
                                 pendingPowerPlugID = nil
                                 ropeMessage = nil
@@ -1247,9 +1324,13 @@ struct CMOriginalQuickPlayView: View {
                     )
                     originalRopes.removeAll()
                     cutOriginalRopes.removeAll()
+                    originalBelts.removeAll()
                     pendingRopeEndpoint = nil
                     ropeEditing = false
                     ropeMessage = nil
+                    beltEditing = false
+                    pendingBeltWheel = nil
+                    beltMessage = nil
                     experimentalPhysics = false
                     experimentalMotorDrive = false
                     experimentalMagnetism = false
