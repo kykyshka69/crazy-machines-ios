@@ -507,6 +507,28 @@ public enum CMOriginalMechanicalSnapshot {
 /// The native output-vector to SceneKit speed conversion is not recovered.
 /// The bounded rebound below is a provisional planar physical adapter.
 public enum CMOriginalSpringContact {
+    /// Native spring morph update 0x45109D–0x451146:
+    /// group 0 to group 1, weight sin(elapsed * 30) * 0.5.
+    /// Original cutoff is a Float pi promoted to Double.
+    public struct Animation {
+        public static let terminalPhase = Double(Float.pi)
+        public private(set) var elapsed: Double?
+        public init() {}
+        public mutating func trigger() { elapsed = 0 }
+        public mutating func advance(delta: Double) -> Float? {
+            guard let previous = elapsed, delta.isFinite,
+                  delta >= 0, delta <= 0.25 else { return nil }
+            let next = previous + delta
+            let phase = next * 30
+            if phase >= Self.terminalPhase {
+                elapsed = nil
+                return 0
+            }
+            elapsed = next
+            return Float(max(0, sin(phase) * 0.5))
+        }
+    }
+
     public struct Pair: Hashable {
         public let spring: String
         public let striker: String
