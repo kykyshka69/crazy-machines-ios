@@ -220,7 +220,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // UCM Explode marker and one-shot physical retirement. This is an
     // explicitly reconstructed gameplay event, NOT native runtime proof.
     var onOriginalReconstructedRocketGoal: ((String, String) -> Void)? = nil
-    var onOriginalElectricalFrame: (() -> Void)? = nil
+    var onOriginalElectricalFrame: ((Set<CMOriginalDriveBelt.Pair>) -> Void)? = nil
 
     private var physicsAccessibilityStatus: String {
         let state = experimentalPhysics ? (physicsPaused ? "paused" : "running") : "off"
@@ -752,6 +752,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private weak var beltSceneRoot: SCNNode?
         private var beltWheels: [String: (marker: SCNNode, coefficient: Float, axisColumn: Int)] = [:]
         private var beltSpans: [CMOriginalDriveBelt.Pair: [SCNNode]] = [:]
+        private var activeElectricalDriveBelts = Set<CMOriginalDriveBelt.Pair>()
         var onOriginalRopeCut: ((CMOriginalRope.Pair) -> Void)?
         // Renderer-local cut latch prevents a queued UI update recreating a severed rope.
         private var severedRopes = Set<CMOriginalRope.Pair>()
@@ -927,7 +928,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var lastGeneratorPollTime: TimeInterval = 0
         var onOriginalDisrupterAngle: ((String, Float) -> Void)?
         var onOriginalGeneratorSignal: ((String, Float) -> Void)?
-        var onOriginalElectricalFrame: (() -> Void)?
+        var onOriginalElectricalFrame: ((Set<CMOriginalDriveBelt.Pair>) -> Void)?
         var onOriginalWindmillSignal: ((String, Float) -> Void)?
         private var axleObjectIDs = Set<String>()
         // Authentic PC conveyor children are linked through their scene-graph
@@ -2480,6 +2481,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
 
         private func refreshOriginalBeltsLocked(applyTorque: Bool) {
+            if applyTorque { activeElectricalDriveBelts.removeAll(keepingCapacity: true) }
             for (pair, spans) in beltSpans {
                 guard let first = beltWheels[pair.first], let second = beltWheels[pair.second] else { continue }
                 let a = first.marker.presentation.simdWorldPosition
@@ -2516,8 +2518,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       let secondBody = physicalNode(for: second.marker)?.physicsBody, secondBody.type == .dynamic,
                       firstBody !== secondBody else { continue }
                 guard let firstSpeed = planarSpeed(firstBody),
-                      let secondSpeed = planarSpeed(secondBody),
-                      let torque = CMOriginalDriveBelt.correction(
+                      let secondSpeed = planarSpeed(secondBody) else { continue }
+                activeElectricalDriveBelts.insert(pair)
+                guard let torque = CMOriginalDriveBelt.correction(
                     firstSpeed: firstSpeed, secondSpeed: secondSpeed,
                     firstVALF: first.coefficient, secondVALF: second.coefficient) else { continue }
                 func apply(_ body: SCNPhysicsBody, _ value: Float) {
@@ -3560,7 +3563,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
             }
             if let frame = onOriginalElectricalFrame {
-                DispatchQueue.main.async { frame() }
+                beltLock.lock()
+                let drives = activeElectricalDriveBelts
+                beltLock.unlock()
+                DispatchQueue.main.async { frame(drives) }
             }
             // Render-timestep-aware buoyancy for authentic tmo_balloon
             // parts: the original puzzles treat them as rising objects,
