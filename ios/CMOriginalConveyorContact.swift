@@ -43,4 +43,34 @@ enum CMOriginalConveyorContact {
         guard x.isFinite, y.isFinite else { return nil }
         return Force(x: x, y: y)
     }
+
+    // Radii measured from the user's original roll1/roll2 UCM vertices.
+    // The existing driven belt uses the original wheel's effective 0.09
+    // radius. This is a passive SceneKit no-slip coupling, not native torque.
+    static func rollerRadius(for kind: String) -> Float? {
+        switch kind {
+        case "tmo_belt_conveyer_roll_big": return 0.08235224
+        case "tmo_belt_conveyer_roll_small": return 0.04041763
+        default: return nil
+        }
+    }
+
+    struct RollerTorque {
+        let drive: Float
+        let roller: Float
+    }
+
+    static func rollerTorque(kind: String, driveSpeed: Float,
+                            rollerSpeed: Float, rollerMass: Float) -> RollerTorque? {
+        guard let radius = rollerRadius(for: kind),
+              driveSpeed.isFinite, rollerSpeed.isFinite,
+              rollerMass.isFinite, rollerMass > 0, rollerMass <= 1000,
+              abs(driveSpeed) <= 80, abs(rollerSpeed) <= 80 else { return nil }
+        // Both internal rollers turn in the SAME direction as the driven
+        // wheel; a gear-contact reversal would push against the belt.
+        let slip = driveSpeed * 0.09 - rollerSpeed * radius
+        guard abs(slip) > 0.005 else { return nil }
+        let force = max(-4, min(4, slip * 3 * rollerMass))
+        return RollerTorque(drive: -force * 0.09, roller: force * radius)
+    }
 }
