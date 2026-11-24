@@ -228,3 +228,52 @@ public enum CMOriginalGrillDrive {
         return (previous + speed * delta).truncatingRemainder(dividingBy: 2 * .pi)
     }
 }
+
+
+/// Recovered portions of the Win32 hammer state machine 0x44BD7D–0x44C076.
+/// Native +0xDC direction, timestep +0x128 and the marker gap must be
+/// supplied by observation. This does not yet dispatch a gameplay GOAL.
+public enum CMOriginalHammerDrive {
+    public static let liftLimit = Float(bitPattern: 0x3FC90FDB)
+    public static let releaseRate = Float(bitPattern: 0x40490FDB) * 2
+    public static let strikeGap = Float(bitPattern: 0x3CCCCCCD)
+    public static let nailLimit = Float(bitPattern: 0xBE2E147B)
+
+    public struct Lift {
+        public let angle: Float
+        public let releases: Bool
+    }
+
+    public static func lift(angle: Float, wheelSignal: Float,
+                            direction: Float, step: Double) -> Lift? {
+        guard angle.isFinite, wheelSignal.isFinite,
+              direction == 1 || direction == -1,
+              step.isFinite, step >= 0 else { return nil }
+        let value = Float(Double(angle) + Double(abs(wheelSignal)) * Double(direction) * 0.5 * step)
+        guard value.isFinite else { return nil }
+        return Lift(angle: value, releases: direction * value >= liftLimit)
+    }
+
+    public static func release(angle: Float, direction: Float,
+                               step: Double) -> Float? {
+        guard angle.isFinite, direction == 1 || direction == -1,
+              step.isFinite, step >= 0 else { return nil }
+        let value = Float(Double(angle) - Double(direction) * Double(releaseRate) * step)
+        return value.isFinite ? value : nil
+    }
+
+    public struct Strike {
+        public let nailY: Float
+        public let terminal: Bool
+    }
+
+    /// Actual Nail attachment delta, not collision against the owner box.
+    /// 0x44BEEC–0x44BF09 compares the measured gap with 0.025; then
+    /// 0x44BF4B–0x44BF94 subtracts 0.025 and clamps only below -0.17.
+    public static func strike(nailY: Float, observedGap: Float) -> Strike? {
+        guard nailY.isFinite, observedGap.isFinite,
+              nailY >= nailLimit, observedGap >= strikeGap else { return nil }
+        let next = nailY - strikeGap
+        return Strike(nailY: max(nailLimit, next), terminal: next < nailLimit)
+    }
+}
