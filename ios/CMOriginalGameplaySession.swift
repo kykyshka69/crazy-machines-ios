@@ -692,6 +692,11 @@ public enum CMOriginalBalloonPuncture {
         if type == "tmo_rope_crossbow_arrow" {
             return Rule(marker: "Cut", radius: 0.09)
         }
+        // Native 0x445053..0x44510B checks the scissors-child
+        // prefix and its real Cut01 marker, with strict radius 0.09.
+        if type == "tmo_rope_scissors_1" || type == "tmo_rope_scissors_2" {
+            return Rule(marker: "Cut01", radius: 0.09)
+        }
         return nil
     }
 
