@@ -749,6 +749,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var scissorsBladesByOwner: [String: (first: String, second: String)] = [:]
         private var firedScissorsIDs = Set<String>()
         private var originalFuzeSegments: [SCNNode] = []
+        private var fuzeVisualSignals: [ObjectIdentifier: CMOriginalFuzeVisualSignal] = [:]
         private var reportedCutCables = Set<CMOriginalPowerCircuit.Cable>()
         func setPoweredMotorDriveSignals(_ signals: [String: Float]) {
             sessionLock.lock()
@@ -1444,6 +1445,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     let fraction = CMOriginalFuzePath.closestCutFraction(
                         spanStart: a, spanEnd: b, bladeStart: bladeStart, bladeEnd: bladeEnd)
                 else { survivors.append(node); continue }
+                let priorSignal = fuzeVisualSignals.removeValue(forKey: ObjectIdentifier(node))
                 // The gap is a display-only break in the virtual route.
                 let pieces = CMOriginalFuzePath.visiblePieces(cut: fraction,
                     gap: min(1, 0.025 / max(0.025, Float(strip.height))))
@@ -1460,6 +1462,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     fragment.simdTransform = node.simdTransform
                     fragment.simdPosition = node.simdConvertPosition(.init(0,(bottom+top)/2,0), to: parent)
                     parent.addChildNode(fragment)
+                    if let priorSignal {
+                        fuzeVisualSignals[ObjectIdentifier(fragment)] = priorSignal.fragment(piece)
+                    }
                     survivors.append(fragment)
                 }
                 node.removeFromParentNode()
@@ -2611,6 +2616,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             )
             scissorsBladesByOwner.removeAll()
             originalFuzeSegments.removeAll()
+            fuzeVisualSignals.removeAll()
             firedScissorsIDs.removeAll()
             reportedCutCables.removeAll()
             for owner in originalObjects where owner.type == "tmo_rope_scissors" {
@@ -3378,6 +3384,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             sampleOriginalSwitchConduction()
             sampleOriginalScissorsCuts()
             sampleOriginalBalloonHeat(root: renderer.scene?.rootNode)
+            advanceOriginalFuzeVisualSignals(delta: delta)
             retireOriginalBalloons()
             refreshOriginalRopes(applyTension: true)
             refreshOriginalBelts(applyTorque: true)
@@ -3618,7 +3625,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // at a virtual heat point. Use the real imported balloon mesh,
         // not its bounding box or a blanket proximity-based pop.
         private func sampleOriginalBalloonHeat(root: SCNNode?) {
-            guard !buoyantObjectIDs.isEmpty, let root else { return }
+            guard (!buoyantObjectIDs.isEmpty || !originalFuzeSegments.isEmpty), let root else { return }
             var points: [SIMD3<Float>] = []
             for (id, active) in session?.originalHeatSourceStates ?? [:] where active {
                 guard let type = originalTypesByID[id],
@@ -3647,12 +3654,90 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                               SCNHitTestOption.ignoreHiddenNodes.rawValue: true,
                               SCNHitTestOption.backFaceCulling.rawValue: false])
                 for hit in hits {
+                    markOriginalFuzeVisualHit(hit)
                     guard hit.node is CMOriginalObjectMeshNode,
                           let id = owningOriginalObjectID(for: hit.node),
                           buoyantObjectIDs.contains(id),
                           !poppedBalloonIDs.contains(id) else { continue }
                     pendingBalloonPops.insert(id)
                 }
+            }
+        }
+
+        // Only a genuine scene hit can start the visual path animation.
+        // This intentionally has no receiver activation or GOAL side effect.
+        private func markOriginalFuzeVisualHit(_ hit: SCNHitTestResult) {
+            let node = hit.node
+            guard originalFuzeSegments.contains(where: { $0 === node }),
+                  let strip = node.geometry as? SCNCylinder,
+                  strip.height > 0 else { return }
+            let fraction = max(0,min(1, Float(hit.localCoordinates.y) / Float(strip.height) + 0.5))
+            let key = ObjectIdentifier(node)
+            var state = fuzeVisualSignals[key] ?? CMOriginalFuzeVisualSignal()
+            state.mark(fraction)
+            fuzeVisualSignals[key] = state
+        }
+
+        private func advanceOriginalFuzeVisualSignals(delta: TimeInterval) {
+            guard delta.isFinite, delta > 0, delta <= 0.25,
+                  !fuzeVisualSignals.isEmpty else { return }
+            // Provisional UI animation only. The original native time mapping
+            // is not yet established. No native device activation is inferred.
+            struct Span {
+                let node: SCNNode
+                let owner: String
+                let a: SIMD3<Float>
+                let b: SIMD3<Float>
+            }
+            let spans: [Span] = originalFuzeSegments.compactMap { node in
+                guard let shape = node.geometry as? SCNCylinder,
+                      let owner = owningOriginalObjectID(for: node) else { return nil }
+                let half = Float(shape.height)/2
+                return Span(node: node, owner: owner,
+                    a: node.presentation.simdConvertPosition(.init(0,-half,0),to:nil),
+                    b: node.presentation.simdConvertPosition(.init(0,half,0),to:nil))
+            }
+            var reached: [(owner: String, point: SIMD3<Float>)] = []
+            for span in spans {
+                let key = ObjectIdentifier(span.node)
+                guard var state = fuzeVisualSignals[key] else { continue }
+                state.advance(by: Float(delta)*0.6)
+                fuzeVisualSignals[key] = state
+                if let range = state.visited {
+                    if range.lowerBound == 0 { reached.append((span.owner,span.a)) }
+                    if range.upperBound == 1 { reached.append((span.owner,span.b)) }
+                }
+            }
+            // Same-owner coincident endpoints only. A scissors gap cannot
+            // be bridged by the visual state. No transfer between devices.
+            for span in spans {
+                let key = ObjectIdentifier(span.node)
+                var state = fuzeVisualSignals[key] ?? CMOriginalFuzeVisualSignal()
+                for point in reached where point.owner == span.owner {
+                    if simd_distance_squared(point.point,span.a) < 1e-10 { state.mark(0) }
+                    if simd_distance_squared(point.point,span.b) < 1e-10 { state.mark(1) }
+                }
+                guard let range = state.visited,
+                      let shape = span.node.geometry as? SCNCylinder else { continue }
+                fuzeVisualSignals[key] = state
+                let overlayName = "original-fuze-visual-signal"
+                let overlay: SCNNode
+                if let existing = span.node.childNode(withName: overlayName, recursively: false) {
+                    overlay = existing
+                } else {
+                    let cylinder = SCNCylinder(radius: shape.radius*1.15, height: 1)
+                    let material = SCNMaterial()
+                    material.lightingModel = .constant
+                    material.diffuse.contents = UIColor.systemOrange
+                    cylinder.materials = [material]
+                    overlay = SCNNode(geometry: cylinder)
+                    overlay.name = overlayName
+                    span.node.addChildNode(overlay)
+                }
+                let fraction = range.upperBound-range.lowerBound
+                overlay.isHidden = fraction <= 0.0001
+                (overlay.geometry as? SCNCylinder)?.height = CGFloat(max(0.0001,fraction)*Float(shape.height))
+                overlay.position.y = Float(shape.height)*((range.lowerBound+range.upperBound)/2-0.5)
             }
         }
 
