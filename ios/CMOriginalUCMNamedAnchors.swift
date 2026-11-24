@@ -323,12 +323,22 @@ public enum CMOriginalVolumeOverlap {
 /// 0x48B470/0x48B4A0); +0x68 is bounce and +0x6C is friction
 /// (ODE contact surface at 0x428075..0x4280D9).
 public enum CMOriginalBodyMaterial {
+    // 0x427BA9 -> 0x4869B0 sets the original ODE world Y gravity.
+    public static let gravityY = Double(Float(bitPattern: 0xc11cf5c3))
+    // SceneKit adapter only; apply the same factor to mass, inertia, and
+    // recovered native force/torque. Native ODE values themselves are unscaled.
+    public static let massUnit = 1000.0
+
     public struct Material {
         public let density: Double
         public let bounce: Double
         public let friction: Double
-        init(_ density: Double, _ bounce: Double, _ friction: Double) {
+        public let linearDrag: Double
+        public let angularDrag: Double
+        init(_ density: Double, _ bounce: Double, _ friction: Double,
+             _ linearDrag: Double = 0, _ angularDrag: Double = 0) {
             self.density = density; self.bounce = bounce; self.friction = friction
+            self.linearDrag = linearDrag; self.angularDrag = angularDrag
         }
     }
     public static func material(for kind: String) -> Material? {
@@ -336,52 +346,81 @@ public enum CMOriginalBodyMaterial {
         case "tmo_rope_cage": return .init(0.4, 0.1, 0.2)
         case "tmo_nail": return .init(0.25, 0.1, 0.2)
         case "tmo_weight": return .init(1, 0.1, 0.3)
-        case "tmo_balloon": return .init(0.5, 0.2, 0.5)
+        case "tmo_balloon": return .init(0.5, 0.2, 0.5, 0.3, 0.1)
         case "tmo_crate": return .init(0.2, 0.2, 0.3)
         case "tmo_bucket": return .init(0.7, 0.1, 0.2)
         case "tmo_domino": return .init(0.3, 0.1, 0.3)
         case "tmo_heat_dynamite": return .init(0.2, 0.1, 0.3)
         case "tmo_ball_billard", "tmo_ball_steel": return .init(0.7, 0.2, 0.2)
         case "tmo_ball_basket": return .init(0.3, 0.7, 0.3)
-        case "tmo_ball_tt": return .init(0.1, 0.9, 0.01)
+        case "tmo_ball_tt": return .init(0.1, 0.9, 0.01, 0.00002)
         case "tmo_ball_tennis": return .init(0.5, 0.7, 0.2)
-        case "tmo_ball_beach": return .init(0.1, 0.5, 0.2)
+        case "tmo_ball_beach": return .init(0.1, 0.5, 0.2, 0.007)
+        case "tmo_rope_crossbow_arrow": return .init(1, 0.1, 0)
+        case "tmo_heat_cannon_ball": return .init(5, 0.2, 0.2)
+        case "tmo_heat_rocket_rocket": return .init(2, 0.25, 0, 0.001, 0.01)
+        case "tmo_catapult_sling": return .init(100, 0, 0)
         default: return nil
         }
     }
+
     public struct MassProperties {
         public let nativeMass: Double
-        public let center: SIMD3<Double>
-        // Explicit provisional mass-unit adapter for SceneKit (all supported
-        // bodies share one factor). Existing force bridges are not native ODE.
-        public var sceneKitMass: Double { nativeMass * 1000 }
+        public let nativeInertia: SIMD3<Double>
+        // Native 0x42594A zeroes the aggregate. Sphere/box initializers
+        // produce zero centers and the setup adds their masses/inertias
+        // without translating by the geom offsets. Geom placement is separate.
+        public var center: SIMD3<Double> { .zero }
+        public var sceneKitMass: Double { nativeMass * massUnit }
+        public var sceneKitInertia: SIMD3<Double> { nativeInertia * massUnit }
     }
+
+    /// 0x425A16 uses a sphere mass, whereas 0x425CBC..0x425CEA
+    /// passes two full XY dimensions and an exact constant depth of 1.
+    /// The original UCM depth remains available for rendered zone queries.
     public static func massProperties(
         material: Material, primitives: [CMOriginalVolumeOverlap.Primitive]
     ) -> MassProperties? {
         var total = 0.0
-        var weighted = SIMD3<Double>.zero
+        var inertia = SIMD3<Double>.zero
         for primitive in primitives {
-            let center: SIMD3<Double>
-            let volume: Double
+            let mass: Double
+            let i: SIMD3<Double>
             switch primitive {
-            case let .sphere(c, r):
+            case let .sphere(_, r):
                 guard r.isFinite, r > 0 else { return nil }
-                center = c; volume = 4 * Double.pi / 3 * r*r*r
-            case let .box(c, _, h):
-                guard h.x > 0, h.y > 0, h.z > 0 else { return nil }
-                center = c; volume = 8*h.x*h.y*h.z
+                mass = material.density * (4 * Double.pi / 3) * r*r*r
+                i = SIMD3<Double>(repeating: 0.4 * mass*r*r)
+            case let .box(_, axes, h):
+                guard h.x > 0, h.y > 0, h.z > 0, axes.count == 3,
+                      abs(axes[0].z) < 0.002, abs(axes[1].z) < 0.002,
+                      abs(abs(axes[2].z)-1) < 0.002 else { return nil }
+                let w = 2*h.x, d = 2*h.y
+                mass = material.density * w*d
+                i = mass/12 * SIMD3<Double>(d*d+1, w*w+1, w*w+d*d)
             }
-            let mass = material.density * volume
-            guard mass.isFinite, mass > 0,
-                  center.x.isFinite, center.y.isFinite, center.z.isFinite else { return nil }
+            guard mass.isFinite, mass > 0, i.x.isFinite, i.y.isFinite, i.z.isFinite,
+                  i.x > 0, i.y > 0, i.z > 0 else { return nil }
             total += mass
-            weighted += center * mass
+            inertia += i
         }
-        guard total.isFinite, total > 0 else { return nil }
-        let center = weighted / total
-        guard center.x.isFinite, center.y.isFinite, center.z.isFinite,
-              (0.00001...10000).contains(total * 1000) else { return nil }
-        return MassProperties(nativeMass: total, center: center)
+        guard total.isFinite, (0.00001...10000).contains(total * massUnit),
+              inertia.x.isFinite, inertia.y.isFinite, inertia.z.isFinite,
+              inertia.x > 0, inertia.y > 0, inertia.z > 0 else { return nil }
+        return MassProperties(nativeMass: total, nativeInertia: inertia)
     }
+
+    /// Stable adapter for the native post-step drag F=-k*v, T=-k*w
+    /// (0x4255A8..0x42564D). Avoid reversing velocity on a large dt.
+    public static func dragRetention(coefficient: Double, nativeMassOrInertia: Double,
+                                     delta: Double) -> Double? {
+        guard coefficient.isFinite, coefficient >= 0,
+              nativeMassOrInertia.isFinite, nativeMassOrInertia > 0,
+              delta.isFinite, delta >= 0, delta <= 0.25 else { return nil }
+        return exp(-coefficient * delta / nativeMassOrInertia)
+    }
+
+    // 0x4516DF..0x45170A applies this upward force at an offset point.
+    // The port uses COM until the native point mapping is recovered.
+    public static let balloonNativeLift = 1.6
 }
