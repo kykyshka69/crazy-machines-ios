@@ -264,7 +264,11 @@ struct CMOriginalQuickPlayView: View {
     }
 
     private var originalLampVisualFactors: [String: Float]? {
-        guard experimentalPhysics && experimentalWiredPower else { return nil }
+        // nil preserves authored material appearance in the arrangement
+        // editor. During a run an inactive electrical network has zero
+        // output, not full bulb brightness or visible glow.
+        guard experimentalPhysics else { return nil }
+        guard experimentalWiredPower else { return [:] }
         let powerByID = experimentalPowerSignals
         var factors: [String: Float] = [:]
         for lamp in originalSession.objects where lamp.type == "tmo_power_lamp" {
