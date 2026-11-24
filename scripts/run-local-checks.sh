@@ -103,12 +103,8 @@ swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
   ios/CMOriginalWindowsGoalCounter.swift tests/OriginalWindowsGoalCounterSmoke.swift \
   -o "$tmp/original-windows-win"
 "$tmp/original-windows-win"
-# Validate original Win32 two-ended power cable: real terminals and switch isolation.
-swiftc ios/CMOriginalSceneDocument.swift ios/CMOriginalGameplaySession.swift \
-  ios/CMOriginalPowerCircuit.swift ios/CMOriginalWindowsSolarSignal.swift ios/CMOriginalWindowsWindRegion.swift ios/CMOriginalWindowsSwitchContactGate.swift ios/CMOriginalWindowsPowerDisrupter.swift ios/CMOriginalWindowsPowerScalar.swift \
-  tests/OriginalPowerCircuitSmoke.swift \
-  -o "$tmp/original-power"
-"$tmp/original-power"
+# Run the focused original electrical model integration checks.
+bash scripts/run-electrical-checks.sh
 # Independently recovered Windows Value Script key: synthetic encrypted VSC
 # and original completion-dialog button numbering, not bundled PC art.
 swiftc ios/CMOriginalWindows1251.swift ios/CMOriginalVSCDecoder.swift \
