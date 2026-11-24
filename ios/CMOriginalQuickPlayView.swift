@@ -239,30 +239,14 @@ struct CMOriginalQuickPlayView: View {
     }
 
     private func advanceOrderedElectricalFrame(activeBelts: Set<CMOriginalDriveBelt.Pair>, steamBoilers: [String: String]) {
-        // A unique, geometrically valid direct belt is a concrete driver
-        // relation; arbitrary gears, steam drives and competing links
-        // retain the existing live componentwise approximation. Direct windmill
-        // drives use the earlier native owner phase.
-        let byID = Dictionary(uniqueKeysWithValues: originalSession.objects.map { ($0.id, $0) })
-        var drivers: [String: String] = [:]
-        for pair in activeBelts {
-            guard let a = byID[pair.first], let b = byID[pair.second] else { continue }
-            let generator = a.type == "tmo_power_generator_rotor" ? a : b
-            let drive = generator.id == a.id ? b : a
-            guard generator.type == "tmo_power_generator_rotor",
-                  let g = generator.parentID, let m = drive.parentID,
-                  byID[g]?.type == "tmo_power_generator",
-                  (drive.type == "tmo_power_motor_rotor" && byID[m]?.type == "tmo_power_motor")
-                    || (drive.type == "tmo_windmill_wheel" && byID[m]?.type == "tmo_windmill")
-                    || (drive.type == "tmo_steam_wheel" && byID[m]?.type == "tmo_steam_machine" && steamBoilers[m] != nil),
-                  activeBelts.filter({ $0.first == generator.id || $0.second == generator.id }).count == 1,
-                  activeBelts.filter({ $0.first == drive.id || $0.second == drive.id }).count == 1
-            else { continue }
-            if drive.type == "tmo_steam_wheel" {
-                guard let boiler = steamBoilers[m], byID[boiler]?.type == "tmo_boiler" else { continue }
-                drivers[g] = boiler
-            } else { drivers[g] = m }
-        }
+        let types = Dictionary(uniqueKeysWithValues: originalSession.objects.map { ($0.id, $0.type) })
+        let parents = Dictionary(uniqueKeysWithValues: originalSession.objects.compactMap {
+            object -> (String, String)? in
+            object.parentID.map { (object.id, $0) }
+        })
+        let drivers = CMOriginalDriveBelt.generatorDrivers(
+            links: activeBelts, types: types, parentOwners: parents,
+            steamBoilers: steamBoilers)
         guard experimentalPhysics && experimentalWiredPower, !physicsPaused,
               let network = powerCircuit, network.supportsOrderedFrameTopology
         else { return }
