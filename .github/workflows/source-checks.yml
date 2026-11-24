@@ -379,7 +379,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check real generator rotor stop clears stale electrical source
         run: |
-          swiftc ios/CMOriginalGeneratorRotorObservation.swift tests/OriginalGeneratorRotorObservationSmoke.swift -o /tmp/cm-generator-rest
+          swiftc ios/CMOriginalGeneratorRotorObservation.swift ios/CMOriginalWindowsMechanicalTransfer.swift ios/CMOriginalWindowsWindmill.swift tests/OriginalGeneratorRotorObservationSmoke.swift -o /tmp/cm-generator-rest
           /tmp/cm-generator-rest
 
   original-motor-rotor-drive:
