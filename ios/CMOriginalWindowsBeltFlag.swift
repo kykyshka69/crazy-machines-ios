@@ -125,12 +125,44 @@ public enum CMOriginalWindowsBeltFlag {
     /// Inputs require actual measured original wind and telescope state.
     public static func triggersGoal(_ state: ObservedState) -> Bool {
         guard state.telescopeIndicator.isFinite, state.flagState.isFinite,
-              state.observedNetWindForce.isFinite,
-              state.flagState == 0 else { return false }
+              state.observedNetWindForce.isFinite else { return false }
         let windMagnitude = abs(Double(state.observedNetWindForce))
         if state.telescopeIndicator == nativeTelescopeMarker {
-            return windMagnitude >= Double(nativeWindCutoff)
+            return state.flagState == 0 && windMagnitude >= Double(nativeWindCutoff)
         }
-        return windMagnitude < Double(nativeWindCutoff)
+        return state.flagState != 0 && windMagnitude < Double(nativeWindCutoff)
+    }
+
+    /// 0x44F993–0x44F9E2: both telescopes get abs(wheel.+E8 * .05).
+    /// 0x44FAA6–0x44FB01: positive wheel signal selects .38, else 0.
+    /// Integrate the native command using SceneKit seconds as a
+    /// provisional clock correspondence; no instantaneous teleport.
+    public static func nextExtension(previous: Float, wheelSignal: Float,
+                                     delta: Double) -> Float? {
+        guard previous.isFinite, (0...nativeTelescopeMarker).contains(previous),
+              wheelSignal.isFinite, abs(wheelSignal) <= 80,
+              delta.isFinite, delta >= 0, delta <= 0.25 else { return nil }
+        let distance = abs(wheelSignal * Float(bitPattern: 0x3D4CCCCD)) * Float(delta)
+        return wheelSignal > 0 ? min(nativeTelescopeMarker, previous + distance)
+                              : max(0, previous - distance)
+    }
+
+    /// Native windmill 0x44BB78 stores the signed wheel signal at +40;
+    /// 0x44BBE4–0x44BBF4 sets the cone extension to abs(signal)*.2.
+    /// Constructor 0x45480B–0x454833 uses 15 degrees and near scale 1.5.
+    public static func windmillRegion(axis: CMOriginalWindowsWindRegion.Vector3,
+                                      wheelSignal: Float) -> CMOriginalWindowsWindRegion.Parameters? {
+        guard axis.x.isFinite, axis.y.isFinite, wheelSignal.isFinite,
+              abs(wheelSignal) <= 80, wheelSignal != 0 else { return nil }
+        let angle: Float = 15 * 0.01745329238474369
+        let near = abs(tan(Float(90) + angle) * 1.5)
+        let outer = near + abs(wheelSignal) * 0.2
+        let lo = near * near, hi = outer * outer
+        guard lo.isFinite, hi.isFinite, hi > lo else { return nil }
+        let sign: Float = wheelSignal > 0 ? 1 : -1
+        return .init(nativeAxis: .init(axis.x * sign, axis.y * sign, 0),
+                     minRadiusSquared: lo, maxRadiusSquared: hi,
+                     radialFalloff: 1 / (hi-lo), maximumAngle: angle,
+                     angularFalloff: 1 / angle)
     }
 }
