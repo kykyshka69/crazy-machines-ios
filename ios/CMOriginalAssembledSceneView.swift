@@ -4652,16 +4652,21 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 as? [String: [Double]] ?? [:]
             rotations[previous.identifier] = previous.rotation
             UserDefaults.standard.set(rotations, forKey: rotationStorageKey)
+            refreshOriginalCableGeometry()
+            refreshOriginalRopes()
+            refreshOriginalBelts()
             notifyCanUndoPlacement()
         }
 
-        // Original 3DO meshes can sit beneath any number of helper nodes.
-        // Find the nearest owning tmo_ transform instead of assuming a
-        // fixed mesh -> 3DO -> object hierarchy.
+        // Editor selection follows the nearest explicitly UNLOCKED
+        // ancestor. Locked internal gears/mounts remain attached to their
+        // editable assembly; independently locked objects cannot move.
+        // Runtime contact and connector ownership use their own exact IDs.
         private func originalOwner(for node: SCNNode?) -> CMOriginalPhysicsOwnerNode? {
             var current = node
             while let candidate = current {
-                if let owner = candidate as? CMOriginalPhysicsOwnerNode { return owner }
+                if let owner = candidate as? CMOriginalPhysicsOwnerNode,
+                   owner.isUnlockedInOriginalLevel { return owner }
                 current = candidate.parent
             }
             return nil
@@ -4702,10 +4707,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
             guard
                   let selected = highlighted,
-                  originalObjectHit(
-                       in: view, at: gesture.location(in: view))?.node === selected,
                   let owner = originalOwner(for: selected),
-                  owner.isUnlockedInOriginalLevel,
+                  let hit = originalObjectHit(in: view, at: gesture.location(in: view)),
+                  originalOwner(for: hit.node) === owner,
                   let identifier = owner.name,
                   let original = originalPositions[identifier] else { return }
             let before = placementPose(of: owner)
@@ -4721,6 +4725,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             rotations.removeValue(forKey: identifier)
             UserDefaults.standard.set(rotations, forKey: rotationStorageKey)
             recordPlacement(before: before, owner: owner)
+            refreshOriginalCableGeometry()
+            refreshOriginalRopes()
+            refreshOriginalBelts()
         }
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
@@ -5794,7 +5801,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       components.allSatisfy({ $0.isFinite && abs($0) <= 1_000_000 }),
                       let owner = scene.rootNode.childNode(
                           withName: identifier, recursively: true
-                      ) as? CMOriginalPhysicsOwnerNode else { continue }
+                      ) as? CMOriginalPhysicsOwnerNode,
+                      owner.isUnlockedInOriginalLevel else { continue }
                 owner.position = SCNVector3(
                     Float(components[0]), Float(components[1]), Float(components[2])
                 )
@@ -5811,7 +5819,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       angles.allSatisfy({ $0.isFinite && abs($0) <= 100_000 }),
                       let owner = scene.rootNode.childNode(
                           withName: identifier, recursively: true
-                      ) as? CMOriginalPhysicsOwnerNode else { continue }
+                      ) as? CMOriginalPhysicsOwnerNode,
+                      owner.isUnlockedInOriginalLevel else { continue }
                 owner.eulerAngles = SCNVector3(
                     Float(angles[0]), Float(angles[1]), Float(angles[2])
                 )
