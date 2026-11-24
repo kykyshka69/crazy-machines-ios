@@ -154,6 +154,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var originalPlayerPowerCables: [CMOriginalPowerCircuit.Cable] = []
     var originalPlayerRopes: Set<CMOriginalRope.Pair> = []
     var originalRopeEditing = false
+    var originalPlayerBelts: Set<CMOriginalDriveBelt.Pair> = []
+    var originalBeltEditing = false
     // Live, matched experimental network signals for original player
     // wires. These change cable brightness only, NEVER native current.
     var originalPlayerCablePowerSignals:
@@ -181,6 +183,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalWindmillSignal: ((String, Float) -> Void)? = nil
     var onOriginalPowerPlugTap: ((String) -> Void)? = nil
     var onOriginalRopeTap: ((CMOriginalRope.Endpoint) -> Void)? = nil
+    var onOriginalBeltTap: ((String) -> Void)? = nil
     var onOriginalRopeCut: ((CMOriginalRope.Pair) -> Void)? = nil
     var onOriginalCableCut: ((CMOriginalPowerCircuit.Cable) -> Void)? = nil
     var onOriginalSwitchToggle: ((String, Bool) -> Void)? = nil
@@ -449,6 +452,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             onOriginalReconstructedRocketGoal
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
         context.coordinator.onOriginalRopeTap = onOriginalRopeTap
+        context.coordinator.onOriginalBeltTap = onOriginalBeltTap
+        context.coordinator.originalBeltEditing = originalBeltEditing
         context.coordinator.onOriginalRopeCut = onOriginalRopeCut
         context.coordinator.originalRopeEditing = originalRopeEditing
         context.coordinator.onOriginalCableCut = onOriginalCableCut
@@ -470,6 +475,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
         view.scene = scene
         context.coordinator.syncOriginalRopes(originalPlayerRopes, in: scene)
+        context.coordinator.syncOriginalBelts(originalPlayerBelts, in: scene)
         context.coordinator.syncOriginalPowerCables(
             originalPlayerPowerCables, in: scene,
             originalDirectory: assetDirectory,
@@ -566,6 +572,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             onOriginalReconstructedRocketGoal
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
         context.coordinator.onOriginalRopeTap = onOriginalRopeTap
+        context.coordinator.onOriginalBeltTap = onOriginalBeltTap
+        context.coordinator.originalBeltEditing = originalBeltEditing
         context.coordinator.onOriginalRopeCut = onOriginalRopeCut
         context.coordinator.originalRopeEditing = originalRopeEditing
         context.coordinator.onOriginalCableCut = onOriginalCableCut
@@ -582,6 +590,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.setOriginalRocketInitialVelocities(initialOriginalRocketVelocities)
         if let scene = uiView.scene {
             context.coordinator.syncOriginalRopes(originalPlayerRopes, in: scene)
+        context.coordinator.syncOriginalBelts(originalPlayerBelts, in: scene)
             context.coordinator.syncOriginalPowerCables(
                 originalPlayerPowerCables, in: scene,
                 originalDirectory: assetDirectory,
@@ -680,6 +689,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
         var onOriginalPowerPlugTap: ((String) -> Void)?
         var onOriginalRopeTap: ((CMOriginalRope.Endpoint) -> Void)?
+        var onOriginalBeltTap: ((String) -> Void)?
+        var originalBeltEditing = false
+        private let beltLock = NSLock()
+        private weak var beltSceneRoot: SCNNode?
+        private var beltWheels: [String: (marker: SCNNode, coefficient: Float)] = [:]
+        private var beltSpans: [CMOriginalDriveBelt.Pair: [SCNNode]] = [:]
         var onOriginalRopeCut: ((CMOriginalRope.Pair) -> Void)?
         // Renderer-local cut latch prevents a queued UI update recreating a severed rope.
         private var severedRopes = Set<CMOriginalRope.Pair>()
@@ -1002,12 +1017,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         ) -> SCNHitTestResult? {
             let nearest = view.hitTest(
                 point, options: [.firstFoundOnly: true]).first
-            guard nearest?.node.name == "original-player-power-cable" || nearest?.node.name == "original-player-rope"
+            guard nearest?.node.name == "original-player-power-cable" || nearest?.node.name == "original-player-rope" || nearest?.node.name == "original-player-drive-belt"
             else { return nearest }
             return view.hitTest(
                 point, options: [.firstFoundOnly: false])
                 .first(where: {
-                    $0.node.name != "original-player-power-cable" && $0.node.name != "original-player-rope"
+                    $0.node.name != "original-player-power-cable" && $0.node.name != "original-player-rope" && $0.node.name != "original-player-drive-belt"
                 })
         }
 
@@ -1236,6 +1251,104 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             ropeLock.unlock()
             for pair in hits {
                 DispatchQueue.main.async { [weak self] in self?.onOriginalRopeCut?(pair) }
+            }
+        }
+
+        // The original wheel models contain exact named Wheel attachments.
+        // Do not invent links from CONNECTED_TO or mere wheel proximity.
+        func syncOriginalBelts(_ pairs: Set<CMOriginalDriveBelt.Pair>, in scene: SCNScene) {
+            beltLock.lock()
+            defer { beltLock.unlock() }
+            if beltSceneRoot !== scene.rootNode {
+                for spans in beltSpans.values { spans.forEach { $0.removeFromParentNode() } }
+                beltSpans.removeAll()
+                beltWheels.removeAll()
+                beltSceneRoot = scene.rootNode
+                let coefficients = Dictionary(uniqueKeysWithValues: (session?.objects ?? []).compactMap { object -> (String, Float)? in
+                    guard CMOriginalDriveBelt.accepts(type: object.type),
+                          let raw = object.fields["VALF"]?.first,
+                          let value = Float(raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+                          value.isFinite, value >= 0.008, value <= 3 else { return nil }
+                    return (object.id, value)
+                })
+                var duplicates = Set<String>()
+                scene.rootNode.enumerateChildNodes { node, _ in
+                    guard CMOriginalRocketAnchorTelemetry.originalName(inSceneNodeName: node.name ?? "") == "Wheel",
+                          let id = self.owningOriginalObjectID(for: node),
+                          let coefficient = coefficients[id] else { return }
+                    if self.beltWheels[id] != nil { duplicates.insert(id) }
+                    else { self.beltWheels[id] = (node, coefficient) }
+                }
+                for id in duplicates { beltWheels.removeValue(forKey: id) }
+            }
+            for pair in Array(beltSpans.keys) where !pairs.contains(pair) {
+                beltSpans.removeValue(forKey: pair)?.forEach { $0.removeFromParentNode() }
+            }
+            for pair in pairs where beltSpans[pair] == nil {
+                guard beltWheels[pair.first] != nil, beltWheels[pair.second] != nil else { continue }
+                let spans = (0..<2).map { _ -> SCNNode in
+                    let shape = SCNBox(width: 0.012, height: 1, length: 0.025, chamferRadius: 0)
+                    shape.firstMaterial?.diffuse.contents = UIColor.darkGray
+                    let node = SCNNode(geometry: shape)
+                    node.name = "original-player-drive-belt"
+                    node.physicsBody = nil
+                    scene.rootNode.addChildNode(node)
+                    return node
+                }
+                beltSpans[pair] = spans
+            }
+            refreshOriginalBeltsLocked(applyTorque: false)
+        }
+
+        private func hasOriginalBeltWheel(_ id: String) -> Bool {
+            beltLock.lock(); defer { beltLock.unlock() }
+            return beltWheels[id] != nil
+        }
+
+        private func refreshOriginalBelts(applyTorque: Bool = false) {
+            beltLock.lock(); defer { beltLock.unlock() }
+            refreshOriginalBeltsLocked(applyTorque: applyTorque)
+        }
+
+        private func refreshOriginalBeltsLocked(applyTorque: Bool) {
+            for (pair, spans) in beltSpans {
+                guard let first = beltWheels[pair.first], let second = beltWheels[pair.second] else { continue }
+                let a = first.marker.presentation.simdWorldPosition
+                let b = second.marker.presentation.simdWorldPosition
+                let offset = b - a
+                guard let normals = CMOriginalDriveBelt.tangentNormals(
+                    dx: offset.x, dy: offset.y, dz: offset.z,
+                    firstRadius: first.coefficient, secondRadius: second.coefficient)
+                else { spans.forEach { $0.isHidden = true }; continue }
+                for (index, normal) in [normals.0, normals.1].enumerated() {
+                    let n = SIMD3<Float>(normal.x, normal.y, 0)
+                    let start = a + n * first.coefficient
+                    let end = b + n * second.coefficient
+                    let vector = end - start
+                    let length = simd_length(vector)
+                    let node = spans[index]
+                    guard length.isFinite, length > 0.002 else { node.isHidden = true; continue }
+                    node.isHidden = false
+                    node.simdPosition = (start + end) * 0.5
+                    node.eulerAngles.z = atan2(vector.y, vector.x) - .pi / 2
+                    (node.geometry as? SCNBox)?.height = CGFloat(length)
+                }
+                guard applyTorque,
+                      let firstBody = physicalNode(for: first.marker)?.physicsBody, firstBody.type == .dynamic,
+                      let secondBody = physicalNode(for: second.marker)?.physicsBody, secondBody.type == .dynamic,
+                      firstBody !== secondBody else { continue }
+                func speed(_ body: SCNPhysicsBody) -> Float {
+                    let rotation = body.angularVelocity
+                    return rotation.z < 0 ? -rotation.w : rotation.w
+                }
+                guard let torque = CMOriginalDriveBelt.correction(
+                    firstSpeed: speed(firstBody), secondSpeed: speed(secondBody),
+                    firstVALF: first.coefficient, secondVALF: second.coefficient) else { continue }
+                func apply(_ body: SCNPhysicsBody, _ value: Float) {
+                    body.applyTorque(SCNVector4(0, 0, value < 0 ? -1 : 1, abs(value)), asImpulse: false)
+                }
+                apply(firstBody, torque.first)
+                apply(secondBody, torque.second)
             }
         }
 
@@ -1949,6 +2062,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             sampleOriginalOpticalSightlines(renderer: renderer, at: time)
             sampleOriginalScissorsCuts()
             refreshOriginalRopes(applyTension: true)
+            refreshOriginalBelts(applyTorque: true)
             sampleOriginalRocketAnchorFrames(at: time)
             if time - lastGeneratorPollTime >= 0.16 {
                 lastGeneratorPollTime = time
@@ -3161,6 +3275,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     owner.eulerAngles.z = next
                     refreshOriginalCableGeometry()
                     refreshOriginalRopes()
+                    refreshOriginalBelts()
                 }
             case .ended:
                 if let identifier = owner.name,
@@ -3228,6 +3343,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     target.position = next
                     refreshOriginalCableGeometry()
                     refreshOriginalRopes()
+                    refreshOriginalBelts()
                     lastDragPoint = point
                 }
              default:
@@ -3596,6 +3712,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                            forward.y * magnitude,
                                            forward.z * magnitude),
                                 at: contact, asImpulse: true)
+                return
+            }
+            if originalBeltEditing {
+                if let id = owningOriginalObjectID(for: node), hasOriginalBeltWheel(id) {
+                    onOriginalBeltTap?(id)
+                }
+                highlightOriginalMesh(node, in: view)
                 return
             }
             if originalRopeEditing {
