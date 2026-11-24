@@ -75,6 +75,36 @@ struct OriginalWindowsGoalCounterSmoke {
         let empty = try doc(goal: false, connection: false)
         precondition(CMOriginalWindowsGoalCounter(
             session: CMOriginalGameplaySession(document: empty)) == nil)
+        // Original hammer owner contributes a GOAL input, never its nail.
+        // The scissors callsite exists in native code but unmarked owners
+        // do not increment the counter (as in all eight genuine levels).
+        let rawHammer: [String: Any] = [
+            "schema": "crazy-machines-original-scene-v1",
+            "index": 9, "title": "Synthetic hammer terminal GOAL identity",
+            "scene_sha256": String(repeating: "e", count: 64),
+            "root": ["name": "level", "fields": [], "children": [
+                ["name": "level_elements", "fields": [], "children": [
+                    ["name": "tmo_hammer", "fields": ["GOAL 1"], "children": [
+                        ["name": "tmo_hammer_nail", "fields": [], "children": []]
+                    ]],
+                    ["name": "tmo_rope_scissors", "fields": [], "children": []]
+                ]]
+            ]]
+        ]
+        let hammerSession = CMOriginalGameplaySession(document: try
+            CMOriginalSceneDocument.read(JSONSerialization.data(withJSONObject: rawHammer)))
+        var hammerCounter = CMOriginalWindowsGoalCounter(session: hammerSession)!
+        let hammer = hammerSession.objects.first { $0.type == "tmo_hammer" }!.id
+        let nail = hammerSession.objects.first { $0.type == "tmo_hammer_nail" }!.id
+        let scissors = hammerSession.objects.first { $0.type == "tmo_rope_scissors" }!.id
+        precondition(hammerCounter.recordGoalEvent(objectID: nail, simulationRunning: true) == .ignored)
+        precondition(hammerCounter.recordGoalEvent(objectID: scissors, simulationRunning: true) == .ignored)
+        precondition(hammerCounter.recordGoalEvent(objectID: hammer, simulationRunning: false) == .ignored)
+        precondition(hammerCounter.recordGoalEvent(objectID: hammer, simulationRunning: true) == .allInputsCredited)
+        precondition(hammerCounter.recordGoalEvent(objectID: hammer, simulationRunning: true) == .ignored)
+        hammerCounter.reset()
+        precondition(!hammerCounter.completed && hammerCounter.credited == 0)
+        precondition(hammerCounter.recordGoalEvent(objectID: hammer, simulationRunning: true) == .allInputsCredited)
         print("Original Win32 GOAL/CONNECTED_TO two-channel level-completion counter passed")
     }
 }
