@@ -114,6 +114,26 @@ struct OriginalUCMNamedAnchorsSmoke {
         precondition(Overlap.world(volumes, transform:.init(origin:.zero,
             x:V(1,0,0), y:V(0.2,1,0), z:V(0,0,1))) == nil)
         precondition(!Overlap.intersects([zone], []))
+        // Native density and surface values are distinct from the
+        // old all-bodies-mass-one fallback.
+        let steel = CMOriginalBodyMaterial.material(for: "tmo_ball_steel")!
+        let tennis = CMOriginalBodyMaterial.material(for: "tmo_ball_tennis")!
+        let tableTennis = CMOriginalBodyMaterial.material(for: "tmo_ball_tt")!
+        precondition(steel.density == 0.7 && steel.bounce == 0.2)
+        precondition(tennis.density == 0.5 && tennis.bounce == 0.7)
+        precondition(tableTennis.bounce == 0.9 && tableTennis.friction == 0.01)
+        let massSphere = Overlap.Primitive.sphere(center: V(1,0,0), radius: 0.1)
+        let massBox = Overlap.Primitive.box(center: V(-1,0,0), axes: axes, half: V(0.1,0.2,0.3))
+        let mass = CMOriginalBodyMaterial.massProperties(material: steel, primitives: [massSphere,massBox])!
+        let sm = 0.7 * 4 * Double.pi / 3 * 0.001
+        let bm = 0.7 * 8 * 0.1 * 0.2 * 0.3
+        precondition(abs(mass.nativeMass - (sm+bm)) < 1e-10)
+        precondition(abs(mass.center.x - (sm-bm)/(sm+bm)) < 1e-10)
+        precondition(abs(mass.sceneKitMass - 1000*(sm+bm)) < 1e-8)
+        precondition(CMOriginalBodyMaterial.massProperties(material: steel, primitives: []) == nil)
+        precondition(CMOriginalBodyMaterial.massProperties(material: steel,
+            primitives: [.sphere(center:.zero,radius:-1)]) == nil)
+        precondition(CMOriginalBodyMaterial.material(for: "tmo_zone") == nil)
         print("UCM1 named attachment records and matrices: valid/invalid tests passed")
         if CommandLine.arguments.count >= 3 {
             let candle = try CMOriginalUCMNamedAnchors.decode(Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1])))
