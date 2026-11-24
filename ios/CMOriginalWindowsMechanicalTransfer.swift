@@ -147,3 +147,62 @@ public enum CMOriginalRope {
         return false
     }
 }
+
+
+/// Explicit open-belt link between authentic UCM "Wheel" attachments.
+/// Native VALF ratio is recovered; SceneKit torque gain is provisional.
+public enum CMOriginalDriveBelt {
+    public struct Pair: Hashable {
+        public let first: String
+        public let second: String
+        public init?(_ a: String, _ b: String) {
+            guard !a.isEmpty, !b.isEmpty, a != b else { return nil }
+            first = min(a, b); second = max(a, b)
+        }
+    }
+
+    public static func accepts(type: String) -> Bool {
+        ["tmo_belt_gear", "tmo_power_motor_rotor", "tmo_power_generator_rotor",
+         "tmo_belt_conveyer_wheel", "tmo_power_disrupter_wheel", "tmo_steam_wheel",
+         "tmo_windmill_wheel", "tmo_hammer_wheel", "tmo_belt_flag_wheel",
+         "tmo_heat_grill_wheel"].contains(type)
+    }
+
+    public struct Torque {
+        public let first: Float
+        public let second: Float
+    }
+
+    public static func correction(firstSpeed: Float, secondSpeed: Float,
+                                  firstVALF: Float, secondVALF: Float) -> Torque? {
+        guard [firstSpeed, secondSpeed, firstVALF, secondVALF].allSatisfy(\.isFinite),
+              abs(firstSpeed) <= 80, abs(secondSpeed) <= 80,
+              firstVALF >= 0.008, firstVALF <= 3,
+              secondVALF >= 0.008, secondVALF <= 3 else { return nil }
+        // Same-direction open belt constraint: w1*r1 = w2*r2.
+        // Opposing reaction torques dissipate slip rather than generating
+        // mechanical energy or spinning two stationary wheels.
+        let slip = firstSpeed * firstVALF - secondSpeed * secondVALF
+        guard abs(slip) > 0.005 else { return nil }
+        let force = max(-8, min(8, slip * 6))
+        return Torque(first: -force * firstVALF, second: force * secondVALF)
+    }
+
+    /// Unit normal for the two external tangent spans in the puzzle XY plane.
+    /// Reject coincident/intersecting or out-of-plane pulley configurations.
+    public static func tangentNormals(dx: Float, dy: Float, dz: Float,
+                                      firstRadius: Float, secondRadius: Float)
+        -> (SIMD2<Float>, SIMD2<Float>)? {
+        guard [dx, dy, dz, firstRadius, secondRadius].allSatisfy(\.isFinite),
+              abs(dz) <= 0.05, firstRadius > 0, secondRadius > 0,
+              firstRadius <= 3, secondRadius <= 3 else { return nil }
+        let distance = hypot(dx, dy)
+        guard distance.isFinite, distance > firstRadius + secondRadius,
+              distance <= 30 else { return nil }
+        let unit = SIMD2<Float>(dx, dy) / distance
+        let side = SIMD2<Float>(-unit.y, unit.x)
+        let cosine = (firstRadius - secondRadius) / distance
+        let sine = sqrt(max(0, 1 - cosine * cosine))
+        return (unit * cosine + side * sine, unit * cosine - side * sine)
+    }
+}
