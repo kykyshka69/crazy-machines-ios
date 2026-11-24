@@ -3054,7 +3054,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         func setLiveOpticalLampPower(_ values: [String: Float]) {
             sessionLock.lock()
             defer { sessionLock.unlock() }
-            liveOpticalLampPower = values.filter { $0.value.isFinite && $0.value >= 0 }
+            let next = values.filter { $0.value.isFinite && $0.value >= 0 }
+            guard next != liveOpticalLampPower else { return }
+            liveOpticalLampPower = next
+            // Source changes must be measured on the next running frame,
+            // rather than retaining solar/flower/focus light until the
+            // ordinary periodic geometry sample.
+            lastLiveOpticalTime = -Double.infinity
         }
 
         private func registerLiveOptics(objects: [CMOriginalGameplaySession.Object]) {
@@ -5395,6 +5401,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             } else { return false }
             sessionLock.lock()
             let next = session?.toggleOriginalPocketLamp(pocketlampID)
+            if next != nil { lastLiveOpticalTime = -Double.infinity }
             let nativeGoal = session?.nativeClickedSourceGoalSatisfied(pocketlampID)
             sessionLock.unlock()
             guard let on = next else { return false }
