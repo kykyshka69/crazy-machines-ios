@@ -781,6 +781,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var steamReceiverOwners: [String: String] = [:]
         private var steamWheelByBody: [String: SCNNode] = [:]
         private var steamValveLevers: [String: (owner: SCNNode, lever: SCNNode)] = [:]
+        private struct SteamPistonDrive {
+            let wheel: SCNNode
+            let piston: SCNNode
+            let rod: SCNNode
+            let wheelX: Float
+            let wheelRestAngle: Float
+            let rodRestAngle: Float
+        }
+        private var steamPistonDrives: [SteamPistonDrive] = []
+        private var steamScriptedPartIDs = Set<String>()
         private var reportedSteamGoals = Set<String>()
         // Win32 0x44D874..0x44D9A2 checks actual GOAL-marked
         // tmo_bucket objects against tmo_ball_ objects, not only puzzle 4.
@@ -1059,7 +1069,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
                 // Script-driven original hammer arm and nail retain collision
                 // geometry but are positioned by the mechanism state machine.
-                if drivenHammerPartIDs.contains(id) {
+                if drivenHammerPartIDs.contains(id) || steamScriptedPartIDs.contains(id) {
                     for node in nodes {
                         guard let body = node.physicsBody else { continue }
                         body.type = .kinematic
@@ -1605,6 +1615,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             steamReceiverOwners.removeAll()
             steamWheelByBody.removeAll()
             steamValveLevers.removeAll()
+            steamPistonDrives.removeAll()
+            steamScriptedPartIDs.removeAll()
             reportedSteamGoals.removeAll()
             for object in objects {
                 guard let count = CMOriginalSteamNetwork.portCount(type: object.type) else { continue }
@@ -1629,7 +1641,36 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                           nodes.count == 1 else { continue }
                     steamReceiverOwners[object.id] = parent
                     steamWheelByBody[object.id] = nodes[0]
+                    let pistons = objects.filter { $0.parentID == parent && $0.type == "tmo_steam_piston" }
+                    let rods = objects.filter { $0.parentID == parent && $0.type == "tmo_steam_pleul" }
+                    if pistons.count == 1, rods.count == 1,
+                       let p = physicsNodesByObjectID[pistons[0].id], p.count == 1,
+                       let r = physicsNodesByObjectID[rods[0].id], r.count == 1,
+                       let assembly = nodes[0].parent, p[0].parent === assembly,
+                       r[0].parent === assembly,
+                       abs(nodes[0].position.x - 0.4356) < 0.005,
+                       abs(p[0].position.x - 0.106) < 0.005 {
+                        steamPistonDrives.append(.init(wheel: nodes[0], piston: p[0], rod: r[0],
+                            wheelX: nodes[0].position.x, wheelRestAngle: nodes[0].eulerAngles.z,
+                            rodRestAngle: r[0].eulerAngles.z))
+                        steamScriptedPartIDs.formUnion([pistons[0].id, rods[0].id])
+                    }
                 }
+            }
+        }
+
+        private func advanceOriginalSteamPistons() {
+            // Native piston position is evaluated even when the wheel is
+            // driven by another mechanism or the boiler has cooled.
+            for drive in steamPistonDrives {
+                guard let pose = CMOriginalSteamPiston.pose(wheelX: drive.wheelX,
+                    wheelAngle: drive.wheel.presentation.eulerAngles.z - drive.wheelRestAngle)
+                else { continue }
+                drive.piston.position.x = pose.sliderX
+                drive.rod.position.x = pose.sliderX
+                drive.rod.eulerAngles.z = drive.rodRestAngle + pose.rodAngle
+                drive.piston.physicsBody?.resetTransform()
+                drive.rod.physicsBody?.resetTransform()
             }
         }
 
@@ -2771,6 +2812,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             advanceOriginalGrillDrives(delta: Float(delta))
             advanceOriginalHammerDrives(delta: delta)
             advanceOriginalSteamNetwork(delta: delta)
+            advanceOriginalSteamPistons()
             advanceOriginalFlasks(delta: delta, root: renderer.scene?.rootNode)
             sampleOriginalRocketAnchorFrames(at: time)
             if time - lastGeneratorPollTime >= 0.16 {
