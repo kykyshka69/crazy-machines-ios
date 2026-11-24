@@ -1091,6 +1091,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var reportedZoneContacts = Set<String>()
         private var reportedOriginalConnections = Set<String>()
         private var physicsNodesByObjectID: [String: [SCNNode]] = [:]
+        private var zoneVolumeMeshes: [String: [CMOriginalObjectMeshNode]] = [:]
         // All 46 original balloon objects are identified by their PC tmo_
         // type. Only the 45 with VALB's movable bit will actually float;
         // the fixed balloon is kept static by configuredPhysicsRoles.
@@ -2636,6 +2637,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             effectDirectory = originalDirectory
             originalEffects = CMOriginalSoundLibrary.load(directory: originalDirectory)
             physicsNodesByObjectID.removeAll()
+            zoneVolumeMeshes.removeAll()
             appliedPhysicsRoles.removeAll()
             conveyorWheelNodes.removeAll()
             conveyorRollerNodes.removeAll()
@@ -2928,6 +2930,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
                 if let mesh = node as? CMOriginalObjectMeshNode,
                    let id = mesh.originalObjectID {
+                    self.zoneVolumeMeshes[id, default: []].append(mesh)
                     if (self.catchGoalKindsByID[id] != nil
                         || self.linkedContainerSourcesByTarget[id] != nil),
                        mesh.name?.lowercased() == "to_dummy_bounding" {
@@ -4304,10 +4307,37 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
 
-        /// Native 0x456F3A..0x456FA4 queries original linked zone
-        /// overlap after synchronizing dynamic transforms. The native
-        /// query traverses child geometry (0x4212D0). Here SceneKit body
-        /// shapes are the reconstructed substitute, not exact PC shapes.
+        /// Return nil for absent/incomplete tables or unsupported transforms.
+        /// Empty bounds helpers are not solid collision volumes.
+        private func authoredZonePrimitives(_ id: String) -> [CMOriginalVolumeOverlap.Primitive]? {
+            guard let meshes = zoneVolumeMeshes[id], !meshes.isEmpty else { return nil }
+            var result: [CMOriginalVolumeOverlap.Primitive] = []
+            for mesh in meshes {
+                if mesh.name?.lowercased() == "to_dummy_bounding" { continue }
+                guard let volumes = mesh.originalCollisionVolumes else { return nil }
+                // A retired game object must no longer trigger a new goal.
+                var ancestor: SCNNode? = mesh
+                while let node = ancestor {
+                    if node.isHidden { return [] }
+                    ancestor = node.parent
+                }
+                let m = mesh.presentation.simdWorldTransform
+                func vec(_ v: SIMD4<Float>) -> SIMD3<Double> {
+                    SIMD3<Double>(Double(v.x), Double(v.y), Double(v.z))
+                }
+                let t = CMOriginalVolumeOverlap.Transform(
+                    origin: vec(m.columns.3), x: vec(m.columns.0),
+                    y: vec(m.columns.1), z: vec(m.columns.2))
+                guard let transformed = CMOriginalVolumeOverlap.world(volumes, transform: t)
+                    else { return nil }
+                result.append(contentsOf: transformed)
+            }
+            return result
+        }
+
+        /// Native 0x456F3A..0x456FA4 evaluates a linked zone after
+        /// transforms are updated. Prefer live authored primitive geometry.
+        /// Fall back to SceneKit only when the original tables are unavailable.
         private func sampleOriginalZoneOverlaps(_ world: SCNPhysicsWorld) {
             sessionLock.lock()
             let links = session?.originalConnections.filter {
@@ -4316,13 +4346,21 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             } ?? []
             sessionLock.unlock()
             for link in links {
-                guard let sources = physicsNodesByObjectID[link.sourceID],
-                      let zones = physicsNodesByObjectID[link.targetID] else { continue }
-                let intersects = sources.contains { source in
-                    guard let body = source.physicsBody, body.type == .dynamic else { return false }
-                    return zones.contains { zone in
-                        guard let sensor = zone.physicsBody else { return false }
-                        return !world.contactTestBetween(body, sensor, options: nil).isEmpty
+                let intersects: Bool
+                if let a = authoredZonePrimitives(link.sourceID),
+                   let b = authoredZonePrimitives(link.targetID),
+                   !a.isEmpty, !b.isEmpty {
+                    intersects = CMOriginalVolumeOverlap.intersects(a,b)
+                } else {
+                    guard let sources = physicsNodesByObjectID[link.sourceID],
+                          let zones = physicsNodesByObjectID[link.targetID] else { continue }
+                    intersects = sources.contains { source in
+                        guard let body = source.physicsBody, body.type == .dynamic,
+                              !source.isHidden else { return false }
+                        return zones.contains { zone in
+                            guard let sensor = zone.physicsBody else { return false }
+                            return !world.contactTestBetween(body, sensor, options: nil).isEmpty
+                        }
                     }
                 }
                 guard intersects else { continue }
@@ -4648,6 +4686,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // contact dispatcher does not exclude a bucket or cage link.
             var newlyObservedConnections: [(String, String)] = []
             for link in session?.linkedCollisionInputs(a, b) ?? [] {
+                // Original zones are evaluated from live transforms after
+                // physics, rather than from a provisional body contact.
+                // Keep the event path for old/synthetic assets without tables.
+                if link.targetType == "tmo_zone",
+                   let source = authoredZonePrimitives(link.sourceID),
+                   let zone = authoredZonePrimitives(link.targetID),
+                   !source.isEmpty, !zone.isEmpty { continue }
                 let key = link.sourceID + "|" + link.targetID
                 if reportedOriginalConnections.insert(key).inserted {
                     newlyObservedConnections.append((link.sourceID, link.targetID))
@@ -4680,6 +4725,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             if let candidate, let zoneID,
                session?.phase == .running,
                session?.physicsRole(for: candidate) == .movable,
+               // Authored linked-zone progress is credited by the same
+               // post-transform overlap as the actual win counter.
+               !(session?.originalConnections.contains(where: {
+                   $0.sourceID == candidate && $0.targetID == zoneID
+               }) == true
+                 && authoredZonePrimitives(candidate)?.isEmpty == false
+                 && authoredZonePrimitives(zoneID)?.isEmpty == false),
                reportedZoneContacts.insert(candidate + "|" + zoneID).inserted {
                 contactType = types[candidate]
                 contactIDs = (candidate, zoneID)
