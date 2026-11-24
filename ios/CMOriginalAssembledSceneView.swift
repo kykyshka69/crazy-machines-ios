@@ -751,6 +751,20 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             var phase: Float = 0
         }
         private var grillDrives: [String: GrillDrive] = [:]
+        private struct HammerDrive {
+            let wheel: SCNNode
+            let hammer: SCNNode
+            let nail: SCNNode
+            let hammerMarker: SCNNode
+            let nailMarker: SCNNode
+            let armRadius: Float
+            let direction: Float
+            var angle: Float
+            var releasing = false
+            var finished = false
+        }
+        private var hammerDrives: [String: HammerDrive] = [:]
+        private var drivenHammerPartIDs = Set<String>()
         private var qualifiedWindmillGoalIDs = Set<String>()
         private var disrupterIDByWheelID: [String: String] = [:]
         private var lastDisrupterConduction: [String: Bool] = [:]
@@ -969,6 +983,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             session?.configurePhysicsRoles(roles)
             sessionLock.unlock()
             for (id, nodes) in physicsNodesByObjectID {
+                // Script-driven original hammer arm and nail retain collision
+                // geometry but are positioned by the mechanism state machine.
+                if drivenHammerPartIDs.contains(id) {
+                    for node in nodes {
+                        guard let body = node.physicsBody else { continue }
+                        body.type = .kinematic
+                        body.isAffectedByGravity = false
+                        body.collisionBitMask = CMOriginalPhysicsLayers.collisionMask(for: body.categoryBitMask)
+                        body.contactTestBitMask = CMOriginalPhysicsLayers.contactMask(for: body.categoryBitMask)
+                    }
+                    continue
+                }
                 let role = roles[id] ?? .movable
                 guard role != (previousRoles[id] ?? .movable) else { continue }
                 for node in nodes {
@@ -1317,6 +1343,88 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
         // Actual bidirectional physical coupling: belt-driven wheel moves
         // wings, and externally moved wings can drive the same wheel.
+        private func registerOriginalHammerDrives(objects: [CMOriginalGameplaySession.Object]) {
+            for owner in objects where owner.type == "tmo_hammer" {
+                func unique(_ type: String) -> (String, SCNNode)? {
+                    let children = objects.filter { $0.parentID == owner.id && $0.type == type }
+                    guard children.count == 1,
+                          let nodes = physicsNodesByObjectID[children[0].id], nodes.count == 1
+                    else { return nil }
+                    return (children[0].id, nodes[0])
+                }
+                guard let (_, wheel) = unique("tmo_hammer_wheel"),
+                      let (hammerID, hammer) = unique("tmo_hammer_hammer"),
+                      let (nailID, nail) = unique("tmo_hammer_nail"),
+                      let hammerMarker = exactOriginalAnchor("Nail", on: hammerID),
+                      let nailMarker = exactOriginalAnchor("Nail", on: nailID),
+                      let parent = hammer.parent, parent === nail.parent,
+                      parent === wheel.parent,
+                      hammer.physicsBody != nil, nail.physicsBody != nil else { continue }
+                let arm = hammer.simdConvertPosition(hammerMarker.simdWorldPosition, from: nil)
+                let radius = hypot(arm.x, arm.y)
+                let angle = hammer.eulerAngles.z
+                guard radius.isFinite, radius > 0.01, radius <= 3,
+                      arm.x.isFinite, abs(arm.x) > 0.01, angle.isFinite,
+                      nail.position.y.isFinite, nail.position.y >= CMOriginalHammerDrive.nailLimit
+                else { continue }
+                // All three private CML hammer assemblies have the same
+                // right-facing arm. Geometry determines lifting sign here;
+                // this is NOT a recovered native +0xDC field.
+                let direction: Float = arm.x > 0 ? 1 : -1
+                hammerDrives[owner.id] = HammerDrive(wheel: wheel, hammer: hammer,
+                    nail: nail, hammerMarker: hammerMarker, nailMarker: nailMarker,
+                    armRadius: radius, direction: direction, angle: angle)
+                drivenHammerPartIDs.formUnion([hammerID, nailID])
+            }
+        }
+
+        private func advanceOriginalHammerDrives(delta: Double) {
+            for id in Array(hammerDrives.keys) {
+                guard var drive = hammerDrives[id], !drive.finished,
+                      let body = drive.wheel.physicsBody, body.type == .dynamic,
+                      let parent = drive.hammer.parent else { continue }
+                let angular = body.angularVelocity
+                let speed = angular.z * angular.w
+                guard speed.isFinite, abs(speed) <= 80 else { continue }
+                let wasReleasing = drive.releasing
+                if !wasReleasing {
+                    guard let lift = CMOriginalHammerDrive.lift(angle: drive.angle,
+                        wheelSignal: speed, direction: drive.direction, step: delta) else { continue }
+                    drive.angle = lift.angle
+                    drive.releasing = lift.releases
+                } else {
+                    guard let release = CMOriginalHammerDrive.release(angle: drive.angle,
+                        direction: drive.direction, step: delta) else { continue }
+                    // Stop if the reconstructed geometry cannot strike; do
+                    // not spin the arm through the housing or credit GOAL.
+                    drive.angle = drive.direction * max(-CMOriginalHammerDrive.liftLimit,
+                                                        drive.direction * release)
+                }
+                drive.hammer.eulerAngles.z = drive.angle
+                drive.hammer.physicsBody?.resetTransform()
+                if wasReleasing {
+                    // Read the actual imported marker transforms after the
+                    // new pose; evaluate Y in the original assembly frame.
+                    let tip = parent.simdConvertPosition(drive.hammerMarker.simdWorldPosition, from: nil)
+                    let head = parent.simdConvertPosition(drive.nailMarker.simdWorldPosition, from: nil)
+                    let gap = head.y - tip.y
+                    if let strike = CMOriginalHammerDrive.strike(nailY: drive.nail.position.y,
+                            observedGap: gap),
+                       let corrected = CMOriginalHammerDrive.correctedAngle(angle: drive.angle,
+                            direction: drive.direction, gap: gap, scale: drive.armRadius) {
+                        drive.angle = corrected
+                        drive.hammer.eulerAngles.z = corrected
+                        drive.hammer.physicsBody?.resetTransform()
+                        drive.nail.position.y = strike.nailY
+                        drive.nail.physicsBody?.resetTransform()
+                        drive.releasing = false
+                        drive.finished = strike.terminal
+                    }
+                }
+                hammerDrives[id] = drive
+            }
+        }
+
         private func registerOriginalGrillDrives(objects: [CMOriginalGameplaySession.Object]) {
             for owner in objects where owner.type == "tmo_heat_grill" {
                 func unique(_ type: String) -> SCNNode? {
@@ -1558,6 +1666,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             windmillIDByWingsID.removeAll()
             windmillWheelByWingsID.removeAll()
             grillDrives.removeAll()
+            hammerDrives.removeAll()
+            drivenHammerPartIDs.removeAll()
             qualifiedWindmillGoalIDs.removeAll()
             disrupterIDByWheelID.removeAll()
             lastDisrupterConduction.removeAll()
@@ -1862,6 +1972,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
             }
             registerOriginalGrillDrives(objects: originalObjects)
+            registerOriginalHammerDrives(objects: originalObjects)
             applyOriginalLampVisualFactors()
             applyOriginalAmmeterSignals()
             // Each original conveyor has a distinct child tmo_belt_conveyer_wheel
@@ -2154,6 +2265,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             refreshOriginalBelts(applyTorque: true)
             transferOriginalWindmillMotion()
             advanceOriginalGrillDrives(delta: Float(delta))
+            advanceOriginalHammerDrives(delta: delta)
             sampleOriginalRocketAnchorFrames(at: time)
             if time - lastGeneratorPollTime >= 0.16 {
                 lastGeneratorPollTime = time
