@@ -82,6 +82,8 @@ public struct CMOriginalPowerCircuit {
     public let recoveredNativeOwnerOrder: [String]?
     public let recoveredNativePhysicalSlots: [String: [String?]]?
     private let verifiedPhysicalOwnerOrder: [String]?
+    private let opticalMechanicalOwners: Set<String>
+    private let authoredPhaseOwnerOrder: [String]
 
     private var orderedRuntimeSlots: [String: [String]]? {
         recoveredNativePhysicalSlots != nil ? recoveredNativeRelativeSlotOrder : recoveredNativeSlotOrder
@@ -123,6 +125,12 @@ public struct CMOriginalPowerCircuit {
         verifiedPhysicalOwnerOrder = session.recoveredNativePhysicalElectricalSlots.map { _ in
             session.objects.map(\.id).filter { visibleOwners.contains($0) }
         }
+        opticalMechanicalOwners = Set(session.objects.filter {
+            $0.type == "tmo_windmill" && $0.parentID == nil
+        }.map(\.id))
+        authoredPhaseOwnerOrder = session.objects.filter {
+            $0.parentID == nil
+        }.map(\.id)
         byPlugID = Dictionary(uniqueKeysWithValues: all.map { ($0.plugID, $0) })
         sourceDeviceIDs = Set(all.filter {
             $0.deviceType == "tmo_power_battery"
@@ -645,8 +653,11 @@ public struct CMOriginalPowerCircuit {
     ) -> NativePortState? {
         guard let groups = nativeSlots(observedOrder: observedSlotOrder) else { return nil }
         let known = Set(groups.keys)
-        guard ownerOrder.count == known.count, Set(ownerOrder) == known,
-              Set(generatorEventsBeforeOpticalOwner.keys).isSubset(of: known),
+        let external = Set(ownerOrder).subtracting(known)
+        guard ownerOrder.count == Set(ownerOrder).count,
+              known.isSubset(of: Set(ownerOrder)),
+              external.isSubset(of: opticalMechanicalOwners),
+              Set(generatorEventsBeforeOpticalOwner.keys).isSubset(of: known.union(external)),
               Set(generatorEventsAfterElectricalOwner.keys).isSubset(of: known),
               Set(solarRayContributionsByDeviceID.keys).isSubset(of: solarDeviceIDs)
         else { return nil }
@@ -661,7 +672,7 @@ public struct CMOriginalPowerCircuit {
             let before = generatorEventsBeforeOpticalOwner[id] ?? []
             guard before.allSatisfy(validGenerator) else { return nil }
             events.append(contentsOf: before)
-            guard let first = groups[id]?.first else { return nil }
+            guard let first = groups[id]?.first else { continue }
             // Lamp GOAL/light read precedes the battery/consumer pass.
             if first.deviceType == "tmo_power_lamp" {
                 events.append(.sampleConsumer(ownerID: id))
@@ -674,7 +685,7 @@ public struct CMOriginalPowerCircuit {
             }
         }
         for id in ownerOrder {
-            guard let first = groups[id]?.first else { return nil }
+            guard let first = groups[id]?.first else { continue }
             if sourceDeviceIDs.contains(id) {
                 events.append(.source(plugID: first.plugID,
                                       value: CMOriginalWindowsPowerScalar.batterySource))
@@ -725,6 +736,18 @@ public struct CMOriginalPowerCircuit {
             } && Set(drivers.values).count == drivers.count
     }
 
+    /// Direct windmill drives run in the first native owner pass
+    /// (0x44F696); direct motor drives run in the second (0x450BE2).
+    /// Both mappings require a unique observed drive for every generator.
+    public func supportsDirectDriveOrderedFrames(_ drivers: [String: String]) -> Bool {
+        guard supportsOrderedFrameTopology, Set(drivers.keys) == generatorDeviceIDs,
+              Set(drivers.values).count == drivers.count else { return false }
+        return drivers.values.allSatisfy { id in
+            opticalMechanicalOwners.contains(id) ||
+            terminals.contains { $0.deviceID == id && $0.deviceType == "tmo_power_motor" }
+        }
+    }
+
     public struct BatteryFrame: Equatable {
         public let state: NativePortState
         public let processedCuts: Set<Cable>
@@ -745,7 +768,7 @@ public struct CMOriginalPowerCircuit {
         generatorMotorOwners: [String: String] = [:],
         generatorRotorCommandsByDeviceID: [String: Float] = [:]
     ) -> BatteryFrame? {
-        guard supportsMotorDrivenOrderedFrames(generatorMotorOwners),
+        guard supportsDirectDriveOrderedFrames(generatorMotorOwners),
               let ownerOrder = orderedRuntimeOwners,
               let slotOrder = orderedRuntimeSlots else { return nil }
         var gates = Dictionary(uniqueKeysWithValues:
@@ -781,16 +804,31 @@ public struct CMOriginalPowerCircuit {
             else { return nil }
             state = interrupted
         }
+        var before: [String: [NativePortEvent]] = [:]
         var after: [String: [NativePortEvent]] = [:]
         for (generator, driver) in generatorMotorOwners {
             guard let plug = slotOrder[generator]?.first,
                   let measured = generatorRotorCommandsByDeviceID[generator],
                   let value = CMOriginalWindowsPowerScalar.generatorSignal(fromRotorCommand: measured)
             else { return nil }
-            after[driver, default: []].append(.source(plugID: plug, value: value))
+            if opticalMechanicalOwners.contains(driver) {
+                before[driver, default: []].append(.source(plugID: plug, value: value))
+            } else {
+                after[driver, default: []].append(.source(plugID: plug, value: value))
+            }
+        }
+        let phaseOrder: [String]
+        if before.isEmpty { phaseOrder = ownerOrder }
+        else {
+            let included = Set(ownerOrder).union(before.keys)
+            phaseOrder = authoredPhaseOwnerOrder.filter { included.contains($0) }
+            guard Set(phaseOrder) == included,
+                  phaseOrder.filter({ !opticalMechanicalOwners.contains($0) }) == ownerOrder
+            else { return nil }
         }
         guard let next = nativeElectricalUpdate(previous: state,
-            ownerOrder: ownerOrder, solarRayContributionsByDeviceID: rays,
+            ownerOrder: phaseOrder, solarRayContributionsByDeviceID: rays,
+            generatorEventsBeforeOpticalOwner: before,
             generatorEventsAfterElectricalOwner: after,
             conductingByDeviceID: gates, observedSlotOrder: slotOrder)
         else { return nil }
@@ -1110,6 +1148,8 @@ public struct CMOriginalPowerCircuit {
         recoveredNativeOwnerOrder = circuit.recoveredNativeOwnerOrder?.filter { owners.contains($0) }
         recoveredNativePhysicalSlots = circuit.recoveredNativePhysicalSlots?.filter { owners.contains($0.key) }
         verifiedPhysicalOwnerOrder = circuit.verifiedPhysicalOwnerOrder?.filter { owners.contains($0) }
+        opticalMechanicalOwners = circuit.opticalMechanicalOwners
+        authoredPhaseOwnerOrder = circuit.authoredPhaseOwnerOrder
         byPlugID = Dictionary(uniqueKeysWithValues: localTerminals.map { ($0.plugID, $0) })
         cables = wires
         sourceDeviceIDs = circuit.sourceDeviceIDs.intersection(owners)
