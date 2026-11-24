@@ -115,6 +115,7 @@ public enum CMOriginalUCMCollisionVolumes {
             "tmo_windmill_wings", "tmo_steam_body", "tmo_steam_wheel",
             "tmo_steam_pleul", "tmo_steam_piston", "tmo_hammer", "tmo_hammer_hammer",
             "tmo_hammer_nail", "tmo_hammer_wheel", "tmo_catapult", "tmo_catapult_sling",
+            "tmo_heat_rocket_rocket", "tmo_heat_cannon_ball", "tmo_heat_dynamite",
             "tmo_rope_crossbow", "tmo_rope_crossbow_arrow", "tmo_rope_crossbow_lever",
             "tmo_rope_scissors_1", "tmo_rope_scissors_2"
         ].contains(kind)
