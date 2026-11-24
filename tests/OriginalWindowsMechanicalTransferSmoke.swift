@@ -183,6 +183,30 @@ struct OriginalWindowsMechanicalTransferSmoke {
                 precondition(finished && hits == 7 && nailY == Hammer.nailLimit)
             }
         }
+        typealias Heat = CMOriginalGrillHeat
+        let cold = Heat.State()
+        for rate in [30,60,120] {
+            for speed: Float in [-5,-1,1,5] {
+                for fraction: Float in [0.25,0.5,1] {
+                    var state = cold
+                    for _ in 0..<(rate*45) {
+                        state = Heat.advance(state, fraction: fraction,
+                            spitSignal: speed, delta: 1/Double(rate))!
+                    }
+                    precondition(state.completed && state.shade == 1)
+                }
+            }
+            for speed: Float in [-0.99,0,0.99] {
+                var state = cold
+                for _ in 0..<(rate*45) {
+                    state = Heat.advance(state, fraction: 1,
+                        spitSignal: speed, delta: 1/Double(rate))!
+                }
+                precondition(!state.completed && state.shade < 0.75)
+            }
+        }
+        precondition(Heat.advance(cold, fraction: 0, spitSignal: 5, delta: 0.25)!.heat == 0)
+        precondition(Heat.advance(cold, fraction: .nan, spitSignal: 5, delta: 0.25) == nil)
         for i in 0..<1000 {
             let input = Float(i - 500) * 0.005
             let next = M.transmittedSignal(sourceSignal: input,
