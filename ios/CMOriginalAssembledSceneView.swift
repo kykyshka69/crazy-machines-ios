@@ -152,6 +152,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // genuine power_cable.tga and exact original plug transforms. No
     // artificial wires are inferred from VALF IDs or object proximity.
     var originalPlayerPowerCables: [CMOriginalPowerCircuit.Cable] = []
+    var originalPlayerRopes: Set<CMOriginalRope.Pair> = []
+    var originalRopeEditing = false
     // Live, matched experimental network signals for original player
     // wires. These change cable brightness only, NEVER native current.
     var originalPlayerCablePowerSignals:
@@ -178,6 +180,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalGeneratorSignal: ((String, Float) -> Void)? = nil
     var onOriginalWindmillSignal: ((String, Float) -> Void)? = nil
     var onOriginalPowerPlugTap: ((String) -> Void)? = nil
+    var onOriginalRopeTap: ((CMOriginalRope.Endpoint) -> Void)? = nil
     var onOriginalCableCut: ((CMOriginalPowerCircuit.Cable) -> Void)? = nil
     var onOriginalSwitchToggle: ((String, Bool) -> Void)? = nil
     // Contact pairs from the actual imported PC switch lever and striker.
@@ -444,6 +447,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalReconstructedRocketGoal =
             onOriginalReconstructedRocketGoal
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
+        context.coordinator.onOriginalRopeTap = onOriginalRopeTap
+        context.coordinator.originalRopeEditing = originalRopeEditing
         context.coordinator.onOriginalCableCut = onOriginalCableCut
         context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
         context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal
@@ -462,6 +467,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             scene.physicsWorld.gravity = SCNVector3(0, -9.8, 0)
         }
         view.scene = scene
+        context.coordinator.syncOriginalRopes(originalPlayerRopes, in: scene)
         context.coordinator.syncOriginalPowerCables(
             originalPlayerPowerCables, in: scene,
             originalDirectory: assetDirectory,
@@ -557,6 +563,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalReconstructedRocketGoal =
             onOriginalReconstructedRocketGoal
         context.coordinator.onOriginalPowerPlugTap = onOriginalPowerPlugTap
+        context.coordinator.onOriginalRopeTap = onOriginalRopeTap
+        context.coordinator.originalRopeEditing = originalRopeEditing
         context.coordinator.onOriginalCableCut = onOriginalCableCut
         context.coordinator.onOriginalDisrupterAngle = onOriginalDisrupterAngle
         context.coordinator.onOriginalGeneratorSignal = onOriginalGeneratorSignal
@@ -570,6 +578,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.experimentalOriginalRocketFlight = experimentalOriginalRocketFlight
         context.coordinator.setOriginalRocketInitialVelocities(initialOriginalRocketVelocities)
         if let scene = uiView.scene {
+            context.coordinator.syncOriginalRopes(originalPlayerRopes, in: scene)
             context.coordinator.syncOriginalPowerCables(
                 originalPlayerPowerCables, in: scene,
                 originalDirectory: assetDirectory,
@@ -667,6 +676,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             sessionLock.unlock()
         }
         var onOriginalPowerPlugTap: ((String) -> Void)?
+        var onOriginalRopeTap: ((CMOriginalRope.Endpoint) -> Void)?
+        var originalRopeEditing = false
+        private let ropeLock = NSLock()
+        private weak var ropeSceneRoot: SCNNode?
+        private var ropeMarkers: [CMOriginalRope.Endpoint: SCNNode] = [:]
+        private var ropeVisuals: [CMOriginalRope.Pair: SCNNode] = [:]
+        private var ropeLengths: [CMOriginalRope.Pair: Float] = [:]
         var onOriginalCableCut: ((CMOriginalPowerCircuit.Cable) -> Void)?
         private var scissorsBladesByOwner: [String: (first: String, second: String)] = [:]
         private var firedScissorsIDs = Set<String>()
@@ -980,12 +996,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         ) -> SCNHitTestResult? {
             let nearest = view.hitTest(
                 point, options: [.firstFoundOnly: true]).first
-            guard nearest?.node.name == "original-player-power-cable"
+            guard nearest?.node.name == "original-player-power-cable" || nearest?.node.name == "original-player-rope"
             else { return nearest }
             return view.hitTest(
                 point, options: [.firstFoundOnly: false])
                 .first(where: {
-                    $0.node.name != "original-player-power-cable"
+                    $0.node.name != "original-player-power-cable" && $0.node.name != "original-player-rope"
                 })
         }
 
@@ -1189,6 +1205,91 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         self?.onOriginalCableCut?(pair)
                     }
                 }
+            }
+        }
+
+        // Cache only unambiguous original rope markers, including in the
+        // arrangement scene (which has no physics registration pass).
+        func syncOriginalRopes(_ pairs: Set<CMOriginalRope.Pair>, in scene: SCNScene) {
+            ropeLock.lock()
+            defer { ropeLock.unlock() }
+            if ropeSceneRoot !== scene.rootNode {
+                ropeVisuals.values.forEach { $0.removeFromParentNode() }
+                ropeVisuals.removeAll(); ropeLengths.removeAll(); ropeMarkers.removeAll()
+                ropeSceneRoot = scene.rootNode
+                let types = Dictionary(uniqueKeysWithValues: (session?.objects ?? []).map { ($0.id, $0.type) })
+                var duplicates = Set<CMOriginalRope.Endpoint>()
+                scene.rootNode.enumerateChildNodes { node, _ in
+                    guard let name = CMOriginalRocketAnchorTelemetry.originalName(inSceneNodeName: node.name ?? ""),
+                          let id = self.owningOriginalObjectID(for: node), let type = types[id],
+                          CMOriginalRope.accepts(type: type, marker: name) else { return }
+                    let endpoint = CMOriginalRope.Endpoint(objectID: id, marker: name)
+                    if self.ropeMarkers[endpoint] != nil { duplicates.insert(endpoint) }
+                    else { self.ropeMarkers[endpoint] = node }
+                }
+                for endpoint in duplicates { ropeMarkers.removeValue(forKey: endpoint) }
+            }
+            for pair in Array(ropeVisuals.keys) where !pairs.contains(pair) {
+                ropeVisuals.removeValue(forKey: pair)?.removeFromParentNode()
+                ropeLengths.removeValue(forKey: pair)
+            }
+            for pair in pairs where ropeVisuals[pair] == nil {
+                guard let a = ropeMarkers[pair.first], let b = ropeMarkers[pair.second] else { continue }
+                let length = simd_distance(a.simdWorldPosition, b.simdWorldPosition)
+                guard length.isFinite, length >= 0.01, length <= 30 else { continue }
+                let cylinder = SCNCylinder(radius: 0.006, height: 1)
+                cylinder.firstMaterial?.diffuse.contents = UIColor(red: 0.64, green: 0.49, blue: 0.30, alpha: 1)
+                let visual = SCNNode(geometry: cylinder)
+                visual.name = "original-player-rope"
+                scene.rootNode.addChildNode(visual)
+                ropeVisuals[pair] = visual
+                // Freeze the arranged distance on construction of each run.
+                ropeLengths[pair] = length
+            }
+            refreshOriginalRopesLocked(applyTension: false)
+        }
+
+        private func originalRopeEndpoint(ownerID: String, at hit: SCNVector3) -> CMOriginalRope.Endpoint? {
+            ropeLock.lock(); defer { ropeLock.unlock() }
+            let point = SIMD3<Float>(hit.x, hit.y, hit.z)
+            return ropeMarkers.filter { $0.key.objectID == ownerID }.min {
+                simd_distance_squared($0.value.presentation.simdWorldPosition, point) <
+                simd_distance_squared($1.value.presentation.simdWorldPosition, point)
+            }?.key
+        }
+
+        private func refreshOriginalRopes(applyTension: Bool = false) {
+            ropeLock.lock(); defer { ropeLock.unlock() }
+            refreshOriginalRopesLocked(applyTension: applyTension)
+        }
+
+        private func refreshOriginalRopesLocked(applyTension: Bool) {
+            for (pair, visual) in ropeVisuals {
+                guard let first = ropeMarkers[pair.first], let second = ropeMarkers[pair.second],
+                      let rest = ropeLengths[pair] else { continue }
+                let a = first.presentation.simdWorldPosition, b = second.presentation.simdWorldPosition
+                let span = b - a, length = simd_length(span)
+                guard length.isFinite, length >= 0.002, length <= 60 else { visual.isHidden = true; continue }
+                let direction = span / length
+                visual.isHidden = false
+                visual.simdPosition = (a + b) * 0.5
+                let up = SIMD3<Float>(0, 1, 0)
+                visual.simdOrientation = simd_dot(up, direction) < -0.9999
+                    ? simd_quatf(angle: .pi, axis: SIMD3<Float>(1, 0, 0))
+                    : simd_quatf(from: up, to: direction)
+                (visual.geometry as? SCNCylinder)?.height = CGFloat(length)
+                guard applyTension else { continue }
+                let force = direction * CMOriginalRope.tension(distance: length, restLength: rest)
+                func pull(_ marker: SCNNode, _ value: SIMD3<Float>) {
+                    guard let owner = physicalNode(for: marker), let body = owner.physicsBody,
+                          body.type == .dynamic else { return }
+                    body.applyForce(SCNVector3(value.x, value.y, value.z), asImpulse: false)
+                    let lever = marker.presentation.simdWorldPosition - owner.presentation.simdWorldPosition
+                    let moment = simd_cross(lever, value).z
+                    guard moment.isFinite, abs(moment) > 0.00001 else { return }
+                    body.applyTorque(SCNVector4(0, 0, moment < 0 ? -1 : 1, min(abs(moment), 25)), asImpulse: false)
+                }
+                pull(first, force); pull(second, -force)
             }
         }
 
@@ -1807,6 +1908,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             guard let previous = lastRendererTime else { return }
             let delta = time - previous
             guard delta.isFinite, delta > 0, delta <= 0.25 else { return }
+            refreshOriginalRopes(applyTension: true)
             // Original Win32: abs(generator rotor +0xE8) → power at +0x40.
             // Observe real 3D rotor angular velocity; no idle generator
             // becomes a fictional constant electrical source.
@@ -3026,6 +3128,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 if next.isFinite && abs(next) <= 100_000 {
                     owner.eulerAngles.z = next
                     refreshOriginalCableGeometry()
+                    refreshOriginalRopes()
                 }
             case .ended:
                 if let identifier = owner.name,
@@ -3092,6 +3195,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 if next.x.isFinite && next.y.isFinite && next.z.isFinite {
                     target.position = next
                     refreshOriginalCableGeometry()
+                    refreshOriginalRopes()
                     lastDragPoint = point
                 }
              default:
@@ -3460,6 +3564,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                            forward.y * magnitude,
                                            forward.z * magnitude),
                                 at: contact, asImpulse: true)
+                return
+            }
+            if originalRopeEditing {
+                if let id = owningOriginalObjectID(for: node), let hit,
+                   let endpoint = originalRopeEndpoint(ownerID: id, at: hit.worldCoordinates) {
+                    onOriginalRopeTap?(endpoint)
+                }
+                highlightOriginalMesh(node, in: view)
                 return
             }
             if let id = owningOriginalObjectID(for: node),
