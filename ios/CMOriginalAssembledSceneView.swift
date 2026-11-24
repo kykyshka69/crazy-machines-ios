@@ -1036,12 +1036,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
 
         private func applyOriginalLampVisualFactors() {
-            guard !originalLampBulbMaterials.isEmpty,
+            let lampIDs = Set(originalLampBulbMaterials.keys)
+                .union(originalLampGlowNodes.keys)
+            guard !lampIDs.isEmpty,
                   appliedLampVisualFactors != requestedLampVisualFactors else {
                 return
             }
             appliedLampVisualFactors = requestedLampVisualFactors
-            for (lampID, materials) in originalLampBulbMaterials {
+            for lampID in lampIDs {
+                let materials = originalLampBulbMaterials[lampID] ?? []
                 // Pure SceneKit display clamp only. The separately
                 // recovered Win32 scalar is NOT clamped at its source.
                 let displayFactor: CGFloat
