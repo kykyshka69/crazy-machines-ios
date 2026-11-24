@@ -4374,6 +4374,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // balloon sets preserve one-shot dispatch.
                 observeOriginalBalloonContact(balloon: a, sharp: b, point: contact.contactPoint)
                 observeOriginalBalloonContact(balloon: b, sharp: a, point: contact.contactPoint)
+                // The button can be reached after a ball initially touches
+                // the housing. Use the same one-shot original marker gate
+                // for ongoing contacts, not just didBegin.
+                observeOriginalCatapultContact(owner: a, striker: b, point: contact.contactPoint)
+                observeOriginalCatapultContact(owner: b, striker: a, point: contact.contactPoint)
                 let actualImpact = switchContacts?.consumeImpact(
                     a, b, impulse: Double(contact.collisionImpulse),
                     aIsMovable: session?.physicsRole(for: a) == .movable,
