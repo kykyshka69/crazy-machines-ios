@@ -117,6 +117,24 @@ struct OriginalWindowsHeatSourceSwitchSmoke {
             precondition(stroke.phase == .finished && last == .pi / 4)
             precondition(!stroke.trigger(contact: .zero, button: .zero))
         }
+        for mirrored in [false, true] {
+            let sign: Float = mirrored ? 1 : -1
+            for angle: Float in [-1, -0.301, -0.3, -0.299, 0, 0.299, 0.3, 0.301, 1] {
+                precondition(CMOriginalCrossbowRelease.leverReady(angle: angle, mirrored: mirrored)
+                    == (angle * sign > 0.3))
+            }
+            var crossbow = CMOriginalCrossbowRelease()
+            let direction = SIMD3<Float>(mirrored ? -1 : 1, 0.25, 0.1)
+            precondition(crossbow.release(angle: sign * 0.3, mirrored: mirrored, direction: direction) == nil)
+            precondition(crossbow.release(angle: sign * 0.31, mirrored: mirrored, direction: .zero) == nil)
+            precondition(crossbow.release(angle: sign * 0.31, mirrored: mirrored, direction: .init(.nan, 0, 0)) == nil)
+            precondition(!crossbow.released)
+            precondition(crossbow.release(angle: sign * 0.31, mirrored: mirrored, direction: direction)
+                == .init(direction.x * 20, direction.y, 0))
+            precondition(crossbow.released)
+            precondition(crossbow.release(angle: sign * 0.5, mirrored: mirrored, direction: direction) == nil)
+        }
+        precondition(!CMOriginalCrossbowRelease.leverReady(angle: .nan, mirrored: false))
         print("Original candle, dynamic candle and blowtorch click states +0xEC and VALF initial/reset: OK")
     }
 }
