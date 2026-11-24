@@ -705,12 +705,24 @@ public struct CMOriginalPowerCircuit {
     /// sampled from the running scene. Generator callbacks require a
     /// separate mechanical schedule and are not covered by this adapter.
     public var supportsOrderedElectricalFrames: Bool {
-        orderedRuntimeOwners != nil && orderedRuntimeSlots != nil
-            && !sourceDeviceIDs.union(solarDeviceIDs).isEmpty
-            && generatorDeviceIDs.isEmpty
-            && sourceDeviceIDs.union(solarDeviceIDs).allSatisfy {
-                orderedRuntimeSlots?[$0]?.count == 1
-            }
+        supportsOrderedFrameTopology && generatorDeviceIDs.isEmpty
+    }
+
+    public var supportsOrderedFrameTopology: Bool {
+        let sources = sourceDeviceIDs.union(conditionalSourceDeviceIDs)
+        return orderedRuntimeOwners != nil && orderedRuntimeSlots != nil
+            && !sources.isEmpty
+            && sources.allSatisfy { orderedRuntimeSlots?[$0]?.count == 1 }
+    }
+
+    /// Only an observed direct motor-to-generator drive can select this
+    /// reconstructed callback schedule. Win32 0x450BE2 runs the mechanical
+    /// transfer immediately after the motor's electrical read.
+    public func supportsMotorDrivenOrderedFrames(_ drivers: [String: String]) -> Bool {
+        supportsOrderedFrameTopology && Set(drivers.keys) == generatorDeviceIDs
+            && drivers.values.allSatisfy { id in
+                terminals.contains { $0.deviceID == id && $0.deviceType == "tmo_power_motor" }
+            } && Set(drivers.values).count == drivers.count
     }
 
     public struct BatteryFrame: Equatable {
@@ -729,9 +741,11 @@ public struct CMOriginalPowerCircuit {
     public func advanceOrderedElectricalFrame(
         previous: BatteryFrame?, closedSwitchIDs: Set<String>,
         solarRayContributionsByDeviceID: [String: [Float]] = [:],
-        disrupterRotorAnglesByDeviceID: [String: Float] = [:]
+        disrupterRotorAnglesByDeviceID: [String: Float] = [:],
+        generatorMotorOwners: [String: String] = [:],
+        generatorRotorCommandsByDeviceID: [String: Float] = [:]
     ) -> BatteryFrame? {
-        guard supportsOrderedElectricalFrames,
+        guard supportsMotorDrivenOrderedFrames(generatorMotorOwners),
               let ownerOrder = orderedRuntimeOwners,
               let slotOrder = orderedRuntimeSlots else { return nil }
         var gates = Dictionary(uniqueKeysWithValues:
@@ -767,8 +781,17 @@ public struct CMOriginalPowerCircuit {
             else { return nil }
             state = interrupted
         }
+        var after: [String: [NativePortEvent]] = [:]
+        for (generator, driver) in generatorMotorOwners {
+            guard let plug = slotOrder[generator]?.first,
+                  let measured = generatorRotorCommandsByDeviceID[generator],
+                  let value = CMOriginalWindowsPowerScalar.generatorSignal(fromRotorCommand: measured)
+            else { return nil }
+            after[driver, default: []].append(.source(plugID: plug, value: value))
+        }
         guard let next = nativeElectricalUpdate(previous: state,
             ownerOrder: ownerOrder, solarRayContributionsByDeviceID: rays,
+            generatorEventsAfterElectricalOwner: after,
             conductingByDeviceID: gates, observedSlotOrder: slotOrder)
         else { return nil }
         return BatteryFrame(state: next, processedCuts: cuts)
@@ -786,7 +809,7 @@ public struct CMOriginalPowerCircuit {
                 if port.deviceType == "tmo_power_amperemeter" {
                     value = max(read.first ?? 0, read.second ?? 0)
                 } else { value = read.first }
-            } else if sourceDeviceIDs.contains(id) || solarDeviceIDs.contains(id) {
+            } else if sourceDeviceIDs.contains(id) || conditionalSourceDeviceIDs.contains(id) {
                 value = state.sourceReads[id]
             } else if switchDeviceIDs.contains(id) && !closedSwitchIDs.contains(id) {
                 value = nil
