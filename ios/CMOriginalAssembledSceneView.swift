@@ -453,14 +453,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.experimentalOriginalRocketFlight = experimentalOriginalRocketFlight
         context.coordinator.setOriginalRocketInitialVelocities(initialOriginalRocketVelocities)
         context.coordinator.session = CMOriginalGameplaySession(document: document)
-        // Only evidence-derived zone-delivery prototypes collect bodies:
-        // four distinct linked objects in Professor level 1, or five
-        // linked crates in Professor level 3. Other levels preserve bodies.
-        let first = (CMOriginalFirstLevelRun(document: document)?.targets ?? [])
-            .map(\.id)
-        let third = (CMOriginalThirdLevelRun(document: document)?.targets ?? [])
-            .map(\.id)
-        context.coordinator.collectiblePrototypeTargets = Set(first + third)
         context.coordinator.onOriginalZoneContact = onOriginalZoneContact
         context.coordinator.onLinkedZoneContact = onLinkedZoneContact
         context.coordinator.onOriginalConnectionContact = onOriginalConnectionContact
@@ -1096,8 +1088,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onLinkedZoneContact: ((String, String) -> Void)?
         var onOriginalConnectionContact: ((String, String) -> Void)?
         private var reportedZoneContacts = Set<String>()
-        var collectiblePrototypeTargets = Set<String>()
-        private var collectedPrototypeSources = Set<String>()
         private var reportedOriginalConnections = Set<String>()
         private var physicsNodesByObjectID: [String: [SCNNode]] = [:]
         // All 46 original balloon objects are identified by their PC tmo_
@@ -4314,6 +4304,45 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
 
+        /// Native 0x456F3A..0x456FA4 queries original linked zone
+        /// overlap after synchronizing dynamic transforms. The native
+        /// query traverses child geometry (0x4212D0). Here SceneKit body
+        /// shapes are the reconstructed substitute, not exact PC shapes.
+        private func sampleOriginalZoneOverlaps(_ world: SCNPhysicsWorld) {
+            sessionLock.lock()
+            let links = session?.originalConnections.filter {
+                $0.targetType == "tmo_zone"
+                    && !reportedOriginalConnections.contains($0.sourceID + "|" + $0.targetID)
+            } ?? []
+            sessionLock.unlock()
+            for link in links {
+                guard let sources = physicsNodesByObjectID[link.sourceID],
+                      let zones = physicsNodesByObjectID[link.targetID] else { continue }
+                let intersects = sources.contains { source in
+                    guard let body = source.physicsBody, body.type == .dynamic else { return false }
+                    return zones.contains { zone in
+                        guard let sensor = zone.physicsBody else { return false }
+                        return !world.contactTestBetween(body, sensor, options: nil).isEmpty
+                    }
+                }
+                guard intersects else { continue }
+                let key = link.sourceID + "|" + link.targetID
+                sessionLock.lock()
+                let running = session?.phase == .running
+                let fresh = running && reportedOriginalConnections.insert(key).inserted
+                let freshZone = fresh && reportedZoneContacts.insert(key).inserted
+                sessionLock.unlock()
+                guard fresh else { continue }
+                DispatchQueue.main.async { [weak self] in
+                    if freshZone {
+                        self?.onOriginalZoneContact?(link.sourceType)
+                        self?.onLinkedZoneContact?(link.sourceID, link.targetID)
+                    }
+                    self?.onOriginalConnectionContact?(link.sourceID, link.targetID)
+                }
+            }
+        }
+
         func renderer(_ renderer: SCNSceneRenderer, didSimulatePhysicsAtTime time: TimeInterval) {
             guard physicsEnabled else { return }
             applyPendingActions()
@@ -4324,6 +4353,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // The original force is applied ONLY with real Engine
             // telemetry and only to the matching dynamic rocket child.
             deliverObservedNativeRocketForces()
+            if let world = renderer.scene?.physicsWorld {
+                sampleOriginalZoneOverlaps(world)
+            }
 
             // Win32 0x44D874..0x44D9A2: GOAL capture is a spatial
             // check, independent of the collision-driven CONNECTED_TO
@@ -4431,18 +4463,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             ) else { return }
             objectBody.applyForce(SCNVector3(force.x, force.y, 0),
                                   asImpulse: false)
-        }
-
-        /// Consume ONLY a verified original first-level delivery, so later
-        /// balls/crates can also enter the same capture zone. Keep the
-        /// imported UCM model and its original authored position untouched;
-        /// removing the transient SceneKit physics body is prototype-only.
-        private func collectFirstLevelPrototypeSource(_ sourceID: String) {
-            guard collectedPrototypeSources.insert(sourceID).inserted else { return }
-            for node in physicsNodesByObjectID.removeValue(forKey: sourceID) ?? [] {
-                node.physicsBody = nil
-                node.isHidden = true
-            }
         }
 
         /// Real SceneKit collision between actual original axle UCM bodies.
@@ -4654,7 +4674,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
             let contactType: String?
             let contactIDs: (String, String)?
-            let collectibleSourceID: String?
             // Each source-zone pair counts once. Original puzzles may have
             // multiple zones, and a random zone must not count as the
             // CONNECTED_TO target encoded by the Windows scene.
@@ -4664,13 +4683,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                reportedZoneContacts.insert(candidate + "|" + zoneID).inserted {
                 contactType = types[candidate]
                 contactIDs = (candidate, zoneID)
-                collectibleSourceID = collectiblePrototypeTargets.contains(
-                    candidate + "|" + zoneID
-                ) ? candidate : nil
             } else {
                 contactType = nil
                 contactIDs = nil
-                collectibleSourceID = nil
             }
             sessionLock.unlock()
             // Never mutate SwiftUI state from the SceneKit renderer thread.
@@ -4680,14 +4695,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     if let contactType, let contactIDs {
                         self?.onOriginalZoneContact?(contactType)
                         self?.onLinkedZoneContact?(contactIDs.0, contactIDs.1)
-                        // SceneKit contact delegates run on the renderer
-                        // thread; never delete a physics node mid-callback.
-                        // The SwiftUI progress callback runs first.
-                        if let collectibleSourceID {
-                            self?.collectFirstLevelPrototypeSource(
-                                collectibleSourceID
-                            )
-                        }
+
                     }
                     for (sourceID, targetID) in newlyObservedConnections {
                         self?.onOriginalConnectionContact?(sourceID, targetID)
