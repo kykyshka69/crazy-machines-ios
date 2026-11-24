@@ -444,6 +444,62 @@ struct OriginalPowerCircuitSmoke {
         precondition(liveClosed.cableSignals.count == 4)
         precondition(split.settledSingleBatteryObservation() == nil)
         precondition(ordered.settledSingleBatteryObservation() == nil)
+        // Independent battery, generator and solar components can use
+        // the same per-port walker without guessing source precedence.
+        var dynamicRaw = raw
+        dynamicRaw["root"] = ["name": "level", "fields": [], "children": [
+            ["name": "level_elements", "fields": [], "children": [
+                device("tmo_power_battery", [41]),
+                device("tmo_power_motor", [42,43]),
+                device("tmo_power_generator", [44]),
+                device("tmo_power_lamp", [45,46]),
+                device("tmo_power_solarcell", [47]),
+                device("tmo_power_lightning", [48])
+            ]]
+        ]]
+        let dynamicDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: dynamicRaw))
+        var dynamic = CMOriginalPowerCircuit(session:
+            CMOriginalGameplaySession(document: dynamicDoc))!
+        func dynamicPort(_ n: Int) -> CMOriginalPowerCircuit.Terminal {
+            dynamic.terminals.first { $0.number == n }!
+        }
+        for (a,b) in [(41,42),(44,45),(47,48)] {
+            precondition(dynamic.toggleCable(between: dynamicPort(a).plugID,
+                and: dynamicPort(b).plugID) == .connected)
+        }
+        let genOwner = dynamicPort(44).deviceID
+        let solarOwner = dynamicPort(47).deviceID
+        let motorLoad = dynamicPort(42).deviceID
+        let lampLoad = dynamicPort(45).deviceID
+        let sparkLoad = dynamicPort(48).deviceID
+        let dynamicOn = dynamic.settledIndependentSourceObservation(
+            generatorRotorCommandsByDeviceID: [genOwner: -6],
+            solarRayContributionsByDeviceID: [solarOwner: [0.4]])!
+        precondition(dynamicOn.deviceSignals[motorLoad] == 10)
+        precondition(dynamicOn.deviceSignals[lampLoad] == 6)
+        precondition(dynamicOn.deviceSignals[sparkLoad] == 4)
+        precondition(dynamicOn.cableSignals.count == 3)
+        let dynamicOff = dynamic.settledIndependentSourceObservation()!
+        precondition(dynamicOff.deviceSignals[motorLoad] == 10)
+        precondition(dynamicOff.deviceSignals[lampLoad] == nil)
+        precondition(dynamicOff.deviceSignals[sparkLoad] == nil)
+        precondition(dynamicOff.cableSignals.count == 1)
+        precondition(dynamic.settledIndependentSourceObservation(
+            generatorRotorCommandsByDeviceID: [genOwner: .nan]) == nil)
+        let genCable = CMOriginalPowerCircuit.Cable(dynamicPort(44).plugID,
+            dynamicPort(45).plugID)
+        precondition(dynamic.applyObservedCableCut(genCable))
+        let dynamicCut = dynamic.settledIndependentSourceObservation(
+            generatorRotorCommandsByDeviceID: [genOwner: 6],
+            solarRayContributionsByDeviceID: [solarOwner: [0.4]])!
+        precondition(dynamicCut.deviceSignals[lampLoad] == nil)
+        precondition(dynamicCut.deviceSignals[sparkLoad] == 4)
+        dynamic.clearRuntimeCuts()
+        precondition(dynamic.toggleCable(between: dynamicPort(43).plugID,
+            and: dynamicPort(46).plugID) == .connected)
+        // Even a currently idle second source makes this order-dependent.
+        precondition(dynamic.settledIndependentSourceObservation() == nil)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
