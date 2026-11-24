@@ -1,5 +1,6 @@
 import SwiftUI
 import SceneKit
+import AVFoundation
 import simd
 
 /// Contact groups for 2.5D physics assembled from original PC objects.
@@ -1086,6 +1087,41 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // All 46 original balloon objects are identified by their PC tmo_
         // type. Only the 45 with VALB's movable bit will actually float;
         // the fixed balloon is kept static by configuredPhysicsRoles.
+        // Audio players are owned by this scene and accessed on the main queue.
+        private var effectDirectory: URL?
+        private var originalEffects: [String: CMOriginalSoundLibrary.Effect] = [:]
+        private var effectVoices: [String: [AVAudioPlayer]] = [:]
+        private var unavailableEffects = Set<String>()
+
+        private func playOriginalEffect(_ id: String) {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.sessionLock.lock()
+                let running = self.session?.phase == .running
+                self.sessionLock.unlock()
+                guard running, self.physicsEnabled,
+                      let directory = self.effectDirectory,
+                      let effect = self.originalEffects[id], !effect.loops,
+                      !self.unavailableEffects.contains(id) else { return }
+                var voices = self.effectVoices[id] ?? []
+                if let voice = voices.first(where: { !$0.isPlaying }) {
+                    voice.currentTime = 0
+                    voice.play()
+                } else if voices.count < effect.voiceCount {
+                    let url = directory.appendingPathComponent(effect.filename)
+                    guard let player = try? AVAudioPlayer(contentsOf: url) else {
+                        self.unavailableEffects.insert(id)
+                        return
+                    }
+                    player.numberOfLoops = 0
+                    player.prepareToPlay()
+                    voices.append(player)
+                    self.effectVoices[id] = voices
+                    player.play()
+                }
+            }
+        }
+
         private var springObjectIDs = Set<String>()
         private var springContactGate = CMOriginalSpringContact.Gate()
         private var springMorphers: [String: SCNMorpher] = [:]
@@ -1124,6 +1160,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             defer { sessionLock.unlock() }
             if paused {
                 session?.pause()
+                effectVoices.values.flatMap { $0 }.forEach { $0.stop(); $0.currentTime = 0 }
                 lastRendererTime = nil
             } else {
                 session?.resume()
@@ -1656,6 +1693,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 body.resetTransform()
                 body.velocity = SCNVector3(velocity.x,velocity.y,velocity.z)
                 releasedCrossbowArrowIDs.insert(drive.arrowID)
+                playOriginalEffect("SOUND_FX_CROSSBOW")
                 crossbowDrives[id] = drive
             }
         }
@@ -1694,6 +1732,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                   drive.stroke.trigger(contact: .init(point.x, point.y, point.z),
                       button: drive.button.presentation.simdWorldPosition) else { return }
             catapultDrives[owner] = drive
+            playOriginalEffect("SOUND_FX_CATAPULT")
         }
 
         private func advanceOriginalCatapults(delta: Double) {
@@ -2559,6 +2598,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
 
         func registerPhysicsNodes(in scene: SCNScene, originalDirectory: URL) {
+            effectVoices.values.flatMap { $0 }.forEach { $0.stop() }
+            effectVoices.removeAll()
+            unavailableEffects.removeAll()
+            effectDirectory = originalDirectory
+            originalEffects = CMOriginalSoundLibrary.load(directory: originalDirectory)
             collectedPrototypeSources.removeAll()
             physicsNodesByObjectID.removeAll()
             appliedPhysicsRoles.removeAll()
@@ -3657,6 +3701,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 marker: marker.presentation.simdWorldPosition),
                 springContactGate.accept(.init(spring: spring, striker: striker)) else { return }
             body.velocity = SCNVector3(next.x,next.y,next.z)
+            playOriginalEffect("SOUND_FX_SPRING")
             if springMorphers[spring] != nil {
                 var animation = CMOriginalSpringContact.Animation()
                 animation.trigger()
@@ -3864,6 +3909,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 guard !poppedBalloonIDs.contains(id),
                       let nodes = physicsNodesByObjectID[id], !nodes.isEmpty else { continue }
                 poppedBalloonIDs.insert(id)
+                playOriginalEffect("SOUND_FX_BALLOON")
                 buoyantObjectIDs.remove(id)
                 releaseOriginalRopes(retiredOwnerID: id)
                 for node in nodes {
