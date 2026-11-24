@@ -55,6 +55,7 @@ private enum CMOriginalPhysicsLayers {
 /// Preserve the original object identity without relying on unavailable SCNNode.userData.
 private final class CMOriginalObjectMeshNode: SCNNode {
     var originalObjectID: String?
+    var originalCollisionVolumes: CMOriginalUCMCollisionVolumes.Volumes?
 
     init(geometry: SCNGeometry) {
         super.init()
@@ -5583,6 +5584,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // Authored UCM1 attachment tables are parsed once per resolved file;
         // no synthetic heat radius, engine force or GOAL is assigned.
         var namedAnchorCache: [URL: [CMOriginalUCMNamedAnchors.Anchor]] = [:]
+        var volumeCache: [URL: CMOriginalUCMCollisionVolumes.Volumes] = [:]
         // Avoid reparsing a corrupt UCM every time it is referenced.
         var invalidMeshes = Set<URL>()
         // Physics trials must always begin at the authentic imported positions,
@@ -5808,6 +5810,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             }
                             let mesh = CMOriginalObjectMeshNode(geometry: rendered)
                             mesh.name = name
+                            if let cached = volumeCache[url] {
+                                mesh.originalCollisionVolumes = cached
+                            } else if let data = try? Data(contentsOf: url, options: [.mappedIfSafe]),
+                                      let volumes = try? CMOriginalUCMCollisionVolumes.decode(data) {
+                                volumeCache[url] = volumes
+                                mesh.originalCollisionVolumes = volumes
+                            }
                             // Verified original two-frame UCM morphs.
                             // Each object owns an independent SceneKit morpher.
                             let modelStem = url.deletingPathExtension().lastPathComponent.lowercased()
@@ -6110,6 +6119,44 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                                     SCNMatrix4Mult(base, offset), tilt
                                 )
                             ))
+                        }
+                    }
+                }
+                // Prefer the authored primitive tables for these simple
+                // original objects, including the noncolliding zone sensor.
+                // Keep specialized container/axle adapters and synthetic
+                // fixture fallbacks until their native behavior is verified.
+                if shapes.isEmpty,
+                   kind.hasPrefix("tmo_ball_") || ["tmo_zone", "tmo_crate",
+                       "tmo_balloon", "tmo_domino", "tmo_weight", "tmo_nail"].contains(kind) {
+                    let originals = meshes.compactMap { mesh -> (SCNNode, CMOriginalUCMCollisionVolumes.Volumes)? in
+                        guard let volumes = (mesh as? CMOriginalObjectMeshNode)?.originalCollisionVolumes,
+                              !volumes.isEmpty else { return nil }
+                        return (mesh, volumes)
+                    }
+                    if originals.count == meshes.count {
+                        for (mesh, volumes) in originals {
+                            let base = mesh.convertTransform(SCNMatrix4Identity, to: root)
+                            for sphere in volumes.spheres {
+                                shapes.append(SCNPhysicsShape(
+                                    geometry: SCNSphere(radius: CGFloat(sphere.radius)), options: nil))
+                                let c = sphere.center
+                                transforms.append(NSValue(scnMatrix4: SCNMatrix4Mult(base,
+                                    SCNMatrix4MakeTranslation(c[0], c[1], c[2]))))
+                            }
+                            for box in volumes.boxes {
+                                let c = box.center, a = box.axes, h = box.halfExtents
+                                let local = simd_float4x4(columns: (
+                                    SIMD4<Float>(a[0], a[1], a[2], 0),
+                                    SIMD4<Float>(a[3], a[4], a[5], 0),
+                                    SIMD4<Float>(a[6], a[7], a[8], 0),
+                                    SIMD4<Float>(c[0], c[1], c[2], 1)
+                                ))
+                                shapes.append(SCNPhysicsShape(geometry: SCNBox(
+                                    width: CGFloat(h[0]*2), height: CGFloat(h[1]*2),
+                                    length: CGFloat(h[2]*2), chamferRadius: 0), options: nil))
+                                transforms.append(NSValue(scnMatrix4: SCNMatrix4Mult(base, SCNMatrix4(local))))
+                            }
                         }
                     }
                 }
