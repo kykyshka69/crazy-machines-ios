@@ -1752,9 +1752,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 guard var drive = hammerDrives[id], !drive.finished,
                       let body = drive.wheel.physicsBody, body.type == .dynamic,
                       let parent = drive.hammer.parent else { continue }
-                let angular = body.angularVelocity
-                let speed = angular.z * angular.w
-                guard speed.isFinite, abs(speed) <= 80 else { continue }
+                guard let speed = planarSpeed(body), abs(speed) <= 80 else { continue }
                 let wasReleasing = drive.releasing
                 if !wasReleasing {
                     guard let lift = CMOriginalHammerDrive.lift(angle: drive.angle,
@@ -2081,8 +2079,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
             for (id, drive) in flagWindmills {
                 guard let body = drive.wheel.physicsBody, body.type == .dynamic else { continue }
-                let v = body.angularVelocity
-                let power = v.z * v.w
+                guard let power = planarSpeed(body) else { continue }
                 let m = drive.fixedFrame.presentation.simdWorldTransform
                 append(id, power, m, CMOriginalWindowsBeltFlag.windmillRegion(
                     axis: .init(m.columns.2.x,m.columns.2.y,m.columns.2.z), wheelSignal: power))
@@ -2108,8 +2105,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 let determinant = simd_determinant(matrix)
                 guard determinant.isFinite, abs(determinant) > 0.00001 else { continue }
                 let mirror: Float = determinant < 0 ? -1 : 1
-                let angular = wings.angularVelocity
-                let previous = angular.z * angular.w
+                guard let previous = planarSpeed(wings) else { continue }
                 var command = previous
                 let target = receiver.fixedFrame.presentation.simdWorldPosition
                 for source in sources where source.id != owner {
@@ -2149,8 +2145,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             for id in flagDrives.keys.sorted() {
                 guard var drive = flagDrives[id], let body = drive.wheel.physicsBody,
                       body.type == .dynamic else { continue }
-                let angular = body.angularVelocity
-                let wheelSignal = angular.z * angular.w
+                guard let wheelSignal = planarSpeed(body) else { continue }
                 guard let height = CMOriginalWindowsBeltFlag.nextExtension(
                     previous: drive.extensionValue, wheelSignal: wheelSignal, delta: delta)
                 else { continue }
@@ -2171,9 +2166,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                     guard let source = flagWindmills[sourceID],
                           let rotor = source.wheel.physicsBody, rotor.type == .dynamic else { continue }
-                    let a = rotor.angularVelocity
-                    let signal = a.z * a.w
-                    guard signal.isFinite, abs(signal) <= 80 else { continue }
+                    guard let signal = planarSpeed(rotor), abs(signal) <= 80 else { continue }
                     let m = source.fixedFrame.simdWorldTransform
                     if signal == 0 {
                         samples.append(.init(originalSourceID: sourceID, originalSourceType: "tmo_windmill",
@@ -2294,10 +2287,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // not a recovered native force coefficient.
             for (id, wheel) in steamWheelByBody {
                 guard let body = wheel.physicsBody, body.type == .dynamic else { continue }
-                let velocity = body.angularVelocity
-                let speed = velocity.z * velocity.w
                 let target = -(state.receiverSignals[id] ?? 0) / 2
-                guard speed.isFinite, target.isFinite else { continue }
+                guard let speed = planarSpeed(body), target.isFinite else { continue }
                 let torque = max(-2, min(2, (target - speed) * 0.5))
                 if abs(torque) > 0.001 {
                     body.applyTorque(SCNVector4(0, 0, torque < 0 ? -1 : 1, abs(torque)), asImpulse: false)
@@ -2351,9 +2342,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 guard var drive = grillDrives[id],
                       let wheelBody = drive.wheel.physicsBody,
                       wheelBody.type == .dynamic else { continue }
-                let angular = wheelBody.angularVelocity
-                guard let phase = CMOriginalGrillDrive.phase(previous: drive.phase,
-                    wheelSpeed: angular.z * angular.w, delta: delta) else { continue }
+                guard let speed = planarSpeed(wheelBody),
+                      let phase = CMOriginalGrillDrive.phase(previous: drive.phase,
+                    wheelSpeed: speed, delta: delta) else { continue }
                 // Both original child records receive the same signed scalar.
                 // Rotate about local X, not the puzzle's planar Z wheel axis.
                 let rotation = simd_quatf(angle: phase, axis: SIMD3<Float>(1, 0, 0))
@@ -2365,7 +2356,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // Native candle branch uses the sausage's first Heat receiver.
                 // UCM marker cone projection is the current SceneKit adapter.
                 let target = drive.heatMarker.presentation.simdWorldPosition
-                let spitSignal = -(angular.z * angular.w)
+                let spitSignal = -speed
                 let wasCompleted = drive.heat.completed
                 let oldShade = drive.heat.shade
                 for source in sources {
@@ -2398,14 +2389,22 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       let wheelBody = wheels[0].physicsBody, wheelBody.type == .dynamic,
                       let wingsBody = wings[0].physicsBody, wingsBody.type == .dynamic,
                       wheelBody !== wingsBody else { continue }
-                let w = wheelBody.angularVelocity
-                let v = wingsBody.angularVelocity
-                guard let torque = CMOriginalWindowsWindmill.coupledTorque(
-                    wheelSpeed: w.z * w.w, wingsSpeed: v.z * v.w) else { continue }
+                guard let wheelSpeed = planarSpeed(wheelBody),
+                      let wingsSpeed = planarSpeed(wingsBody),
+                      let torque = CMOriginalWindowsWindmill.coupledTorque(
+                    wheelSpeed: wheelSpeed, wingsSpeed: wingsSpeed) else { continue }
                 let axisTorque = SCNVector4(0, 0, torque < 0 ? -1 : 1, abs(torque))
                 wheelBody.applyTorque(axisTorque, asImpulse: false)
                 wingsBody.applyTorque(axisTorque, asImpulse: false)
             }
+        }
+
+        // Every planar mechanism must read the same projected angular
+        // velocity. Off-plane spin must not power an original receiver.
+        private func planarSpeed(_ body: SCNPhysicsBody) -> Float? {
+            let rotation = body.angularVelocity
+            return CMOriginalDriveBelt.planarAngularSpeed(
+                axis: .init(rotation.x,rotation.y,rotation.z), magnitude: rotation.w)
         }
 
         private func refreshOriginalBelts(applyTorque: Bool = false) {
@@ -2449,12 +2448,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       let firstBody = physicalNode(for: first.marker)?.physicsBody, firstBody.type == .dynamic,
                       let secondBody = physicalNode(for: second.marker)?.physicsBody, secondBody.type == .dynamic,
                       firstBody !== secondBody else { continue }
-                func speed(_ body: SCNPhysicsBody) -> Float? {
-                    let rotation = body.angularVelocity
-                    return CMOriginalDriveBelt.planarAngularSpeed(
-                        axis: .init(rotation.x,rotation.y,rotation.z), magnitude: rotation.w)
-                }
-                guard let firstSpeed = speed(firstBody), let secondSpeed = speed(secondBody),
+                guard let firstSpeed = planarSpeed(firstBody),
+                      let secondSpeed = planarSpeed(secondBody),
                       let torque = CMOriginalDriveBelt.correction(
                     firstSpeed: firstSpeed, secondSpeed: secondSpeed,
                     firstVALF: first.coefficient, secondVALF: second.coefficient) else { continue }
@@ -3456,9 +3451,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                           let wings = physicsNodesByObjectID[wingsID]?.first,
                           let body = wings.physicsBody,
                           body.type == .dynamic else { continue }
-                    let angular = body.angularVelocity
-                    let measured = angular.z < 0 ? -angular.w : angular.w
-                    guard CMOriginalWindowsWindmill.triggersGoal(
+                    guard let measured = planarSpeed(body),
+                          CMOriginalWindowsWindmill.triggersGoal(
                         nativeWingsSignal: measured
                     ) else { continue }
                     qualifiedWindmillGoalIDs.insert(windmillID)
@@ -3473,9 +3467,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         clearUnavailableGenerator(generatorID)
                         continue
                     }
-                    let rotation = body.angularVelocity
-                    let speed = rotation.z < 0 ? -rotation.w : rotation.w
-                    guard speed.isFinite else {
+                    guard let speed = planarSpeed(body) else {
                         clearUnavailableGenerator(generatorID)
                         continue
                     }
@@ -3510,13 +3502,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // Couple real internal rollers mechanically even without belt texture.
             for (conveyorID, wheel) in conveyorWheelNodes {
                 guard let drive = wheel.physicsBody, drive.type == .dynamic else { continue }
-                let angular = drive.angularVelocity
-                let speed = angular.z < 0 ? -angular.w : angular.w
+                guard let speed = planarSpeed(drive) else { continue }
                 for roller in conveyorRollerNodes[conveyorID] ?? [] {
                     guard let body = roller.node.physicsBody, body.type == .dynamic else { continue }
-                    let spin = body.angularVelocity
-                    let rollerSpeed = spin.z < 0 ? -spin.w : spin.w
-                    guard let torque = CMOriginalConveyorContact.rollerTorque(
+                    guard let rollerSpeed = planarSpeed(body),
+                          let torque = CMOriginalConveyorContact.rollerTorque(
                         kind: roller.kind, driveSpeed: speed,
                         rollerSpeed: rollerSpeed, rollerMass: Float(body.mass)) else { continue }
                     drive.applyTorque(SCNVector4(0, 0, torque.drive < 0 ? -1 : 1,
@@ -3533,9 +3523,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 guard let beltMaterial = conveyorBeltMaterials[conveyorID],
                       let body = wheel.physicsBody,
                       body.type == .dynamic else { continue }
-                let axisSpeed = body.angularVelocity
-                let omega = Float(axisSpeed.z >= 0 ? 1 : -1) * axisSpeed.w
-                guard omega.isFinite, abs(omega) > 0.01 else { continue }
+                guard let omega = planarSpeed(body), abs(omega) > 0.01 else { continue }
                 let surfaceSpeed = max(-2.0, min(2.0, -omega * 0.09))
                 let step = surfaceSpeed * Float(delta) / 1.18144
                 let next = (conveyorTextureOffsets[conveyorID] ?? 0) + step
@@ -3571,9 +3559,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 for node in physicsNodesByObjectID[id] ?? [] {
                     guard let body = node.physicsBody,
                           body.type == .dynamic else { continue }
-                    let angular = body.angularVelocity
-                    let signedSpeed = angular.z >= 0 ? angular.w : -angular.w
-                    guard let nextSpeed = CMOriginalMotorActuator.prototypeStep(
+                    guard let signedSpeed = planarSpeed(body),
+                          let nextSpeed = CMOriginalMotorActuator.prototypeStep(
                         signedAngularSpeed: signedSpeed,
                         targetSpeed: targetSpeed,
                         elapsedSeconds: delta
@@ -4296,12 +4283,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             let local = beltMesh.convertPosition(contact.contactPoint, from: nil)
             let (low, high) = beltMesh.boundingBox
             let tangent = beltMesh.convertVector(SCNVector3(1, 0, 0), to: nil)
-            let spin = wheelBody.angularVelocity
             let velocity = objectBody.velocity
-            guard let force = CMOriginalConveyorContact.surfaceForce(
+            guard let spin = planarSpeed(wheelBody),
+                  let force = CMOriginalConveyorContact.surfaceForce(
                 localX: local.x, localY: local.y,
                 beltMinX: low.x, beltMaxX: high.x, beltTopY: high.y,
-                wheelAngularSpeed: spin.z * spin.w,
+                wheelAngularSpeed: spin,
                 tangentX: tangent.x, tangentY: tangent.y,
                 objectVelocityX: velocity.x, objectVelocityY: velocity.y,
                 mass: Float(objectBody.mass)
@@ -4343,10 +4330,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             let posB = b.presentation.worldPosition
             let radiusA = hypot(p.x - posA.x, p.y - posA.y)
             let radiusB = hypot(p.x - posB.x, p.y - posB.y)
-            let av = aBody.angularVelocity, bv = bBody.angularVelocity
-            let speedA = av.z < 0 ? -av.w : av.w
-            let speedB = bv.z < 0 ? -bv.w : bv.w
-            guard let pair = CMOriginalGearContactTransfer.correction(
+            guard let speedA = planarSpeed(aBody), let speedB = planarSpeed(bBody),
+                  let pair = CMOriginalGearContactTransfer.correction(
                 firstKind: kindA, secondKind: kindB,
                 firstRadius: radiusA, secondRadius: radiusB,
                 firstAngularSpeed: speedA, secondAngularSpeed: speedB,
