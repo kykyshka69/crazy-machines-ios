@@ -703,3 +703,39 @@ public enum CMOriginalBalloonPuncture {
         return d.x*d.x + d.y*d.y + d.z*d.z < radius*radius
     }
 }
+
+
+/// Original catapult trigger 0x444F12..0x444F8E and terminal state
+/// 0x44DCDB..0x44DE56. The native hinge range is +/- pi/4 and its
+/// upward force is 100 at Ammo. The SceneKit rate is reconstructed,
+/// not a recovered native force-to-angular-speed conversion.
+public struct CMOriginalCatapultStroke {
+    public enum Phase { case ready, triggered, finished }
+    public private(set) var phase: Phase = .ready
+    public private(set) var travel: Float = 0
+    public static let triggerRadius: Float = 0.1
+    public static let limit: Float = .pi / 4
+
+    public init() {}
+
+    public mutating func trigger(contact: SIMD3<Float>, button: SIMD3<Float>) -> Bool {
+        guard phase == .ready,
+              [contact.x, contact.y, contact.z, button.x, button.y, button.z]
+                .allSatisfy(\.isFinite) else { return false }
+        let d = contact - button
+        guard d.x*d.x + d.y*d.y + d.z*d.z < Self.triggerRadius*Self.triggerRadius
+        else { return false }
+        phase = .triggered
+        return true
+    }
+
+    /// Only one running-frame stroke, with a bounded delta. The fixed
+    /// 12 rad/s adapter is provisional; the native angular limit is not.
+    public mutating func advance(delta: Double) -> Float? {
+        guard phase == .triggered, delta.isFinite, delta > 0, delta <= 0.25
+        else { return nil }
+        travel = min(Self.limit, travel + 12 * Float(delta))
+        if travel == Self.limit { phase = .finished }
+        return travel
+    }
+}
