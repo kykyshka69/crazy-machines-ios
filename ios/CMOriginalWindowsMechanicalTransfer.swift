@@ -196,6 +196,54 @@ public enum CMOriginalDriveBelt {
         return Torque(first: -force * firstVALF, second: force * secondVALF)
     }
 
+    public struct Span {
+        public let start: SIMD3<Float>
+        public let end: SIMD3<Float>
+    }
+
+    /// Closed open-belt contour around the original Wheel marker radii.
+    /// Coordinates are relative to the first wheel; the second is offset
+    /// by the actual observed displacement. Arc tessellation is visual only.
+    public static let arcSteps = 12
+    public static let contourSpanCount = 2 + 2 * arcSteps
+
+    public static func contour(offset: SIMD3<Float>, firstRadius: Float,
+                               secondRadius: Float) -> [Span]? {
+        guard let normals = tangentNormals(dx: offset.x, dy: offset.y, dz: offset.z,
+            firstRadius: firstRadius, secondRadius: secondRadius) else { return nil }
+        func point(_ n: SIMD2<Float>, radius: Float, center: SIMD3<Float>) -> SIMD3<Float> {
+            center + SIMD3<Float>(n.x,n.y,0)*radius
+        }
+        let (plus,minus) = normals
+        let aPlus = point(plus,radius:firstRadius,center:.zero)
+        let aMinus = point(minus,radius:firstRadius,center:.zero)
+        let bPlus = point(plus,radius:secondRadius,center:offset)
+        let bMinus = point(minus,radius:secondRadius,center:offset)
+        let direction = atan2(offset.y,offset.x)
+        let distance = hypot(offset.x,offset.y)
+        let theta = acos(min(1,max(-1,(firstRadius-secondRadius)/distance)))
+        var result = [Span(start:aPlus,end:bPlus)]
+        func arc(center: SIMD3<Float>, radius: Float, startAngle: Float,
+                 sweep: Float, from: SIMD3<Float>, to: SIMD3<Float>) {
+            var previous = from
+            for index in 1...arcSteps {
+                let angle = startAngle + sweep*Float(index)/Float(arcSteps)
+                let next = index == arcSteps ? to :
+                    center + SIMD3<Float>(cos(angle),sin(angle),0)*radius
+                result.append(Span(start:previous,end:next))
+                previous = next
+            }
+        }
+        // Follow the second wheel's outward arc clockwise, then the
+        // other external tangent, then the first wheel's outward arc.
+        arc(center:offset,radius:secondRadius,startAngle:direction+theta,
+            sweep:-2*theta,from:bPlus,to:bMinus)
+        result.append(Span(start:bMinus,end:aMinus))
+        arc(center:.zero,radius:firstRadius,startAngle:direction-theta,
+            sweep:-(2 * .pi-2*theta),from:aMinus,to:aPlus)
+        return result
+    }
+
     /// Unit normal for the two external tangent spans in the puzzle XY plane.
     /// Reject coincident/intersecting or out-of-plane pulley configurations.
     public static func tangentNormals(dx: Float, dy: Float, dz: Float,
