@@ -752,6 +752,48 @@ struct OriginalPowerCircuitSmoke {
         precondition(indexedPower.deviceSignals[indexedBattery.deviceID] == 10)
         precondition(indexedPower.cableSignals.count == 2)
         precondition(net.recoveredNativeSlotOrder == nil)
+        // Live battery-only scheduler: motor before battery sees old
+        // input, lamp optical pass precedes every battery update.
+        var persistentRaw = raw
+        persistentRaw["root"] = ["name": "level", "fields": [], "children": [
+            ["name": "level_elements", "fields": [], "children": [
+                device("tmo_power_motor", [nil,1]),
+                device("tmo_power_battery", [2]),
+                device("tmo_power_lamp", [3])
+            ]]
+        ]]
+        let persistentDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: persistentRaw))
+        var persistent = CMOriginalPowerCircuit(session:
+            CMOriginalGameplaySession(document: persistentDoc))!
+        let pm = persistent.terminals.first { $0.deviceType == "tmo_power_motor" && $0.number == nil }!
+        let pmOut = persistent.terminals.first { $0.number == 1 }!
+        let pb = persistent.terminals.first { $0.number == 2 }!
+        let pl = persistent.terminals.first { $0.number == 3 }!
+        precondition(persistent.supportsOrderedBatteryFrames)
+        precondition(persistent.toggleCable(between: pm.plugID, and: pb.plugID) == .connected)
+        precondition(persistent.toggleCable(between: pmOut.plugID, and: pl.plugID) == .connected)
+        let pf1 = persistent.advanceOrderedBatteryFrame(previous: nil, closedSwitchIDs: [])!
+        let po1 = persistent.orderedBatteryObservation(pf1, closedSwitchIDs: [])
+        precondition(po1.deviceSignals[pm.deviceID] == nil)
+        precondition(po1.deviceSignals[pl.deviceID] == nil)
+        precondition(po1.cableSignals.count == 2)
+        let pf2 = persistent.advanceOrderedBatteryFrame(previous: pf1, closedSwitchIDs: [])!
+        let po2 = persistent.orderedBatteryObservation(pf2, closedSwitchIDs: [])
+        precondition(po2.deviceSignals[pm.deviceID] == 10)
+        precondition(po2.deviceSignals[pl.deviceID] == 10)
+        precondition(persistent.advanceOrderedBatteryFrame(previous: pf2, closedSwitchIDs: []) == pf2)
+        let pc = CMOriginalPowerCircuit.Cable(pm.plugID, pb.plugID)
+        precondition(persistent.applyObservedCableCut(pc))
+        let pf3 = persistent.advanceOrderedBatteryFrame(previous: pf2, closedSwitchIDs: [])!
+        let po3 = persistent.orderedBatteryObservation(pf3, closedSwitchIDs: [])
+        precondition(po3.deviceSignals[pm.deviceID] == nil)
+        precondition(po3.deviceSignals[pl.deviceID] == nil)
+        precondition(pf3.processedCuts == [pc])
+        persistent.clearRuntimeCuts()
+        precondition(persistent.advanceOrderedBatteryFrame(previous: pf3, closedSwitchIDs: []) == nil)
+        let replayFrame = persistent.advanceOrderedBatteryFrame(previous: nil, closedSwitchIDs: [])!
+        precondition(replayFrame == pf1)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
