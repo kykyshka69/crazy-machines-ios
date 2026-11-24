@@ -904,6 +904,51 @@ struct OriginalPowerCircuitSmoke {
             closedSwitchIDs: []).deviceSignals[physicalMeter.deviceID] == 10)
         precondition(physicalCircuit.terminals.count == 2)
         precondition(sparse.recoveredNativePhysicalSlots == nil)
+        // Direct motor callback emits a sampled generator scalar after
+        // the motor owner update, not as an arbitrary independent source.
+        var generatorFrameRaw = raw
+        generatorFrameRaw["root"] = ["name": "level", "fields": [], "children": [
+            ["name": "level_elements", "fields": [], "children": [
+                device("tmo_power_battery", [nil]),
+                device("tmo_power_motor", [1]),
+                device("tmo_power_generator", [2]),
+                device("tmo_power_bell", [3]),
+                device("tmo_power_lamp", [4])
+            ]]
+        ]]
+        let generatorFrameDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: generatorFrameRaw))
+        var gf = CMOriginalPowerCircuit(session:
+            CMOriginalGameplaySession(document: generatorFrameDoc))!
+        let gb = gf.terminals.first { $0.number == nil }!
+        let gm = gf.terminals.first { $0.number == 1 }!
+        let gg = gf.terminals.first { $0.number == 2 }!
+        let gl = gf.terminals.first { $0.number == 4 }!
+        let driver = [gg.deviceID: gm.deviceID]
+        precondition(gf.supportsMotorDrivenOrderedFrames(driver))
+        precondition(!gf.supportsOrderedElectricalFrames)
+        precondition(!gf.supportsMotorDrivenOrderedFrames([gg.deviceID: gb.deviceID]))
+        precondition(gf.toggleCable(between: gb.plugID, and: gm.plugID) == .connected)
+        precondition(gf.toggleCable(between: gg.plugID, and: gl.plugID) == .connected)
+        precondition(gf.advanceOrderedElectricalFrame(previous: nil, closedSwitchIDs: [],
+            generatorMotorOwners: driver) == nil)
+        let g1 = gf.advanceOrderedElectricalFrame(previous: nil, closedSwitchIDs: [],
+            generatorMotorOwners: driver,
+            generatorRotorCommandsByDeviceID: [gg.deviceID: -4])!
+        precondition(g1.state.consumerReads[gm.deviceID]?.first == 10)
+        precondition(g1.state.sourceReads[gg.deviceID] == 4)
+        precondition(g1.state.consumerReads[gl.deviceID]?.first == 0)
+        precondition(g1.state.signals[gl.plugID] == 4)
+        let g2 = gf.advanceOrderedElectricalFrame(previous: g1, closedSwitchIDs: [],
+            generatorMotorOwners: driver,
+            generatorRotorCommandsByDeviceID: [gg.deviceID: 0])!
+        precondition(g2.state.consumerReads[gl.deviceID]?.first == 4)
+        precondition(g2.state.signals[gl.plugID] == 0)
+        precondition(g2.state.sourceReads[gg.deviceID] == 0)
+        let g3 = gf.advanceOrderedElectricalFrame(previous: g2, closedSwitchIDs: [],
+            generatorMotorOwners: driver,
+            generatorRotorCommandsByDeviceID: [gg.deviceID: 0])!
+        precondition(g3.state.consumerReads[gl.deviceID]?.first == 0)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
