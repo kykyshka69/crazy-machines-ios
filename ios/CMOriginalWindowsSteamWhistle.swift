@@ -244,3 +244,23 @@ public struct CMOriginalFlaskGas {
         return true
     }
 }
+
+
+/// Win32 0x4517C0–0x45188B: selected steam wheel +D0 drives both
+/// piston and pleul +8C, and the pleul +D0 through CRT asin.
+public enum CMOriginalSteamPiston {
+    public struct Pose {
+        public let sliderX: Float
+        public let rodAngle: Float
+    }
+    public static func pose(wheelX: Float, wheelAngle: Float) -> Pose? {
+        guard wheelX.isFinite, wheelAngle.isFinite else { return nil }
+        let crank = Float(bitPattern: 0x3e051eb8)
+        let offset = Float(bitPattern: 0x3eeb851f)
+        let rod = Float(bitPattern: 0x3ef0a3d7)
+        let x = wheelX + cos(wheelAngle) * crank - offset
+        let angle = asin(sin(wheelAngle) * crank / rod)
+        guard x.isFinite, angle.isFinite else { return nil }
+        return Pose(sliderX: x, rodAngle: angle)
+    }
+}
