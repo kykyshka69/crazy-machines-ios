@@ -179,6 +179,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     // Native hammer terminal depth callback, reconstructed SceneKit cycle.
     var onOriginalHammerGoal: ((String) -> Void)? = nil
     var onOriginalSteamGoal: ((String) -> Void)? = nil
+    var onOriginalGrillGoal: ((String) -> Void)? = nil
     // Reports a user-operated original PC power switch. This changes its
     // actual lever mesh, NOT the unrecovered electrical connectivity.
     var onOriginalDisrupterAngle: ((String, Float) -> Void)? = nil
@@ -446,6 +447,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalPlayerSourceGoal = onOriginalPlayerSourceGoal
         context.coordinator.onOriginalHammerGoal = onOriginalHammerGoal
         context.coordinator.onOriginalSteamGoal = onOriginalSteamGoal
+        context.coordinator.onOriginalGrillGoal = onOriginalGrillGoal
         context.coordinator.fourthLevelRun = CMOriginalFourthLevelRun(document: document)
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
@@ -569,6 +571,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalPlayerSourceGoal = onOriginalPlayerSourceGoal
         context.coordinator.onOriginalHammerGoal = onOriginalHammerGoal
         context.coordinator.onOriginalSteamGoal = onOriginalSteamGoal
+        context.coordinator.onOriginalGrillGoal = onOriginalGrillGoal
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
         context.coordinator.onOriginalOpticalSightlines = onOriginalOpticalSightlines
@@ -736,6 +739,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalPlayerSourceGoal: ((String) -> Void)?
         var onOriginalHammerGoal: ((String) -> Void)?
         var onOriginalSteamGoal: ((String) -> Void)?
+        var onOriginalGrillGoal: ((String) -> Void)?
         private var steamPortNodes: [(owner: String, node: SCNNode)] = []
         private var boilerHeatSignals: [String: Float] = [:]
         private var steamOutgoingSignals: [Int: Float] = [:]
@@ -766,6 +770,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             let sausage: SCNNode
             let spitRest: simd_quatf
             let sausageRest: simd_quatf
+            let heatMarker: SCNNode
+            let materials: [SCNMaterial]
+            var heat = CMOriginalGrillHeat.State()
             var phase: Float = 0
         }
         private var grillDrives: [String: GrillDrive] = [:]
@@ -1569,26 +1576,43 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 guard let wheel = unique("tmo_heat_grill_wheel"),
                       let spit = unique("tmo_heat_grill_spit"),
                       let sausage = unique("tmo_heat_grill_sausage"),
+                      let sausageID = objects.first(where: { $0.parentID == owner.id && $0.type == "tmo_heat_grill_sausage" })?.id,
+                      let heatMarker = exactOriginalAnchor("Heat", on: sausageID),
                       spit.parent === sausage.parent,
                       simd_distance(spit.simdPosition, sausage.simdPosition) < 0.001
                 else { continue }
                 // Authentic spit and sausage have the same authored POSREL;
                 // the long spit UCM and Mechanic01/03 markers define local X.
+                var materials: [SCNMaterial] = []
+                // Isolate this sausage's material; never darken other shared meshes.
+                sausage.enumerateChildNodes { node, _ in
+                    guard let geometry = node.geometry?.copy() as? SCNGeometry else { return }
+                    geometry.materials = geometry.materials.map { ($0.copy() as? SCNMaterial) ?? $0 }
+                    node.geometry = geometry
+                    materials.append(contentsOf: geometry.materials)
+                }
                 grillDrives[owner.id] = GrillDrive(wheel: wheel, spit: spit,
                     sausage: sausage, spitRest: spit.simdOrientation,
-                    sausageRest: sausage.simdOrientation)
+                    sausageRest: sausage.simdOrientation, heatMarker: heatMarker,
+                    materials: materials)
             }
         }
 
         private func advanceOriginalGrillDrives(delta: Float) {
-            for id in Array(grillDrives.keys) {
+            guard !grillDrives.isEmpty else { return }
+            let lit = CMOriginalRocketSceneHeatSources.litCandleIDs(
+                sourceStates: session?.originalHeatSourceStates ?? [:],
+                originalTypesByID: originalTypesByID)
+            let sources = lit.compactMap {
+                exactOriginalAnchor("Heat", on: $0)?.presentation.simdWorldTransform
+            }
+            for id in Array(grillDrives.keys).sorted() {
                 guard var drive = grillDrives[id],
                       let wheelBody = drive.wheel.physicsBody,
                       wheelBody.type == .dynamic else { continue }
                 let angular = wheelBody.angularVelocity
                 guard let phase = CMOriginalGrillDrive.phase(previous: drive.phase,
-                    wheelSpeed: angular.z * angular.w, delta: delta),
-                      phase != drive.phase else { continue }
+                    wheelSpeed: angular.z * angular.w, delta: delta) else { continue }
                 // Both original child records receive the same signed scalar.
                 // Rotate about local X, not the puzzle's planar Z wheel axis.
                 let rotation = simd_quatf(angle: phase, axis: SIMD3<Float>(1, 0, 0))
@@ -1597,6 +1621,31 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 drive.spit.physicsBody?.resetTransform()
                 drive.sausage.physicsBody?.resetTransform()
                 drive.phase = phase
+                // Native candle branch uses the sausage's first Heat receiver.
+                // UCM marker cone projection is the current SceneKit adapter.
+                let target = drive.heatMarker.presentation.simdWorldPosition
+                let spitSignal = -(angular.z * angular.w)
+                let wasCompleted = drive.heat.completed
+                let oldShade = drive.heat.shade
+                for source in sources {
+                    let origin = source.columns.3, axis = source.columns.2
+                    guard let fraction = CMOriginalWindowsRocketNativeHeat.projectedUCMHeatFraction(
+                        observedSourceWorldYAxis: .init(axis.x, axis.y, axis.z),
+                        observedSourceToTargetWorldXY: .init(target.x-origin.x, target.y-origin.y, 0)),
+                        let next = CMOriginalGrillHeat.advance(drive.heat, fraction: fraction,
+                            spitSignal: spitSignal, delta: Double(delta))
+                    else { continue }
+                    drive.heat = next
+                }
+                if drive.heat.shade != oldShade {
+                    for material in drive.materials {
+                        material.multiply.contents = UIColor(white: CGFloat(drive.heat.shade), alpha: 1)
+                    }
+                }
+                if drive.heat.completed && !wasCompleted {
+                    let deliver = onOriginalGrillGoal
+                    DispatchQueue.main.async { deliver?(id) }
+                }
                 grillDrives[id] = drive
             }
         }
