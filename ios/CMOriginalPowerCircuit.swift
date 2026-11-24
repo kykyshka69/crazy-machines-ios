@@ -83,6 +83,7 @@ public struct CMOriginalPowerCircuit {
     public let recoveredNativePhysicalSlots: [String: [String?]]?
     private let verifiedPhysicalOwnerOrder: [String]?
     private let opticalMechanicalOwners: Set<String>
+    private let boilerMechanicalOwners: Set<String>
     private let authoredPhaseOwnerOrder: [String]
 
     private var orderedRuntimeSlots: [String: [String]]? {
@@ -126,7 +127,10 @@ public struct CMOriginalPowerCircuit {
             session.objects.map(\.id).filter { visibleOwners.contains($0) }
         }
         opticalMechanicalOwners = Set(session.objects.filter {
-            $0.type == "tmo_windmill" && $0.parentID == nil
+            ($0.type == "tmo_windmill" || $0.type == "tmo_boiler") && $0.parentID == nil
+        }.map(\.id))
+        boilerMechanicalOwners = Set(session.objects.filter {
+            $0.type == "tmo_boiler" && $0.parentID == nil
         }.map(\.id))
         authoredPhaseOwnerOrder = session.objects.filter {
             $0.parentID == nil
@@ -670,6 +674,10 @@ public struct CMOriginalPowerCircuit {
         var events: [NativePortEvent] = [.resetVisited]
         for id in ownerOrder {
             let before = generatorEventsBeforeOpticalOwner[id] ?? []
+            // Win32 boiler 0x44E036 resets visit markers before its steam walk.
+            if boilerMechanicalOwners.contains(id) && !before.isEmpty {
+                events.append(.resetVisited)
+            }
             guard before.allSatisfy(validGenerator) else { return nil }
             events.append(contentsOf: before)
             guard let first = groups[id]?.first else { continue }
@@ -1148,6 +1156,7 @@ public struct CMOriginalPowerCircuit {
         recoveredNativeOwnerOrder = circuit.recoveredNativeOwnerOrder?.filter { owners.contains($0) }
         recoveredNativePhysicalSlots = circuit.recoveredNativePhysicalSlots?.filter { owners.contains($0.key) }
         verifiedPhysicalOwnerOrder = circuit.verifiedPhysicalOwnerOrder?.filter { owners.contains($0) }
+        boilerMechanicalOwners = circuit.boilerMechanicalOwners
         opticalMechanicalOwners = circuit.opticalMechanicalOwners
         authoredPhaseOwnerOrder = circuit.authoredPhaseOwnerOrder
         byPlugID = Dictionary(uniqueKeysWithValues: localTerminals.map { ($0.plugID, $0) })
