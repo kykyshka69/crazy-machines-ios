@@ -26,7 +26,8 @@ public struct CMOriginalRocketStageMachine {
         projectedCandleHeat: Float?,
         projectedBlowtorchHit: Bool,
         rocketBodyPresent: Bool,
-        directionAndInitialVelocityUsable: Bool
+        directionAndInitialVelocityUsable: Bool,
+        projectedMagnifierHeatHit: Bool = false
     ) -> Phase {
         guard time.isFinite, time >= 0,
               (lastTime.map { time >= $0 } ?? true) else { return phase }
@@ -37,7 +38,7 @@ public struct CMOriginalRocketStageMachine {
                 $0.isFinite && $0 >= 0 && $0 <= 1
                     && $0 > Float(bitPattern: 0x3F570A3D)
             } ?? false
-            if candleHit || projectedBlowtorchHit {
+            if candleHit || projectedBlowtorchHit || projectedMagnifierHeatHit {
                 phase = .fuse
                 ignitionTime = time
             }
