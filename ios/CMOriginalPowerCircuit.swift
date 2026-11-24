@@ -901,7 +901,8 @@ public struct CMOriginalPowerCircuit {
         closedSwitchIDs: Set<String> = [],
         generatorRotorCommandsByDeviceID: [String: Float] = [:],
         solarRayContributionsByDeviceID: [String: [Float]] = [:],
-        disrupterRotorAnglesByDeviceID: [String: Float] = [:]
+        disrupterRotorAnglesByDeviceID: [String: Float] = [:],
+        allowLegacyFallback: Bool = true
     ) -> NetworkObservation {
         var edges: [String: [(owner: String, wire: Cable)]] = [:]
         for wire in activeCables {
@@ -944,15 +945,38 @@ public struct CMOriginalPowerCircuit {
                     generatorRotorCommandsByDeviceID: generatorRotorCommandsByDeviceID,
                     solarRayContributionsByDeviceID: solarRayContributionsByDeviceID,
                     disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID)
-                ?? local.experimentalNetworkObservation(
+                ?? (allowLegacyFallback ? local.experimentalNetworkObservation(
                     closedSwitchIDs: closedSwitchIDs,
                     generatorRotorCommandsByDeviceID: generatorRotorCommandsByDeviceID,
                     solarRayContributionsByDeviceID: solarRayContributionsByDeviceID,
                     disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID)
+                    : NetworkObservation(deviceSignals: [:], cableSignals: [:]))
             devices.merge(result.deviceSignals) { existing, _ in existing }
             cables.merge(result.cableSignals) { existing, _ in existing }
         }
         return NetworkObservation(deviceSignals: devices, cableSignals: cables)
+    }
+
+    /// Counterfactual electrical lamp power with every solar source dark.
+    /// Keep actual cable topology and native-derived ordering constraints.
+    /// Never use ambiguous legacy reachability to establish independent
+    /// energy for a solar receiver. The renderer also requires matching
+    /// positive full-network power before accepting this contribution.
+    public func independentOpticalLampSignals(
+        closedSwitchIDs: Set<String> = [],
+        generatorRotorCommandsByDeviceID: [String: Float] = [:],
+        disrupterRotorAnglesByDeviceID: [String: Float] = [:]
+    ) -> [String: Float] {
+        let dark = Dictionary(uniqueKeysWithValues:
+            solarDeviceIDs.map { ($0, [Float]()) })
+        let independent = componentwiseElectricalObservation(
+            closedSwitchIDs: closedSwitchIDs,
+            generatorRotorCommandsByDeviceID: generatorRotorCommandsByDeviceID,
+            solarRayContributionsByDeviceID: dark,
+            disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID,
+            allowLegacyFallback: false)
+        let lampIDs = Set(terminals.filter { $0.deviceType == "tmo_power_lamp" }.map(\.deviceID))
+        return independent.deviceSignals.filter { lampIDs.contains($0.key) }
     }
 
     /// Compatibility entry for the earlier restricted battery-only bridge.
