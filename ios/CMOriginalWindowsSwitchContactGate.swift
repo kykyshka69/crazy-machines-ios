@@ -73,3 +73,35 @@ public enum CMOriginalWindowsSwitchContactGate {
         return abs(error) <= Double(sceneContactTolerance)
     }
 }
+
+/// Per-run SceneKit adapter for the native impact-driven switch GOAL.
+/// A click may move the same lever, but cannot arm the impact event.
+/// The measured closed pose is provisional; it is not a native +0xC8 value.
+public struct CMOriginalSwitchImpactGoal {
+    private var pending = Set<String>()
+    private var credited = Set<String>()
+
+    public init() {}
+
+    public mutating func arm(_ id: String, requestedOn: Bool, previouslyClosed: Bool) {
+        guard !id.isEmpty, !credited.contains(id) else { return }
+        if requestedOn && !previouslyClosed {
+            pending.insert(id)
+        } else {
+            pending.remove(id)
+        }
+    }
+
+    public mutating func cancel(_ id: String) {
+        pending.remove(id)
+    }
+
+    public mutating func observe(_ id: String, requestedOn: Bool, observedClosed: Bool) -> Bool {
+        guard pending.contains(id), !credited.contains(id) else { return false }
+        guard requestedOn else { pending.remove(id); return false }
+        guard observedClosed else { return false }
+        pending.remove(id)
+        credited.insert(id)
+        return true
+    }
+}
