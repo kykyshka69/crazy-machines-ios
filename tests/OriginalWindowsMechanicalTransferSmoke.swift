@@ -338,6 +338,20 @@ struct OriginalWindowsMechanicalTransferSmoke {
                     current:current,axis:axis,contact:axis*0.1,marker:.zero)==nil)
             }
         }
+        // A housing contact must not consume the pair before a later
+        // callback reaches the real spring surface.
+        var delayedSpringGate = CMOriginalSpringContact.Gate()
+        let delayedPair = CMOriginalSpringContact.Pair(spring:"spring",striker:"crate")
+        for (point, expected) in [(SIMD3<Float>(0,-0.1,0),false),
+                                  (SIMD3<Float>(0,0.02,0),true),
+                                  (SIMD3<Float>(0,0.02,0),false)] {
+            let valid = CMOriginalSpringContact.rebound(incoming:.init(0,-1,0),
+                current:.zero,axis:.init(0,1,0),contact:point,marker:.zero) != nil
+            let accepted = valid && delayedSpringGate.accept(delayedPair)
+            precondition(accepted == expected)
+        }
+        delayedSpringGate.end(delayedPair)
+        precondition(delayedSpringGate.accept(delayedPair))
         var springGate = CMOriginalSpringContact.Gate()
         let springA = CMOriginalSpringContact.Pair(spring:"spring",striker:"crate-a")
         let springB = CMOriginalSpringContact.Pair(spring:"spring",striker:"crate-b")
