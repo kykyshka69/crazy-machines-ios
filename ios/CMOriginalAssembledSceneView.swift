@@ -765,6 +765,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // (0, 0, -0.0836), DIFFERENT from the "Plug" socket and its
         // owner pivot. Retain genuine moving SCNNode marker references.
         private var originalCableWireMarkers: [String: SCNNode] = [:]
+        private var originalPhysicalCablePairs = Set<CMOriginalPowerCircuit.Cable>()
         private var originalCableNodes:
             [CMOriginalPowerCircuit.Cable: SCNNode] = [:]
         private weak var originalCableSceneRoot: SCNNode?
@@ -1063,6 +1064,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 originalCableWireMarkers[$0.firstPlugID] != nil &&
                 originalCableWireMarkers[$0.secondPlugID] != nil
             })
+            originalPhysicalCablePairs = desired
             for (pair, cable) in originalCableNodes
                 where !desired.contains(pair) {
                 cable.removeFromParentNode()
@@ -1156,7 +1158,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 guard !firedScissorsIDs.contains(owner),
                       let first = physicsNodesByObjectID[blades.first]?.first,
                       let second = physicsNodesByObjectID[blades.second]?.first,
-                      first.physicsBody != nil, second.physicsBody != nil,
+                      first.physicsBody?.type == .dynamic,
+                      second.physicsBody?.type == .dynamic,
                       let start = exactOriginalAnchor("Cut01", on: blades.first),
                       let end = exactOriginalAnchor("Cut02", on: blades.first),
                       CMOriginalScissorsCableGeometry.activates(
@@ -1167,7 +1170,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 let a = start.presentation.simdWorldPosition
                 let b = end.presentation.simdWorldPosition
                 originalCableVisualLock.lock()
-                let hits = originalCableNodes.keys.filter { pair in
+                // Texture/visual availability must not determine electrical cuts.
+                let hits = originalPhysicalCablePairs.filter { pair in
                     guard !reportedCutCables.contains(pair),
                           let left = originalCableWireMarkers[pair.firstPlugID],
                           let right = originalCableWireMarkers[pair.secondPlugID]
