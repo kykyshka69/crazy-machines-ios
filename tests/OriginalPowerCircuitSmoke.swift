@@ -551,10 +551,34 @@ struct OriginalPowerCircuitSmoke {
         precondition(directBatteries.deviceSignals.count == 2)
         precondition(directBatteries.deviceSignals.values.allSatisfy { $0 == 10 })
         precondition(directBatteries.cableSignals.isEmpty)
-        // Do not infer equal or unequal dynamic-source precedence.
+        // A measured 10 from the generator is identical to the battery
+        // scalar for a fully conducting settled circuit. No addition.
+        let orderedGenerator = ordered.terminals.first { $0.number == 21 }!.deviceID
+        let equalMixed = ordered.settledIndependentSourceObservation(
+            closedSwitchIDs: orderedSwitchIDs,
+            generatorRotorCommandsByDeviceID: [orderedGenerator: 10])!
+        precondition(equalMixed.deviceSignals.count == 4)
+        precondition(equalMixed.deviceSignals.values.allSatisfy { $0 == 10 })
+        precondition(equalMixed.cableSignals.count == 3)
         precondition(ordered.settledIndependentSourceObservation(
             closedSwitchIDs: orderedSwitchIDs,
-            generatorRotorCommandsByDeviceID: [ordered.terminals.first { $0.number == 21 }!.deviceID: 10]) == nil)
+            generatorRotorCommandsByDeviceID: [orderedGenerator: 6]) == nil)
+        precondition(ordered.settledIndependentSourceObservation(
+            closedSwitchIDs: orderedSwitchIDs) == nil)
+        precondition(ordered.settledIndependentSourceObservation(
+            generatorRotorCommandsByDeviceID: [orderedGenerator: 10]) == nil)
+        // Join previously independent solar and generator circuits to
+        // the battery component. Exact 10 on every source is eligible.
+        let mixedSolar = dynamic.settledIndependentSourceObservation(
+            generatorRotorCommandsByDeviceID: [genOwner: -10],
+            solarRayContributionsByDeviceID: [solarOwner: [1]])!
+        precondition(mixedSolar.deviceSignals[motorLoad] == 10)
+        precondition(mixedSolar.deviceSignals[lampLoad] == 10)
+        precondition(mixedSolar.deviceSignals[sparkLoad] == 10)
+        precondition(mixedSolar.cableSignals.count == 4)
+        precondition(dynamic.settledIndependentSourceObservation(
+            generatorRotorCommandsByDeviceID: [genOwner: Float(10).nextDown],
+            solarRayContributionsByDeviceID: [solarOwner: [1]]) == nil)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
