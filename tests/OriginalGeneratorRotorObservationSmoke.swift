@@ -50,6 +50,31 @@ struct OriginalGeneratorRotorObservationSmoke {
         lost = P.sourceUnavailable(previous: lost)
         precondition(lost == 0)
         precondition(P.sourceUnavailable(previous: lost) == nil)
+        // Exercise the same projected observation now shared by all
+        // SceneKit planar mechanisms; off-plane spin cannot create power
+        // or satisfy the windmill GOAL. Real signed planar spin is kept.
+        for axis in [SIMD3<Float>(1,0,0), .init(0,1,0), .init(-2,3,0)] {
+            for magnitude: Float in [-80,-10,-1,0,1,10,80] {
+                let speed = CMOriginalDriveBelt.planarAngularSpeed(axis:axis,magnitude:magnitude)!
+                precondition(speed == 0)
+                precondition(!CMOriginalWindowsWindmill.triggersGoal(nativeWingsSignal:speed))
+                precondition(P.report(previous:1,measured:speed) == 0)
+                precondition(P.report(previous:nil,measured:speed) == nil)
+            }
+        }
+        for sign: Float in [-1,1] {
+            for scale: Float in [0.1,1,2,100] {
+                for magnitude: Float in [0,0.01,0.1,0.3,0.301,0.5,1,3,80] {
+                    let speed = CMOriginalDriveBelt.planarAngularSpeed(
+                        axis:.init(0,0,sign*scale),magnitude:magnitude)!
+                    precondition(speed == sign*magnitude)
+                    precondition(CMOriginalWindowsWindmill.triggersGoal(
+                        nativeWingsSignal:speed) == (magnitude > 0.3))
+                }
+            }
+        }
+        precondition(CMOriginalDriveBelt.planarAngularSpeed(axis:.init(.nan,0,1),magnitude:1) == nil)
+        precondition(P.sourceUnavailable(previous:2) == 0)
         print("Original generator rotor source stop: stale low nonzero power cleared")
     }
 }
