@@ -755,6 +755,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var liveOpticalEmitters: [String: SCNNode] = [:]
         private var liveOpticalReceivers: [String: SCNNode] = [:]
         private var liveFlowerProgress: [String: Float] = [:]
+        private var liveFlowerMorphers: [String: SCNMorpher] = [:]
         private var liveFlowerLight: [String: Float] = [:]
         private var reportedFlowerGoals = Set<String>()
         private var lastLiveOpticalTime: TimeInterval = -1
@@ -2177,6 +2178,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             registerOriginalHammerDrives(objects: originalObjects)
             registerOriginalSteamNetwork(objects: originalObjects)
             registerLiveOptics(objects: originalObjects)
+            scene.rootNode.enumerateChildNodes { node, _ in
+                guard let mesh = node as? CMOriginalObjectMeshNode,
+                      let id = mesh.originalObjectID,
+                      self.originalTypesByID[id] == "tmo_light_flower",
+                      mesh.name?.lowercased() == "to_light_flower",
+                      let morpher = mesh.morpher, morpher.targets.count == 1 else { return }
+                self.liveFlowerMorphers[id] = morpher
+            }
             applyOriginalLampVisualFactors()
             applyOriginalAmmeterSignals()
             // Each original conveyor has a distinct child tmo_belt_conveyer_wheel
@@ -2218,6 +2227,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             liveOpticalEmitters.removeAll()
             liveOpticalReceivers.removeAll()
             liveFlowerProgress.removeAll()
+            liveFlowerMorphers.removeAll()
             liveFlowerLight.removeAll()
             reportedFlowerGoals.removeAll()
             lastSolarRays.removeAll()
@@ -2237,7 +2247,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     if let marker = exactOriginalAnchor("Light", on: item.id) {
                         liveOpticalReceivers[item.id] = marker
                         if item.type == "tmo_light_flower" {
-                            // Initial unilluminated state; native morph geometry remains separate.
+                            // Initial unilluminated state uses the original wilted frame.
                             liveFlowerProgress[item.id] = 1
                         }
                     }
@@ -2312,6 +2322,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         previous: previous, observedLightInput: light,
                         observedNativeDelta: delta) else { continue }
                 liveFlowerProgress[id] = progress
+                // Native progress 1 = unlit, 0 = fully lit. Group 1 is
+                // wilted and group 0 is upright in the actual UCM.
+                // Rendering clamp is separate from the native scalar.
+                if let morpher = liveFlowerMorphers[id] {
+                    morpher.setWeight(CGFloat(min(1, max(0, progress))), forTargetAt: 0)
+                }
                 if light > 0, CMOriginalWindowsFlower.triggersGoal(observedNativeProgress: progress),
                    reportedFlowerGoals.insert(id).inserted {
                     let deliver = onOriginalFlowerGoal
@@ -4516,6 +4532,20 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                             }
                             let mesh = CMOriginalObjectMeshNode(geometry: rendered)
                             mesh.name = name
+                            // Only the authentic flower is a verified two-frame
+                            // UCM morph. Keep the immutable base cached, but
+                            // each flower has an independent SceneKit morpher.
+                            if name.lowercased() == "to_light_flower",
+                               url.deletingPathExtension().lastPathComponent.lowercased() == "light_flower",
+                               let target = try? Self.loadGeometry(url, textureCache: textureCache,
+                                   originalModelReference: name, flowerGroup: 1),
+                               rendered.sources(for: .vertex).first?.vectorCount == target.sources(for: .vertex).first?.vectorCount {
+                                let morpher = SCNMorpher()
+                                morpher.calculationMode = .normalized
+                                morpher.targets = [target]
+                                morpher.setWeight(1, forTargetAt: 0)
+                                mesh.morpher = morpher
+                            }
                             if let currentOwnerID {
                                 mesh.originalObjectID = currentOwnerID
                             }
@@ -5312,10 +5342,22 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
     private static func loadGeometry(
         _ url: URL, textureCache: OriginalTextureCache,
-        originalModelReference: String? = nil
+        originalModelReference: String? = nil,
+        flowerGroup: Int? = nil
     ) throws -> SCNGeometry {
         let model = try CMUCMModel(data: Data(contentsOf: url))
-        let raw = [UInt8](model.vertexData)
+        let raw: [UInt8]
+        let count: Int
+        if url.deletingPathExtension().lastPathComponent.lowercased() == "light_flower" {
+            guard let frame = model.pairedMorphVertexData(group: flowerGroup ?? 0) else {
+                throw CMUCMError.invalidGeometry
+            }
+            raw = [UInt8](frame)
+            count = model.verticesPerGroup
+        } else {
+            raw = [UInt8](model.vertexData)
+            count = model.vertexCount
+        }
         func readFloat(_ offset: Int) -> Float {
             let bits = UInt32(raw[offset]) | (UInt32(raw[offset+1]) << 8)
                 | (UInt32(raw[offset+2]) << 16) | (UInt32(raw[offset+3]) << 24)
@@ -5324,8 +5366,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // UCM is a packed little-endian vertex stream. Decode the positions
         // explicitly rather than assuming the host's byte order.
         var positions: [SCNVector3] = []
-        positions.reserveCapacity(model.vertexCount)
-        for index in 0..<model.vertexCount {
+        positions.reserveCapacity(count)
+        for index in 0..<count {
             let offset = index * 32
             let x = readFloat(offset)
             let y = readFloat(offset + 4)
@@ -5346,9 +5388,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // and allows malformed normals/UVs to reach the renderer.
         var normalVectors: [SCNVector3] = []
         var uvVectors: [CGPoint] = []
-        normalVectors.reserveCapacity(model.vertexCount)
-        uvVectors.reserveCapacity(model.vertexCount)
-        for index in 0..<model.vertexCount {
+        normalVectors.reserveCapacity(count)
+        uvVectors.reserveCapacity(count)
+        for index in 0..<count {
             let offset = index * 32
             let nx = readFloat(offset + 12)
             let ny = readFloat(offset + 16)
