@@ -33,6 +33,7 @@ struct OriginalWindowsSteamWhistleSmoke {
         let r = S.advance(ports: ports, types: types, boilerSignals: ["b":5],
                           previous: state, delta: 1/60)
         precondition(abs(r.receiverSignals["w"]! - 5) < 0.001)
+        precondition(r.receiverBoilers == ["w": "b"])
         let broken = [ports[0],ports[1],ports[2],port("w",1.1,-1),ports[4]]
         precondition(S.advance(ports: broken, types: types, boilerSignals: ["b":5],
                                previous: state, delta: 1/60).receiverSignals.isEmpty)
@@ -87,6 +88,7 @@ struct OriginalWindowsSteamWhistleSmoke {
         let shut = S.advance(ports: ports, types: valveTypes, boilerSignals: ["b":5],
             previous: opened.outgoing, delta: 1/60)
         precondition(shut.receiverSignals.isEmpty && shut.outgoing[2] == nil)
+        precondition(shut.receiverBoilers.isEmpty)
         typealias Piston = CMOriginalSteamPiston
         precondition(Piston.pose(wheelX: .nan, wheelAngle: 0) == nil)
         precondition(abs(Piston.pose(wheelX: 0.4356, wheelAngle: 0)!.sliderX - 0.1056) < 0.000001)
