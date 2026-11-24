@@ -154,15 +154,28 @@ public enum CMOriginalUCMCollisionVolumes {
         }
         for _ in 0..<nb {
             let a = try floats(15)
-            let axes = Array(a[6..<15])
-            guard a[3..<6].allSatisfy({ $0 > 0 }) else { throw ParseError.invalidLayout }
+            var axes = Array(a[6..<15])
+            var halfExtents = Array(a[3..<6])
+            // Native box transform normalizes each basis vector and
+            // multiplies its extent by that vector's length (0x46C210).
+            // The original fuze_dummy contains an authored 0.66 basis.
+            for i in 0..<3 {
+                let length = sqrt((0..<3).reduce(Float(0)) {
+                    $0 + axes[i*3+$1]*axes[i*3+$1]
+                })
+                guard length.isFinite, length > 0, halfExtents[i] > 0
+                    else { throw ParseError.invalidMatrix }
+                halfExtents[i] *= length
+                guard halfExtents[i].isFinite, halfExtents[i] > 0
+                    else { throw ParseError.invalidMatrix }
+                for j in 0..<3 { axes[i*3+j] /= length }
+            }
             func dot(_ i: Int, _ j: Int) -> Float {
                 (0..<3).reduce(Float(0)) { $0 + axes[i*3+$1]*axes[j*3+$1] }
             }
-            guard (0..<3).allSatisfy({ abs(dot($0,$0)-1) < 0.002 }),
-                  abs(dot(0,1)) < 0.002, abs(dot(0,2)) < 0.002, abs(dot(1,2)) < 0.002
+            guard abs(dot(0,1)) < 0.002, abs(dot(0,2)) < 0.002, abs(dot(1,2)) < 0.002
                 else { throw ParseError.invalidMatrix }
-            boxes.append(Box(center: Array(a[0..<3]), halfExtents: Array(a[3..<6]), axes: axes))
+            boxes.append(Box(center: Array(a[0..<3]), halfExtents: halfExtents, axes: axes))
         }
         return Volumes(spheres: spheres, boxes: boxes)
     }
