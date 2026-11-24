@@ -233,12 +233,19 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         guard let scene else { return "; scene=missing" }
         var meshes = 0
         var originalMeshes = 0
+        var authoredFuzeMeshes = 0
         var visualGlowBillboards = 0
         var diagnosticMarkers = 0
         scene.rootNode.enumerateChildNodes { node, _ in
             guard node.geometry != nil else { return }
             meshes += 1
-            if node is CMOriginalObjectMeshNode { originalMeshes += 1 }
+            if node is CMOriginalObjectMeshNode {
+                if node.name?.hasPrefix("original-authored-fuze-") == true {
+                    authoredFuzeMeshes += 1
+                } else {
+                    originalMeshes += 1
+                }
+            }
             if node.name?.hasPrefix("original-effect-glow-") == true {
                 visualGlowBillboards += 1
             }
@@ -281,6 +288,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         return "; sceneLevel=\(document.index); sceneMeshes=\(meshes)" +
             "; originalUCM=\(originalMeshes)" +
             "; expectedUCM=\(expectedOriginalMeshes)" +
+            "; authoredFuzeMeshes=\(authoredFuzeMeshes)" +
             "; glowBillboards=\(visualGlowBillboards)" +
             "; expectedGlows=\(expectedVisualGlows)" +
             "; calibration=\(diagnosticMarkers); camera=" +
@@ -4316,6 +4324,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       a != b else { return }
                 sessionLock.lock()
                 guard session?.phase == .running else { sessionLock.unlock(); return }
+                // A sustained collision may first reach the authentic
+                // blade/tip marker after didBegin. The pending/retired
+                // balloon sets preserve one-shot dispatch.
+                observeOriginalBalloonContact(balloon: a, sharp: b, point: contact.contactPoint)
+                observeOriginalBalloonContact(balloon: b, sharp: a, point: contact.contactPoint)
                 let actualImpact = switchContacts?.consumeImpact(
                     a, b, impulse: Double(contact.collisionImpulse),
                     aIsMovable: session?.physicsRole(for: a) == .movable,
