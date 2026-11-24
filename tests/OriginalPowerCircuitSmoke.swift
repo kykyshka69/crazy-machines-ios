@@ -794,6 +794,52 @@ struct OriginalPowerCircuitSmoke {
         precondition(persistent.advanceOrderedBatteryFrame(previous: pf3, closedSwitchIDs: []) == nil)
         let replayFrame = persistent.advanceOrderedBatteryFrame(previous: nil, closedSwitchIDs: [])!
         precondition(replayFrame == pf1)
+        // A solar source updates in the optical phase, including dark
+        // zero propagation. The rotating disrupter uses measured phase.
+        var timedSolarRaw = raw
+        timedSolarRaw["root"] = ["name": "level", "fields": [], "children": [
+            ["name": "level_elements", "fields": [], "children": [
+                device("tmo_power_lamp", [nil]),
+                device("tmo_power_solarcell", [1]),
+                device("tmo_power_disrupter", [2,3])
+            ]]
+        ]]
+        let timedSolarDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: timedSolarRaw))
+        var timedSolar = CMOriginalPowerCircuit(session:
+            CMOriginalGameplaySession(document: timedSolarDoc))!
+        let tsLamp = timedSolar.terminals.first { $0.deviceType == "tmo_power_lamp" }!
+        let tsPanel = timedSolar.terminals.first { $0.number == 1 }!
+        let tsIn = timedSolar.terminals.first { $0.number == 2 }!
+        let tsOut = timedSolar.terminals.first { $0.number == 3 }!
+        precondition(timedSolar.supportsOrderedElectricalFrames)
+        precondition(!timedSolar.supportsOrderedBatteryFrames)
+        precondition(timedSolar.toggleCable(between: tsPanel.plugID, and: tsIn.plugID) == .connected)
+        precondition(timedSolar.toggleCable(between: tsOut.plugID, and: tsLamp.plugID) == .connected)
+        let tsRays: [String: [Float]] = [tsPanel.deviceID: [0.8]]
+        let tsClosed: [String: Float] = [tsIn.deviceID: 0]
+        let tsOpen: [String: Float] = [tsIn.deviceID: CMOriginalWindowsPowerDisrupter.halfTurnGate]
+        let ts1 = timedSolar.advanceOrderedElectricalFrame(previous: nil,
+            closedSwitchIDs: [], solarRayContributionsByDeviceID: tsRays,
+            disrupterRotorAnglesByDeviceID: tsClosed)!
+        precondition(ts1.state.consumerReads[tsLamp.deviceID]?.first == 0)
+        precondition(ts1.state.signals[tsLamp.plugID] == 8)
+        let ts2 = timedSolar.advanceOrderedElectricalFrame(previous: ts1,
+            closedSwitchIDs: [], solarRayContributionsByDeviceID: tsRays,
+            disrupterRotorAnglesByDeviceID: tsClosed)!
+        precondition(timedSolar.orderedBatteryObservation(ts2,
+            closedSwitchIDs: [], disrupterRotorAnglesByDeviceID: tsClosed)
+            .deviceSignals[tsLamp.deviceID] == 8)
+        let ts3 = timedSolar.advanceOrderedElectricalFrame(previous: ts2,
+            closedSwitchIDs: [], solarRayContributionsByDeviceID: tsRays,
+            disrupterRotorAnglesByDeviceID: tsOpen)!
+        precondition(ts3.state.consumerReads[tsLamp.deviceID]?.first == 8)
+        precondition(ts3.state.signals[tsLamp.plugID] == 0)
+        let ts4 = timedSolar.advanceOrderedElectricalFrame(previous: ts3,
+            closedSwitchIDs: [], disrupterRotorAnglesByDeviceID: tsClosed)!
+        precondition(ts4.state.consumerReads[tsLamp.deviceID]?.first == 0)
+        precondition(ts4.state.sourceReads[tsPanel.deviceID] == 0)
+        precondition(ts4.state.signals[tsLamp.plugID] == 0)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
