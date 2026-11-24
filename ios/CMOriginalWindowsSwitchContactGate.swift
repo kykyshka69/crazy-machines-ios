@@ -43,4 +43,33 @@ public enum CMOriginalWindowsSwitchContactGate {
         }
         return preserve ? incoming : 0
     }
+
+    /// Win32 0x450820–0x45085A: while native +0xE0 is nonzero,
+    /// the owner component settles at -1 when +0xC8 <= -1 and
+    /// clears +0xE0. The separate GOAL call follows at 0x45086E.
+    public static func settledNativeContact(
+        matingContact: Float, motion: Float
+    ) -> Float? {
+        guard matingContact.isFinite, motion.isFinite, motion != 0,
+              matingContact <= -1 else { return nil }
+        return -1
+    }
+
+    /// Experimental SceneKit contact adapter. Existing iOS lever animation
+    /// has an authored open pose and a -0.6 rad closed offset. These are
+    /// NOT native +0xEC/+0xC8 scalars; do not feed fabricated floats into
+    /// preservesPower. Conduct only at the measured closed pose, not at
+    /// the instant a tap or striker requests a transition.
+    public static let sceneClosedOffset: Float = -0.6
+    public static let sceneContactTolerance: Float = 0.015
+
+    public static func sceneContactClosed(
+        authoredOpenAngle: Float, observedAngle: Float
+    ) -> Bool {
+        guard authoredOpenAngle.isFinite, observedAngle.isFinite else { return false }
+        let delta = Double(observedAngle) - Double(authoredOpenAngle)
+                   - Double(sceneClosedOffset)
+        let error = atan2(sin(delta), cos(delta))
+        return abs(error) <= Double(sceneContactTolerance)
+    }
 }
