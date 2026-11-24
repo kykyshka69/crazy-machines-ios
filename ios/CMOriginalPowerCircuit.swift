@@ -78,6 +78,7 @@ public struct CMOriginalPowerCircuit {
 
     private let byPlugID: [String: Terminal]
     public let recoveredNativeSlotOrder: [String: [String]]?
+    public let recoveredNativeRelativeSlotOrder: [String: [String]]?
     public let recoveredNativeOwnerOrder: [String]?
     private let sourceDeviceIDs: Set<String>
     private let generatorDeviceIDs: Set<String>
@@ -106,6 +107,7 @@ public struct CMOriginalPowerCircuit {
         sceneSHA256 = session.sceneSHA256
         terminals = all
         recoveredNativeSlotOrder = session.recoveredNativeElectricalSlotOrder
+        recoveredNativeRelativeSlotOrder = session.recoveredNativeElectricalRelativeSlotOrder
         recoveredNativeOwnerOrder = session.recoveredNativeElectricalOwnerOrder
         byPlugID = Dictionary(uniqueKeysWithValues: all.map { ($0.plugID, $0) })
         sourceDeviceIDs = Set(all.filter {
@@ -939,7 +941,7 @@ public struct CMOriginalPowerCircuit {
             let linked = ids.filter { connected.contains($0) }
             let unlinked = ids.filter { !connected.contains($0) }
             let variants: [[String]]
-            if let known = recoveredNativeSlotOrder?[owner] {
+            if let known = recoveredNativeRelativeSlotOrder?[owner] {
                 variants = [known.filter { connected.contains($0) }]
             } else {
                 guard let candidates = permutations(linked) else { return nil }
@@ -950,7 +952,7 @@ public struct CMOriginalPowerCircuit {
             for order in orders {
                 for variant in variants {
                     var candidate = order
-                    candidate[owner] = recoveredNativeSlotOrder?[owner] ?? (variant + unlinked)
+                    candidate[owner] = recoveredNativeRelativeSlotOrder?[owner] ?? (variant + unlinked)
                     next.append(candidate)
                 }
             }
@@ -1026,6 +1028,7 @@ public struct CMOriginalPowerCircuit {
         let localTerminals = circuit.terminals.filter { owners.contains($0.deviceID) }
         terminals = localTerminals
         recoveredNativeSlotOrder = circuit.recoveredNativeSlotOrder?.filter { owners.contains($0.key) }
+        recoveredNativeRelativeSlotOrder = circuit.recoveredNativeRelativeSlotOrder?.filter { owners.contains($0.key) }
         recoveredNativeOwnerOrder = circuit.recoveredNativeOwnerOrder?.filter { owners.contains($0) }
         byPlugID = Dictionary(uniqueKeysWithValues: localTerminals.map { ($0.plugID, $0) })
         cables = wires
