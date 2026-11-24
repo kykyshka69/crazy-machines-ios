@@ -223,11 +223,12 @@ struct CMOriginalQuickPlayView: View {
     private var liveElectricalObservation: CMOriginalPowerCircuit.NetworkObservation? {
         guard experimentalPhysics && experimentalWiredPower,
               let network = powerCircuit else { return nil }
-        if network.supportsOrderedBatteryFrames {
+        if network.supportsOrderedElectricalFrames {
             guard let frame = orderedBatteryFrame else {
                 return CMOriginalPowerCircuit.NetworkObservation(deviceSignals: [:], cableSignals: [:])
             }
-            return network.orderedBatteryObservation(frame, closedSwitchIDs: flippedOriginalSwitchIDs)
+            return network.orderedBatteryObservation(frame, closedSwitchIDs: flippedOriginalSwitchIDs,
+                disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
         }
         return network.componentwiseElectricalObservation(
             closedSwitchIDs: flippedOriginalSwitchIDs,
@@ -238,9 +239,11 @@ struct CMOriginalQuickPlayView: View {
 
     private func advanceOrderedElectricalFrame() {
         guard experimentalPhysics && experimentalWiredPower, !physicsPaused,
-              let network = powerCircuit, network.supportsOrderedBatteryFrames,
-              let next = network.advanceOrderedBatteryFrame(
-                previous: orderedBatteryFrame, closedSwitchIDs: flippedOriginalSwitchIDs)
+              let network = powerCircuit, network.supportsOrderedElectricalFrames,
+              let next = network.advanceOrderedElectricalFrame(
+                previous: orderedBatteryFrame, closedSwitchIDs: flippedOriginalSwitchIDs,
+                solarRayContributionsByDeviceID: originalSolarRays,
+                disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
         else { return }
         if orderedBatteryFrame != next {
             orderedBatteryFrame = next
@@ -988,7 +991,7 @@ struct CMOriginalQuickPlayView: View {
                     _ = objectiveLedger?.recordGoalStateChanged(
                         parentID, isSimulationRunning: true)
                 },
-                onOriginalElectricalFrame: powerCircuit?.supportsOrderedBatteryFrames == true && experimentalWiredPower ? {
+                onOriginalElectricalFrame: powerCircuit?.supportsOrderedElectricalFrames == true && experimentalWiredPower ? {
                     guard eventRevision == sceneRevision else { return }
                     advanceOrderedElectricalFrame()
                 } : nil
