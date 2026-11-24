@@ -316,3 +316,72 @@ public enum CMOriginalVolumeOverlap {
         a.contains { x in b.contains { intersects(x,$0) } }
     }
 }
+
+
+/// Material values recovered from the native body setup at
+/// 0x455976..0x456EA1. +0x54 is density (sphere/box mass routines
+/// 0x48B470/0x48B4A0); +0x68 is bounce and +0x6C is friction
+/// (ODE contact surface at 0x428075..0x4280D9).
+public enum CMOriginalBodyMaterial {
+    public struct Material {
+        public let density: Double
+        public let bounce: Double
+        public let friction: Double
+        init(_ density: Double, _ bounce: Double, _ friction: Double) {
+            self.density = density; self.bounce = bounce; self.friction = friction
+        }
+    }
+    public static func material(for kind: String) -> Material? {
+        switch kind {
+        case "tmo_rope_cage": return .init(0.4, 0.1, 0.2)
+        case "tmo_nail": return .init(0.25, 0.1, 0.2)
+        case "tmo_weight": return .init(1, 0.1, 0.3)
+        case "tmo_balloon": return .init(0.5, 0.2, 0.5)
+        case "tmo_crate": return .init(0.2, 0.2, 0.3)
+        case "tmo_bucket": return .init(0.7, 0.1, 0.2)
+        case "tmo_domino": return .init(0.3, 0.1, 0.3)
+        case "tmo_heat_dynamite": return .init(0.2, 0.1, 0.3)
+        case "tmo_ball_billard", "tmo_ball_steel": return .init(0.7, 0.2, 0.2)
+        case "tmo_ball_basket": return .init(0.3, 0.7, 0.3)
+        case "tmo_ball_tt": return .init(0.1, 0.9, 0.01)
+        case "tmo_ball_tennis": return .init(0.5, 0.7, 0.2)
+        case "tmo_ball_beach": return .init(0.1, 0.5, 0.2)
+        default: return nil
+        }
+    }
+    public struct MassProperties {
+        public let nativeMass: Double
+        public let center: SIMD3<Double>
+        // Explicit provisional mass-unit adapter for SceneKit (all supported
+        // bodies share one factor). Existing force bridges are not native ODE.
+        public var sceneKitMass: Double { nativeMass * 1000 }
+    }
+    public static func massProperties(
+        material: Material, primitives: [CMOriginalVolumeOverlap.Primitive]
+    ) -> MassProperties? {
+        var total = 0.0
+        var weighted = SIMD3<Double>.zero
+        for primitive in primitives {
+            let center: SIMD3<Double>
+            let volume: Double
+            switch primitive {
+            case let .sphere(c, r):
+                guard r.isFinite, r > 0 else { return nil }
+                center = c; volume = 4 * Double.pi / 3 * r*r*r
+            case let .box(c, _, h):
+                guard h.x > 0, h.y > 0, h.z > 0 else { return nil }
+                center = c; volume = 8*h.x*h.y*h.z
+            }
+            let mass = material.density * volume
+            guard mass.isFinite, mass > 0,
+                  center.x.isFinite, center.y.isFinite, center.z.isFinite else { return nil }
+            total += mass
+            weighted += center * mass
+        }
+        guard total.isFinite, total > 0 else { return nil }
+        let center = weighted / total
+        guard center.x.isFinite, center.y.isFinite, center.z.isFinite,
+              (0.00001...10000).contains(total * 1000) else { return nil }
+        return MassProperties(nativeMass: total, center: center)
+    }
+}
