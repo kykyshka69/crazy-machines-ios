@@ -343,6 +343,49 @@ struct OriginalPowerCircuitSmoke {
         ordered.clearRuntimeCuts()
         precondition(ordered.nativePortPass(events: [.cutTransfer(orderedMiddle)],
                                           conductingByDeviceID: gates) == nil)
+        // Lamp samples before the battery pass. Motor reads its first
+        // plug in the second pass at its own position in the owner list.
+        var phaseRaw = raw
+        phaseRaw["root"] = ["name": "level", "fields": [], "children": [
+            ["name": "level_elements", "fields": [], "children": [
+                device("tmo_power_battery", [31]),
+                device("tmo_power_motor", [32,33]),
+                device("tmo_power_lamp", [34])
+            ]]
+        ]]
+        let phaseDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: phaseRaw))
+        var phase = CMOriginalPowerCircuit(session:
+            CMOriginalGameplaySession(document: phaseDoc))!
+        func port(_ n: Int) -> CMOriginalPowerCircuit.Terminal {
+            phase.terminals.first { $0.number == n }!
+        }
+        let batteryOwner = port(31).deviceID
+        let motorOwner = port(32).deviceID
+        let lampOwner = port(34).deviceID
+        precondition(phase.toggleCable(between: port(31).plugID, and: port(32).plugID) == .connected)
+        precondition(phase.toggleCable(between: port(33).plugID, and: port(34).plugID) == .connected)
+        let initial = CMOriginalPowerCircuit.NativePortState(signals: [
+            port(31).plugID: 0, port(32).plugID: 0,
+            port(33).plugID: 0, port(34).plugID: 0])
+        let order = [batteryOwner, motorOwner, lampOwner]
+        let frame = phase.nativeElectricalUpdate(previous: initial, ownerOrder: order,
+            solarRayContributionsByDeviceID: [:], conductingByDeviceID: [:])!
+        precondition(frame.consumerReads[lampOwner]?.first == 0)
+        precondition(frame.consumerReads[motorOwner]?.first == 10)
+        precondition(frame.consumerReads[motorOwner]?.second == 10)
+        precondition(frame.signals[port(34).plugID] == 10)
+        let later = phase.nativeElectricalUpdate(previous: frame, ownerOrder: order,
+            solarRayContributionsByDeviceID: [:], conductingByDeviceID: [:])!
+        precondition(later.consumerReads[lampOwner]?.first == 10)
+        let motorFirst = phase.nativeElectricalUpdate(previous: initial,
+            ownerOrder: [motorOwner, batteryOwner, lampOwner],
+            solarRayContributionsByDeviceID: [:], conductingByDeviceID: [:])!
+        precondition(motorFirst.consumerReads[motorOwner]?.first == 0)
+        precondition(motorFirst.signals[port(32).plugID] == 10)
+        precondition(phase.nativeElectricalUpdate(previous: initial,
+            ownerOrder: [motorOwner, motorOwner, lampOwner],
+            solarRayContributionsByDeviceID: [:], conductingByDeviceID: [:]) == nil)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
