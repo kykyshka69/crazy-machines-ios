@@ -124,6 +124,34 @@ struct OriginalWindowsBeltFlagSmoke {
                 precondition(!bellows.strike(normalY: 1, leverAngle: 0))
             }
         }
+        typealias W = CMOriginalWindReceiver
+        precondition(!W.extinguishesCandle(lit: true, fraction: 0.5, power: 5))
+        precondition(W.extinguishesCandle(lit: true, fraction: Float(0.5).nextUp, power: 5))
+        precondition(W.extinguishesCandle(lit: true, fraction: 1, power: -5))
+        precondition(!W.extinguishesCandle(lit: false, fraction: 1, power: 5))
+        precondition(!W.extinguishesCandle(lit: true, fraction: .nan, power: 5))
+        precondition(!W.extinguishesCandle(lit: true, fraction: 1.1, power: 5))
+        for source: Float in [-1,1] {
+            for receiver: Float in [-1,1] {
+                for power: Float in [-5,5] {
+                    let desired = W.wingsTarget(fraction: 0.8, power: power,
+                        sourceMirror: source, receiverMirror: receiver)!
+                    precondition(desired == -source * receiver * power * 0.6)
+                    for hz in [30,60,120] {
+                        var current: Float = 0
+                        for _ in 0..<(hz*3) {
+                            let next = W.nextWingsSignal(previous: current, target: desired,
+                                delta: 1/Double(hz))!
+                            precondition(abs(desired-next) <= abs(desired-current))
+                            current = next
+                        }
+                        precondition(abs(current-desired) < 0.16)
+                    }
+                }
+            }
+        }
+        precondition(W.wingsTarget(fraction: 1, power: 5, sourceMirror: 0, receiverMirror: 1) == nil)
+        precondition(W.nextWingsSignal(previous: 0, target: 1, delta: -1) == nil)
         print("Original flag: measured wind region, complete source inventory, native GOAL bounds OK")
     }
 }
