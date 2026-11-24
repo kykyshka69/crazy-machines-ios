@@ -33,6 +33,37 @@ struct OriginalWindowsGoalCounterSmoke {
         precondition(counter.totalRequired == 2)
         precondition(counter.requiredGoalCount == 1)
         precondition(counter.requiredConnectionCount == 1)
+        let ownerLink = session.originalConnections[0]
+        precondition(session.linkedCollisionInputs(ownerLink.sourceID, ownerLink.targetID) == [ownerLink])
+        precondition(session.linkedCollisionInputs(ownerLink.targetID, ownerLink.sourceID) == [ownerLink])
+        precondition(session.linkedCollisionInputs(ownerLink.sourceID, "unknown").isEmpty)
+        precondition(session.linkedCollisionInputs(ownerLink.sourceID, ownerLink.sourceID).isEmpty)
+        let nestedRaw: [String: Any] = [
+            "schema": "crazy-machines-original-scene-v1",
+            "index": 5, "title": "Synthetic compound collision owners",
+            "scene_sha256": String(repeating: "f", count: 64),
+            "root": ["name": "level", "fields": [], "children": [
+                ["name": "level_elements", "fields": [], "children": [
+                    ["name": "tmo_domino", "fields": ["CONNECTED_TO 1"], "children": [
+                        ["name": "tmo_mount_wood", "fields": [], "children": []]
+                    ]],
+                    ["name": "tmo_light_pocketlamp", "fields": [], "children": [
+                        ["name": "tmo_light_pocketlamp_bulb", "fields": [], "children": []]
+                    ]],
+                    ["name": "tmo_crate", "fields": [], "children": []]
+                ]]
+            ]]
+        ]
+        let nested = CMOriginalGameplaySession(document: try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: nestedRaw)))
+        let nativeLink = nested.originalConnections[0]
+        let childA = nested.objects.first { $0.type == "tmo_mount_wood" }!.id
+        let childB = nested.objects.first { $0.type == "tmo_light_pocketlamp_bulb" }!.id
+        let unrelated = nested.objects.first { $0.type == "tmo_crate" }!.id
+        precondition(nested.linkedCollisionInputs(childA, childB) == [nativeLink])
+        precondition(nested.linkedCollisionInputs(childB, childA) == [nativeLink])
+        precondition(nested.linkedCollisionInputs(childA, nativeLink.sourceID).isEmpty)
+        precondition(nested.linkedCollisionInputs(childA, unrelated).isEmpty)
         let link = session.originalConnections[0]
         let bucket = session.objects.first { $0.type == "tmo_bucket" }!.id
         precondition(counter.recordGoalEvent(objectID: bucket,
