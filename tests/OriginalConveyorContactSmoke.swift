@@ -52,6 +52,22 @@ struct OriginalConveyorContactSmoke {
         precondition(force(mass: Float.infinity) == nil)
         precondition(force(low: 1, high: 0) == nil)
 
+        // Original conveyor has one large and three small passive rollers.
+        // Unlike external gears, each internal roller turns the same way.
+        for kind in ["tmo_belt_conveyer_roll_big", "tmo_belt_conveyer_roll_small"] {
+            let radius = CMOriginalConveyorContact.rollerRadius(for: kind)!
+            func torque(_ drive: Float, _ roller: Float) -> CMOriginalConveyorContact.RollerTorque? {
+                CMOriginalConveyorContact.rollerTorque(kind: kind,
+                    driveSpeed: drive, rollerSpeed: roller, rollerMass: 1)
+            }
+            precondition(torque(0, 0) == nil)
+            precondition(torque(2, 0)!.drive < 0 && torque(2, 0)!.roller > 0)
+            precondition(torque(-2, 0)!.drive > 0 && torque(-2, 0)!.roller < 0)
+            precondition(torque(2, 2 * 0.09 / radius) == nil)
+            precondition(torque(0, 2)!.roller < 0)
+            precondition(torque(.nan, 0) == nil)
+        }
+        precondition(CMOriginalConveyorContact.rollerRadius(for: "tmo_belt_gear") == nil)
         for i in 0..<1000 {
             let rotation = Float((i % 40) - 20) * 0.3
             let vx = Float((i % 17) - 8) * 0.2
