@@ -979,9 +979,8 @@ struct CMOriginalQuickPlayView: View {
             }
             .overlay(alignment: .topTrailing) {
                 if experimentalPhysics && hasOriginalMagneticTargets {
-                    // PC level 4's magnet is a real movable original object.
-                    // Put its prototype field control over the viewport:
-                    // the lower diagnostic panel can be off-screen on iPhone.
+                    // Permanent magnet attraction starts with the puzzle.
+                    // Retain the viewport override for diagnostic comparison.
                     Button {
                         experimentalMagnetism.toggle()
                     } label: {
@@ -1194,12 +1193,17 @@ struct CMOriginalQuickPlayView: View {
                     .onChange(of: experimentalPhysics) { _, newValue in
                         ropeEditing = false
                         beltEditing = false
-                        if !newValue {
-                            experimentalMotorDrive = false
-                            experimentalMagnetism = false
-                            experimentalWiredPower = false
-                        }
+                        // A normal puzzle run starts its permanent magnets
+                        // and player-wired circuit automatically. Keep the
+                        // unpowered diagnostic motor override disabled.
+                        experimentalMotorDrive = false
+                        experimentalMagnetism = newValue && hasOriginalMagneticTargets
+                        experimentalWiredPower = newValue && powerCircuit != nil
+                        pendingRopeEndpoint = nil
+                        pendingBeltWheel = nil
+                        pendingPowerPlugID = nil
                         restartCurrentPuzzle()
+                        if newValue { creditExperimentalElectricGoals() }
                     }
                     .disabled(!originalTemplatesLoadFinished)
                     .accessibilityIdentifier("cm.original.quickplay-physics")
@@ -1386,7 +1390,7 @@ struct CMOriginalQuickPlayView: View {
                         Text("Battery-reachable devices: \(reachable.count). An open switch blocks transmission.")
                             .font(.caption2).foregroundStyle(.secondary)
                         if circuit.cableCount > 0 {
-                            Toggle("Experimental battery-powered mechanisms",
+                            Toggle("Enable reconstructed electrical circuit",
                                    isOn: $experimentalWiredPower)
                                 .font(.caption)
                                 .onChange(of: experimentalWiredPower) { _, enabled in
