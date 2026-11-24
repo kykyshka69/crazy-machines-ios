@@ -742,6 +742,15 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var generatorIDByRotorID: [String: String] = [:]
         private var windmillIDByWingsID: [String: String] = [:]
         private var windmillWheelByWingsID: [String: String] = [:]
+        private struct GrillDrive {
+            let wheel: SCNNode
+            let spit: SCNNode
+            let sausage: SCNNode
+            let spitRest: simd_quatf
+            let sausageRest: simd_quatf
+            var phase: Float = 0
+        }
+        private var grillDrives: [String: GrillDrive] = [:]
         private var qualifiedWindmillGoalIDs = Set<String>()
         private var disrupterIDByWheelID: [String: String] = [:]
         private var lastDisrupterConduction: [String: Bool] = [:]
@@ -1308,6 +1317,50 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
         // Actual bidirectional physical coupling: belt-driven wheel moves
         // wings, and externally moved wings can drive the same wheel.
+        private func registerOriginalGrillDrives(objects: [CMOriginalGameplaySession.Object]) {
+            for owner in objects where owner.type == "tmo_heat_grill" {
+                func unique(_ type: String) -> SCNNode? {
+                    let children = objects.filter { $0.parentID == owner.id && $0.type == type }
+                    guard children.count == 1,
+                          let nodes = physicsNodesByObjectID[children[0].id],
+                          nodes.count == 1 else { return nil }
+                    return nodes[0]
+                }
+                guard let wheel = unique("tmo_heat_grill_wheel"),
+                      let spit = unique("tmo_heat_grill_spit"),
+                      let sausage = unique("tmo_heat_grill_sausage"),
+                      spit.parent === sausage.parent,
+                      simd_distance(spit.simdPosition, sausage.simdPosition) < 0.001
+                else { continue }
+                // Authentic spit and sausage have the same authored POSREL;
+                // the long spit UCM and Mechanic01/03 markers define local X.
+                grillDrives[owner.id] = GrillDrive(wheel: wheel, spit: spit,
+                    sausage: sausage, spitRest: spit.simdOrientation,
+                    sausageRest: sausage.simdOrientation)
+            }
+        }
+
+        private func advanceOriginalGrillDrives(delta: Float) {
+            for id in Array(grillDrives.keys) {
+                guard var drive = grillDrives[id],
+                      let wheelBody = drive.wheel.physicsBody,
+                      wheelBody.type == .dynamic else { continue }
+                let angular = wheelBody.angularVelocity
+                guard let phase = CMOriginalGrillDrive.phase(previous: drive.phase,
+                    wheelSpeed: angular.z * angular.w, delta: delta),
+                      phase != drive.phase else { continue }
+                // Both original child records receive the same signed scalar.
+                // Rotate about local X, not the puzzle's planar Z wheel axis.
+                let rotation = simd_quatf(angle: phase, axis: SIMD3<Float>(1, 0, 0))
+                drive.spit.simdOrientation = drive.spitRest * rotation
+                drive.sausage.simdOrientation = drive.sausageRest * rotation
+                drive.spit.physicsBody?.resetTransform()
+                drive.sausage.physicsBody?.resetTransform()
+                drive.phase = phase
+                grillDrives[id] = drive
+            }
+        }
+
         private func transferOriginalWindmillMotion() {
             for (wingsID, wheelID) in windmillWheelByWingsID {
                 guard let wheels = physicsNodesByObjectID[wheelID], wheels.count == 1,
@@ -1504,6 +1557,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             generatorIDByRotorID.removeAll()
             windmillIDByWingsID.removeAll()
             windmillWheelByWingsID.removeAll()
+            grillDrives.removeAll()
             qualifiedWindmillGoalIDs.removeAll()
             disrupterIDByWheelID.removeAll()
             lastDisrupterConduction.removeAll()
@@ -1807,6 +1861,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     body.isAffectedByGravity = false
                 }
             }
+            registerOriginalGrillDrives(objects: originalObjects)
             applyOriginalLampVisualFactors()
             applyOriginalAmmeterSignals()
             // Each original conveyor has a distinct child tmo_belt_conveyer_wheel
@@ -2098,6 +2153,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             refreshOriginalRopes(applyTension: true)
             refreshOriginalBelts(applyTorque: true)
             transferOriginalWindmillMotion()
+            advanceOriginalGrillDrives(delta: Float(delta))
             sampleOriginalRocketAnchorFrames(at: time)
             if time - lastGeneratorPollTime >= 0.16 {
                 lastGeneratorPollTime = time
