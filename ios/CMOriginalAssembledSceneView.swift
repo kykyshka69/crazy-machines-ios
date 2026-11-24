@@ -5193,6 +5193,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     ) -> SCNScene {
         let scene = SCNScene()
         var loadedMeshNodes: [SCNNode] = []
+        var authoredFuzeNodes: [SCNNode] = []
         // Resolve original file paths per scene, but reuse parsed UCM geometry
         // across neighboring Professor levels via a bounded shared cache.
         let assetIndex = CMOriginalModelResolver.AssetIndex(directory: assetDirectory)
@@ -5275,6 +5276,54 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             if item.name.hasPrefix("tmo_"), let currentOwnerID {
                 objectRoots[currentOwnerID] = transform
                 objectTypes[currentOwnerID] = item.name
+            }
+
+            // Original tmo_fuze has no 3DO meshes. Its visible path is
+            // authored as ordered POSREL/VALN knots; preserve the exact
+            // points and the parent's editable transform. The procedural
+            // strip thickness is a presentation approximation.
+            if item.name == "tmo_fuze", let ownerID = currentOwnerID {
+                let children = item.children.filter { $0.name == "tmo_fuze_knot" }
+                let knots = children.enumerated().compactMap { i, child -> CMOriginalFuzePath.Knot? in
+                    guard let position = child.positionRelative, position.count == 3 else { return nil }
+                    let fields = child.fields.filter { $0.hasPrefix("VALN ") }
+                    let index: Int
+                    if fields.isEmpty && i == 0 {
+                        index = 1
+                    } else {
+                        guard fields.count == 1,
+                              let parsed = Int(fields[0].dropFirst(5).trimmingCharacters(in: .whitespaces))
+                        else { return nil }
+                        index = parsed
+                    }
+                    return .init(index: index, position: .init(Float(position[0]),
+                        Float(position[1]), Float(position[2])))
+                }
+                if knots.count == children.count,
+                   let points = CMOriginalFuzePath.ordered(knots) {
+                    let material = SCNMaterial()
+                    material.diffuse.contents = textureCache.image(named: "fuze") as Any? ?? UIColor.brown
+                    material.isDoubleSided = true
+                    material.lightingModel = .constant
+                    for i in 1..<points.count {
+                        let a = points[i-1], b = points[i], span = b-a
+                        let length = simd_length(span)
+                        let strip = SCNCylinder(radius: 0.012, height: CGFloat(length))
+                        strip.radialSegmentCount = 8
+                        strip.materials = [material]
+                        let segment = CMOriginalObjectMeshNode(geometry: strip)
+                        segment.originalObjectID = ownerID
+                        segment.name = "original-authored-fuze-segment-\(i)"
+                        segment.simdPosition = (a+b)*0.5
+                        let axis = span / length
+                        let up = SIMD3<Float>(0,1,0)
+                        segment.simdOrientation = simd_dot(up, axis) < -0.9999
+                            ? simd_quatf(angle: .pi, axis: .init(1,0,0))
+                            : simd_quatf(from: up, to: axis)
+                        transform.addChildNode(segment)
+                        authoredFuzeNodes.append(segment)
+                    }
+                }
             }
 
             // A 3DO entry is a model reference, not an additional object transform.
@@ -5872,8 +5921,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 && kind != "tmo_arrow"
                 && !kind.hasPrefix("tmo_mount_")
         }
-        let framingMeshes = interactiveMeshes.isEmpty
-            ? loadedMeshNodes : interactiveMeshes
+        let framingMeshes = (interactiveMeshes.isEmpty
+            ? loadedMeshNodes : interactiveMeshes) + authoredFuzeNodes
         for mesh in framingMeshes {
             let (minLocal, maxLocal) = mesh.boundingBox
             for x in [minLocal.x, maxLocal.x] {
