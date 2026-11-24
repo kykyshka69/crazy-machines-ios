@@ -567,8 +567,7 @@ struct OriginalPowerCircuitSmoke {
             closedSwitchIDs: orderedSwitchIDs) == nil)
         precondition(ordered.settledIndependentSourceObservation(
             generatorRotorCommandsByDeviceID: [orderedGenerator: 10]) == nil)
-        // Join previously independent solar and generator circuits to
-        // the battery component. Exact 10 on every source is eligible.
+        // Shared battery/generator circuit and an independent solar branch.
         let mixedSolar = dynamic.settledIndependentSourceObservation(
             generatorRotorCommandsByDeviceID: [genOwner: -10],
             solarRayContributionsByDeviceID: [solarOwner: [1]])!
@@ -579,6 +578,37 @@ struct OriginalPowerCircuitSmoke {
         precondition(dynamic.settledIndependentSourceObservation(
             generatorRotorCommandsByDeviceID: [genOwner: Float(10).nextDown],
             solarRayContributionsByDeviceID: [solarOwner: [1]]) == nil)
+        var mixedRaw = raw
+        mixedRaw["root"] = ["name": "level", "fields": [], "children": [
+            ["name": "level_elements", "fields": [], "children": [
+                device("tmo_power_battery", [61]),
+                device("tmo_power_generator", [62]),
+                device("tmo_power_solarcell", [63]),
+                device("tmo_power_distributor", [64,65,66,67]),
+                device("tmo_power_lamp", [68])
+            ]]
+        ]]
+        let mixedDoc = try CMOriginalSceneDocument.read(JSONSerialization.data(withJSONObject: mixedRaw))
+        var mixed = CMOriginalPowerCircuit(session: CMOriginalGameplaySession(document: mixedDoc))!
+        func mixedPort(_ n: Int) -> CMOriginalPowerCircuit.Terminal {
+            mixed.terminals.first { $0.number == n }!
+        }
+        for (a,b) in [(61,64),(62,65),(63,66),(67,68)] {
+            precondition(mixed.toggleCable(between: mixedPort(a).plugID, and: mixedPort(b).plugID) == .connected)
+        }
+        let mixedGenerator = mixedPort(62).deviceID
+        let mixedPanel = mixedPort(63).deviceID
+        let combined = mixed.settledIndependentSourceObservation(
+            generatorRotorCommandsByDeviceID: [mixedGenerator: -10],
+            solarRayContributionsByDeviceID: [mixedPanel: [1]])!
+        precondition(combined.deviceSignals.count == 5)
+        precondition(combined.deviceSignals.values.allSatisfy { $0 == 10 })
+        precondition(combined.cableSignals.count == 4)
+        precondition(mixed.settledIndependentSourceObservation(
+            generatorRotorCommandsByDeviceID: [mixedGenerator: 10]) == nil)
+        precondition(mixed.settledIndependentSourceObservation(
+            generatorRotorCommandsByDeviceID: [mixedGenerator: 10],
+            solarRayContributionsByDeviceID: [mixedPanel: [0.99]]) == nil)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
