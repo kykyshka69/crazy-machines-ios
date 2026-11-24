@@ -181,6 +181,30 @@ struct OriginalWindowsHeatSourceSwitchSmoke {
         precondition(Fuze.visiblePieces(cut: 1, gap: 0.25) == [0...0.875])
         precondition(Fuze.visiblePieces(cut: 0.5, gap: 1).isEmpty)
         precondition(Fuze.visiblePieces(cut: .nan, gap: 0.25).isEmpty)
+        var signal = CMOriginalFuzeVisualSignal()
+        signal.advance(by: 0.5)
+        precondition(signal.visited == nil)
+        signal.mark(0.25)
+        signal.advance(by: 0.125)
+        precondition(signal.visited == 0.125...0.375)
+        precondition(signal.fragment(0...0.5).visited == 0.25...0.75)
+        precondition(signal.fragment(0.5...1).visited == nil)
+        for i in 0...16 {
+            for j in 1...16 {
+                let p = Float(i)/16, step = Float(j)/16
+                var state = CMOriginalFuzeVisualSignal()
+                state.mark(p)
+                state.advance(by: step)
+                precondition(state.visited == max(0,p-step)...min(1,p+step))
+                for k in 1...15 {
+                    let cut = Float(k)/16
+                    precondition((state.fragment(0...cut).visited != nil)
+                        == (state.visited!.lowerBound <= cut))
+                    precondition((state.fragment(cut...1).visited != nil)
+                        == (state.visited!.upperBound >= cut))
+                }
+            }
+        }
         print("Original candle, dynamic candle and blowtorch click states +0xEC and VALF initial/reset: OK")
     }
 }
