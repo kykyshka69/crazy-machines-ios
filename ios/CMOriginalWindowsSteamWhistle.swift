@@ -159,3 +159,71 @@ public enum CMOriginalSteamNetwork {
         return (output, receivers)
     }
 }
+
+
+/// Win32 flask Gas output and lifetime/count state (not generic heat GOAL).
+/// 0x44E260–0x44E2F4 candle hit copies 10*fraction into Gas;
+/// 0x44CF08–0x44CF54 magnifier focus uses strict planar .08 radius;
+/// 0x45139D–0x451438 decay, emission rate and speed; 0x432708
+/// sets lifetime 2s; 0x47373B–0x4737C2 counts emitted particles;
+/// 0x4737E2–0x473883 ages and removes them; GOAL 0x4514AF
+/// is conditional on the active particle count > 5, not Gas alone.
+public struct CMOriginalFlaskGas {
+    public struct Particle {
+        public var position: SIMD3<Float>
+        public let velocity: SIMD3<Float>
+        public var remaining: Double
+    }
+    public private(set) var gas: Float = 0
+    public private(set) var particles: [Particle] = []
+    private var remainder: Double = 0
+    public init() {}
+
+    public static func focusedHeat(light: Float, displacement: SIMD3<Float>) -> Float? {
+        guard light.isFinite, light >= 0.5, light <= 1,
+              displacement.x.isFinite, displacement.y.isFinite,
+              displacement.x*displacement.x + displacement.y*displacement.y < Float(0.08)*Float(0.08)
+        else { return nil }
+        return 10 * light
+    }
+
+    public var goalReached: Bool { particles.count > 5 }
+
+    /// SceneKit projects the original Gas marker into world coordinates.
+    /// Position/velocity direction is an adapter; the native emission
+    /// rate, lifetime, count, decay and speed scalars are preserved.
+    @discardableResult
+    public mutating func advance(input: Float?, delta: Double,
+                                 origin: SIMD3<Float>, forward: SIMD3<Float>) -> Bool {
+        guard delta.isFinite, delta > 0, delta <= 0.25,
+              [origin.x, origin.y, origin.z, forward.x, forward.y, forward.z].allSatisfy(\.isFinite),
+              (input.map { $0.isFinite && (0...10).contains($0) } ?? true)
+        else { return false }
+        let length = sqrt(forward.x*forward.x + forward.y*forward.y + forward.z*forward.z)
+        guard length.isFinite, length > 0.00001 else { return false }
+        let initial = input ?? gas
+        gas = min(10, Float(Double(initial) - Double(initial) / 2 * delta))
+        let births = Double(gas) * delta + remainder
+        let whole = Int(births.rounded(.down))
+        remainder = births - Double(whole)
+        let count = min(whole, max(0, 1000 - particles.count))
+        let velocity = forward / length * (gas * Float(0.8) / 10)
+        for _ in 0..<count {
+            particles.append(Particle(position: origin, velocity: velocity, remaining: 2))
+        }
+        // Match native traversal: removal swaps in the tail, then
+        // advances to the next slot (0x473808–0x47388A).
+        var i = 0
+        while i < particles.count {
+            particles[i].remaining -= delta
+            if particles[i].remaining < 0 {
+                particles[i] = particles[particles.count - 1]
+                particles.removeLast()
+            } else {
+                particles[i].position += particles[i].velocity * Float(delta)
+            }
+            i += 1
+        }
+        return true
+    }
+}
