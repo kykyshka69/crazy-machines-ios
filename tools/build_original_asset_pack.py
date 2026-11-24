@@ -34,7 +34,13 @@ def build(installed: Path, scenes: Path | None, output: Path) -> dict:
         )
     if scenes is None and not any(p.suffix.lower() == ".cml" for p in files):
         raise ValueError("CML-only import requires original laboratory .cml files")
-    entries = sorted(files, key=lambda p: p.name.lower()) + levels
+    # Optional named sound files only; never guess anonymous CAB identities.
+    sound_root = installed / "data" / "sounds" / "fx"
+    sounds = sorted(p for p in sound_root.glob("*")
+                    if p.is_file() and p.suffix.lower() == ".wav")
+    script = installed / "scripts" / "sound" / "soundfx.vsc"
+    optional = sounds + ([script] if script.is_file() else [])
+    entries = sorted(files + optional, key=lambda p: p.name.lower()) + levels
     names = [p.name.lower() for p in entries]
     if len(set(names)) != len(entries):
         raise ValueError("Duplicate original asset basenames; pack would be ambiguous")
