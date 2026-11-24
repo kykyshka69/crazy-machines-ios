@@ -873,6 +873,88 @@ public struct CMOriginalPowerCircuit {
                                   cableSignals: consensusWires ?? [:])
     }
 
+    /// Isolate active connected components before solving. Runtime cuts
+    /// split a component but never change the player's authored cables.
+    private init(componentOf circuit: CMOriginalPowerCircuit,
+                 owners: Set<String>, wires: Set<Cable>) {
+        levelIndex = circuit.levelIndex
+        sceneSHA256 = circuit.sceneSHA256
+        let localTerminals = circuit.terminals.filter { owners.contains($0.deviceID) }
+        terminals = localTerminals
+        byPlugID = Dictionary(uniqueKeysWithValues: localTerminals.map { ($0.plugID, $0) })
+        cables = wires
+        sourceDeviceIDs = circuit.sourceDeviceIDs.intersection(owners)
+        generatorDeviceIDs = circuit.generatorDeviceIDs.intersection(owners)
+        solarDeviceIDs = circuit.solarDeviceIDs.intersection(owners)
+        conditionalSourceDeviceIDs = circuit.conditionalSourceDeviceIDs.intersection(owners)
+        passthroughDeviceIDs = circuit.passthroughDeviceIDs.intersection(owners)
+        multiTerminalLoadDeviceIDs = circuit.multiTerminalLoadDeviceIDs.intersection(owners)
+        switchDeviceIDs = circuit.switchDeviceIDs.intersection(owners)
+        disrupterDeviceIDs = circuit.disrupterDeviceIDs.intersection(owners)
+    }
+
+    /// Apply the existing native-derived solver hierarchy independently
+    /// to each active cable component. An unknown sample or 256-order
+    /// budget overflow in one component cannot downgrade unrelated ones.
+    /// Unsupported components still use the conservative legacy trace.
+    public func componentwiseElectricalObservation(
+        closedSwitchIDs: Set<String> = [],
+        generatorRotorCommandsByDeviceID: [String: Float] = [:],
+        solarRayContributionsByDeviceID: [String: [Float]] = [:],
+        disrupterRotorAnglesByDeviceID: [String: Float] = [:]
+    ) -> NetworkObservation {
+        var edges: [String: [(owner: String, wire: Cable)]] = [:]
+        for wire in activeCables {
+            guard let a = byPlugID[wire.firstPlugID],
+                  let b = byPlugID[wire.secondPlugID] else { continue }
+            edges[a.deviceID, default: []].append((b.deviceID, wire))
+            edges[b.deviceID, default: []].append((a.deviceID, wire))
+        }
+        let sources = sourceDeviceIDs.union(conditionalSourceDeviceIDs)
+        var visited = Set<String>()
+        var devices: [String: Float] = [:]
+        var cables: [Cable: Float] = [:]
+        // Components without a source cannot produce positive signals.
+        for source in sources.sorted() {
+            guard visited.insert(source).inserted else { continue }
+            var owners: Set<String> = [source]
+            var wires = Set<Cable>()
+            var queue = [source]
+            var head = 0
+            while head < queue.count {
+                let owner = queue[head]
+                head += 1
+                for edge in edges[owner] ?? [] {
+                    wires.insert(edge.wire)
+                    if visited.insert(edge.owner).inserted {
+                        owners.insert(edge.owner)
+                        queue.append(edge.owner)
+                    }
+                }
+            }
+            let local = CMOriginalPowerCircuit(componentOf: self,
+                                              owners: owners, wires: wires)
+            let result = local.settledIndependentSourceObservation(
+                closedSwitchIDs: closedSwitchIDs,
+                generatorRotorCommandsByDeviceID: generatorRotorCommandsByDeviceID,
+                solarRayContributionsByDeviceID: solarRayContributionsByDeviceID,
+                disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID)
+                ?? local.settledOrderConsensusObservation(
+                    closedSwitchIDs: closedSwitchIDs,
+                    generatorRotorCommandsByDeviceID: generatorRotorCommandsByDeviceID,
+                    solarRayContributionsByDeviceID: solarRayContributionsByDeviceID,
+                    disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID)
+                ?? local.experimentalNetworkObservation(
+                    closedSwitchIDs: closedSwitchIDs,
+                    generatorRotorCommandsByDeviceID: generatorRotorCommandsByDeviceID,
+                    solarRayContributionsByDeviceID: solarRayContributionsByDeviceID,
+                    disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID)
+            devices.merge(result.deviceSignals) { existing, _ in existing }
+            cables.merge(result.cableSignals) { existing, _ in existing }
+        }
+        return NetworkObservation(deviceSignals: devices, cableSignals: cables)
+    }
+
     /// Compatibility entry for the earlier restricted battery-only bridge.
     public func settledSingleBatteryObservation(
         closedSwitchIDs: Set<String> = [],
