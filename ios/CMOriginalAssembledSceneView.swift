@@ -184,6 +184,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalFlaskGoal: ((String) -> Void)? = nil
     var onOriginalFlagGoal: ((String) -> Void)? = nil
     var onOriginalEnvironmentalCandleGoal: ((String) -> Void)? = nil
+    var onOriginalBalloonGoal: ((String) -> Void)? = nil
     var onOriginalSolarRays: (([String: [Float]]) -> Void)? = nil
     var onOriginalFlowerGoal: ((String) -> Void)? = nil
     // Reports a user-operated original PC power switch. This changes its
@@ -457,6 +458,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalFlaskGoal = onOriginalFlaskGoal
         context.coordinator.onOriginalFlagGoal = onOriginalFlagGoal
         context.coordinator.onOriginalEnvironmentalCandleGoal = onOriginalEnvironmentalCandleGoal
+        context.coordinator.onOriginalBalloonGoal = onOriginalBalloonGoal
         context.coordinator.onOriginalSolarRays = onOriginalSolarRays
         context.coordinator.onOriginalFlowerGoal = onOriginalFlowerGoal
         context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower)
@@ -587,6 +589,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalFlaskGoal = onOriginalFlaskGoal
         context.coordinator.onOriginalFlagGoal = onOriginalFlagGoal
         context.coordinator.onOriginalEnvironmentalCandleGoal = onOriginalEnvironmentalCandleGoal
+        context.coordinator.onOriginalBalloonGoal = onOriginalBalloonGoal
         context.coordinator.onOriginalSolarRays = onOriginalSolarRays
         context.coordinator.onOriginalFlowerGoal = onOriginalFlowerGoal
         context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower)
@@ -761,6 +764,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalFlaskGoal: ((String) -> Void)?
         var onOriginalFlagGoal: ((String) -> Void)?
         var onOriginalEnvironmentalCandleGoal: ((String) -> Void)?
+        var onOriginalBalloonGoal: ((String) -> Void)?
         private struct FlagDrive {
             let wheel: SCNNode
             let telescope3: SCNNode
@@ -1040,6 +1044,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // type. Only the 45 with VALB's movable bit will actually float;
         // the fixed balloon is kept static by configuredPhysicsRoles.
         private var buoyantObjectIDs = Set<String>()
+        private var pendingBalloonPops = Set<String>()
+        private var poppedBalloonIDs = Set<String>()
         private var appliedPhysicsRoles: [String: CMOriginalGameplaySession.PhysicsRole] = [:]
         private var appliedReactionRules: [CMOriginalGameplaySession.ReactionRule] = []
 
@@ -2402,6 +2408,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     return (object.id, original)
                 }
             )
+            pendingBalloonPops.removeAll()
+            poppedBalloonIDs.removeAll()
             buoyantObjectIDs = Set(
                 (session?.objects ?? [])
                     .filter { $0.type == "tmo_balloon" }
@@ -3205,6 +3213,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                 }
             }
+            retireOriginalBalloons()
             // Render-timestep-aware buoyancy for authentic tmo_balloon
             // parts: the original puzzles treat them as rising objects,
             // not heavy falling crates. Use a conservative acceleration
@@ -3333,6 +3342,42 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
 
+
+        // Win32 0x444045..0x4441A7 and 0x445110..0x4451C1:
+        // a real contact near Pike or Cut marks balloon state 1.
+        // 0x451734 then calls 0x458360, emits owner GOAL and removes
+        // the balloon body. SceneKit contact position is a provisional
+        // mapping of the native contact coordinates.
+        private func observeOriginalBalloonContact(balloon: String, sharp: String,
+                                                    point: SCNVector3) {
+            guard buoyantObjectIDs.contains(balloon),
+                  !poppedBalloonIDs.contains(balloon),
+                  !pendingBalloonPops.contains(balloon),
+                  let type = originalTypesByID[sharp],
+                  let rule = CMOriginalBalloonPuncture.rule(for: type),
+                  let marker = exactOriginalAnchor(rule.marker, on: sharp),
+                  CMOriginalBalloonPuncture.hits(
+                    point: SIMD3<Float>(point.x, point.y, point.z),
+                    marker: marker.presentation.simdWorldPosition,
+                    radius: rule.radius) else { return }
+            pendingBalloonPops.insert(balloon)
+        }
+
+        private func retireOriginalBalloons() {
+            for id in pendingBalloonPops.sorted() {
+                guard !poppedBalloonIDs.contains(id),
+                      let nodes = physicsNodesByObjectID[id], !nodes.isEmpty else { continue }
+                poppedBalloonIDs.insert(id)
+                buoyantObjectIDs.remove(id)
+                for node in nodes {
+                    node.physicsBody = nil
+                    node.isHidden = true
+                }
+                let deliver = onOriginalBalloonGoal
+                DispatchQueue.main.async { deliver?(id) }
+            }
+            pendingBalloonPops.removeAll()
+        }
 
         private func exactOriginalAnchor(
             _ name: String, on ownerID: String
@@ -3936,6 +3981,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             sessionLock.lock()
             guard session?.phase == .running else { sessionLock.unlock(); return }
             session?.recordContact(a, b, impulse: Double(contact.collisionImpulse))
+            observeOriginalBalloonContact(balloon: a, sharp: b, point: contact.contactPoint)
+            observeOriginalBalloonContact(balloon: b, sharp: a, point: contact.contactPoint)
             strikeOriginalBellows(leverID: a, otherID: b, normalY: contact.contactNormal.y, point: contact.contactPoint)
             strikeOriginalBellows(leverID: b, otherID: a, normalY: contact.contactNormal.y, point: contact.contactPoint)
             // Map actual SceneKit collision owners back to an original PC
