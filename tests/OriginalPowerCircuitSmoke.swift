@@ -949,6 +949,38 @@ struct OriginalPowerCircuitSmoke {
             generatorMotorOwners: driver,
             generatorRotorCommandsByDeviceID: [gg.deviceID: 0])!
         precondition(g3.state.consumerReads[gl.deviceID]?.first == 0)
+        // The windmill emits its connected generator output in the first
+        // owner pass. A later lamp reads that output in the same frame.
+        var windFrameRaw = raw
+        windFrameRaw["root"] = ["name": "level", "fields": [], "children": [
+            ["name": "level_elements", "fields": [], "children": [
+                device("tmo_windmill", []),
+                device("tmo_power_generator", [nil]),
+                device("tmo_power_lamp", [1])
+            ]]
+        ]]
+        let windFrameDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: windFrameRaw))
+        let windSession = CMOriginalGameplaySession(document: windFrameDoc)
+        var wf = CMOriginalPowerCircuit(session: windSession)!
+        let windOwner = windSession.objects.first { $0.type == "tmo_windmill" }!.id
+        let wg = wf.terminals.first { $0.number == nil }!
+        let wl = wf.terminals.first { $0.number == 1 }!
+        let windDriver = [wg.deviceID: windOwner]
+        precondition(wf.supportsDirectDriveOrderedFrames(windDriver))
+        precondition(!wf.supportsMotorDrivenOrderedFrames(windDriver))
+        precondition(wf.toggleCable(between: wg.plugID, and: wl.plugID) == .connected)
+        let w1 = wf.advanceOrderedElectricalFrame(previous: nil, closedSwitchIDs: [],
+            generatorMotorOwners: windDriver,
+            generatorRotorCommandsByDeviceID: [wg.deviceID: -4])!
+        precondition(w1.state.sourceReads[wg.deviceID] == 4)
+        precondition(w1.state.consumerReads[wl.deviceID]?.first == 4)
+        let w2 = wf.advanceOrderedElectricalFrame(previous: w1, closedSwitchIDs: [],
+            generatorMotorOwners: windDriver,
+            generatorRotorCommandsByDeviceID: [wg.deviceID: 0])!
+        precondition(w2.state.consumerReads[wl.deviceID]?.first == 0)
+        precondition(wf.advanceOrderedElectricalFrame(previous: w2, closedSwitchIDs: [],
+            generatorMotorOwners: windDriver) == nil)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
