@@ -149,6 +149,19 @@ struct OriginalWindowsHeatSourceSwitchSmoke {
         precondition(HeatSample.focus(position: origin, light: 1) == origin)
         precondition(HeatSample.focus(position: origin, light: 1.01) == nil)
         precondition(HeatSample.focus(position: origin, light: .nan) == nil)
+        typealias Fuze = CMOriginalFuzePath
+        let k1 = Fuze.Knot(index: 1, position: .zero)
+        let k2 = Fuze.Knot(index: 2, position: .init(1, 1, 0))
+        let k3 = Fuze.Knot(index: 3, position: .init(2, -1, 0))
+        precondition(Fuze.ordered([k3, k1, k2]) == [k1.position, k2.position, k3.position])
+        precondition(Fuze.ordered([k1, k2]) == [k1.position, k2.position])
+        precondition(Fuze.ordered([]) == nil)
+        precondition(Fuze.ordered([k1]) == nil)
+        precondition(Fuze.ordered([k1, k1]) == nil)
+        precondition(Fuze.ordered([k1, k3]) == nil)
+        precondition(Fuze.ordered([k1, .init(index: 2, position: .zero)]) == nil)
+        precondition(Fuze.ordered([k1, .init(index: 2, position: .init(.nan, 0, 0))]) == nil)
+        precondition(Fuze.ordered([k1, .init(index: 2, position: .init(1001, 0, 0))]) == nil)
         print("Original candle, dynamic candle and blowtorch click states +0xEC and VALF initial/reset: OK")
     }
 }
