@@ -795,3 +795,34 @@ public enum CMOriginalBalloonHeatSample {
         return [p.x, p.y, p.z].allSatisfy(\.isFinite) ? p : nil
     }
 }
+
+
+ 
+/// Authored virtual fuse polyline from tmo_fuze_knot children.
+/// VALN identifies knot order; the first original knot omits VALN.
+public enum CMOriginalFuzePath {
+    public struct Knot {
+        public let index: Int
+        public let position: SIMD3<Float>
+        public init(index: Int, position: SIMD3<Float>) {
+            self.index = index
+            self.position = position
+        }
+    }
+
+    public static func ordered(_ knots: [Knot]) -> [SIMD3<Float>]? {
+        guard (2...256).contains(knots.count) else { return nil }
+        let sorted = knots.sorted { $0.index < $1.index }
+        for (i, knot) in sorted.enumerated() {
+            guard knot.index == i + 1,
+                  [knot.position.x, knot.position.y, knot.position.z]
+                    .allSatisfy({ $0.isFinite && abs($0) <= 1000 }) else { return nil }
+            if i > 0 {
+                let d = knot.position - sorted[i-1].position
+                let length = sqrt(d.x*d.x + d.y*d.y + d.z*d.z)
+                guard length.isFinite, length > 0.0001 else { return nil }
+            }
+        }
+        return sorted.map(\.position)
+    }
+}
