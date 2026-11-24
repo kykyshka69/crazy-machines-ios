@@ -87,6 +87,36 @@ struct OriginalWindowsHeatSourceSwitchSmoke {
             point: .init(.nan, 0, 0), marker: .zero, radius: 0.05))
         precondition(!CMOriginalBalloonPuncture.hits(
             point: .zero, marker: .zero, radius: 0))
+        for axis in 0..<3 {
+            for sign: Float in [-1, 1] {
+                for scale: Float in [0, 0.5, 0.999, 1, 1.001, 2] {
+                    var p = SIMD3<Float>.zero
+                    p[axis] = sign * 0.1 * scale
+                    var stroke = CMOriginalCatapultStroke()
+                    precondition(stroke.trigger(contact: p, button: .zero) == (scale < 1))
+                }
+            }
+        }
+        for fps in [30, 60, 120, 240] {
+            var stroke = CMOriginalCatapultStroke()
+            let dt = 1.0 / Double(fps)
+            precondition(stroke.advance(delta: dt) == nil)
+            precondition(stroke.trigger(contact: .zero, button: .zero))
+            precondition(!stroke.trigger(contact: .zero, button: .zero))
+            for invalid in [0, -1, Double.nan, 0.26] {
+                precondition(stroke.advance(delta: invalid) == nil)
+            }
+            var last: Float = 0
+            var steps = 0
+            while let angle = stroke.advance(delta: dt) {
+                precondition(angle > last && angle <= .pi / 4)
+                last = angle
+                steps += 1
+                precondition(steps <= fps)
+            }
+            precondition(stroke.phase == .finished && last == .pi / 4)
+            precondition(!stroke.trigger(contact: .zero, button: .zero))
+        }
         print("Original candle, dynamic candle and blowtorch click states +0xEC and VALF initial/reset: OK")
     }
 }
