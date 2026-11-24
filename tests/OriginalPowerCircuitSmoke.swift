@@ -386,6 +386,40 @@ struct OriginalPowerCircuitSmoke {
         precondition(phase.nativeElectricalUpdate(previous: initial,
             ownerOrder: [motorOwner, motorOwner, lampOwner],
             solarRayContributionsByDeviceID: [:], conductingByDeviceID: [:]) == nil)
+        // Runtime slot order may differ from CML order and VALF numbering.
+        let slots = [batteryOwner: [port(31).plugID],
+                     motorOwner: [port(33).plugID, port(32).plugID],
+                     lampOwner: [port(34).plugID]]
+        let orderedRead = phase.nativePortPass(previous: .init(signals: [
+            port(32).plugID: 2, port(33).plugID: 7]),
+            events: [.sampleConsumer(ownerID: motorOwner)],
+            conductingByDeviceID: [:], observedSlotOrder: slots)!
+        precondition(orderedRead.consumerReads[motorOwner]?.first == 7)
+        precondition(orderedRead.consumerReads[motorOwner]?.second == 2)
+        var wrongSlots = slots
+        wrongSlots[motorOwner] = [port(32).plugID, port(32).plugID]
+        precondition(phase.nativeElectricalUpdate(previous: initial, ownerOrder: order,
+            solarRayContributionsByDeviceID: [:], conductingByDeviceID: [:],
+            observedSlotOrder: wrongSlots) == nil)
+        wrongSlots[motorOwner] = [port(31).plugID, port(32).plugID]
+        precondition(phase.nativePortPass(events: [], conductingByDeviceID: [:],
+            observedSlotOrder: wrongSlots) == nil)
+        let orderedFrame = phase.nativeElectricalUpdate(previous: initial, ownerOrder: order,
+            solarRayContributionsByDeviceID: [:], conductingByDeviceID: [:],
+            observedSlotOrder: slots)!
+        precondition(orderedFrame.sourceReads[batteryOwner] == 10)
+        precondition(orderedFrame.consumerReads[motorOwner]?.first == 10)
+        let sourceCable = CMOriginalPowerCircuit.Cable(port(31).plugID, port(32).plugID)
+        precondition(phase.applyObservedCableCut(sourceCable))
+        let cutFrame = phase.nativeElectricalUpdate(previous: orderedFrame, ownerOrder: order,
+            solarRayContributionsByDeviceID: [:], conductingByDeviceID: [:],
+            observedSlotOrder: slots)!
+        precondition(cutFrame.sourceReads[batteryOwner] == 10)
+        precondition(cutFrame.signals[port(31).plugID] == 0)
+        precondition(cutFrame.consumerReads[motorOwner]?.first == 0)
+        let resetReads = phase.nativePortPass(previous: cutFrame,
+            events: [.resetVisited], conductingByDeviceID: [:], observedSlotOrder: slots)!
+        precondition(resetReads.sourceReads.isEmpty && resetReads.consumerReads.isEmpty)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
