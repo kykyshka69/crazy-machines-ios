@@ -74,6 +74,17 @@ struct OriginalWindowsSolarSignalSmoke {
         precondition(M.heats(light: 0.5, focus: .zero, receiver: .init(0.049,0,1)))
         precondition(!M.heats(light: 1, focus: .zero, receiver: .init(0.05,0,0)))
         precondition(!M.heats(light: .nan, focus: .zero, receiver: .zero))
+        typealias R = CMOriginalOpticalPowerRouting
+        precondition(R.emitterPower(fullNetwork: 4, independentNetwork: nil, receiverIsSolar: false) == 4)
+        precondition(R.emitterPower(fullNetwork: 4, independentNetwork: nil, receiverIsSolar: true) == 0)
+        precondition(R.emitterPower(fullNetwork: 10, independentNetwork: 10, receiverIsSolar: true) == 10)
+        precondition(R.emitterPower(fullNetwork: 4, independentNetwork: 10, receiverIsSolar: true) == 0)
+        precondition(R.emitterPower(fullNetwork: nil, independentNetwork: 10, receiverIsSolar: false) == 0)
+        precondition(R.emitterPower(fullNetwork: nil, independentNetwork: 10, receiverIsSolar: true) == 0)
+        precondition(R.emitterPower(fullNetwork: .nan, independentNetwork: 10, receiverIsSolar: false) == 0)
+        precondition(R.emitterPower(fullNetwork: -1, independentNetwork: -1, receiverIsSolar: true) == 0)
+        precondition(R.emitterPower(fullNetwork: 0, independentNetwork: 0, receiverIsSolar: false) == 0)
+        precondition(R.emitterPower(fullNetwork: 3, independentNetwork: .infinity, receiverIsSolar: true) == 0)
         print("Win32 solar ray attenuation / accumulator saturation / GOAL threshold passed")
     }
 }
