@@ -1081,8 +1081,9 @@ struct CMOriginalQuickPlayView: View {
             }
             .overlay(alignment: .topLeading) {
                 // The original goal must remain visible over the 3D board.
-                // The continue action must ALSO remain reachable when the
-                // bottom controls are clipped/scrollable on a small iPhone.
+                // Early-level trackers are diagnostic only. Continue is
+                // exclusively owned by the reconstructed Windows win overlay;
+                // a prototype contact cannot bypass another required channel.
                 if let run = firstLevelRun {
                     HStack(spacing: 8) {
                         HStack(spacing: 6) {
@@ -1097,17 +1098,6 @@ struct CMOriginalQuickPlayView: View {
                         .padding(.vertical, 8)
                         .background(.regularMaterial, in: Capsule())
                         .accessibilityIdentifier("cm.original.first-level-hud")
-                        if run.isSatisfied {
-                            Button {
-                                changeLevel(by: 1)
-                            } label: {
-                                Label("Level 2", systemImage: "arrow.right")
-                            }
-                            .font(.caption.weight(.semibold))
-                            .buttonStyle(.borderedProminent)
-                            .disabled(scene(at: document.index + 1) == nil)
-                            .accessibilityIdentifier("cm.original.first-level-next")
-                        }
                     }
                     .padding(10)
                 } else if let run = secondLevelRun {
@@ -1121,17 +1111,6 @@ struct CMOriginalQuickPlayView: View {
                         .padding(.vertical, 8)
                         .background(.regularMaterial, in: Capsule())
                         .accessibilityIdentifier("cm.original.second-level-hud")
-                        if run.isSatisfied {
-                            Button {
-                                changeLevel(by: 1)
-                            } label: {
-                                Label("Level 3", systemImage: "arrow.right")
-                            }
-                            .font(.caption.weight(.semibold))
-                            .buttonStyle(.borderedProminent)
-                            .disabled(scene(at: document.index + 1) == nil)
-                            .accessibilityIdentifier("cm.original.second-level-next")
-                        }
                     }
                     .padding(10)
                 } else if let run = thirdLevelRun {
@@ -1146,17 +1125,6 @@ struct CMOriginalQuickPlayView: View {
                         .padding(.vertical, 8)
                         .background(.regularMaterial, in: Capsule())
                         .accessibilityIdentifier("cm.original.third-level-hud")
-                        if run.isSatisfied {
-                            Button {
-                                changeLevel(by: 1)
-                            } label: {
-                                Label("Level 4", systemImage: "arrow.right")
-                            }
-                            .font(.caption.weight(.semibold))
-                            .buttonStyle(.borderedProminent)
-                            .disabled(scene(at: document.index + 1) == nil)
-                            .accessibilityIdentifier("cm.original.third-level-next")
-                        }
                     }
                     .padding(10)
                 } else if let run = fourthLevelRun {
@@ -1172,17 +1140,6 @@ struct CMOriginalQuickPlayView: View {
                         .padding(.vertical, 8)
                         .background(.regularMaterial, in: Capsule())
                         .accessibilityIdentifier("cm.original.fourth-level-hud")
-                        if run.isSatisfied {
-                            Button {
-                                changeLevel(by: 1)
-                            } label: {
-                                Label("Level 5", systemImage: "arrow.right")
-                            }
-                            .font(.caption.weight(.semibold))
-                            .buttonStyle(.borderedProminent)
-                            .disabled(scene(at: document.index + 1) == nil)
-                            .accessibilityIdentifier("cm.original.fourth-level-next")
-                        }
                     }
                     .padding(10)
                 } else {
