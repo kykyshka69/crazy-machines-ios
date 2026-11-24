@@ -1751,12 +1751,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                   drive.state.strike(normalY: abs(normalY),
                       leverAngle: drive.lever.presentation.eulerAngles.z)
             else { return }
-            // The original removes the lever's rigid body during exhaustion.
-            // Keep its visual part but stop collision/impulse feedback.
-            drive.lever.physicsBody?.clearAllForces()
-            drive.lever.physicsBody?.collisionBitMask = 0
-            drive.lever.physicsBody?.contactTestBitMask = 0
-            drive.lever.physicsBody?.type = .kinematic
+            // Capture state now; change the body on the next renderer frame,
+            // not while SceneKit is delivering the contact.
             bellowsDrives[id] = drive
         }
 
@@ -1784,6 +1780,14 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             for id in bellowsDrives.keys.sorted() {
                 guard var drive = bellowsDrives[id], drive.state.phase != .ready,
                       drive.state.advance(delta: delta) else { continue }
+                if let body = drive.lever.physicsBody, body.type != .kinematic {
+                    body.clearAllForces()
+                    body.velocity = SCNVector3Zero
+                    body.angularVelocity = SCNVector4(0,0,0,0)
+                    body.collisionBitMask = 0
+                    body.contactTestBitMask = 0
+                    body.type = .kinematic
+                }
                 drive.lever.eulerAngles.z = drive.state.leverAngle
                 drive.lever.physicsBody?.resetTransform()
                 bellowsDrives[id] = drive
