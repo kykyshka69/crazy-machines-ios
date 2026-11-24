@@ -7,6 +7,19 @@ import Foundation
 /// 0x44CA73..0x44CAC8 then conditionally clears the electrical state +0x40.
 /// This models THAT predicate, not the original gear torque or its wiring.
 public enum CMOriginalWindowsPowerDisrupter {
+    /// Distinguish a measured open contact from missing wheel data. Both
+    /// block power, but only a measured phase can enter order consensus.
+    public enum Observation: Equatable {
+        case unavailable
+        case blocked
+        case conducting
+    }
+
+    public static func observation(rotorAngle: Float) -> Observation {
+        guard rotorAngle.isFinite else { return .unavailable }
+        return conducts(rotorAngle: rotorAngle) ? .conducting : .blocked
+    }
+
     public static let period = Float(bitPattern: 0x40490FDB)
     public static let halfTurnGate = Float(bitPattern: 0x3FC90FDB)
 
