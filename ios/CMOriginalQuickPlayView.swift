@@ -1313,7 +1313,7 @@ struct CMOriginalQuickPlayView: View {
                         }
                         if let beltMessage { Text(beltMessage).font(.caption2) }
                     }
-                    Text("Open belts transmit rotation in the same direction using original VALF ratios. SceneKit coupling and straight belt spans remain experimental.")
+                    Text("Open belts transmit rotation in the same direction using original VALF ratios. Closed belt contours use the original wheel parameters; SceneKit torque coupling remains experimental.")
                         .font(.caption2).foregroundStyle(.secondary)
                 }.padding(.horizontal, 14).padding(.vertical, 6)
             }
