@@ -443,6 +443,8 @@ public struct CMOriginalPowerCircuit {
         public var signals: [String: Float]
         public var visitedOwners: Set<String>
         public fileprivate(set) var consumerReads: [String: NativeConsumerRead] = [:]
+        // Source GOAL reads occur before a cut can zero the outgoing plug.
+        public fileprivate(set) var sourceReads: [String: Float] = [:]
         public init(signals: [String: Float] = [:], visitedOwners: Set<String> = []) {
             self.signals = signals
             self.visitedOwners = visitedOwners
@@ -463,6 +465,24 @@ public struct CMOriginalPowerCircuit {
         case cutTransfer(Cable)
     }
 
+    /// Native slot lookup (0x420360 -> 0x4204A0) walks component records
+    /// in their runtime order. A terminal's VALF is never its slot index.
+    /// An explicit observed order must be a complete per-owner permutation.
+    private func nativeSlots(
+        observedOrder: [String: [String]]?
+    ) -> [String: [Terminal]]? {
+        let grouped = Dictionary(grouping: terminals, by: \.deviceID)
+        guard let observedOrder else { return grouped }
+        guard Set(observedOrder.keys) == Set(grouped.keys) else { return nil }
+        var result: [String: [Terminal]] = [:]
+        for (owner, slots) in grouped {
+            guard let order = observedOrder[owner], order.count == slots.count,
+                  Set(order) == Set(slots.map(\.plugID)) else { return nil }
+            result[owner] = order.compactMap { byPlugID[$0] }
+        }
+        return result
+    }
+
     /// 0x44C8A0: visit owner before copying incoming +0x40, then walk
     /// remaining slots depth-first, even when a gate writes zero.
     /// 0x44D070 resets the visit markers, NOT the stored plug values.
@@ -472,15 +492,17 @@ public struct CMOriginalPowerCircuit {
     public func nativePortPass(
         previous: NativePortState = .init(),
         events: [NativePortEvent],
-        conductingByDeviceID: [String: Bool]
+        conductingByDeviceID: [String: Bool],
+        observedSlotOrder: [String: [String]]? = nil
     ) -> NativePortState? {
-        let groups = Dictionary(grouping: terminals, by: \.deviceID)
-        guard events.count <= 2048,
+        guard let groups = nativeSlots(observedOrder: observedSlotOrder),
+              events.count <= 2048,
               previous.signals.allSatisfy({ byPlugID[$0.key] != nil && $0.value.isFinite }),
               previous.visitedOwners.allSatisfy({ groups[$0] != nil })
         else { return nil }
         var state = previous
         state.consumerReads.removeAll(keepingCapacity: true)
+        state.sourceReads.removeAll(keepingCapacity: true)
         var peers: [String: String] = [:]
         for cable in cables {
             peers[cable.firstPlugID] = cable.secondPlugID
@@ -532,6 +554,7 @@ public struct CMOriginalPowerCircuit {
                         || conditionalSourceDeviceIDs.contains(port.deviceID),
                       groups[port.deviceID]?.first?.plugID == plugID else { return nil }
                 state.signals[plugID] = value
+                state.sourceReads[port.deviceID] = value
                 if let peer = peers[plugID] {
                     state.visitedOwners.insert(port.deviceID)
                     if !walk(plugID, peer) { return nil }
@@ -563,9 +586,10 @@ public struct CMOriginalPowerCircuit {
         solarRayContributionsByDeviceID: [String: [Float]],
         generatorEventsBeforeOpticalOwner: [String: [NativePortEvent]] = [:],
         generatorEventsAfterElectricalOwner: [String: [NativePortEvent]] = [:],
-        conductingByDeviceID: [String: Bool]
+        conductingByDeviceID: [String: Bool],
+        observedSlotOrder: [String: [String]]? = nil
     ) -> NativePortState? {
-        let groups = Dictionary(grouping: terminals, by: \.deviceID)
+        guard let groups = nativeSlots(observedOrder: observedSlotOrder) else { return nil }
         let known = Set(groups.keys)
         guard ownerOrder.count == known.count, Set(ownerOrder) == known,
               Set(generatorEventsBeforeOpticalOwner.keys).isSubset(of: known),
@@ -609,7 +633,8 @@ public struct CMOriginalPowerCircuit {
             events.append(contentsOf: after)
         }
         return nativePortPass(previous: previous, events: events,
-                              conductingByDeviceID: conductingByDeviceID)
+                              conductingByDeviceID: conductingByDeviceID,
+                              observedSlotOrder: observedSlotOrder)
     }
 
     /// Compatibility for purely battery-driven puzzles: a single source
