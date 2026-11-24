@@ -176,6 +176,34 @@ public enum CMOriginalDriveBelt {
          "tmo_heat_grill_wheel"].contains(type)
     }
 
+    /// Wheel marker basis in the imported original UCM files: the
+    /// generator's local Y is the axle; the other nine use local Z.
+    public static func wheelAxisColumn(type: String) -> Int? {
+        guard accepts(type: type) else { return nil }
+        return type == "tmo_power_generator_rotor" ? 1 : 2
+    }
+
+    /// The current puzzle belt renderer is planar XY. Accept either
+    /// axle sign, including mirrored parts, but reject tilted wheels.
+    /// This angular tolerance is a SceneKit adapter, not a native rule.
+    public static func planarAxle(_ axis: SIMD3<Float>) -> Bool {
+        guard [axis.x,axis.y,axis.z].allSatisfy(\.isFinite) else { return false }
+        let length = hypot(hypot(axis.x,axis.y),axis.z)
+        guard length.isFinite, length > 0.00001 else { return false }
+        return abs(axis.z / length) >= 0.995
+    }
+
+    /// SceneKit angularVelocity is axis + magnitude, not XYZ rates.
+    /// Project it onto world puzzle Z instead of using the sign alone.
+    public static func planarAngularSpeed(axis: SIMD3<Float>, magnitude: Float) -> Float? {
+        guard [axis.x,axis.y,axis.z,magnitude].allSatisfy(\.isFinite) else { return nil }
+        if magnitude == 0 { return 0 }
+        let length = hypot(hypot(axis.x,axis.y),axis.z)
+        guard length.isFinite, length > 0.00001 else { return nil }
+        let projected = magnitude * (axis.z / length)
+        return projected.isFinite ? projected : nil
+    }
+
     public struct Torque {
         public let first: Float
         public let second: Float
