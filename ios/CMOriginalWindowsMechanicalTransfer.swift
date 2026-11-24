@@ -336,3 +336,90 @@ public enum CMOriginalHammerDrive {
         return Strike(nailY: max(nailLimit, next), terminal: next < nailLimit)
     }
 }
+
+
+/// Persist only player-authored connections, never runtime cuts or forces.
+/// The original level hash isolates preorder object IDs between scenes.
+public enum CMOriginalMechanicalSnapshot {
+    private struct RopeRecord: Codable {
+        let firstID: String
+        let firstMarker: String
+        let secondID: String
+        let secondMarker: String
+    }
+    private struct BeltRecord: Codable {
+        let firstID: String
+        let secondID: String
+    }
+    private struct Payload: Codable {
+        let version: Int
+        let sceneSHA256: String
+        let ropes: [RopeRecord]
+        let belts: [BeltRecord]
+    }
+    public struct Links {
+        public let ropes: Set<CMOriginalRope.Pair>
+        public let belts: Set<CMOriginalDriveBelt.Pair>
+        public init(ropes: Set<CMOriginalRope.Pair> = [],
+                    belts: Set<CMOriginalDriveBelt.Pair> = []) {
+            self.ropes = ropes
+            self.belts = belts
+        }
+    }
+
+    public static func storageKey(sceneSHA256: String) -> String {
+        "cm.original.mechanical-links.v1." + sceneSHA256
+    }
+
+    public static func encode(_ links: Links, sceneSHA256: String) throws -> Data {
+        let ropes = links.ropes.map {
+            RopeRecord(firstID: $0.first.objectID, firstMarker: $0.first.marker,
+                secondID: $0.second.objectID, secondMarker: $0.second.marker)
+        }.sorted {
+            [$0.firstID,$0.firstMarker,$0.secondID,$0.secondMarker]
+                .lexicographicallyPrecedes([$1.firstID,$1.firstMarker,$1.secondID,$1.secondMarker])
+        }
+        let belts = links.belts.map {
+            BeltRecord(firstID: $0.first, secondID: $0.second)
+        }.sorted {
+            [$0.firstID,$0.secondID].lexicographicallyPrecedes([$1.firstID,$1.secondID])
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        return try encoder.encode(Payload(version: 1, sceneSHA256: sceneSHA256,
+            ropes: ropes, belts: belts))
+    }
+
+    /// Reject invalid snapshots atomically. Reconstruct through the same
+    /// canonical pair initializers and type/marker gates used by the editor.
+    public static func decode(_ data: Data, sceneSHA256: String,
+                              objectTypes: [String: String]) -> Links? {
+        guard data.count <= 64_000,
+              let payload = try? JSONDecoder().decode(Payload.self, from: data),
+              payload.version == 1, payload.sceneSHA256 == sceneSHA256,
+              payload.ropes.count <= 64, payload.belts.count <= 64 else { return nil }
+        var ropes = Set<CMOriginalRope.Pair>()
+        var occupied = Set<CMOriginalRope.Endpoint>()
+        for item in payload.ropes {
+            guard let firstType = objectTypes[item.firstID],
+                  let secondType = objectTypes[item.secondID],
+                  CMOriginalRope.accepts(type: firstType, marker: item.firstMarker),
+                  CMOriginalRope.accepts(type: secondType, marker: item.secondMarker) else { return nil }
+            let a = CMOriginalRope.Endpoint(objectID: item.firstID, marker: item.firstMarker)
+            let b = CMOriginalRope.Endpoint(objectID: item.secondID, marker: item.secondMarker)
+            guard let pair = CMOriginalRope.Pair(a,b),
+                  occupied.insert(a).inserted, occupied.insert(b).inserted,
+                  ropes.insert(pair).inserted else { return nil }
+        }
+        var belts = Set<CMOriginalDriveBelt.Pair>()
+        for item in payload.belts {
+            guard let firstType = objectTypes[item.firstID],
+                  let secondType = objectTypes[item.secondID],
+                  CMOriginalDriveBelt.accepts(type: firstType),
+                  CMOriginalDriveBelt.accepts(type: secondType),
+                  let pair = CMOriginalDriveBelt.Pair(item.firstID,item.secondID),
+                  belts.insert(pair).inserted else { return nil }
+        }
+        return Links(ropes: ropes, belts: belts)
+    }
+}
