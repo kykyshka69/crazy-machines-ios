@@ -108,10 +108,11 @@ public enum CMOriginalSteamNetwork {
         ports: [Port], types: [String: String], boilerSignals: [String: Float],
         previous: [Int: Float], delta: Double,
         openValveIDs: Set<String> = []
-    ) -> (outgoing: [Int: Float], receiverSignals: [String: Float]) {
+    ) -> (outgoing: [Int: Float], receiverSignals: [String: Float], receiverBoilers: [String: String]) {
         let joined = mates(ports)
         let indices = Dictionary(grouping: ports.indices, by: { ports[$0].owner })
         var output: [Int: Float] = [:], receivers: [String: Float] = [:]
+        var receiverBoilers: [String: String] = [:]
         var claimed = Set<String>()
         for source in boilerSignals.keys.sorted() {
             guard types[source] == "tmo_boiler",
@@ -150,7 +151,7 @@ public enum CMOriginalSteamNetwork {
             _ = count(incoming)
             guard valid, claimed.isDisjoint(with: visited) else {
                 // Do not keep a first-source result in a mixed network.
-                if !claimed.isDisjoint(with: visited) { return ([:], [:]) }
+                if !claimed.isDisjoint(with: visited) { return ([:], [:], [:]) }
                 continue
             }
             claimed.formUnion(visited)
@@ -158,7 +159,10 @@ public enum CMOriginalSteamNetwork {
             func propagate(_ port: Int, _ input: Float) {
                 let owner = ports[port].owner
                 if children[port] == nil {
-                    if types[owner] != "tmo_pipe_ventil" { receivers[owner] = input }
+                    if types[owner] != "tmo_pipe_ventil" {
+                        receivers[owner] = input
+                        receiverBoilers[owner] = source
+                    }
                     return
                 }
                 let next = children[port] ?? []
@@ -173,7 +177,7 @@ public enum CMOriginalSteamNetwork {
             }
             propagate(incoming, signal)
         }
-        return (output, receivers)
+        return (output, receivers, receiverBoilers)
     }
 }
 
