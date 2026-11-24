@@ -50,6 +50,25 @@ struct OriginalWindowsMechanicalTransferSmoke {
         precondition(R.accepts(type: "tmo_rope_seesaw_lever", marker: "Rope02"))
         precondition(R.accepts(type: "tmo_rope_scissors_1", marker: "Rope01"))
         precondition(R.accepts(type: "tmo_rope_crossbow_lever", marker: "Rope"))
+        precondition(R.accepts(type: "tmo_balloon", marker: "Rope"))
+        precondition(!R.accepts(type: "tmo_balloon", marker: "Wind"))
+        precondition(!R.accepts(type: "tmo_balloon", marker: "Explode"))
+        let balloon = R.Endpoint(objectID: "balloon", marker: "Rope")
+        let otherBalloon = R.Endpoint(objectID: "balloon-2", marker: "Rope")
+        let firstLink = R.Pair(hook, balloon)!
+        let secondLink = R.Pair(lever, otherBalloon)!
+        let unrelated = R.Pair(hook, lever)!
+        let editorLinks: Set<R.Pair> = [firstLink, secondLink, unrelated]
+        let retired = R.incidentPairs(in: editorLinks, retiredOwners: ["balloon"])
+        precondition(retired == [firstLink])
+        precondition(editorLinks.subtracting(retired) == [secondLink, unrelated])
+        precondition(editorLinks.count == 3)
+        precondition(R.incidentPairs(in: editorLinks, retiredOwners: []) == [])
+        precondition(R.incidentPairs(in: editorLinks, retiredOwners: ["missing"]) == [])
+        precondition(R.incidentPairs(in: editorLinks, retiredOwners: ["balloon", "balloon-2"]) == [firstLink, secondLink])
+        precondition(R.incidentPairs(in: editorLinks, retiredOwners: ["hook"]) == [firstLink, unrelated])
+        precondition(R.incidentPairs(in: editorLinks.subtracting(retired), retiredOwners: ["balloon"]) == [])
+
         precondition(!R.accepts(type: "tmo_rope_hook", marker: "rope"))
         precondition(!R.accepts(type: "tmo_rope_scissors_2", marker: "Cut01"))
         precondition(!R.accepts(type: "tmo_belt_gear", marker: "Rope"))
