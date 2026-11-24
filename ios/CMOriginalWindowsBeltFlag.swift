@@ -221,3 +221,34 @@ public struct CMOriginalBellows {
                      maximumAngle: angle, angularFalloff: 1/angle)
     }
 }
+
+
+/// Verified wind receiver dispatch 0x44F528–0x44F7C0.
+/// No generic force on arbitrary loose bodies is inferred from this branch.
+public enum CMOriginalWindReceiver {
+    /// 0x44F749–0x44F775, fabs at 0x409D30 (CRT clears sign bit).
+    public static func extinguishesCandle(lit: Bool, fraction: Float, power: Float) -> Bool {
+        guard lit, fraction.isFinite, (0...1).contains(fraction),
+              power.isFinite else { return false }
+        return abs(Double(fraction) * Double(power)) > 2.5
+    }
+
+    /// 0x44F5A5–0x44F5F5: receiver power = fraction*sourcePower*.75;
+    /// wings target = -source.+104 * receiverPower * receiver.+104.
+    public static func wingsTarget(fraction: Float, power: Float,
+                                   sourceMirror: Float, receiverMirror: Float) -> Float? {
+        guard fraction.isFinite, (0...1).contains(fraction),
+              power.isFinite, abs(power) <= 80,
+              abs(sourceMirror) == 1, abs(receiverMirror) == 1 else { return nil }
+        return -sourceMirror * fraction * power * 0.75 * receiverMirror
+    }
+
+    /// 0x44F601–0x44F639 native scalar approaches target by dt.
+    public static func nextWingsSignal(previous: Float, target: Float, delta: Double) -> Float? {
+        guard previous.isFinite, target.isFinite, delta.isFinite,
+              delta >= 0, delta <= 0.25 else { return nil }
+        let next = Double(previous) + (Double(target) - Double(previous)) * delta
+        guard next.isFinite, abs(next) <= Double(Float.greatestFiniteMagnitude) else { return nil }
+        return Float(next)
+    }
+}
