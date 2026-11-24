@@ -2634,7 +2634,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             collisionSoundGate = CMOriginalCollisionSound.Gate()
             effectDirectory = originalDirectory
             originalEffects = CMOriginalSoundLibrary.load(directory: originalDirectory)
-            collectedPrototypeSources.removeAll()
             physicsNodesByObjectID.removeAll()
             appliedPhysicsRoles.removeAll()
             conveyorWheelNodes.removeAll()
