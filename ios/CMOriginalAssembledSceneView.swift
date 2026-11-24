@@ -2587,14 +2587,20 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }?.key
         }
 
-        private func refreshOriginalRopes(applyTension: Bool = false) {
+        private func refreshOriginalRopes(applyTension: Bool = false, delta: Double = 0) {
             ropeLock.lock(); defer { ropeLock.unlock() }
-            refreshOriginalRopesLocked(applyTension: applyTension)
+            refreshOriginalRopesLocked(applyTension: applyTension, delta: delta)
         }
 
-        private func refreshOriginalRopesLocked(applyTension: Bool) {
-            for (pair, visual) in ropeVisuals {
-                guard let first = ropeMarkers[pair.first], let second = ropeMarkers[pair.second],
+        private func refreshOriginalRopesLocked(applyTension: Bool, delta: Double = 0) {
+            // Stable order when two ropes share a hinged assembly.
+            for pair in ropeVisuals.keys.sorted(by: {
+                let a = [$0.first.objectID, $0.first.marker, $0.second.objectID, $0.second.marker]
+                let b = [$1.first.objectID, $1.first.marker, $1.second.objectID, $1.second.marker]
+                return a.lexicographicallyPrecedes(b)
+            }) {
+                guard let visual = ropeVisuals[pair],
+                      let first = ropeMarkers[pair.first], let second = ropeMarkers[pair.second],
                       let rest = ropeLengths[pair] else { continue }
                 let a = first.presentation.simdWorldPosition, b = second.presentation.simdWorldPosition
                 let span = b - a, length = simd_length(span)
@@ -2608,17 +2614,65 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     : simd_quatf(from: up, to: direction)
                 (visual.geometry as? SCNCylinder)?.height = CGFloat(length)
                 guard applyTension else { continue }
-                let force = direction * CMOriginalRope.tension(distance: length, restLength: rest)
-                func pull(_ marker: SCNNode, _ value: SIMD3<Float>) {
-                    guard let owner = physicalNode(for: marker), let body = owner.physicsBody,
-                          body.type == .dynamic else { return }
-                    body.applyForce(SCNVector3(value.x, value.y, value.z), asImpulse: false)
-                    let lever = marker.presentation.simdWorldPosition - owner.presentation.simdWorldPosition
-                    let moment = simd_cross(lever, value).z
-                    guard moment.isFinite, abs(moment) > 0.00001 else { return }
-                    body.applyTorque(SCNVector4(0, 0, moment < 0 ? -1 : 1, min(abs(moment), 25)), asImpulse: false)
+                typealias Endpoint = (body: SCNPhysicsBody?, leverCross: Double,
+                    inverseEffectiveMass: Double, velocity: SIMD3<Float>, hinged: Bool)
+                func endpoint(_ marker: SCNNode, id: String) -> Endpoint? {
+                    guard let owner = physicalNode(for: marker),
+                          let body = owner.physicsBody else {
+                        // A visible, nonphysical hook can serve as a fixed anchor.
+                        return (nil, 0, 0, .zero, false)
+                    }
+                    guard body.type == .dynamic else { return (nil, 0, 0, .zero, false) }
+                    let mass = Double(body.mass), inertia = Double(body.momentOfInertia.z)
+                    guard mass.isFinite, mass > 0, inertia.isFinite, inertia > 0,
+                          let spin = planarSpeed(body) else { return nil }
+                    let kind = originalTypesByID[id] ?? ""
+                    let hinged = axleObjectIDs.contains(id) ||
+                        ["tmo_rope_scissors_1", "tmo_rope_scissors_2",
+                         "tmo_pipe_ventil_lever", "tmo_rope_crossbow_lever"].contains(kind)
+                    let center = owner.presentation.simdConvertPosition(
+                        SIMD3<Float>(body.centerOfMassOffset.x, body.centerOfMassOffset.y,
+                                     body.centerOfMassOffset.z), to: nil)
+                    let pivot: SIMD3<Float>
+                    if kind == "tmo_rope_crossbow_lever",
+                       let anchor = exactOriginalAnchor("Mechanic01", on: id) {
+                        pivot = anchor.presentation.simdWorldPosition
+                    } else {
+                        pivot = hinged ? owner.presentation.simdWorldPosition : center
+                    }
+                    let lever = marker.presentation.simdWorldPosition - pivot
+                    let cross = Double(simd_cross(lever, direction).z)
+                    let offset = center - pivot
+                    let pivotInertia = inertia + (hinged ? mass * Double(offset.x*offset.x + offset.y*offset.y) : 0)
+                    guard let inverse = CMOriginalRope.endpointInverseMass(
+                        directionXYLengthSquared: Double(direction.x*direction.x + direction.y*direction.y),
+                        leverCrossDirection: cross, inverseMass: hinged ? 0 : 1/mass,
+                        inverseInertia: 1/pivotInertia) else { return nil }
+                    let v = body.velocity
+                    let translation = hinged ? SIMD3<Float>.zero : SIMD3<Float>(v.x,v.y,0)
+                    let velocity = translation + SIMD3<Float>(-spin*lever.y,spin*lever.x,0)
+                    return (body,cross,inverse,velocity,hinged)
                 }
-                pull(first, force); pull(second, -force)
+                guard let left = endpoint(first, id: pair.first.objectID),
+                      let right = endpoint(second, id: pair.second.objectID),
+                      left.body != nil || right.body != nil,
+                      left.body !== right.body,
+                      let impulse = CMOriginalRope.constraintImpulse(
+                        distance: Double(length), restLength: Double(rest),
+                        separationRate: Double(simd_dot(right.velocity-left.velocity,direction)),
+                        inverseEffectiveMass: left.inverseEffectiveMass + right.inverseEffectiveMass,
+                        delta: delta), impulse > 0 else { continue }
+                func pull(_ endpoint: Endpoint, sign: Double) {
+                    guard let body = endpoint.body else { return }
+                    if !endpoint.hinged {
+                        let value = direction * Float(impulse*sign)
+                        body.applyForce(SCNVector3(value.x,value.y,0), asImpulse: true)
+                    }
+                    let torque = Float(endpoint.leverCross * impulse * sign)
+                    guard torque.isFinite, abs(torque) > 0.000001 else { return }
+                    body.applyTorque(SCNVector4(0,0,torque < 0 ? -1 : 1,abs(torque)), asImpulse: true)
+                }
+                pull(left, sign: 1); pull(right, sign: -1)
             }
         }
 
@@ -3505,7 +3559,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             sampleOriginalBalloonHeat(root: renderer.scene?.rootNode)
             advanceOriginalFuzeVisualSignals(delta: delta, root: renderer.scene?.rootNode)
             retireOriginalBalloons()
-            refreshOriginalRopes(applyTension: true)
+            refreshOriginalRopes(applyTension: true, delta: delta)
             refreshOriginalBelts(applyTorque: true)
             transferOriginalWindmillMotion()
             advanceOriginalGrillDrives(delta: Float(delta))
