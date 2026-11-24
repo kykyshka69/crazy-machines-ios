@@ -390,6 +390,30 @@ struct OriginalWindowsMechanicalTransferSmoke {
             precondition(animation.advance(delta:0.25) == 0)
             precondition(animation.elapsed == nil)
         }
+        let driveTypes = ["g":"tmo_power_generator_rotor", "G":"tmo_power_generator",
+            "g2":"tmo_power_generator_rotor", "G2":"tmo_power_generator",
+            "m":"tmo_power_motor_rotor", "M":"tmo_power_motor",
+            "a":"tmo_belt_gear", "b":"tmo_belt_gear",
+            "w":"tmo_windmill_wheel", "W":"tmo_windmill",
+            "s":"tmo_steam_wheel", "S":"tmo_steam_machine", "B":"tmo_boiler",
+            "x":"tmo_hammer_wheel", "X":"tmo_hammer"]
+        let driveParents = ["g":"G", "g2":"G2", "m":"M", "w":"W", "s":"S", "x":"X"]
+        func solveDrive(_ edges: [(String,String)], _ steam: [String:String] = [:]) -> [String:String] {
+            CMOriginalDriveBelt.generatorDrivers(
+                links: Set(edges.compactMap { CMOriginalDriveBelt.Pair($0.0,$0.1) }),
+                types: driveTypes, parentOwners: driveParents, steamBoilers: steam)
+        }
+        precondition(solveDrive([("m","g")]) == ["G":"M"])
+        precondition(solveDrive([("m","a"),("a","b"),("b","g")]) == ["G":"M"])
+        precondition(solveDrive([("w","a"),("a","g")]) == ["G":"W"])
+        precondition(solveDrive([("s","a"),("a","g")], ["S":"B"]) == ["G":"B"])
+        precondition(solveDrive([("s","a"),("a","g")]).isEmpty)
+        precondition(solveDrive([("m","a"),("a","g"),("a","w")]).isEmpty)
+        precondition(solveDrive([("m","a"),("a","g"),("a","g2")]).isEmpty)
+        precondition(solveDrive([("m","a"),("a","g"),("a","b"),("b","m")]).isEmpty)
+        precondition(solveDrive([("m","a"),("b","g")]).isEmpty)
+        precondition(solveDrive([("m","a"),("a","g"),("a","x")]).isEmpty)
+        precondition(solveDrive([("m","g"),("w","g2")]) == ["G":"M","G2":"W"])
         print("Native mechanical VALF ratios, linked sign, observed stop decay: 1000 cases passed")
     }
 }
