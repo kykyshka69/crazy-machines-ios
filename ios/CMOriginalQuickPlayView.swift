@@ -989,7 +989,8 @@ struct CMOriginalQuickPlayView: View {
                 .padding(10)
             }
             .overlay(alignment: .topTrailing) {
-                if experimentalPhysics && hasOriginalMagneticTargets {
+                if experimentalPhysics && hasOriginalMagneticTargets,
+                   windowsGoalCounter?.completed != true {
                     // Permanent magnet attraction starts with the puzzle.
                     // Retain the viewport override for diagnostic comparison.
                     Button {
@@ -1399,7 +1400,7 @@ struct CMOriginalQuickPlayView: View {
                             closedSwitchIDs: flippedOriginalSwitchIDs)
                         Text("Battery-reachable devices: \(reachable.count). An open switch blocks transmission.")
                             .font(.caption2).foregroundStyle(.secondary)
-                        if circuit.cableCount > 0 {
+                        if circuit.cableCount > 0, windowsGoalCounter?.completed != true {
                             Toggle("Enable reconstructed electrical circuit",
                                    isOn: $experimentalWiredPower)
                                 .font(.caption)
@@ -1421,7 +1422,8 @@ struct CMOriginalQuickPlayView: View {
                 .padding(.vertical, 6)
             }
 
-            if experimentalPhysics && hasOriginalMagneticTargets {
+            if experimentalPhysics && hasOriginalMagneticTargets,
+               windowsGoalCounter?.completed != true {
                 Toggle("Experimental magnet attraction", isOn: $experimentalMagnetism)
                     .font(.caption.weight(.medium))
                     .padding(.horizontal, 14)
