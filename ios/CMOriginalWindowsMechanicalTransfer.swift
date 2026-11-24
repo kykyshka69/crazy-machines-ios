@@ -169,6 +169,59 @@ public enum CMOriginalDriveBelt {
         }
     }
 
+    /// Resolve a generator's mechanical source through an observed wheel
+    /// network. Only intermediate gears are transparent. Components with
+    /// cycles, competing drives, unsupported receivers or multiple
+    /// generators retain the existing componentwise electrical fallback.
+    /// These are driver provenance constraints, not native torque values.
+    public static func generatorDrivers(
+        links: Set<Pair>, types: [String: String],
+        parentOwners: [String: String], steamBoilers: [String: String]
+    ) -> [String: String] {
+        var edges: [String: Set<String>] = [:]
+        for link in links {
+            edges[link.first, default: []].insert(link.second)
+            edges[link.second, default: []].insert(link.first)
+        }
+        var result: [String: String] = [:]
+        var visited = Set<String>()
+        for generator in edges.keys.sorted() where types[generator] == "tmo_power_generator_rotor" {
+            guard visited.insert(generator).inserted else { continue }
+            var component = [generator]
+            var head = 0
+            while head < component.count {
+                let id = component[head]
+                head += 1
+                for next in edges[id] ?? [] where visited.insert(next).inserted {
+                    component.append(next)
+                }
+            }
+            guard component.count >= 2,
+                  component.reduce(0, { $0 + (edges[$1]?.count ?? 0) }) == 2 * (component.count - 1),
+                  let g = parentOwners[generator], types[g] == "tmo_power_generator"
+            else { continue }
+            var drivers: [String] = []
+            var valid = true
+            for id in component where id != generator {
+                if types[id] == "tmo_belt_gear" { continue }
+                guard let owner = parentOwners[id] else { valid = false; break }
+                switch (types[id], types[owner]) {
+                case ("tmo_power_motor_rotor", "tmo_power_motor"),
+                     ("tmo_windmill_wheel", "tmo_windmill"):
+                    drivers.append(owner)
+                case ("tmo_steam_wheel", "tmo_steam_machine"):
+                    if let boiler = steamBoilers[owner], types[boiler] == "tmo_boiler" {
+                        drivers.append(boiler)
+                    } else { valid = false }
+                default:
+                    valid = false
+                }
+            }
+            if valid, drivers.count == 1 { result[g] = drivers[0] }
+        }
+        return result
+    }
+
     public static func accepts(type: String) -> Bool {
         ["tmo_belt_gear", "tmo_power_motor_rotor", "tmo_power_generator_rotor",
          "tmo_belt_conveyer_wheel", "tmo_power_disrupter_wheel", "tmo_steam_wheel",
