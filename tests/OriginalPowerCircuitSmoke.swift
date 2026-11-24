@@ -863,6 +863,35 @@ struct OriginalPowerCircuitSmoke {
         precondition(sparse.recoveredNativeRelativeSlotOrder?[sp2.deviceID] ==
             [sp2.plugID, sp4.plugID])
         precondition(sparse.terminals.count == 4)
+        // Actual UCM marker counts establish that an omitted first
+        // ammeter slot does not turn the saved second slot into slot zero.
+        var physicalRaw = raw
+        physicalRaw["root"] = ["name": "level", "fields": [], "children": [
+            ["name": "level_elements", "fields": [], "children": [
+                device("tmo_power_battery", [nil]),
+                device("tmo_power_amperemeter", [2])
+            ]]
+        ]]
+        let physicalDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: physicalRaw))
+        var physicalCircuit = CMOriginalPowerCircuit(session:
+            CMOriginalGameplaySession(document: physicalDoc))!
+        let physicalBattery = physicalCircuit.terminals.first { $0.number == nil }!
+        let physicalMeter = physicalCircuit.terminals.first { $0.number == 2 }!
+        precondition(physicalCircuit.recoveredNativeSlotOrder == nil)
+        precondition(physicalCircuit.recoveredNativePhysicalSlots?[physicalMeter.deviceID] ==
+            [nil, physicalMeter.plugID])
+        precondition(physicalCircuit.supportsOrderedElectricalFrames)
+        precondition(physicalCircuit.toggleCable(between: physicalBattery.plugID,
+            and: physicalMeter.plugID) == .connected)
+        let physicalFrame = physicalCircuit.advanceOrderedElectricalFrame(
+            previous: nil, closedSwitchIDs: [])!
+        precondition(physicalFrame.state.consumerReads[physicalMeter.deviceID]?.first == nil)
+        precondition(physicalFrame.state.consumerReads[physicalMeter.deviceID]?.second == 10)
+        precondition(physicalCircuit.orderedBatteryObservation(physicalFrame,
+            closedSwitchIDs: []).deviceSignals[physicalMeter.deviceID] == 10)
+        precondition(physicalCircuit.terminals.count == 2)
+        precondition(sparse.recoveredNativePhysicalSlots == nil)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
