@@ -637,18 +637,21 @@ public struct CMOriginalPowerCircuit {
                               observedSlotOrder: observedSlotOrder)
     }
 
-    /// Live bridge for a restricted, order-independent subset: one battery
-    /// with one plug, no generator/solar sources, and acyclic active wiring.
-    /// The settled result deliberately does not emulate transient frame order.
-    /// Unsupported networks continue through the existing conservative solver.
-    public func settledSingleBatteryObservation(
+    /// Settled per-port bridge for source-disjoint acyclic networks.
+    /// Every connected component must have at most one potential source
+    /// (including inactive generators and solar cells). Thus source order
+    /// cannot affect its settled load signals. Native transient scheduling
+    /// and interacting sources still require the ordered runtime model.
+    public func settledIndependentSourceObservation(
         closedSwitchIDs: Set<String> = [],
+        generatorRotorCommandsByDeviceID: [String: Float] = [:],
+        solarRayContributionsByDeviceID: [String: [Float]] = [:],
         disrupterRotorAnglesByDeviceID: [String: Float] = [:]
     ) -> NetworkObservation? {
-        guard sourceDeviceIDs.count == 1, conditionalSourceDeviceIDs.isEmpty,
-              let source = sourceDeviceIDs.first else { return nil }
+        let sources = sourceDeviceIDs.union(conditionalSourceDeviceIDs)
+        guard !sources.isEmpty else { return nil }
         let groups = Dictionary(grouping: terminals, by: \.deviceID)
-        guard groups[source]?.count == 1, let sourcePort = groups[source]?.first else { return nil }
+        guard sources.allSatisfy({ groups[$0]?.count == 1 }) else { return nil }
 
         // A forest has exactly one path between any pair of owners.
         // Reject cycles, including two parallel cables between owners.
@@ -663,6 +666,28 @@ public struct CMOriginalPowerCircuit {
             let x = root(a.deviceID), y = root(b.deviceID)
             guard x != y else { return nil }
             parents[x] = y
+        }
+        // Do not decide source precedence using an invented order.
+        var sourceRoots = Set<String>()
+        for id in sources {
+            guard sourceRoots.insert(root(id)).inserted else { return nil }
+        }
+        var events: [NativePortEvent] = []
+        for id in sources.sorted() {
+            guard let plug = groups[id]?.first else { return nil }
+            let value: Float
+            if sourceDeviceIDs.contains(id) {
+                value = CMOriginalWindowsPowerScalar.batterySource
+            } else if generatorDeviceIDs.contains(id) {
+                guard let output = CMOriginalWindowsPowerScalar.generatorSignal(
+                    fromRotorCommand: generatorRotorCommandsByDeviceID[id] ?? 0) else { return nil }
+                value = output
+            } else {
+                guard let output = CMOriginalWindowsSolarSignal.collectedPower(
+                    rayContributions: solarRayContributionsByDeviceID[id] ?? []) else { return nil }
+                value = output
+            }
+            events.append(.source(plugID: plug.plugID, value: value))
         }
         var gates: [String: Bool] = [:]
         for id in switchDeviceIDs { gates[id] = closedSwitchIDs.contains(id) }
@@ -679,7 +704,7 @@ public struct CMOriginalPowerCircuit {
         let initial = NativePortState(signals: Dictionary(uniqueKeysWithValues:
             terminals.map { ($0.plugID, Float(0)) }))
         guard let state = active.nativePortPass(previous: initial,
-            events: [.source(plugID: sourcePort.plugID, value: CMOriginalWindowsPowerScalar.batterySource)],
+            events: events,
             conductingByDeviceID: gates) else { return nil }
         var devices: [String: Float] = [:]
         for (owner, slots) in groups {
@@ -698,6 +723,16 @@ public struct CMOriginalPowerCircuit {
             wires[cable] = a
         }
         return NetworkObservation(deviceSignals: devices, cableSignals: wires)
+    }
+
+    /// Compatibility entry for the earlier restricted battery-only bridge.
+    public func settledSingleBatteryObservation(
+        closedSwitchIDs: Set<String> = [],
+        disrupterRotorAnglesByDeviceID: [String: Float] = [:]
+    ) -> NetworkObservation? {
+        guard sourceDeviceIDs.count == 1, conditionalSourceDeviceIDs.isEmpty else { return nil }
+        return settledIndependentSourceObservation(closedSwitchIDs: closedSwitchIDs,
+            disrupterRotorAnglesByDeviceID: disrupterRotorAnglesByDeviceID)
     }
 
     /// Compatibility for purely battery-driven puzzles: a single source
