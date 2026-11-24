@@ -595,6 +595,18 @@ struct CMOriginalQuickPlayView: View {
                     _ = objectiveLedger?.recordGoalStateChanged(
                         ownerID, isSimulationRunning: true)
                 },
+                onOriginalSteamGoal: { ownerID in
+                    guard eventRevision == sceneRevision, experimentalPhysics,
+                          originalSession.objects.contains(where: {
+                              $0.id == ownerID && ["tmo_boiler", "tmo_pipe_whistle"].contains($0.type)
+                          }) else { return }
+                    // The SceneKit thermal and pipe adapter is reconstructed.
+                    // Native boiler >1 / whistle >=1 cutoffs are distinct.
+                    _ = windowsGoalCounter?.recordGoalEvent(
+                        objectID: ownerID, simulationRunning: true)
+                    _ = objectiveLedger?.recordGoalStateChanged(
+                        ownerID, isSimulationRunning: true)
+                },
                 onOriginalDisrupterAngle: { disrupterID, wheelAngle in
                     guard eventRevision == sceneRevision else { return }
                     guard experimentalPhysics else { return }
