@@ -20,9 +20,12 @@ struct CMOriginalQuickPlayView: View {
     init(document: CMOriginalSceneDocument, assetDirectory: URL) {
         self.assetDirectory = assetDirectory
         _document = State(initialValue: document)
-        _originalSession = State(initialValue: CMOriginalGameplaySession(document: document))
-        _powerCircuit = State(initialValue: Self.restoredCircuit(
-            for: CMOriginalGameplaySession(document: document)))
+        let session = CMOriginalGameplaySession(document: document)
+        _originalSession = State(initialValue: session)
+        _powerCircuit = State(initialValue: Self.restoredCircuit(for: session))
+        let mechanical = Self.restoredMechanicalLinks(for: session)
+        _originalRopes = State(initialValue: mechanical.ropes)
+        _originalBelts = State(initialValue: mechanical.belts)
         let support = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let directory = support.appendingPathComponent(
@@ -52,6 +55,31 @@ struct CMOriginalQuickPlayView: View {
             UserDefaults.standard.removeObject(forKey: circuit.snapshotStorageKey)
         }
         return circuit
+    }
+
+    private static func restoredMechanicalLinks(
+        for session: CMOriginalGameplaySession
+    ) -> CMOriginalMechanicalSnapshot.Links {
+        let key = CMOriginalMechanicalSnapshot.storageKey(sceneSHA256: session.sceneSHA256)
+        guard let data = UserDefaults.standard.data(forKey: key) else { return .init() }
+        let types = Dictionary(uniqueKeysWithValues: session.objects.map { ($0.id,$0.type) })
+        guard let links = CMOriginalMechanicalSnapshot.decode(
+            data, sceneSHA256: session.sceneSHA256, objectTypes: types) else {
+            UserDefaults.standard.removeObject(forKey: key)
+            return .init()
+        }
+        return links
+    }
+
+    private func saveMechanicalLinks() {
+        let key = CMOriginalMechanicalSnapshot.storageKey(sceneSHA256: originalSession.sceneSHA256)
+        if originalRopes.isEmpty && originalBelts.isEmpty {
+            UserDefaults.standard.removeObject(forKey: key)
+        } else if let data = try? CMOriginalMechanicalSnapshot.encode(
+            .init(ropes: originalRopes, belts: originalBelts),
+            sceneSHA256: originalSession.sceneSHA256) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
     }
 
     // Open an authentic scene at rest; users arrange original parts before
@@ -334,6 +362,9 @@ struct CMOriginalQuickPlayView: View {
         pendingBeltWheel = nil
         beltMessage = nil
         originalSession = CMOriginalGameplaySession(document: next)
+        let mechanical = Self.restoredMechanicalLinks(for: originalSession)
+        originalRopes = mechanical.ropes
+        originalBelts = mechanical.belts
         objectiveLedger = CMOriginalObjectiveEvidenceLedger(session: originalSession)
         powerCircuit = Self.restoredCircuit(for: originalSession)
         generatorRotorSpeedsByDeviceID.removeAll()
@@ -784,6 +815,7 @@ struct CMOriginalQuickPlayView: View {
                             return
                         }
                         if originalRopes.remove(pair) != nil {
+                            saveMechanicalLinks()
                             ropeMessage = "Rope removed"
                         } else if originalRopes.count < 64,
                                   !originalRopes.contains(where: { existing in
@@ -791,6 +823,7 @@ struct CMOriginalQuickPlayView: View {
                                       existing.first == endpoint || existing.second == endpoint
                                   }) {
                             originalRopes.insert(pair)
+                            saveMechanicalLinks()
                             ropeMessage = "Original rope attachments connected"
                         } else {
                             ropeMessage = "Attachment already occupied"
@@ -811,9 +844,11 @@ struct CMOriginalQuickPlayView: View {
                             return
                         }
                         if originalBelts.remove(pair) != nil {
+                            saveMechanicalLinks()
                             beltMessage = "Drive belt removed"
                         } else if originalBelts.count < 64 {
                             originalBelts.insert(pair)
+                            saveMechanicalLinks()
                             beltMessage = "Drive belt linked (requires separated, aligned wheels)"
                         } else {
                             beltMessage = "Drive belt limit reached"
@@ -1271,6 +1306,7 @@ struct CMOriginalQuickPlayView: View {
                         if !originalBelts.isEmpty {
                             Button("Clear drive belts") {
                                 originalBelts.removeAll()
+                                saveMechanicalLinks()
                                 pendingBeltWheel = nil
                                 beltMessage = nil
                             }.font(.caption)
@@ -1309,6 +1345,7 @@ struct CMOriginalQuickPlayView: View {
                             Button("Clear ropes") {
                                 originalRopes.removeAll()
                                 cutOriginalRopes.removeAll()
+                                saveMechanicalLinks()
                                 pendingRopeEndpoint = nil
                                 ropeMessage = nil
                             }.font(.caption)
@@ -1431,6 +1468,7 @@ struct CMOriginalQuickPlayView: View {
                     originalRopes.removeAll()
                     cutOriginalRopes.removeAll()
                     originalBelts.removeAll()
+                    saveMechanicalLinks()
                     pendingRopeEndpoint = nil
                     ropeEditing = false
                     ropeMessage = nil
