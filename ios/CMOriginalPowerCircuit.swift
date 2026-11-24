@@ -437,6 +437,106 @@ public struct CMOriginalPowerCircuit {
         return known
     }
 
+    /// Reference state for the confirmed ordered Win32 plug walker.
+    /// Sparse values mean not yet observed, not an implicit powered device.
+    public struct NativePortState {
+        public var signals: [String: Float]
+        public var visitedOwners: Set<String>
+        public init(signals: [String: Float] = [:], visitedOwners: Set<String> = []) {
+            self.signals = signals
+            self.visitedOwners = visitedOwners
+        }
+    }
+
+    public enum NativePortEvent {
+        case resetVisited
+        case source(plugID: String, value: Float)
+        case cutTransfer(Cable)
+    }
+
+    /// 0x44C8A0: visit owner before copying incoming +0x40, then walk
+    /// remaining slots depth-first, even when a gate writes zero.
+    /// 0x44D070 resets the visit markers, NOT the stored plug values.
+    /// The caller supplies observed source event order and physical gates;
+    /// native frame scheduling and runtime slot order are not yet proven
+    /// equivalent to CML order. Kept separate from the playable solver.
+    public func nativePortPass(
+        previous: NativePortState = .init(),
+        events: [NativePortEvent],
+        conductingByDeviceID: [String: Bool]
+    ) -> NativePortState? {
+        let groups = Dictionary(grouping: terminals, by: \.deviceID)
+        guard events.count <= 2048,
+              previous.signals.allSatisfy({ byPlugID[$0.key] != nil && $0.value.isFinite }),
+              previous.visitedOwners.allSatisfy({ groups[$0] != nil })
+        else { return nil }
+        var state = previous
+        var peers: [String: String] = [:]
+        for cable in cables {
+            peers[cable.firstPlugID] = cable.secondPlugID
+            peers[cable.secondPlugID] = cable.firstPlugID
+        }
+
+        func walk(_ source: String, _ target: String) -> Bool {
+            guard let incoming = byPlugID[target],
+                  let slots = groups[incoming.deviceID],
+                  let value = state.signals[source] else { return false }
+            // The recursive entry tests the OWNER before writing the plug.
+            guard state.visitedOwners.insert(incoming.deviceID).inserted else { return true }
+            let input: Float = cutPlugIDs.contains(source) ? 0 : value
+            state.signals[source] = input
+            state.signals[target] = input
+            let gated = switchDeviceIDs.contains(incoming.deviceID)
+                || disrupterDeviceIDs.contains(incoming.deviceID)
+            for port in slots {
+                // A single-slot device does process its incoming slot.
+                if slots.count > 1 && port.plugID == target { continue }
+                let output: Float
+                if gated {
+                    guard let conducting = conductingByDeviceID[incoming.deviceID] else { return false }
+                    output = conducting ? input : 0
+                } else {
+                    output = input
+                }
+                state.signals[port.plugID] = output
+                guard let peer = peers[port.plugID], peer != source,
+                      let other = byPlugID[peer],
+                      !sourceDeviceIDs.contains(other.deviceID) else { continue }
+                if !walk(port.plugID, peer) { return false }
+            }
+            return true
+        }
+
+        for event in events {
+            switch event {
+            case .resetVisited:
+                state.visitedOwners.removeAll(keepingCapacity: true)
+            case .source(let plugID, let value):
+                guard let port = byPlugID[plugID], value.isFinite, value >= 0,
+                      sourceDeviceIDs.contains(port.deviceID)
+                        || conditionalSourceDeviceIDs.contains(port.deviceID),
+                      groups[port.deviceID]?.first?.plugID == plugID else { return nil }
+                state.signals[plugID] = value
+                if let peer = peers[plugID] {
+                    state.visitedOwners.insert(port.deviceID)
+                    if !walk(plugID, peer) { return nil }
+                }
+            case .cutTransfer(let cable):
+                // 0x457312..0x45738F clears both ends, resets visit
+                // markers, then invokes propagation in both directions.
+                guard cables.contains(cable),
+                      cutPlugIDs.contains(cable.firstPlugID),
+                      cutPlugIDs.contains(cable.secondPlugID) else { return nil }
+                state.signals[cable.firstPlugID] = 0
+                state.signals[cable.secondPlugID] = 0
+                state.visitedOwners.removeAll(keepingCapacity: true)
+                if !walk(cable.firstPlugID, cable.secondPlugID) { return nil }
+                if !walk(cable.secondPlugID, cable.firstPlugID) { return nil }
+            }
+        }
+        return state
+    }
+
     /// Compatibility for purely battery-driven puzzles: a single source
     /// returns the recovered 10.0 Win32 scalar, not a made-up VALF voltage.
     public func experimentalBatterySignals(
