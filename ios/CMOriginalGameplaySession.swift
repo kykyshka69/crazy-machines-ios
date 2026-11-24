@@ -464,6 +464,21 @@ public struct CMOriginalGameplaySession {
     /// Relative ordering of existing plug records; gaps may hide native slots.
     /// Not sufficient to identify a consumer's first physical slot.
     public let recoveredNativeElectricalRelativeSlotOrder: [String: [String]]?
+    /// Original UCM physical slots in native ordinal order. A nil entry
+    /// denotes a physical marker without a saved CML plug object.
+    public let recoveredNativePhysicalElectricalSlots: [String: [String?]]?
+
+    // Counts from decoded original UCM Power marker records, independently
+    // reconciled against every saved plug ordinal in all 102 PC levels.
+    // These are counts of markers, NOT fabricated selectable plug objects.
+    public static let originalPhysicalPowerSlotCounts: [String: Int] = [
+        "tmo_power_amperemeter": 2, "tmo_power_battery": 1,
+        "tmo_power_bell": 1, "tmo_power_c4": 1,
+        "tmo_power_disrupter": 2, "tmo_power_distributor": 3,
+        "tmo_power_generator": 1, "tmo_power_lamp": 1,
+        "tmo_power_lightning": 1, "tmo_power_motor": 1,
+        "tmo_power_solarcell": 1, "tmo_power_switch": 2
+    ]
     public let recoveredNativeElectricalOwnerOrder: [String]?
     private let validObjectIDs: Set<String>
     public private(set) var phase: Phase = .ready
@@ -641,6 +656,40 @@ public struct CMOriginalGameplaySession {
         let denseOrder = validOrder && indexed.map(\.ordinal) == Array(0..<originalPowerTerminals.count)
         recoveredNativeElectricalSlotOrder = denseOrder ? slotOrder : nil
         recoveredNativeElectricalOwnerOrder = denseOrder ? ownerOrder : nil
+        // Recover the complete physical slot layout, including omitted
+        // plug records. Verify each saved ordinal against its actual
+        // top-level owner before accepting it. A layout with unsupported
+        // hierarchy or non-original counts is rejected in its entirety.
+        var physical: [String: [String?]] = [:]
+        var offset = 0
+        for index in elementObjectIDs.keys.sorted() {
+            guard let id = elementObjectIDs[index], let kind = types[id],
+                  let width = Self.originalPhysicalPowerSlotCounts[kind] else { continue }
+            physical[id] = Array(repeating: nil, count: width)
+            offset += width
+        }
+        var verifiedPhysical = validOrder && !physical.isEmpty
+        var start = 0
+        var assigned = 0
+        for index in elementObjectIDs.keys.sorted() {
+            guard let id = elementObjectIDs[index],
+                  var slots = physical[id] else { continue }
+            for item in indexed where item.owner == id {
+                let position = item.ordinal - start
+                guard slots.indices.contains(position), slots[position] == nil else {
+                    verifiedPhysical = false
+                    continue
+                }
+                slots[position] = item.plug
+                assigned += 1
+            }
+            physical[id] = slots
+            start += slots.count
+        }
+        recoveredNativePhysicalElectricalSlots =
+            verifiedPhysical && assigned == originalPowerTerminals.count && start == offset
+            ? physical : nil
+
         // The authentic CML source scalar is active even before Run.
         // Delaying initialization until start() incorrectly hides
         // initially lit candles and the level-92 pocketlamp in the editor.
