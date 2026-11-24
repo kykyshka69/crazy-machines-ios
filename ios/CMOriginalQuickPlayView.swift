@@ -709,24 +709,16 @@ struct CMOriginalQuickPlayView: View {
                     creditExperimentalElectricGoals()
                 },
                 onOriginalSwitchToggle: { switchID, isOn in
-                    guard eventRevision == sceneRevision else { return }
-                    // SceneKit dispatches observations asynchronously. A queued
-                    // event must not revive progress after Pause, Stop or Reset.
-                    // The originating SceneKit switch was already changed
-                    // while the session was RUNNING. A subsequent Pause
-                    // before main-queue delivery must not silently discard
-                    // a physically triggered valid state transition.
-                    guard experimentalPhysics else { return }
-                    // Neither tap nor observed impact establishes the
-                    // unrecovered native +0xEC/+0xC8 contact scalar; do
-                    // not award original switch GOAL from either action.
+                    guard eventRevision == sceneRevision, experimentalPhysics else { return }
+                    // Renderer-reported actual lever contact, not the tap or
+                    // collision command. Pause may follow a valid observation.
+                    // The SceneKit closed-pose adapter is provisional; it does
+                    // not fabricate native +0xEC/+0xC8 or dispatch switch GOAL.
                     if isOn {
                         flippedOriginalSwitchIDs.insert(switchID)
                     } else {
                         flippedOriginalSwitchIDs.remove(switchID)
                     }
-                    // Power can reach a lamp/lightning only through the
-                    // actual chosen plug pairs and closed original switch.
                     creditExperimentalElectricGoals()
                 },
                 onOriginalSwitchContact: { hit in
@@ -1129,13 +1121,13 @@ struct CMOriginalQuickPlayView: View {
 
             if experimentalPhysics && hasOriginalSwitch {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Original switch levers flipped: \(flippedOriginalSwitchIDs.count)")
+                    Text("Original switch contacts closed: \(flippedOriginalSwitchIDs.count)")
                         .font(.caption.weight(.medium))
                         .accessibilityIdentifier("cm.original.switch-toggles")
                     Text("Observed switch lever/striker pairs: \(observedOriginalLeverStrikers.count)")
                         .font(.caption.weight(.medium))
                         .accessibilityIdentifier("cm.original.switch-physical-contacts")
-                    Text("Tap an original switch or strike its genuine lever with a movable original object. The lever now toggles the opt-in connected electrical prototype. Native switch contact thresholds and original current remain unverified.")
+                    Text("Tap an original switch or strike its genuine lever with a movable original object. Electrical power changes when the actual lever reaches or leaves its reconstructed closed pose. Native component-state correspondence and original current remain unverified.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
