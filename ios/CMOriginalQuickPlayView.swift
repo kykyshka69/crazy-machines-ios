@@ -88,6 +88,10 @@ struct CMOriginalQuickPlayView: View {
     // Original phase interval check decides whether cables conduct.
     @State private var disrupterAnglesByDeviceID: [String: Float] = [:]
     @State private var pendingPowerPlugID: String?
+    @State private var ropeEditing = false
+    @State private var pendingRopeEndpoint: CMOriginalRope.Endpoint?
+    @State private var originalRopes = Set<CMOriginalRope.Pair>()
+    @State private var ropeMessage: String?
     @State private var powerConnectionMessage: String?
     @State private var physicsPaused = false
     @State private var sceneRevision = UUID()
@@ -294,6 +298,10 @@ struct CMOriginalQuickPlayView: View {
     private func changeLevel(by step: Int) {
         guard let next = scene(at: document.index + step) else { return }
         document = next
+        originalRopes.removeAll()
+        pendingRopeEndpoint = nil
+        ropeEditing = false
+        ropeMessage = nil
         originalSession = CMOriginalGameplaySession(document: next)
         objectiveLedger = CMOriginalObjectiveEvidenceLedger(session: originalSession)
         powerCircuit = Self.restoredCircuit(for: originalSession)
@@ -335,6 +343,8 @@ struct CMOriginalQuickPlayView: View {
     /// Same restart action for the normal iPhone control and the genuine
     /// Windows VSC Replay button. No game assets or game-state shortcuts.
     private func restartCurrentPuzzle() {
+        pendingRopeEndpoint = nil
+        ropeMessage = nil
         powerCircuit?.clearRuntimeCuts()
         // Keep deliberate paired wires but discard an unfinished first click.
         // A stale selection must not connect to a future scene or replay.
@@ -425,6 +435,8 @@ struct CMOriginalQuickPlayView: View {
                 originalPlayerPowerCables: powerCircuit.map {
                     Array($0.activeCables)
                 } ?? [],
+                originalPlayerRopes: originalRopes,
+                originalRopeEditing: ropeEditing,
                 originalPlayerCablePowerSignals: experimentalCablePowerSignals,
                 configuredPhysicsRoles: experimentalPhysicsRoles,
                 onOriginalZoneContact: { type in
@@ -615,6 +627,33 @@ struct CMOriginalQuickPlayView: View {
                     } else {
                         pendingPowerPlugID = plugID
                         powerConnectionMessage = "Choose the second original power plug"
+                    }
+                },
+                onOriginalRopeTap: { endpoint in
+                    guard eventRevision == sceneRevision, !experimentalPhysics, ropeEditing,
+                          let object = originalSession.objects.first(where: { $0.id == endpoint.objectID }),
+                          CMOriginalRope.accepts(type: object.type, marker: endpoint.marker) else { return }
+                    if let first = pendingRopeEndpoint {
+                        pendingRopeEndpoint = nil
+                        guard let pair = CMOriginalRope.Pair(first, endpoint) else {
+                            ropeMessage = "Choose attachments on different objects"
+                            return
+                        }
+                        if originalRopes.remove(pair) != nil {
+                            ropeMessage = "Rope removed"
+                        } else if originalRopes.count < 64,
+                                  !originalRopes.contains(where: { existing in
+                                      existing.first == first || existing.second == first ||
+                                      existing.first == endpoint || existing.second == endpoint
+                                  }) {
+                            originalRopes.insert(pair)
+                            ropeMessage = "Original rope attachments connected"
+                        } else {
+                            ropeMessage = "Attachment already occupied"
+                        }
+                    } else {
+                        pendingRopeEndpoint = endpoint
+                        ropeMessage = "Tap the second rope attachment"
                     }
                 },
                 onOriginalCableCut: { pair in
@@ -944,6 +983,9 @@ struct CMOriginalQuickPlayView: View {
                 Toggle("Run experimental physics", isOn: $experimentalPhysics)
                     .font(.caption)
                     .onChange(of: experimentalPhysics) { _, newValue in
+                        pendingRopeEndpoint = nil
+                        ropeEditing = false
+                        ropeMessage = nil
                         powerCircuit?.clearRuntimeCuts()
                         pendingPowerPlugID = nil
                         powerConnectionMessage = nil
@@ -1051,6 +1093,38 @@ struct CMOriginalQuickPlayView: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 14)
+            }
+
+            if originalSession.objects.filter({ object in
+                ["Rope", "Rope01", "Rope02"].contains { CMOriginalRope.accepts(type: object.type, marker: $0) }
+            }).count > 1 {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Original rope links: \(originalRopes.count)")
+                        .font(.caption.weight(.semibold))
+                    if !experimentalPhysics {
+                        Toggle("Connect original ropes", isOn: $ropeEditing)
+                            .font(.caption)
+                            .onChange(of: ropeEditing) { _, _ in
+                                pendingRopeEndpoint = nil
+                                pendingPowerPlugID = nil
+                                ropeMessage = nil
+                            }
+                        if ropeEditing {
+                            Text("Tap two original rope-bearing parts. On a seesaw tap the desired end. Tap the same pair again to remove it.")
+                                .font(.caption2).foregroundStyle(.secondary)
+                        }
+                        if !originalRopes.isEmpty {
+                            Button("Clear ropes") {
+                                originalRopes.removeAll()
+                                pendingRopeEndpoint = nil
+                                ropeMessage = nil
+                            }.font(.caption)
+                        }
+                        if let ropeMessage { Text(ropeMessage).font(.caption2) }
+                    }
+                    Text("Ropes pull at authentic UCM attachments when stretched. SceneKit tension and straight visual segments are experimental.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }.padding(.horizontal, 14).padding(.vertical, 6)
             }
 
             if let circuit = powerCircuit, circuit.terminals.count > 1 {
@@ -1161,6 +1235,10 @@ struct CMOriginalQuickPlayView: View {
                     UserDefaults.standard.removeObject(
                         forKey: "cm.original.rotations.\(document.sceneSHA256)"
                     )
+                    originalRopes.removeAll()
+                    pendingRopeEndpoint = nil
+                    ropeEditing = false
+                    ropeMessage = nil
                     experimentalPhysics = false
                     experimentalMotorDrive = false
                     experimentalMagnetism = false
