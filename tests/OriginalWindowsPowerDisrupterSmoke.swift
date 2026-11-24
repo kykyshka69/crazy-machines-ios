@@ -21,6 +21,22 @@ struct OriginalWindowsPowerDisrupterSmoke {
         precondition(!gate(.infinity))
         precondition(!gate(-.infinity))
 
+        typealias Observation = CMOriginalWindowsPowerDisrupter.Observation
+        var previous: Observation?
+        var transitions: [Observation] = []
+        // Rapid closed/open transitions and the unavailable-to-measured
+        // blocked transition must all survive renderer change suppression.
+        for angle: Float in [.nan, .nan, h, h * 1.1, 0, h, 0, .nan, h] {
+            let sample = CMOriginalWindowsPowerDisrupter.observation(rotorAngle: angle)
+            if sample != previous {
+                transitions.append(sample)
+                previous = sample
+            }
+        }
+        precondition(transitions == [.unavailable, .blocked, .conducting,
+            .blocked, .conducting, .unavailable, .blocked])
+        precondition(CMOriginalWindowsPowerDisrupter.observation(rotorAngle: .infinity) == .unavailable)
+
         // Use the same tmo_* hierarchy roles as the original Windows scene:
         // a battery, two disrupter terminals, and a lamp (not scene replicas).
         func item(_ name: String, _ terminals: [Int]) -> [String: Any] {
