@@ -870,3 +870,38 @@ extension CMOriginalFuzePath {
         return pieces
     }
 }
+
+
+/// Scene-local normalized animation state for an authored game path.
+/// The supplied step is an animation input, not a physical constant.
+public struct CMOriginalFuzeVisualSignal {
+    public private(set) var visited: ClosedRange<Float>?
+    public init() {}
+
+    public mutating func mark(_ fraction: Float) {
+        guard fraction.isFinite, (0...1).contains(fraction) else { return }
+        if let old = visited {
+            visited = min(old.lowerBound, fraction)...max(old.upperBound, fraction)
+        } else {
+            visited = fraction...fraction
+        }
+    }
+
+    public mutating func advance(by step: Float) {
+        guard let old = visited, step.isFinite, step > 0, step <= 1 else { return }
+        visited = max(0, old.lowerBound-step)...min(1, old.upperBound+step)
+    }
+
+    public func fragment(_ piece: ClosedRange<Float>) -> Self {
+        var result = Self()
+        guard let old = visited, piece.lowerBound >= 0, piece.upperBound <= 1,
+              piece.upperBound > piece.lowerBound else { return result }
+        let lo = max(old.lowerBound, piece.lowerBound)
+        let hi = min(old.upperBound, piece.upperBound)
+        guard lo <= hi else { return result }
+        let length = piece.upperBound-piece.lowerBound
+        result.mark(max(0,min(1,(lo-piece.lowerBound)/length)))
+        result.mark(max(0,min(1,(hi-piece.lowerBound)/length)))
+        return result
+    }
+}
