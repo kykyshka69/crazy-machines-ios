@@ -73,6 +73,8 @@ private final class CMOriginalPhysicsOwnerNode: SCNNode {
     // Decoded directly from the PC level's tmo_ object field UNLOCKED 1.
     // Only these pieces may be repositioned while solving the puzzle.
     var isUnlockedInOriginalLevel = false
+    var originalMassProperties: CMOriginalBodyMaterial.MassProperties?
+    var originalBodyMaterial: CMOriginalBodyMaterial.Material?
 
     override init() {
         super.init()
@@ -504,7 +506,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             originalRotations: &originalRotations
         )
         if experimentalPhysics {
-            scene.physicsWorld.gravity = SCNVector3(0, -9.8, 0)
+            scene.physicsWorld.gravity = SCNVector3(0, Float(CMOriginalBodyMaterial.gravityY), 0)
         }
         view.scene = scene
         context.coordinator.syncOriginalRopes(originalPlayerRopes, in: scene)
@@ -2990,11 +2992,11 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     body.type = .kinematic
                 }
                 if self.buoyantObjectIDs.contains(id) {
-                    // The PC's balloons cannot share the standard
-                    // downward-gravity behavior of crates and balls.
-                    // Approximate upward buoyancy below; do not claim
-                    // the acceleration matches the Windows solver.
-                    body.isAffectedByGravity = false
+                    // Native balloon lift acts against ordinary gravity.
+                    // Retain the old gravity-free fallback only for bodies
+                    // whose imported physical mass is unavailable.
+                    body.isAffectedByGravity =
+                        (node as? CMOriginalPhysicsOwnerNode)?.originalMassProperties != nil
                 }
                 if self.axleObjectIDs.contains(id) {
                     // These authentic original mechanisms are pinned to
@@ -3595,18 +3597,48 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 let observedDrives = drives
                 DispatchQueue.main.async { frame(observedDrives, boilers) }
             }
-            // Render-timestep-aware buoyancy for authentic tmo_balloon
-            // parts: the original puzzles treat them as rising objects,
-            // not heavy falling crates. Use a conservative acceleration
-            // and speed cap until Windows physical constants are decoded.
-            // Never move VALB-fixed balloons or bodies in a paused scene.
+            // Apply native linear/angular drag with the same unit adapter
+            // as mass and inertia. Only complete original body metadata
+            // participates; no fixture or paused/kinematic body is modified.
+            for nodes in physicsNodesByObjectID.values {
+                for node in nodes {
+                    guard let owner = node as? CMOriginalPhysicsOwnerNode,
+                          let properties = owner.originalMassProperties,
+                          let material = owner.originalBodyMaterial,
+                          let body = owner.physicsBody, body.type == .dynamic else { continue }
+                    if material.linearDrag > 0,
+                       let retention = CMOriginalBodyMaterial.dragRetention(
+                        coefficient: material.linearDrag,
+                        nativeMassOrInertia: properties.nativeMass, delta: delta) {
+                        let v = body.velocity
+                        body.velocity = SCNVector3(v.x*Float(retention),v.y*Float(retention),v.z)
+                    }
+                    if material.angularDrag > 0,
+                       let retention = CMOriginalBodyMaterial.dragRetention(
+                        coefficient: material.angularDrag,
+                        nativeMassOrInertia: properties.nativeInertia.z, delta: delta) {
+                        let w = body.angularVelocity
+                        body.angularVelocity = SCNVector4(w.x,w.y,w.z,w.w*Float(retention))
+                    }
+                }
+            }
+            // Original 0x45170A lifts the balloon using native force 1.6.
+            // Use COM until the offset-point mapping is independently proven.
+            // Legacy assets keep their previous bounded buoyancy adapter.
             for id in buoyantObjectIDs {
                 for node in physicsNodesByObjectID[id] ?? [] {
                     guard let body = node.physicsBody,
                           body.type == .dynamic else { continue }
-                    let velocity = body.velocity
-                    let upSpeed = min(2.0, velocity.y + Float(delta) * 1.25)
-                    body.velocity = SCNVector3(velocity.x, upSpeed, velocity.z)
+                    if (node as? CMOriginalPhysicsOwnerNode)?.originalMassProperties != nil {
+                        body.isAffectedByGravity = true
+                        body.applyForce(SCNVector3(0, Float(
+                            CMOriginalBodyMaterial.balloonNativeLift * CMOriginalBodyMaterial.massUnit), 0),
+                            asImpulse: false)
+                    } else {
+                        let velocity = body.velocity
+                        let upSpeed = min(2.0, velocity.y + Float(delta) * 1.25)
+                        body.velocity = SCNVector3(velocity.x, upSpeed, velocity.z)
+                    }
                 }
             }
             // Couple real internal rollers mechanically even without belt texture.
@@ -4251,7 +4283,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                     guard body.type == .dynamic else { continue }
                     body.isAffectedByGravity = false
-                    body.applyForce(force, asImpulse: false)
+                    let scale = (owner as? CMOriginalPhysicsOwnerNode)?.originalMassProperties != nil
+                        ? Float(body.mass) : 1
+                    body.applyForce(SCNVector3(force.x*scale,force.y*scale,force.z*scale), asImpulse: false)
                 }
             }
         }
@@ -4297,8 +4331,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 ) else { continue }
                 // Native physics at 0x486400 accumulates force each
                 // update, never an instantaneous 3.0 or 4.0 impulse.
+                let scale = (owner as? CMOriginalPhysicsOwnerNode)?.originalMassProperties != nil
+                    ? Float(CMOriginalBodyMaterial.massUnit) : 1
                 body.applyForce(
-                    SCNVector3(native.force.x, native.force.y, native.force.z),
+                    SCNVector3(native.force.x*scale, native.force.y*scale, native.force.z*scale),
                     asImpulse: false
                 )
                 lastNativeRocketEngineSequenceByChildID[
@@ -6316,8 +6352,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                         body.mass = CGFloat(properties.sceneKitMass)
                         body.friction = CGFloat(material.friction)
                         body.restitution = CGFloat(material.bounce)
-                        body.centerOfMassOffset = SCNVector3(
-                            Float(properties.center.x), Float(properties.center.y), Float(properties.center.z))
+                        body.centerOfMassOffset = SCNVector3Zero
+                        body.damping = 0
+                        body.angularDamping = 0
+                        let i = properties.sceneKitInertia
+                        body.usesDefaultMomentOfInertia = false
+                        body.momentOfInertia = SCNVector3(Float(i.x),Float(i.y),Float(i.z))
+                        if let owner = root as? CMOriginalPhysicsOwnerNode {
+                            owner.originalMassProperties = properties
+                            owner.originalBodyMaterial = material
+                        }
                     }
                 }
                 body.continuousCollisionDetectionThreshold = 0.001
