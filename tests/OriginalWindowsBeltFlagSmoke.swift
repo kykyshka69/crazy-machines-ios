@@ -102,6 +102,28 @@ struct OriginalWindowsBeltFlagSmoke {
         precondition(forward.nativeAxis.x == 1 && reverse.nativeAxis.x == -1)
         precondition(abs(sqrt(forward.maxRadiusSquared) - sqrt(forward.minRadiusSquared) - 1) < 0.00001)
         precondition(F.windmillRegion(axis: .init(1, 0), wheelSignal: 0) == nil)
+        for hz in [30,60,120] {
+            for sign: Float in [-1,1] {
+                var bellows = CMOriginalBellows()
+                precondition(!bellows.strike(normalY: 0.9, leverAngle: sign * 0.37))
+                precondition(!bellows.strike(normalY: .nan, leverAngle: 0))
+                precondition(bellows.strike(normalY: 1, leverAngle: sign * 0.37))
+                precondition(!bellows.strike(normalY: 1, leverAngle: 0))
+                for _ in 0..<hz {
+                    let old = bellows.power
+                    precondition(bellows.advance(delta: 1/Double(hz)))
+                    precondition(bellows.power <= old && bellows.power >= 0)
+                    precondition(abs(bellows.leverAngle - sign * 0.37 * bellows.power / 5) < 0.00001)
+                    if bellows.power > 0 {
+                        let region = bellows.region(axis: .init(sign,0))!
+                        precondition(abs(sqrt(region.maxRadiusSquared) -
+                            sqrt(region.minRadiusSquared) - old*0.5) < 0.00001)
+                    }
+                }
+                precondition(bellows.phase == .spent && bellows.power == 0 && bellows.leverAngle == 0)
+                precondition(!bellows.strike(normalY: 1, leverAngle: 0))
+            }
+        }
         print("Original flag: measured wind region, complete source inventory, native GOAL bounds OK")
     }
 }
