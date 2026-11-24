@@ -101,6 +101,24 @@ public struct CMOriginalGameplaySession {
         return next
     }
 
+    /// Native heat/wind receivers change candle +0xEC independently of the
+    /// player click permission (VALB & 0x10). Return true only for an actual
+    /// state transition during the running simulation.
+    @discardableResult
+    public mutating func setOriginalCandleFromEnvironment(_ id: String, lit: Bool) -> Bool {
+        guard phase == .running,
+              objects.contains(where: {
+                  $0.id == id && ($0.type == "tmo_candle" || $0.type == "tmo_candle_dyn")
+              }),
+              (originalHeatSourceStates[id] ?? false) != lit else { return false }
+        if lit {
+            originalHeatSourceStates[id] = true
+        } else {
+            originalHeatSourceStates.removeValue(forKey: id)
+        }
+        return true
+    }
+
     /// Authentic Win32 0x434A9A..0x434AE6: pocketlamp +0xEC 0<->1.
     /// Its native +0xF0 GOAL comparison is not inferred from the tap.
     @discardableResult
