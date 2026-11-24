@@ -138,6 +138,51 @@ struct OriginalWindowsMechanicalTransferSmoke {
         }
         let last = Hammer.strike(nailY: nail, observedGap: Hammer.strikeGap)!
         precondition(last.terminal && last.nailY == Hammer.nailLimit)
+        // Real UCM Nail marker coordinates and common original CML
+        // hammer assembly POSREL, from levels 9, 19 and 101. This
+        // exercises the bridge geometry without claiming SceneKit parity.
+        precondition(abs(Hammer.correctedAngle(angle: 0, direction: 1,
+            gap: 0.5, scale: 1)! - Float.pi / 6) < 0.00001)
+        precondition(abs(Hammer.correctedAngle(angle: 0, direction: -1,
+            gap: 0.5, scale: 1)! + Float.pi / 6) < 0.00001)
+        precondition(Hammer.correctedAngle(angle: 0, direction: 1,
+            gap: 1.01, scale: 1) == nil)
+        precondition(Hammer.correctedAngle(angle: 0, direction: 1,
+            gap: 0, scale: 0) == nil)
+        let armX: Float = 0.607897937297821
+        let armY: Float = -0.11681382358074188
+        let armRadius = hypot(armX, armY)
+        for step in [1.0/120, 1.0/60, 1.0/30] {
+            for speed in [Float(0.5), 1, 2, 5, 10, 20, 40, 80, -0.5, -2, -10, -80] {
+                var angle: Float = 0.1, nailY: Float = -0.01017
+                var releasing = false, finished = false, hits = 0
+                for _ in 0..<200_000 {
+                    if finished { break }
+                    if !releasing {
+                        let lift = Hammer.lift(angle: angle, wheelSignal: speed,
+                            direction: 1, step: step)!
+                        angle = lift.angle
+                        releasing = lift.releases
+                    } else {
+                        angle = max(-Hammer.liftLimit, Hammer.release(
+                            angle: angle, direction: 1, step: step)!)
+                        let tip = 0.22990 + armX*sin(angle) + armY*cos(angle)
+                        let head = nailY + 0.18134614825248718
+                        let gap = head - tip
+                        if let hit = Hammer.strike(nailY: nailY, observedGap: gap),
+                           let corrected = Hammer.correctedAngle(angle: angle,
+                            direction: 1, gap: gap, scale: armRadius) {
+                            angle = corrected
+                            nailY = hit.nailY
+                            finished = hit.terminal
+                            releasing = false
+                            hits += 1
+                        }
+                    }
+                }
+                precondition(finished && hits == 7 && nailY == Hammer.nailLimit)
+            }
+        }
         for i in 0..<1000 {
             let input = Float(i - 500) * 0.005
             let next = M.transmittedSignal(sourceSignal: input,
