@@ -128,6 +128,7 @@ struct CMOriginalQuickPlayView: View {
     @State private var powerConnectionMessage: String?
     @State private var physicsPaused = false
     @State private var sceneRevision = UUID()
+    @State private var orderedBatteryFrame: CMOriginalPowerCircuit.BatteryFrame?
     @State private var cameraResetRevision = 0
     @State private var undoPlacementRevision = 0
     @State private var canUndoPlacement = false
@@ -222,11 +223,29 @@ struct CMOriginalQuickPlayView: View {
     private var liveElectricalObservation: CMOriginalPowerCircuit.NetworkObservation? {
         guard experimentalPhysics && experimentalWiredPower,
               let network = powerCircuit else { return nil }
+        if network.supportsOrderedBatteryFrames {
+            guard let frame = orderedBatteryFrame else {
+                return CMOriginalPowerCircuit.NetworkObservation(deviceSignals: [:], cableSignals: [:])
+            }
+            return network.orderedBatteryObservation(frame, closedSwitchIDs: flippedOriginalSwitchIDs)
+        }
         return network.componentwiseElectricalObservation(
             closedSwitchIDs: flippedOriginalSwitchIDs,
             generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID,
             solarRayContributionsByDeviceID: originalSolarRays,
             disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
+    }
+
+    private func advanceOrderedElectricalFrame() {
+        guard experimentalPhysics && experimentalWiredPower, !physicsPaused,
+              let network = powerCircuit, network.supportsOrderedBatteryFrames,
+              let next = network.advanceOrderedBatteryFrame(
+                previous: orderedBatteryFrame, closedSwitchIDs: flippedOriginalSwitchIDs)
+        else { return }
+        if orderedBatteryFrame != next {
+            orderedBatteryFrame = next
+            creditExperimentalElectricGoals(capturedWhileRunning: true)
+        }
     }
 
     private var experimentalPowerSignals: [String: Float] {
@@ -395,6 +414,7 @@ struct CMOriginalQuickPlayView: View {
                         objectiveLedger?.reset()
                         windowsGoalCounter?.reset()
         canUndoPlacement = false
+        orderedBatteryFrame = nil
         sceneRevision = UUID()
     }
 
@@ -437,6 +457,7 @@ struct CMOriginalQuickPlayView: View {
         objectiveLedger?.reset()
         windowsGoalCounter?.reset()
         canUndoPlacement = false
+        orderedBatteryFrame = nil
         sceneRevision = UUID()
         // Re-evaluate real connected battery sources even if no rotor,
         // switch or optical callback will arrive during this new run.
@@ -966,7 +987,11 @@ struct CMOriginalQuickPlayView: View {
                         objectID: parentID, simulationRunning: true)
                     _ = objectiveLedger?.recordGoalStateChanged(
                         parentID, isSimulationRunning: true)
-                }
+                },
+                onOriginalElectricalFrame: powerCircuit?.supportsOrderedBatteryFrames == true && experimentalWiredPower ? {
+                    guard eventRevision == sceneRevision else { return }
+                    advanceOrderedElectricalFrame()
+                } : nil
             )
             .id(sceneRevision)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1401,6 +1426,7 @@ struct CMOriginalQuickPlayView: View {
                                    isOn: $experimentalWiredPower)
                                 .font(.caption)
                                 .onChange(of: experimentalWiredPower) { _, enabled in
+                                    orderedBatteryFrame = nil
                                     if enabled { creditExperimentalElectricGoals() }
                                 }
                                 .accessibilityIdentifier("cm.original.wired-motor-drive")
@@ -1519,6 +1545,7 @@ struct CMOriginalQuickPlayView: View {
                         objectiveLedger?.reset()
                         windowsGoalCounter?.reset()
                     canUndoPlacement = false
+                    orderedBatteryFrame = nil
                     sceneRevision = UUID()
                 }
                 .font(.caption.weight(.semibold))
