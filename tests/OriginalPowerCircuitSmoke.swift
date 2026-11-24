@@ -609,6 +609,29 @@ struct OriginalPowerCircuitSmoke {
         precondition(mixed.settledIndependentSourceObservation(
             generatorRotorCommandsByDeviceID: [mixedGenerator: 10],
             solarRayContributionsByDeviceID: [mixedPanel: [0.99]]) == nil)
+        // Every allowed source order and connected-slot permutation is
+        // checked before an order-dependent positive signal is credited.
+        let unequalConsensus = dynamic.settledOrderConsensusObservation(
+            generatorRotorCommandsByDeviceID: [genOwner: 3],
+            solarRayContributionsByDeviceID: [solarOwner: [0.4]])!
+        precondition(unequalConsensus.deviceSignals[motorLoad] == nil)
+        precondition(unequalConsensus.deviceSignals[lampLoad] == nil)
+        precondition(unequalConsensus.deviceSignals[genOwner] == 3)
+        precondition(unequalConsensus.deviceSignals[sparkLoad] == 4)
+        precondition(unequalConsensus.cableSignals.count == 1)
+        precondition(dynamic.settledOrderConsensusObservation(
+            generatorRotorCommandsByDeviceID: [genOwner: 3]) == nil)
+        let loopConsensus = loop.settledOrderConsensusObservation()!
+        precondition(loopConsensus.deviceSignals[loopPort(51).deviceID] == 10)
+        precondition(loopConsensus.deviceSignals[loopLamp] == nil)
+        precondition(loopConsensus.cableSignals[
+            .init(loopPort(51).plugID, loopPort(52).plugID)] == 10)
+        let closedConsensus = loop.settledOrderConsensusObservation(closedSwitchIDs: [loopSwitch])!
+        precondition(closedConsensus.deviceSignals[loopLamp] == 10)
+        precondition(closedConsensus.cableSignals.count == 4)
+        precondition(loop.applyObservedCableCut(loopCut))
+        precondition(loop.settledOrderConsensusObservation()!.deviceSignals[loopLamp] == 10)
+        loop.clearRuntimeCuts()
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
