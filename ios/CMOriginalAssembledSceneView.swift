@@ -340,7 +340,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     private func loadedSceneOriginalMeshCount(_ scene: SCNScene) -> Int {
         var count = 0
         scene.rootNode.enumerateChildNodes { node, _ in
-            if node is CMOriginalObjectMeshNode, node.geometry != nil { count += 1 }
+            if node is CMOriginalObjectMeshNode, node.geometry != nil,
+               node.name?.hasPrefix("original-authored-fuze-") != true { count += 1 }
         }
         return count
     }
