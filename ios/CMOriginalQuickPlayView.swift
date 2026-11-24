@@ -206,27 +206,15 @@ struct CMOriginalQuickPlayView: View {
         return contains(document.root)
     }
 
-    /// Authored original plug-to-plug pairs plus Win32's actual battery
-    /// source value (10.0). This graph remains an OPT-IN topology prototype:
-    /// voltage loss and the original electrical solver are not recovered.
-    // Evaluate lamp emission from independent wired sources only for now.
-    // Solar-powered lamps would require a native coupled optical/electrical
-    // solver; a feedback loop must not manufacture its own source energy.
+    // Verify independent lamp energy with every solar source dark and
+    // the same componentwise native-derived solver as the full network.
     private var independentOpticalLampPower: [String: Float] {
         guard experimentalPhysics && experimentalWiredPower,
               let network = powerCircuit else { return [:] }
-        let signals = network.settledIndependentSourceObservation(
+        return network.independentOpticalLampSignals(
             closedSwitchIDs: flippedOriginalSwitchIDs,
             generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID,
-            disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)?.deviceSignals
-            ?? network.experimentalNetworkSignals(
-                closedSwitchIDs: flippedOriginalSwitchIDs,
-                generatorRotorCommandsByDeviceID: generatorRotorSpeedsByDeviceID,
-                disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
-        return Dictionary(uniqueKeysWithValues: originalSession.objects.compactMap { object -> (String, Float)? in
-            guard object.type == "tmo_power_lamp", let power = signals[object.id] else { return nil }
-            return (object.id, power)
-        })
+            disrupterRotorAnglesByDeviceID: disrupterAnglesByDeviceID)
     }
 
     // Each active component uses its own native-derived solver and budget.
