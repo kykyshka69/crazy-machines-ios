@@ -240,6 +240,49 @@ struct OriginalPowerCircuitSmoke {
         precondition(independent.values.allSatisfy { $0 == 10 })
         precondition(dual.experimentalCablePowerSignals(
             powerByDeviceID: independent).isEmpty)
+        precondition(dual.experimentalNetworkObservation().cableSignals.isEmpty)
+        // Equal values on two different open switch owners do not prove
+        // that their unused outgoing ports have transmitted power.
+        var splitRaw = raw
+        splitRaw["root"] = ["name": "level", "fields": [], "children": [
+            ["name": "level_elements", "fields": [], "children": [
+                device("tmo_power_battery", [21]),
+                device("tmo_power_switch", [22, 23]),
+                device("tmo_power_switch", [24, 25]),
+                device("tmo_power_battery", [26])
+            ]]
+        ]]
+        let splitDoc = try CMOriginalSceneDocument.read(
+            JSONSerialization.data(withJSONObject: splitRaw))
+        var split = CMOriginalPowerCircuit(session:
+            CMOriginalGameplaySession(document: splitDoc))!
+        func splitPlug(_ n: Int) -> String {
+            split.terminals.first { $0.number == n }!.plugID
+        }
+        for (a, b) in [(21,22),(23,24),(25,26)] {
+            precondition(split.toggleCable(between: splitPlug(a), and: splitPlug(b)) == .connected)
+        }
+        let middle = CMOriginalPowerCircuit.Cable(splitPlug(23), splitPlug(24))
+        let left = CMOriginalPowerCircuit.Cable(splitPlug(21), splitPlug(22))
+        let right = CMOriginalPowerCircuit.Cable(splitPlug(25), splitPlug(26))
+        let splitOpen = split.experimentalNetworkObservation()
+        precondition(splitOpen.deviceSignals.count == 4)
+        precondition(splitOpen.cableSignals == [left: 10, right: 10])
+        precondition(splitOpen.cableSignals[middle] == nil)
+        let switchIDs = Set(split.terminals.filter { $0.deviceType == "tmo_power_switch" }.map(\.deviceID))
+        let splitClosed = split.experimentalNetworkObservation(closedSwitchIDs: switchIDs)
+        precondition(splitClosed.deviceSignals.count == 2)
+        precondition(splitClosed.cableSignals.isEmpty)
+        precondition(split.applyObservedCableCut(left))
+        precondition(split.experimentalNetworkObservation().cableSignals == [right: 10])
+        split.clearRuntimeCuts()
+        precondition(split.experimentalNetworkObservation().cableSignals == [left: 10, right: 10])
+        let blockedID = split.terminals.first { $0.number == 22 }!.deviceID
+        let blocked = split.experimentalNetworkObservation(switchContactsByDeviceID: [
+            blockedID: .init(selectedContact: 1, matingContact: -1)])
+        precondition(blocked.deviceSignals[blockedID] == nil)
+        precondition(blocked.cableSignals[left] == 10)
+        precondition(blocked.cableSignals[middle] == nil)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
