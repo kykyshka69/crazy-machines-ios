@@ -178,6 +178,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalPlayerSourceGoal: ((String) -> Void)? = nil
     // Native hammer terminal depth callback, reconstructed SceneKit cycle.
     var onOriginalHammerGoal: ((String) -> Void)? = nil
+    var onOriginalSteamGoal: ((String) -> Void)? = nil
     // Reports a user-operated original PC power switch. This changes its
     // actual lever mesh, NOT the unrecovered electrical connectivity.
     var onOriginalDisrupterAngle: ((String, Float) -> Void)? = nil
@@ -444,6 +445,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalCageCapture = onOriginalCageCapture
         context.coordinator.onOriginalPlayerSourceGoal = onOriginalPlayerSourceGoal
         context.coordinator.onOriginalHammerGoal = onOriginalHammerGoal
+        context.coordinator.onOriginalSteamGoal = onOriginalSteamGoal
         context.coordinator.fourthLevelRun = CMOriginalFourthLevelRun(document: document)
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
@@ -566,6 +568,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalCageCapture = onOriginalCageCapture
         context.coordinator.onOriginalPlayerSourceGoal = onOriginalPlayerSourceGoal
         context.coordinator.onOriginalHammerGoal = onOriginalHammerGoal
+        context.coordinator.onOriginalSteamGoal = onOriginalSteamGoal
         context.coordinator.onOriginalSwitchToggle = onOriginalSwitchToggle
         context.coordinator.onOriginalSwitchContact = onOriginalSwitchContact
         context.coordinator.onOriginalOpticalSightlines = onOriginalOpticalSightlines
@@ -732,6 +735,13 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalCageCapture: ((String, String) -> Void)?
         var onOriginalPlayerSourceGoal: ((String) -> Void)?
         var onOriginalHammerGoal: ((String) -> Void)?
+        var onOriginalSteamGoal: ((String) -> Void)?
+        private var steamPortNodes: [(owner: String, node: SCNNode)] = []
+        private var boilerHeatSignals: [String: Float] = [:]
+        private var steamOutgoingSignals: [Int: Float] = [:]
+        private var steamReceiverOwners: [String: String] = [:]
+        private var steamWheelByBody: [String: SCNNode] = [:]
+        private var reportedSteamGoals = Set<String>()
         // Win32 0x44D874..0x44D9A2 checks actual GOAL-marked
         // tmo_bucket objects against tmo_ball_ objects, not only puzzle 4.
         // Retain authentic UCM mesh identities for geometry containment.
@@ -1454,6 +1464,99 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
 
+        private func registerOriginalSteamNetwork(objects: [CMOriginalGameplaySession.Object]) {
+            steamPortNodes.removeAll()
+            boilerHeatSignals.removeAll()
+            steamOutgoingSignals.removeAll()
+            steamReceiverOwners.removeAll()
+            steamWheelByBody.removeAll()
+            reportedSteamGoals.removeAll()
+            for object in objects {
+                guard let count = CMOriginalSteamNetwork.portCount(type: object.type) else { continue }
+                let ports = (originalNamedAnchorNodesByObjectID[object.id] ?? []).filter {
+                    CMOriginalRocketAnchorTelemetry.originalName(inSceneNodeName: $0.name ?? "") == "Pipe"
+                }
+                guard ports.count == count else { continue }
+                steamPortNodes.append(contentsOf: ports.map { (owner: object.id, node: $0) })
+                if object.type == "tmo_boiler" { boilerHeatSignals[object.id] = 0 }
+                if object.type == "tmo_steam_body",
+                   let parent = object.parentID, originalTypesByID[parent] == "tmo_steam_machine" {
+                    let wheels = objects.filter { $0.parentID == parent && $0.type == "tmo_steam_wheel" }
+                    guard wheels.count == 1, let nodes = physicsNodesByObjectID[wheels[0].id],
+                          nodes.count == 1 else { continue }
+                    steamReceiverOwners[object.id] = parent
+                    steamWheelByBody[object.id] = nodes[0]
+                }
+            }
+        }
+
+        private func advanceOriginalSteamNetwork(delta: Double) {
+            guard !boilerHeatSignals.isEmpty else { return }
+            let lit = CMOriginalRocketSceneHeatSources.litCandleIDs(
+                sourceStates: session?.originalHeatSourceStates ?? [:],
+                originalTypesByID: originalTypesByID)
+            // Use the recovered candle cone on actual moving Heat markers.
+            // This remains a projected SceneKit reconstruction, not a
+            // measured Win32 selector-3 region or full thermal solver.
+            let sources = lit.compactMap { exactOriginalAnchor("Heat", on: $0)?
+                .presentation.simdWorldTransform }
+            var output: [String: Float] = [:]
+            for id in Array(boilerHeatSignals.keys) {
+                let previous = boilerHeatSignals[id] ?? 0
+                guard var heat = CMOriginalSteamNetwork.decayedBoilerHeat(previous, delta: delta)
+                else { continue }
+                if let target = exactOriginalAnchor("Heat", on: id)?.presentation.simdWorldPosition {
+                    for source in sources {
+                        let o = source.columns.3, axis = source.columns.2
+                        guard let fraction = CMOriginalWindowsRocketNativeHeat.projectedUCMHeatFraction(
+                            observedSourceWorldYAxis: .init(axis.x, axis.y, axis.z),
+                            observedSourceToTargetWorldXY: .init(target.x-o.x, target.y-o.y, 0)),
+                            fraction > 0,
+                            let signal = CMOriginalSteamNetwork.heatedBoilerSignal(fraction: fraction)
+                        else { continue }
+                        heat = max(heat, signal)
+                    }
+                }
+                boilerHeatSignals[id] = heat
+                // Native boiler copies previous heat before decay.
+                output[id] = previous
+                if heat > CMOriginalWindowsSteamWhistle.cutoff,
+                   reportedSteamGoals.insert(id).inserted {
+                    let deliver = onOriginalSteamGoal
+                    DispatchQueue.main.async { deliver?(id) }
+                }
+            }
+            let ports = steamPortNodes.map { entry -> CMOriginalSteamNetwork.Port in
+                let m = entry.node.presentation.simdWorldTransform
+                return .init(owner: entry.owner, position: .init(m.columns.3.x, m.columns.3.y, m.columns.3.z),
+                             normal: .init(m.columns.2.x, m.columns.2.y, m.columns.2.z))
+            }
+            let state = CMOriginalSteamNetwork.advance(ports: ports, types: originalTypesByID,
+                boilerSignals: output, previous: steamOutgoingSignals, delta: delta)
+            steamOutgoingSignals = state.outgoing
+            for (id, signal) in state.receiverSignals where originalTypesByID[id] == "tmo_pipe_whistle" {
+                if CMOriginalWindowsSteamWhistle.triggersGoal(steamPower: signal),
+                   reportedSteamGoals.insert(id).inserted {
+                    let deliver = onOriginalSteamGoal
+                    DispatchQueue.main.async { deliver?(id) }
+                }
+            }
+            // Native 0x44C703 uses -steam/2 as the wheel target.
+            // Bounded SceneKit torque is an explicit physical adapter,
+            // not a recovered native force coefficient.
+            for (id, wheel) in steamWheelByBody {
+                guard let body = wheel.physicsBody, body.type == .dynamic else { continue }
+                let velocity = body.angularVelocity
+                let speed = velocity.z * velocity.w
+                let target = -(state.receiverSignals[id] ?? 0) / 2
+                guard speed.isFinite, target.isFinite else { continue }
+                let torque = max(-2, min(2, (target - speed) * 0.5))
+                if abs(torque) > 0.001 {
+                    body.applyTorque(SCNVector4(0, 0, torque < 0 ? -1 : 1, abs(torque)), asImpulse: false)
+                }
+            }
+        }
+
         private func registerOriginalGrillDrives(objects: [CMOriginalGameplaySession.Object]) {
             for owner in objects where owner.type == "tmo_heat_grill" {
                 func unique(_ type: String) -> SCNNode? {
@@ -2004,6 +2107,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
             registerOriginalGrillDrives(objects: originalObjects)
             registerOriginalHammerDrives(objects: originalObjects)
+            registerOriginalSteamNetwork(objects: originalObjects)
             applyOriginalLampVisualFactors()
             applyOriginalAmmeterSignals()
             // Each original conveyor has a distinct child tmo_belt_conveyer_wheel
@@ -2298,6 +2402,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             transferOriginalWindmillMotion()
             advanceOriginalGrillDrives(delta: Float(delta))
             advanceOriginalHammerDrives(delta: delta)
+            advanceOriginalSteamNetwork(delta: delta)
             sampleOriginalRocketAnchorFrames(at: time)
             if time - lastGeneratorPollTime >= 0.16 {
                 lastGeneratorPollTime = time
