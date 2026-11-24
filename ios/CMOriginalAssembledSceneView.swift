@@ -4663,13 +4663,10 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         // editable assembly; independently locked objects cannot move.
         // Runtime contact and connector ownership use their own exact IDs.
         private func originalOwner(for node: SCNNode?) -> CMOriginalPhysicsOwnerNode? {
-            var current = node
-            while let candidate = current {
-                if let owner = candidate as? CMOriginalPhysicsOwnerNode,
-                   owner.isUnlockedInOriginalLevel { return owner }
-                current = candidate.parent
-            }
-            return nil
+            CMOriginalPlacementHistory.editableAncestor(
+                startingAt: node, parent: { $0.parent },
+                unlocked: { ($0 as? CMOriginalPhysicsOwnerNode)?.isUnlockedInOriginalLevel == true }
+            ) as? CMOriginalPhysicsOwnerNode
         }
 
         @objc func resetSelected(_ gesture: UILongPressGestureRecognizer) {
@@ -4874,7 +4871,12 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 rotationBeforePose = nil
                 rotationStartZ = nil
             case .cancelled, .failed:
-                if let original = rotationStartZ { owner.eulerAngles.z = original }
+                if let original = rotationStartZ {
+                    owner.eulerAngles.z = original
+                    refreshOriginalCableGeometry()
+                    refreshOriginalRopes()
+                    refreshOriginalBelts()
+                }
                 rotationBeforePose = nil
                 rotationStartZ = nil
             default:
@@ -4932,6 +4934,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 if gesture.state == .cancelled || gesture.state == .failed,
                    let target = dragging, let initial = dragInitialPosition {
                     target.position = initial
+                    refreshOriginalCableGeometry()
+                    refreshOriginalRopes()
+                    refreshOriginalBelts()
                 }
                 if gesture.state == .ended, let target = dragging,
                    let identifier = target.name, identifier.hasPrefix("original-node-") {
