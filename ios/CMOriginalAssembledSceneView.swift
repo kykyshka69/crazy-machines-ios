@@ -185,6 +185,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
     var onOriginalFlagGoal: ((String) -> Void)? = nil
     var onOriginalEnvironmentalCandleGoal: ((String) -> Void)? = nil
     var onOriginalBalloonGoal: ((String) -> Void)? = nil
+    var onOriginalCatapultGoal: ((String) -> Void)? = nil
     var onOriginalSolarRays: (([String: [Float]]) -> Void)? = nil
     var onOriginalFlowerGoal: ((String) -> Void)? = nil
     // Reports a user-operated original PC power switch. This changes its
@@ -459,6 +460,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalFlagGoal = onOriginalFlagGoal
         context.coordinator.onOriginalEnvironmentalCandleGoal = onOriginalEnvironmentalCandleGoal
         context.coordinator.onOriginalBalloonGoal = onOriginalBalloonGoal
+        context.coordinator.onOriginalCatapultGoal = onOriginalCatapultGoal
         context.coordinator.onOriginalSolarRays = onOriginalSolarRays
         context.coordinator.onOriginalFlowerGoal = onOriginalFlowerGoal
         context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower)
@@ -590,6 +592,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         context.coordinator.onOriginalFlagGoal = onOriginalFlagGoal
         context.coordinator.onOriginalEnvironmentalCandleGoal = onOriginalEnvironmentalCandleGoal
         context.coordinator.onOriginalBalloonGoal = onOriginalBalloonGoal
+        context.coordinator.onOriginalCatapultGoal = onOriginalCatapultGoal
         context.coordinator.onOriginalSolarRays = onOriginalSolarRays
         context.coordinator.onOriginalFlowerGoal = onOriginalFlowerGoal
         context.coordinator.setLiveOpticalLampPower(originalOpticalLampPower)
@@ -765,6 +768,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         var onOriginalFlagGoal: ((String) -> Void)?
         var onOriginalEnvironmentalCandleGoal: ((String) -> Void)?
         var onOriginalBalloonGoal: ((String) -> Void)?
+        var onOriginalCatapultGoal: ((String) -> Void)?
         private struct FlagDrive {
             let wheel: SCNNode
             let telescope3: SCNNode
@@ -871,6 +875,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         }
         private var hammerDrives: [String: HammerDrive] = [:]
         private var drivenHammerPartIDs = Set<String>()
+        private struct CatapultDrive {
+            let sling: SCNNode
+            let button: SCNNode
+            let hinge: SCNNode
+            let restAngle: Float
+            let direction: Float
+            var stroke = CMOriginalCatapultStroke()
+        }
+        private var catapultDrives: [String: CatapultDrive] = [:]
+        private var catapultSlingIDs = Set<String>()
         private var qualifiedWindmillGoalIDs = Set<String>()
         private var disrupterIDByWheelID: [String: String] = [:]
         private var lastDisrupterConduction: [String: Bool] = [:]
@@ -1106,7 +1120,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
                 // Script-driven original hammer arm and nail retain collision
                 // geometry but are positioned by the mechanism state machine.
-                if drivenHammerPartIDs.contains(id) || steamScriptedPartIDs.contains(id) || flagScriptedPartIDs.contains(id) {
+                if drivenHammerPartIDs.contains(id) || steamScriptedPartIDs.contains(id) || flagScriptedPartIDs.contains(id) || catapultSlingIDs.contains(id) {
                     for node in nodes {
                         guard let body = node.physicsBody else { continue }
                         body.type = .kinematic
@@ -1464,6 +1478,63 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
 
         // Actual bidirectional physical coupling: belt-driven wheel moves
         // wings, and externally moved wings can drive the same wheel.
+        private func registerOriginalCatapults(objects: [CMOriginalGameplaySession.Object]) {
+            for owner in objects where owner.type == "tmo_catapult" {
+                let children = objects.filter {
+                    $0.parentID == owner.id && $0.type == "tmo_catapult_sling"
+                }
+                guard children.count == 1,
+                      let nodes = physicsNodesByObjectID[children[0].id], nodes.count == 1,
+                      let sling = nodes.first, let body = sling.physicsBody,
+                      let button = exactOriginalAnchor("Button", on: owner.id),
+                      let hinge = exactOriginalAnchor("Mechanic01", on: children[0].id),
+                      let ammo = exactOriginalAnchor("Ammo", on: children[0].id),
+                      let parent = sling.parent else { continue }
+                let pivot = parent.simdConvertPosition(hinge.simdWorldPosition, from: nil)
+                let tip = parent.simdConvertPosition(ammo.simdWorldPosition, from: nil)
+                let arm = tip.x - pivot.x
+                guard arm.isFinite, abs(arm) > 0.01, sling.eulerAngles.z.isFinite else { continue }
+                // The signed pose is derived in the assembly frame; native
+                // +DC to mirrored SceneKit transform mapping is provisional.
+                catapultDrives[owner.id] = .init(sling: sling, button: button,
+                    hinge: hinge, restAngle: sling.eulerAngles.z,
+                    direction: arm > 0 ? 1 : -1)
+                catapultSlingIDs.insert(children[0].id)
+                body.type = .kinematic
+                body.isAffectedByGravity = false
+            }
+        }
+
+        private func observeOriginalCatapultContact(owner: String, striker: String,
+                                                     point: SCNVector3) {
+            guard var drive = catapultDrives[owner],
+                  session?.physicsRole(for: striker) == .movable,
+                  drive.stroke.trigger(contact: .init(point.x, point.y, point.z),
+                      button: drive.button.presentation.simdWorldPosition) else { return }
+            catapultDrives[owner] = drive
+        }
+
+        private func advanceOriginalCatapults(delta: Double) {
+            for id in Array(catapultDrives.keys) {
+                guard var drive = catapultDrives[id], let parent = drive.sling.parent,
+                      drive.sling.physicsBody?.type == .kinematic,
+                      let travel = drive.stroke.advance(delta: delta) else { continue }
+                // Keep the genuine hinge world position fixed while
+                // rotating the original collision mesh, so a ball in its
+                // cup is moved by SceneKit contact, not a fabricated launch.
+                let before = parent.simdConvertPosition(drive.hinge.simdWorldPosition, from: nil)
+                drive.sling.eulerAngles.z = drive.restAngle + drive.direction * travel
+                let after = parent.simdConvertPosition(drive.hinge.simdWorldPosition, from: nil)
+                drive.sling.simdPosition += before - after
+                drive.sling.physicsBody?.resetTransform()
+                catapultDrives[id] = drive
+                if drive.stroke.phase == .finished {
+                    let deliver = onOriginalCatapultGoal
+                    DispatchQueue.main.async { deliver?(id) }
+                }
+            }
+        }
+
         private func registerOriginalHammerDrives(objects: [CMOriginalGameplaySession.Object]) {
             for owner in objects where owner.type == "tmo_hammer" {
                 func unique(_ type: String) -> (String, SCNNode)? {
@@ -2342,6 +2413,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             grillDrives.removeAll()
             hammerDrives.removeAll()
             drivenHammerPartIDs.removeAll()
+            catapultDrives.removeAll()
+            catapultSlingIDs.removeAll()
             qualifiedWindmillGoalIDs.removeAll()
             disrupterIDByWheelID.removeAll()
             lastDisrupterConduction.removeAll()
@@ -2651,6 +2724,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
             registerOriginalGrillDrives(objects: originalObjects)
             registerOriginalHammerDrives(objects: originalObjects)
+            registerOriginalCatapults(objects: originalObjects)
             registerOriginalSteamNetwork(objects: originalObjects)
             registerOriginalFlagDrives(objects: originalObjects)
             registerOriginalFlasks(objects: originalObjects, directory: originalDirectory)
@@ -3135,6 +3209,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             transferOriginalWindmillMotion()
             advanceOriginalGrillDrives(delta: Float(delta))
             advanceOriginalHammerDrives(delta: delta)
+            advanceOriginalCatapults(delta: delta)
             advanceOriginalSteamNetwork(delta: delta)
             advanceOriginalSteamPistons()
             advanceOriginalBellows(delta: delta)
@@ -3983,6 +4058,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             session?.recordContact(a, b, impulse: Double(contact.collisionImpulse))
             observeOriginalBalloonContact(balloon: a, sharp: b, point: contact.contactPoint)
             observeOriginalBalloonContact(balloon: b, sharp: a, point: contact.contactPoint)
+            observeOriginalCatapultContact(owner: a, striker: b, point: contact.contactPoint)
+            observeOriginalCatapultContact(owner: b, striker: a, point: contact.contactPoint)
             strikeOriginalBellows(leverID: a, otherID: b, normalY: contact.contactNormal.y, point: contact.contactPoint)
             strikeOriginalBellows(leverID: b, otherID: a, normalY: contact.contactNormal.y, point: contact.contactPoint)
             // Map actual SceneKit collision owners back to an original PC
