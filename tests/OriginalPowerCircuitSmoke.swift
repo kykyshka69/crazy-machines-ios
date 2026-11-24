@@ -538,6 +538,23 @@ struct OriginalPowerCircuitSmoke {
         precondition(cutLoop.cableSignals.count == 3)
         loop.clearRuntimeCuts()
         precondition(loop.settledIndependentSourceObservation() == nil)
+        // Two native batteries both write 10, so a fully conducting
+        // shared component cannot depend on which battery arrives first.
+        let sharedBatteries = split.settledIndependentSourceObservation(
+            closedSwitchIDs: switchIDs)!
+        precondition(sharedBatteries.deviceSignals.count == 4)
+        precondition(sharedBatteries.deviceSignals.values.allSatisfy { $0 == 10 })
+        precondition(sharedBatteries.cableSignals.count == 3)
+        precondition(sharedBatteries.cableSignals.values.allSatisfy { $0 == 10 })
+        precondition(split.settledIndependentSourceObservation() == nil)
+        let directBatteries = dual.settledIndependentSourceObservation()!
+        precondition(directBatteries.deviceSignals.count == 2)
+        precondition(directBatteries.deviceSignals.values.allSatisfy { $0 == 10 })
+        precondition(directBatteries.cableSignals.isEmpty)
+        // Do not infer equal or unequal dynamic-source precedence.
+        precondition(ordered.settledIndependentSourceObservation(
+            closedSwitchIDs: orderedSwitchIDs,
+            generatorRotorCommandsByDeviceID: [orderedPort(21).deviceID: 10]) == nil)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
