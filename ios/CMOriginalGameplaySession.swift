@@ -101,21 +101,17 @@ public struct CMOriginalGameplaySession {
         return next
     }
 
-    /// Native heat/wind receivers change candle +0xEC independently of the
-    /// player click permission (VALB & 0x10). Return true only for an actual
-    /// state transition during the running simulation.
+    /// Native focused heat 0x44CD30 directly sets candle +0xEC to 1,
+    /// without the click handler's VALB & 0x10 gate. Wind and tilt
+    /// instead call 0x4348F0 and must retain the separate click gate.
     @discardableResult
-    public mutating func setOriginalCandleFromEnvironment(_ id: String, lit: Bool) -> Bool {
+    public mutating func igniteOriginalCandleFromFocus(_ id: String) -> Bool {
         guard phase == .running,
               objects.contains(where: {
                   $0.id == id && ($0.type == "tmo_candle" || $0.type == "tmo_candle_dyn")
               }),
-              (originalHeatSourceStates[id] ?? false) != lit else { return false }
-        if lit {
-            originalHeatSourceStates[id] = true
-        } else {
-            originalHeatSourceStates.removeValue(forKey: id)
-        }
+              originalHeatSourceStates[id] != true else { return false }
+        originalHeatSourceStates[id] = true
         return true
     }
 
