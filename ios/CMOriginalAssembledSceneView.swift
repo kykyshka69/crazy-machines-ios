@@ -788,7 +788,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var conveyorTextureOffsets: [String: Float] = [:]
         private var switchLeverNodes: [String: SCNNode] = [:]
         private var switchLeverRestAngles: [String: SCNVector3] = [:]
-        private var flippedSwitchIDs = Set<String>()
+        // Renderer-owned conduction observations, not requested lever commands.
+        private var conductingSwitchIDs = Set<String>()
         private var switchContacts: CMOriginalSwitchContactMapper?
         var onOriginalSwitchToggle: ((String, Bool) -> Void)?
         var onOriginalSwitchContact: ((CMOriginalSwitchContactMapper.Hit) -> Void)?
@@ -983,6 +984,18 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             session?.configurePhysicsRoles(roles)
             sessionLock.unlock()
             for (id, nodes) in physicsNodesByObjectID {
+                // Animated switch levers must move their genuine collision
+                // bodies along with the visible pose, not remain static.
+                if originalTypesByID[id] == "tmo_power_switch_lever",
+                   nodes.count == 1, let node = nodes.first,
+                   switchLeverNodes.values.contains(where: { $0 === node }),
+                   let body = node.physicsBody {
+                    body.type = .kinematic
+                    body.isAffectedByGravity = false
+                    body.collisionBitMask = CMOriginalPhysicsLayers.collisionMask(for: body.categoryBitMask)
+                    body.contactTestBitMask = CMOriginalPhysicsLayers.contactMask(for: body.categoryBitMask)
+                    continue
+                }
                 // Script-driven original hammer arm and nail retain collision
                 // geometry but are positioned by the mechanism state machine.
                 if drivenHammerPartIDs.contains(id) {
@@ -1636,7 +1649,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             conveyorTextureOffsets.removeAll()
             switchLeverNodes.removeAll()
             switchLeverRestAngles.removeAll()
-            flippedSwitchIDs.removeAll()
+            conductingSwitchIDs.removeAll()
             opticalEmitterMeshes.removeAll()
             opticalSolarMeshes.removeAll()
             originalAmmeterNeedles.removeAll()
@@ -1832,6 +1845,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     return (part.id, actualOwner)
                 }
             )
+            let ambiguousSwitchIDs = Set(Dictionary(grouping: switchByLeverID.values, by: { $0 }).filter { $0.value.count != 1 }.keys)
             scene.rootNode.enumerateChildNodes { node, _ in
                 if node.name?.hasPrefix("original-ucm-anchor-") == true,
                    let owner = self.owningOriginalObjectID(for: node) {
@@ -1923,7 +1937,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 }
                 if let owner = node as? CMOriginalPhysicsOwnerNode,
                    let leverID = owner.originalObjectID,
-                   let switchID = switchByLeverID[leverID] {
+                   let switchID = switchByLeverID[leverID],
+                   !ambiguousSwitchIDs.contains(switchID) {
                     self.switchLeverNodes[switchID] = owner
                     self.switchLeverRestAngles[switchID] = owner.eulerAngles
                 }
@@ -2260,6 +2275,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             // independent of electric power propagation and cannot energize
             // solar cells without original ray emission/hit validation.
             sampleOriginalOpticalSightlines(renderer: renderer, at: time)
+            sampleOriginalSwitchConduction()
             sampleOriginalScissorsCuts()
             refreshOriginalRopes(applyTension: true)
             refreshOriginalBelts(applyTorque: true)
@@ -3033,7 +3049,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     DispatchQueue.main.async { [weak self] in
                         self?.animateOriginalSwitchLever(
                             event.id, isOn: event.on)
-                        self?.onOriginalSwitchToggle?(event.id, event.on)
                     }
                 }
             }
@@ -3174,8 +3189,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     if let event = impactSwitchState {
                         self?.animateOriginalSwitchLever(
                             event.id, isOn: event.on)
-                        self?.onOriginalSwitchToggle?(
-                            event.id, event.on)
                     }
                 }
             }
@@ -3760,21 +3773,42 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         /// Common real UCM lever presentation for both direct player taps
         /// and physically observed impacts. Do not mutate the session here:
         /// the source-of-truth switch state was already changed once.
+        // Called only from a running renderer frame under sessionLock.
+        // Presentation transforms describe actual interpolated lever motion.
+        // A request to turn on is not itself a closed electrical contact.
+        private func sampleOriginalSwitchConduction() {
+            let observed = Set(switchLeverNodes.compactMap { id, lever -> String? in
+                guard let rest = switchLeverRestAngles[id],
+                      lever.parent != nil,
+                      CMOriginalWindowsSwitchContactGate.sceneContactClosed(
+                        authoredOpenAngle: rest.x,
+                        observedAngle: lever.presentation.eulerAngles.x)
+                else { return nil }
+                return id
+            })
+            let changed = observed.symmetricDifference(conductingSwitchIDs)
+            conductingSwitchIDs = observed
+            for id in changed.sorted() {
+                let closed = observed.contains(id)
+                DispatchQueue.main.async { [weak self] in
+                    self?.onOriginalSwitchToggle?(id, closed)
+                }
+            }
+        }
+
         private func animateOriginalSwitchLever(
             _ switchID: String, isOn: Bool
         ) {
             guard let lever = switchLeverNodes[switchID],
                   let original = switchLeverRestAngles[switchID]
             else { return }
-            if isOn { flippedSwitchIDs.insert(switchID) }
-            else { flippedSwitchIDs.remove(switchID) }
             // The imported lever has a genuine PC rest ROT x=1.
             // The -0.6 alternate angle is a SceneKit approximation,
             // not a claim of measured native +0xEC contact position.
             lever.removeAction(forKey: "original-switch")
             lever.runAction(
                 SCNAction.rotateTo(
-                    x: CGFloat(original.x + (isOn ? -0.6 : 0)),
+                    x: CGFloat(original.x + (isOn ? CMOriginalWindowsSwitchContactGate.sceneClosedOffset : 0)),
                     y: CGFloat(original.y), z: CGFloat(original.z),
                     duration: 0.16, usesShortestUnitArc: true
                 ),
@@ -3813,7 +3847,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             sessionLock.unlock()
             guard let isOn = nextState else { return false }
             animateOriginalSwitchLever(switchID, isOn: isOn)
-            onOriginalSwitchToggle?(switchID, isOn)
             return true
         }
 
