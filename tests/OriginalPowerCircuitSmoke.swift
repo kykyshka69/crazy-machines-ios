@@ -420,6 +420,23 @@ struct OriginalPowerCircuitSmoke {
         let resetReads = phase.nativePortPass(previous: cutFrame,
             events: [.resetVisited], conductingByDeviceID: [:], observedSlotOrder: slots)!
         precondition(resetReads.sourceReads.isEmpty && resetReads.consumerReads.isEmpty)
+        // The live restricted bridge uses per-port propagation, including
+        // zero after a cut. The editor arrangement is never modified.
+        phase.clearRuntimeCuts()
+        let live = phase.settledSingleBatteryObservation()!
+        precondition(live.deviceSignals[motorOwner] == 10)
+        precondition(live.deviceSignals[lampOwner] == 10)
+        precondition(live.cableSignals.count == 2)
+        precondition(phase.applyObservedCableCut(sourceCable))
+        let liveCut = phase.settledSingleBatteryObservation()!
+        precondition(liveCut.deviceSignals[batteryOwner] == 10)
+        precondition(liveCut.deviceSignals[motorOwner] == nil)
+        precondition(liveCut.deviceSignals[lampOwner] == nil)
+        precondition(liveCut.cableSignals.isEmpty)
+        phase.clearRuntimeCuts()
+        precondition(phase.settledSingleBatteryObservation()!.cableSignals.count == 2)
+        precondition(split.settledSingleBatteryObservation() == nil)
+        precondition(ordered.settledSingleBatteryObservation() == nil)
         print("Original Win32 cables, multiport motor load-through and switch isolation passed")
     }
 }
