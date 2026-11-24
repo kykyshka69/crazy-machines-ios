@@ -259,6 +259,40 @@ struct OriginalWindowsMechanicalTransferSmoke {
         payload["version"] = 2
         let badVersion = try! JSONSerialization.data(withJSONObject:payload)
         precondition(CMOriginalMechanicalSnapshot.decode(badVersion,sceneSHA256:hash,objectTypes:savedTypes) == nil)
+        let originalRadii: [Float] = [0.1,0.125,0.13,0.25]
+        func contourLength(_ v: SIMD3<Float>) -> Float {
+            sqrt(v.x*v.x+v.y*v.y+v.z*v.z)
+        }
+        for ra in originalRadii {
+            for rb in originalRadii {
+                for i in 0..<32 {
+                    let theta = Float(i) * .pi / 16
+                    for gap: Float in [0.01,0.5,2] {
+                        let d = ra+rb+gap
+                        let offset = SIMD3<Float>(cos(theta)*d,sin(theta)*d,0.025)
+                        let loop = CMOriginalDriveBelt.contour(offset:offset,firstRadius:ra,secondRadius:rb)!
+                        precondition(loop.count == CMOriginalDriveBelt.contourSpanCount)
+                        for j in loop.indices {
+                            precondition(loop[j].end == loop[(j+1)%loop.count].start)
+                            precondition(contourLength(loop[j].end-loop[j].start) > 0)
+                            if (1...12).contains(j) {
+                                precondition(abs(contourLength(loop[j].start-offset)-rb)<0.00001)
+                                precondition(abs(contourLength(loop[j].end-offset)-rb)<0.00001)
+                            }
+                            if (14...25).contains(j) {
+                                precondition(abs(contourLength(loop[j].start)-ra)<0.00001)
+                                precondition(abs(contourLength(loop[j].end)-ra)<0.00001)
+                            }
+                        }
+                        let v = loop[0].end-loop[0].start
+                        precondition(abs(v.x*loop[0].start.x+v.y*loop[0].start.y)<0.00001)
+                    }
+                }
+            }
+        }
+        precondition(CMOriginalDriveBelt.contour(offset:.zero,firstRadius:0.1,secondRadius:0.2)==nil)
+        precondition(CMOriginalDriveBelt.contour(offset:.init(1,0,0.1),firstRadius:0.1,secondRadius:0.2)==nil)
+        precondition(CMOriginalDriveBelt.contour(offset:.init(.nan,0,0),firstRadius:0.1,secondRadius:0.2)==nil)
         print("Native mechanical VALF ratios, linked sign, observed stop decay: 1000 cases passed")
     }
 }
