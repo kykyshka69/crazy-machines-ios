@@ -1448,6 +1448,31 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
 
+        // Remove only the retired owner's ropes immediately, including
+        // any pending UI update which still lists the old editor links.
+        // Called under the running renderer's sessionLock; ropeLock is
+        // acquired in the same order as the ordinary rope update.
+        private func releaseOriginalRopes(retiredOwnerID: String) {
+            ropeLock.lock()
+            let incident = CMOriginalRope.incidentPairs(
+                in: Set(ropeVisuals.keys).union(ropeLengths.keys),
+                retiredOwners: [retiredOwnerID])
+            let hits = incident.subtracting(severedRopes)
+            severedRopes.formUnion(hits)
+            for pair in hits {
+                ropeVisuals.removeValue(forKey: pair)?.removeFromParentNode()
+                ropeLengths.removeValue(forKey: pair)
+            }
+            for endpoint in Array(ropeMarkers.keys) where endpoint.objectID == retiredOwnerID {
+                ropeMarkers.removeValue(forKey: endpoint)
+            }
+            ropeLock.unlock()
+            let deliver = onOriginalRopeCut
+            for pair in hits {
+                DispatchQueue.main.async { deliver?(pair) }
+            }
+        }
+
         // The original wheel models contain exact named Wheel attachments.
         // Do not invent links from CONNECTED_TO or mere wheel proximity.
         func syncOriginalBelts(_ pairs: Set<CMOriginalDriveBelt.Pair>, in scene: SCNScene) {
@@ -3302,6 +3327,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             advanceLiveOptics(renderer: renderer, at: time, delta: delta)
             sampleOriginalSwitchConduction()
             sampleOriginalScissorsCuts()
+            retireOriginalBalloons()
             refreshOriginalRopes(applyTension: true)
             refreshOriginalBelts(applyTorque: true)
             transferOriginalWindmillMotion()
@@ -3387,7 +3413,6 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                 }
             }
-            retireOriginalBalloons()
             // Render-timestep-aware buoyancy for authentic tmo_balloon
             // parts: the original puzzles treat them as rising objects,
             // not heavy falling crates. Use a conservative acceleration
@@ -3544,6 +3569,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                       let nodes = physicsNodesByObjectID[id], !nodes.isEmpty else { continue }
                 poppedBalloonIDs.insert(id)
                 buoyantObjectIDs.remove(id)
+                releaseOriginalRopes(retiredOwnerID: id)
                 for node in nodes {
                     node.physicsBody = nil
                     node.isHidden = true
