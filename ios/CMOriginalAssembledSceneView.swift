@@ -1095,6 +1095,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
         private var reportedOriginalConnections = Set<String>()
         private var physicsNodesByObjectID: [String: [SCNNode]] = [:]
         private var zoneVolumeMeshes: [String: [CMOriginalObjectMeshNode]] = [:]
+        private weak var zoneVolumeSceneRoot: SCNNode?
         // All 46 original balloon objects are identified by their PC tmo_
         // type. Only the 45 with VALB's movable bit will actually float;
         // the fixed balloon is kept static by configuredPhysicsRoles.
@@ -2748,6 +2749,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             originalEffects = CMOriginalSoundLibrary.load(directory: originalDirectory)
             physicsNodesByObjectID.removeAll()
             zoneVolumeMeshes.removeAll()
+            zoneVolumeSceneRoot = scene.rootNode
             appliedPhysicsRoles.removeAll()
             conveyorWheelNodes.removeAll()
             conveyorRollerNodes.removeAll()
@@ -4454,20 +4456,28 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             }
         }
 
-        /// Return nil for absent/incomplete tables or unsupported transforms.
-        /// Empty bounds helpers are not solid collision volumes.
+        /// nil: unavailable original geometry; []: all registered physical
+        /// meshes retired/hidden/detached. Keep these cases distinct.
+        /// A hidden helper must not invalidate other live solid meshes.
         private func authoredZonePrimitives(_ id: String) -> [CMOriginalVolumeOverlap.Primitive]? {
-            guard let meshes = zoneVolumeMeshes[id], !meshes.isEmpty else { return nil }
+            guard let sceneRoot = zoneVolumeSceneRoot,
+                  let meshes = zoneVolumeMeshes[id], !meshes.isEmpty else { return nil }
             var result: [CMOriginalVolumeOverlap.Primitive] = []
+            var sawSolidMesh = false
+            var sawLiveMesh = false
             for mesh in meshes {
                 if mesh.name?.lowercased() == "to_dummy_bounding" { continue }
-                guard let volumes = mesh.originalCollisionVolumes else { return nil }
-                // A retired game object must no longer trigger a new goal.
+                sawSolidMesh = true
                 var ancestor: SCNNode? = mesh
+                var attachedAndVisible = false
                 while let node = ancestor {
-                    if node.isHidden { return [] }
+                    if node.isHidden { break }
+                    if node === sceneRoot { attachedAndVisible = true; break }
                     ancestor = node.parent
                 }
+                guard attachedAndVisible else { continue }
+                sawLiveMesh = true
+                guard let volumes = mesh.originalCollisionVolumes else { return nil }
                 let m = mesh.presentation.simdWorldTransform
                 func vec(_ v: SIMD4<Float>) -> SIMD3<Double> {
                     SIMD3<Double>(Double(v.x), Double(v.y), Double(v.z))
@@ -4479,7 +4489,16 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     else { return nil }
                 result.append(contentsOf: transformed)
             }
-            return result
+            guard sawSolidMesh else { return nil }
+            if !sawLiveMesh { return [] }
+            // Legacy fixture meshes have no collision table at all.
+            // They still need the SceneKit fallback, unlike retired owners.
+            return result.isEmpty ? nil : result
+        }
+
+        private func authoredZoneDecision(sourceID: String, targetID: String) -> Bool? {
+            CMOriginalVolumeOverlap.linkedZoneDecision(
+                authoredZonePrimitives(sourceID), authoredZonePrimitives(targetID))
         }
 
         /// Native 0x456F3A..0x456FA4 evaluates a linked zone after
@@ -4494,10 +4513,9 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
             sessionLock.unlock()
             for link in links {
                 let intersects: Bool
-                if let a = authoredZonePrimitives(link.sourceID),
-                   let b = authoredZonePrimitives(link.targetID),
-                   !a.isEmpty, !b.isEmpty {
-                    intersects = CMOriginalVolumeOverlap.intersects(a,b)
+                if let decision = authoredZoneDecision(
+                    sourceID: link.sourceID, targetID: link.targetID) {
+                    intersects = decision
                 } else {
                     guard let sources = physicsNodesByObjectID[link.sourceID],
                           let zones = physicsNodesByObjectID[link.targetID] else { continue }
@@ -4859,9 +4877,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                 // physics, rather than from a provisional body contact.
                 // Keep the event path for old/synthetic assets without tables.
                 if link.targetType == "tmo_zone",
-                   let source = authoredZonePrimitives(link.sourceID),
-                   let zone = authoredZonePrimitives(link.targetID),
-                   !source.isEmpty, !zone.isEmpty { continue }
+                   authoredZoneDecision(sourceID: link.sourceID,
+                                        targetID: link.targetID) != nil { continue }
                 let key = link.sourceID + "|" + link.targetID
                 if reportedOriginalConnections.insert(key).inserted {
                     newlyObservedConnections.append((link.sourceID, link.targetID))
@@ -4899,8 +4916,7 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                !(session?.originalConnections.contains(where: {
                    $0.sourceID == candidate && $0.targetID == zoneID
                }) == true
-                 && authoredZonePrimitives(candidate)?.isEmpty == false
-                 && authoredZonePrimitives(zoneID)?.isEmpty == false),
+                 && authoredZoneDecision(sourceID: candidate, targetID: zoneID) != nil),
                reportedZoneContacts.insert(candidate + "|" + zoneID).inserted {
                 contactType = types[candidate]
                 contactIDs = (candidate, zoneID)
