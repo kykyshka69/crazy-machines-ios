@@ -148,7 +148,19 @@ struct OriginalUCMNamedAnchorsSmoke {
         precondition(abs(CMOriginalBodyMaterial.gravityY+9.81)<1e-6)
         let balloon = CMOriginalBodyMaterial.material(for: "tmo_balloon")!
         precondition(balloon.linearDrag == 0.3 && balloon.angularDrag == 0.1)
-        precondition(CMOriginalBodyMaterial.balloonNativeLift == 1.6)
+        precondition(CMOriginalBodyMaterial.balloonNativeLift == Double(Float(bitPattern: 0x3FCCCCCD)))
+        let marker = SIMD3<Double>(0,0.1473899483680725,0)
+        let liftOffset = Double(Float(bitPattern: 0xBDB851EC))
+        let upright = CMOriginalBodyMaterial.balloonLiftPoint(windMarker:marker,modelY:.init(0,1,0))!
+        precondition(abs(upright.y - (marker.y + liftOffset)) < 1e-12 && upright.x == 0)
+        let rotated = CMOriginalBodyMaterial.balloonLiftPoint(
+            windMarker:.init(-marker.y,0,0),modelY:.init(-1,0,0))!
+        precondition(abs(rotated.x + upright.y) < 1e-12)
+        let mirrored = CMOriginalBodyMaterial.balloonLiftPoint(
+            windMarker:.init(marker.y,0,0),modelY:.init(1,0,0))!
+        precondition(abs(mirrored.x - upright.y) < 1e-12)
+        precondition(CMOriginalBodyMaterial.balloonLiftPoint(windMarker:marker,modelY:.zero) == nil)
+        precondition(CMOriginalBodyMaterial.balloonLiftPoint(windMarker:.init(.nan,0,0),modelY:.init(0,1,0)) == nil)
         let rocket = CMOriginalBodyMaterial.material(for: "tmo_heat_rocket_rocket")!
         precondition(rocket.density == 2 && rocket.linearDrag == 0.001 && rocket.angularDrag == 0.01)
         precondition(CMOriginalBodyMaterial.material(for:"tmo_catapult_sling")!.density == 100)
