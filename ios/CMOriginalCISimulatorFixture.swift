@@ -112,7 +112,7 @@ enum CMOriginalCISimulatorFixture {
                 UInt8(truncatingIfNeeded: value >> 24)
             ]))
         }
-        put(1, at: 4)
+        put(authoredSphere ? 2 : 1, at: 4)
         put(1, at: 72)  // one group
         put(8, at: 76)  // eight triangular faces
         put(6, at: 80)  // six 3D vertices
@@ -153,7 +153,7 @@ enum CMOriginalCISimulatorFixture {
                 UInt8(truncatingIfNeeded: value >> 16), UInt8(truncatingIfNeeded: value >> 24)
             ])
         }
-        put(1, at: 4); put(1, at: 72); put(12, at: 76); put(8, at: 80)
+        put(2, at: 4); put(1, at: 72); put(12, at: 76); put(8, at: 80)
         var data = header
         let faces: [UInt32] = [0,2,1,0,3,2, 4,5,6,4,6,7,
                                0,1,5,0,5,4, 3,7,6,3,6,2,
