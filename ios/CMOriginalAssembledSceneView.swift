@@ -3732,8 +3732,8 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                     }
                 }
             }
-            // Original 0x45170A lifts the balloon using native force 1.6.
-            // Use COM until the offset-point mapping is independently proven.
+            // Native 0x45170A: world-up force at the Wind attachment
+            // minus 0.09 times the original 3DO's transformed +Y axis.
             // Legacy assets keep their previous bounded buoyancy adapter.
             for id in buoyantObjectIDs {
                 for node in physicsNodesByObjectID[id] ?? [] {
@@ -3741,9 +3741,29 @@ struct CMOriginalAssembledSceneView: UIViewRepresentable {
                           body.type == .dynamic else { continue }
                     if (node as? CMOriginalPhysicsOwnerNode)?.originalMassProperties != nil {
                         body.isAffectedByGravity = true
-                        body.applyForce(SCNVector3(0, Float(
-                            CMOriginalBodyMaterial.balloonNativeLift * CMOriginalBodyMaterial.massUnit), 0),
-                            asImpulse: false)
+                        let lift = Float(CMOriginalBodyMaterial.balloonNativeLift *
+                                         CMOriginalBodyMaterial.massUnit)
+                        body.applyForce(SCNVector3(0,lift,0), asImpulse: false)
+                        // Wind belongs to the actual balloon UCM mesh.
+                        // Apply its planar moment separately about COM.
+                        // Do not use the marker's own possibly rotated basis.
+                        if let wind = exactOriginalAnchor("Wind", on: id),
+                           let mesh = wind.parent as? CMOriginalObjectMeshNode {
+                            let p = wind.presentation.simdWorldPosition
+                            let y = mesh.presentation.simdWorldTransform.columns.1
+                            if let point = CMOriginalBodyMaterial.balloonLiftPoint(
+                                windMarker: .init(Double(p.x),Double(p.y),Double(p.z)),
+                                modelY: .init(Double(y.x),Double(y.y),Double(y.z))) {
+                                let center = node.presentation.simdConvertPosition(
+                                    .init(body.centerOfMassOffset.x,body.centerOfMassOffset.y,
+                                          body.centerOfMassOffset.z), to: nil)
+                                let torque = Float(point.x - Double(center.x))*lift
+                                if torque.isFinite, abs(torque) > 0.000001 {
+                                    body.applyTorque(SCNVector4(0,0,torque < 0 ? -1 : 1,
+                                                               abs(torque)), asImpulse: false)
+                                }
+                            }
+                        }
                     } else {
                         let velocity = body.velocity
                         let upSpeed = min(2.0, velocity.y + Float(delta) * 1.25)
