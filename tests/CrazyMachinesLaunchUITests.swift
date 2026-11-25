@@ -193,9 +193,9 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
             "A real SceneKit ball/zone collision never reached the linked " +
             "source/target callback; last progress: \(progress.label)"
         )
-        // Multiple genuine SceneKit collisions must be credited once
-        // each. Removing the collected prototype-only source body keeps
-        // already-delivered objects from clogging the same target zone.
+        // Independent falling lanes exercise the authored sphere/OBB
+        // overlap without deleting objects, forcing success, or changing
+        // any original PC puzzle. Each exact linked source must count once.
         let allDelivered = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "label == %@", "4 / 4"),
             object: progress
@@ -205,6 +205,10 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
             "Four distinct original-style linked objects did not reach " +
             "the shared capture zone; last progress: \(progress.label)"
         )
+        let completion = app.staticTexts["cm.original.windows-win-completed"]
+        XCTAssertTrue(completion.waitForExistence(timeout: 10),
+                      "The native counter did not complete despite matching HUD contacts")
+        XCTAssertTrue(completion.label.hasPrefix("All 4 reconstructed Win32 input channels"))
         let continueToLevel2 = app.buttons["cm.original.windows-win-next"]
         XCTAssertTrue(continueToLevel2.waitForExistence(timeout: 10),
                       "Native win dispatcher must expose Continue after all four required contacts")
@@ -260,6 +264,10 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
             "Basket and its own crate did not produce the real SceneKit " +
             "CONNECTED_TO contact; last progress: \(progress.label)"
         )
+        let completion = app.staticTexts["cm.original.windows-win-completed"]
+        XCTAssertTrue(completion.waitForExistence(timeout: 10),
+                      "The native counter did not complete despite matching HUD contacts")
+        XCTAssertTrue(completion.label.hasPrefix("All 1 reconstructed Win32 input channels"))
         let continueToLevel3 = app.buttons["cm.original.windows-win-next"]
         XCTAssertTrue(continueToLevel3.waitForExistence(timeout: 10))
         XCTAssertTrue(continueToLevel3.isEnabled)
@@ -314,6 +322,10 @@ final class CrazyMachinesLaunchUITests: XCTestCase {
             "Five linked crates were not each collected by their exact " +
             "original zone; last progress: \(progress.label)"
         )
+        let completion = app.staticTexts["cm.original.windows-win-completed"]
+        XCTAssertTrue(completion.waitForExistence(timeout: 10),
+                      "The native counter did not complete despite matching HUD contacts")
+        XCTAssertTrue(completion.label.hasPrefix("All 5 reconstructed Win32 input channels"))
         let continueToLevel4 = app.buttons["cm.original.windows-win-next"]
         XCTAssertTrue(continueToLevel4.waitForExistence(timeout: 10))
         XCTAssertTrue(continueToLevel4.isEnabled)
