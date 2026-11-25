@@ -44,6 +44,9 @@ enum CMOriginalCISimulatorFixture {
         let solidModel = originalStorage.appendingPathComponent("cm_ci_solid.ucm")
         try? FileManager.default.removeItem(at: fixtureModel)
         try? FileManager.default.removeItem(at: solidModel)
+        for name in ["cm_ci_authored_ball.ucm", "cm_ci_authored_crate.ucm", "cm_ci_wide_zone.ucm"] {
+            try? FileManager.default.removeItem(at: originalStorage.appendingPathComponent(name))
+        }
         let syntheticGlow = originalStorage.appendingPathComponent("light_glow.tga")
         if let data = try? Data(contentsOf: syntheticGlow),
            data == makeSyntheticGlowTGA() {
@@ -98,7 +101,7 @@ enum CMOriginalCISimulatorFixture {
     /// orange triangle has zero Z span and cannot validate real rigid-body
     /// contacts. This model has finite volume on all three axes, without
     /// using any proprietary PC model or physics engine assets.
-    private static func makeSolidModel() -> Data {
+    private static func makeSolidModel(authoredSphere: Bool = false) -> Data {
         var header = Data(repeating: 0, count: 92)
         header.replaceSubrange(0..<4, with: Data("UCM1".utf8))
         func put(_ value: UInt32, at offset: Int) {
@@ -130,6 +133,44 @@ enum CMOriginalCISimulatorFixture {
                 appendU32(component.bitPattern, to: &data)
             }
         }
+        if authoredSphere {
+            // Synthetic collision metadata, never a proprietary UCM payload.
+            appendU32(1, to: &data)
+            appendU32(0, to: &data)
+            for value: Float in [0,0,0,0.5] { appendU32(value.bitPattern, to: &data) }
+        }
+        return data
+    }
+
+    /// Closed box with a real, synthetic UCM1 OBB table. A wide sensor
+    /// spans independent falling lanes; collected objects are NOT deleted.
+    private static func makeAuthoredBox(halfX: Float, halfY: Float, halfZ: Float) -> Data {
+        var header = Data(repeating: 0, count: 92)
+        header.replaceSubrange(0..<4, with: Data("UCM1".utf8))
+        func put(_ value: UInt32, at offset: Int) {
+            header.replaceSubrange(offset..<(offset+4), with: [
+                UInt8(truncatingIfNeeded: value), UInt8(truncatingIfNeeded: value >> 8),
+                UInt8(truncatingIfNeeded: value >> 16), UInt8(truncatingIfNeeded: value >> 24)
+            ])
+        }
+        put(1, at: 4); put(1, at: 72); put(12, at: 76); put(8, at: 80)
+        var data = header
+        let faces: [UInt32] = [0,2,1,0,3,2, 4,5,6,4,6,7,
+                               0,1,5,0,5,4, 3,7,6,3,6,2,
+                               0,4,7,0,7,3, 1,2,6,1,6,5]
+        for index in faces { appendU32(index, to: &data) }
+        let points: [[Float]] = [
+            [-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],
+            [-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]
+        ]
+        for p in points {
+            let vertex: [Float] = [p[0]*halfX,p[1]*halfY,p[2]*halfZ,
+                                   p[0]/sqrt(3),p[1]/sqrt(3),p[2]/sqrt(3),0,0]
+            for component in vertex { appendU32(component.bitPattern,to:&data) }
+        }
+        appendU32(0,to:&data); appendU32(1,to:&data)
+        let record: [Float] = [0,0,0,halfX,halfY,halfZ,1,0,0,0,1,0,0,0,1]
+        for component in record { appendU32(component.bitPattern,to:&data) }
         return data
     }
 
@@ -235,27 +276,27 @@ enum CMOriginalCISimulatorFixture {
 
     private static func makeThirdScene() throws -> Data {
         func object(_ name: String, x: Double, y: Double,
-                    extra: [String]) -> [String: Any] {
+                    extra: [String], model: String = "cm_ci_solid") -> [String: Any] {
             [
                 "name": name,
                 "fields": ["POS \(x), \(y), 0"] + extra,
                 "position": [x, y, 0.0],
-                "models": ["cm_ci_solid"], "children": []
+                "models": [model], "children": []
             ]
         }
         // Original Professor 3: five linked crates and one editable spring.
         // Original coordinates/mesh files are NOT included. Five synthetic
         // moving solids test distinct SceneKit contacts with the same zone.
         var elements: [[String: Any]] = [
-            object("tmo_zone", x: 0, y: -1, extra: ["VALB 32"]),
-            object("tmo_board", x: 0, y: -2.5, extra: ["VALB 64"]),
+            object("tmo_zone", x: 0, y: -1, extra: ["VALB 32"], model: "cm_ci_wide_zone"),
+            object("tmo_board", x: 0, y: -4, extra: ["VALB 64"]),
             object("tmo_spring", x: -4, y: -1,
                    extra: ["UNLOCKED 1"])
         ]
         for i in 0..<5 {
             elements.append(object(
-                "tmo_crate", x: 0, y: 1.1 + Double(i) * 1.4,
-                extra: ["CONNECTED_TO 0", "VALB 72"]))
+                "tmo_crate", x: Double(i - 2) * 1.6, y: 1.1 + Double(i) * 0.45,
+                extra: ["CONNECTED_TO 0", "VALB 72"], model: "cm_ci_authored_crate"))
         }
         let scene: [String: Any] = [
             "schema": "crazy-machines-original-scene-v1",
@@ -317,27 +358,27 @@ enum CMOriginalCISimulatorFixture {
     /// delivery path, which the orange triangle rendering smoke never tests.
     private static func makeLinkedZoneScene() throws -> Data {
         func object(_ name: String, x: Double, y: Double,
-                    extra: [String] = []) -> [String: Any] {
+                    extra: [String] = [], model: String = "cm_ci_solid") -> [String: Any] {
             let position = [x, y, 0.0]
             let fields = ["POS \(x), \(y), 0"] + extra
             return [
                 "name": name, "fields": fields, "position": position,
-                "models": ["cm_ci_solid"], "children": []
+                "models": [model], "children": []
             ]
         }
         let elements: [[String: Any]] = [
             // CONNECTED_TO indices refer to level_elements children.
-            object("tmo_zone", x: 0, y: -1, extra: ["VALB 32"]),
+            object("tmo_zone", x: 0, y: -1, extra: ["VALB 32"], model: "cm_ci_wide_zone"),
             object("tmo_board", x: -4, y: -2, extra: ["UNLOCKED 1", "VALB 64"]),
             object("tmo_board", x: 4, y: -2, extra: ["UNLOCKED 1", "VALB 64"]),
-            object("tmo_ball_tennis", x: 0, y: 1.1,
-                   extra: ["CONNECTED_TO 0", "VALB 72"]),
-            object("tmo_ball_beach", x: 0, y: 2.5,
-                   extra: ["CONNECTED_TO 0", "VALB 72"]),
-            object("tmo_ball_basket", x: 0, y: 3.9,
-                   extra: ["CONNECTED_TO 0", "VALB 72"]),
-            object("tmo_crate", x: 0, y: 5.3,
-                   extra: ["CONNECTED_TO 0", "VALB 72"])
+            object("tmo_ball_tennis", x: -2.7, y: 1.1,
+                   extra: ["CONNECTED_TO 0", "VALB 72"], model: "cm_ci_authored_ball"),
+            object("tmo_ball_beach", x: -0.9, y: 2.5,
+                   extra: ["CONNECTED_TO 0", "VALB 72"], model: "cm_ci_authored_ball"),
+            object("tmo_ball_basket", x: 0.9, y: 3.9,
+                   extra: ["CONNECTED_TO 0", "VALB 72"], model: "cm_ci_authored_ball"),
+            object("tmo_crate", x: 2.7, y: 5.3,
+                   extra: ["CONNECTED_TO 0", "VALB 72"], model: "cm_ci_authored_crate")
         ]
         let root: [String: Any] = [
             "name": "level", "fields": [],
@@ -373,6 +414,9 @@ enum CMOriginalCISimulatorFixture {
             ? [
                 ("cm_ci_triangle.ucm", makeModel()),
                 ("cm_ci_solid.ucm", makeSolidModel()),
+                ("cm_ci_authored_ball.ucm", makeSolidModel(authoredSphere: true)),
+                ("cm_ci_authored_crate.ucm", makeAuthoredBox(halfX: 0.4, halfY: 0.4, halfZ: 0.4)),
+                ("cm_ci_wide_zone.ucm", makeAuthoredBox(halfX: 4, halfY: 0.35, halfZ: 0.6)),
                 ("level-001.json", try makeLinkedZoneScene()),
                 ("level-002.json", try makeSecondScene()),
                 ("level-003.json", try makeThirdScene()),
