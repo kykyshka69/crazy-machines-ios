@@ -1197,6 +1197,7 @@ struct CMOriginalQuickPlayView: View {
                         Text(
                             "All \(counter.totalRequired) reconstructed Win32 input channels have fired. Full Windows physics parity remains unverified."
                         )
+                        .accessibilityIdentifier("cm.original.windows-win-completed")
                         .font(.caption)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
@@ -1222,7 +1223,10 @@ struct CMOriginalQuickPlayView: View {
                     .frame(maxWidth: 370)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
                     .padding(.horizontal, 14)
-                    .accessibilityIdentifier("cm.original.windows-leveldone-viewport")
+                    // Expose individual action buttons to VoiceOver and
+                    // XCTest. A parent accessibilityIdentifier on this
+                    // VStack masked its descendants on the simulator.
+                    .accessibilityElement(children: .contain)
                 }
             }
 
