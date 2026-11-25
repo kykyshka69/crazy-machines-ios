@@ -114,6 +114,16 @@ struct OriginalUCMNamedAnchorsSmoke {
         precondition(Overlap.world(volumes, transform:.init(origin:.zero,
             x:V(1,0,0), y:V(0.2,1,0), z:V(0,0,1))) == nil)
         precondition(!Overlap.intersects([zone], []))
+        // A retired participant must not fall back to stale physics contact.
+        precondition(Overlap.linkedZoneDecision([], [zone]) == false)
+        precondition(Overlap.linkedZoneDecision([zone], []) == false)
+        precondition(Overlap.linkedZoneDecision([], nil) == false)
+        precondition(Overlap.linkedZoneDecision(nil, []) == false)
+        precondition(Overlap.linkedZoneDecision(nil, [zone]) == nil)
+        precondition(Overlap.linkedZoneDecision([zone], nil) == nil)
+        precondition(Overlap.linkedZoneDecision(nil, nil) == nil)
+        precondition(Overlap.linkedZoneDecision([zone], [sphereNear]) == true)
+        precondition(Overlap.linkedZoneDecision([zone], [sphereFar]) == false)
         // Native density and surface values are distinct from the
         // old all-bodies-mass-one fallback.
         let steel = CMOriginalBodyMaterial.material(for: "tmo_ball_steel")!
