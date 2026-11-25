@@ -316,6 +316,16 @@ public enum CMOriginalVolumeOverlap {
     public static func intersects(_ a: [Primitive], _ b: [Primitive]) -> Bool {
         a.contains { x in b.contains { intersects(x,$0) } }
     }
+
+    /// nil means unavailable geometry and permits the legacy contact
+    /// fallback. A known inactive/retired owner is an empty array, which
+    /// must never be resurrected by a residual SceneKit contact.
+    public static func linkedZoneDecision(_ source: [Primitive]?,
+                                          _ target: [Primitive]?) -> Bool? {
+        if source?.isEmpty == true || target?.isEmpty == true { return false }
+        guard let source, let target else { return nil }
+        return intersects(source, target)
+    }
 }
 
 
