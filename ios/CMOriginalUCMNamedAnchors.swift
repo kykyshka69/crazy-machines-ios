@@ -431,7 +431,19 @@ public enum CMOriginalBodyMaterial {
         return exp(-coefficient * delta / nativeMassOrInertia)
     }
 
-    // 0x4516DF..0x45170A applies this upward force at an offset point.
-    // The port uses COM until the native point mapping is recovered.
-    public static let balloonNativeLift = 1.6
+    // 0x4516DF..0x45170A applies world +Y force 1.6 at the
+    // selector-4 marker (Wind, registered at 0x42FF94..0x42FFB1),
+    // displaced by transformed model +Y times -0.09 (0x45168C).
+    public static let balloonNativeLift = Double(Float(bitPattern: 0x3FCCCCCD))
+    public static let balloonLiftOffset = Double(Float(bitPattern: 0xBDB851EC))
+
+    public static func balloonLiftPoint(windMarker: SIMD3<Double>,
+                                        modelY: SIMD3<Double>) -> SIMD3<Double>? {
+        guard [windMarker.x,windMarker.y,windMarker.z,
+               modelY.x,modelY.y,modelY.z].allSatisfy(\.isFinite),
+              modelY.x*modelY.x + modelY.y*modelY.y + modelY.z*modelY.z > 1e-16
+              else { return nil }
+        let point = windMarker + modelY * balloonLiftOffset
+        return [point.x,point.y,point.z].allSatisfy(\.isFinite) ? point : nil
+    }
 }
